@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { useLocalSearchParams } from "expo-router";
 
-import { X } from "@tamagui/lucide-icons-2";
+import { X } from "@tamagui/lucide-icons-2/icons/X";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { parse } from "valibot";

@@ -1,6 +1,6 @@
 import React from "react";
 
-import { Info as InfoIcon } from "@tamagui/lucide-icons-2";
+import { Info as InfoIcon } from "@tamagui/lucide-icons-2/icons/Info";
 import { Toast, useToastState } from "@tamagui/toast";
 import { XStack } from "tamagui";
 

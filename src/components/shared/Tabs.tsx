@@ -3,7 +3,7 @@ import React from "react";
 
 import { selectionAsync } from "expo-haptics";
 
-import type { ArrowRight } from "@tamagui/lucide-icons-2";
+import type { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
 import { XStack } from "tamagui";
 
 import Text from "./Text";

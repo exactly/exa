@@ -1,7 +1,7 @@
 import React from "react";
 import { Trans } from "react-i18next";
 
-import { TriangleAlert } from "@tamagui/lucide-icons-2";
+import { TriangleAlert } from "@tamagui/lucide-icons-2/icons/TriangleAlert";
 import { AnimatePresence, XStack } from "tamagui";
 
 import Text from "./Text";

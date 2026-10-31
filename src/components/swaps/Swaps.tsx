@@ -4,22 +4,20 @@ import { Trans, useTranslation } from "react-i18next";
 import { selectionAsync } from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 
-import {
-  ArrowDownUp,
-  ArrowLeft,
-  ArrowRight,
-  ChartNoAxesCombined,
-  Check,
-  CircleHelp,
-  Coins,
-  Headphones,
-  IdCard,
-  Info,
-  OctagonX,
-  RefreshCw,
-  Repeat,
-  TriangleAlert,
-} from "@tamagui/lucide-icons-2";
+import { ArrowDownUp } from "@tamagui/lucide-icons-2/icons/ArrowDownUp";
+import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
+import { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
+import { ChartNoAxesCombined } from "@tamagui/lucide-icons-2/icons/ChartNoAxesCombined";
+import { Check } from "@tamagui/lucide-icons-2/icons/Check";
+import { CircleHelp } from "@tamagui/lucide-icons-2/icons/CircleHelp";
+import { Coins } from "@tamagui/lucide-icons-2/icons/Coins";
+import { Headphones } from "@tamagui/lucide-icons-2/icons/Headphones";
+import { IdCard } from "@tamagui/lucide-icons-2/icons/IdCard";
+import { Info } from "@tamagui/lucide-icons-2/icons/Info";
+import { OctagonX } from "@tamagui/lucide-icons-2/icons/OctagonX";
+import { RefreshCw } from "@tamagui/lucide-icons-2/icons/RefreshCw";
+import { Repeat } from "@tamagui/lucide-icons-2/icons/Repeat";
+import { TriangleAlert } from "@tamagui/lucide-icons-2/icons/TriangleAlert";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
 

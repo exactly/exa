@@ -5,7 +5,9 @@ import { Linking, StyleSheet } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useFocusEffect } from "expo-router";
 
-import { ArrowLeft, BoxSelect, SwitchCamera } from "@tamagui/lucide-icons-2";
+import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
+import { BoxSelect } from "@tamagui/lucide-icons-2/icons/BoxSelect";
+import { SwitchCamera } from "@tamagui/lucide-icons-2/icons/SwitchCamera";
 import { useWindowDimensions, XStack, YStack } from "tamagui";
 
 import reportError from "../../utils/reportError";

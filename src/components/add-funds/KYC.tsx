@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, ArrowRight } from "@tamagui/lucide-icons-2";
+import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
+import { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
 import { ScrollView, YStack } from "tamagui";
 
 import { useMutation } from "@tanstack/react-query";

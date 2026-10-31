@@ -1,7 +1,7 @@
 import React, { type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Info } from "@tamagui/lucide-icons-2";
+import { Info } from "@tamagui/lucide-icons-2/icons/Info";
 import { Spinner, XStack, YStack } from "tamagui";
 
 import AssetLogo from "../shared/AssetLogo";

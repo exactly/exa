@@ -1,6 +1,7 @@
 import React from "react";
 
-import { Fingerprint, Wallet } from "@tamagui/lucide-icons-2";
+import { Fingerprint } from "@tamagui/lucide-icons-2/icons/Fingerprint";
+import { Wallet } from "@tamagui/lucide-icons-2/icons/Wallet";
 import { ScrollView, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";

@@ -7,7 +7,14 @@ import { scheduleOnRN } from "react-native-worklets";
 import { impactAsync, ImpactFeedbackStyle, notificationAsync, NotificationFeedbackType } from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, ArrowRight, Check, CircleHelp, Info, OctagonX, TriangleAlert, X } from "@tamagui/lucide-icons-2";
+import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
+import { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
+import { Check } from "@tamagui/lucide-icons-2/icons/Check";
+import { CircleHelp } from "@tamagui/lucide-icons-2/icons/CircleHelp";
+import { Info } from "@tamagui/lucide-icons-2/icons/Info";
+import { OctagonX } from "@tamagui/lucide-icons-2/icons/OctagonX";
+import { TriangleAlert } from "@tamagui/lucide-icons-2/icons/TriangleAlert";
+import { X } from "@tamagui/lucide-icons-2/icons/X";
 import { AnimatePresence, ScrollView, Separator, Square, XStack, YStack } from "tamagui";
 
 import { ChainType } from "@lifi/sdk";

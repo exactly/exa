@@ -5,7 +5,10 @@ import { LineChart } from "react-native-wagmi-charts";
 
 import { impactAsync, ImpactFeedbackStyle, selectionAsync } from "expo-haptics";
 
-import { ChartLine, ChevronRight, TrendingDown, TrendingUp } from "@tamagui/lucide-icons-2";
+import { ChartLine } from "@tamagui/lucide-icons-2/icons/ChartLine";
+import { ChevronRight } from "@tamagui/lucide-icons-2/icons/ChevronRight";
+import { TrendingDown } from "@tamagui/lucide-icons-2/icons/TrendingDown";
+import { TrendingUp } from "@tamagui/lucide-icons-2/icons/TrendingUp";
 import { useTheme, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";

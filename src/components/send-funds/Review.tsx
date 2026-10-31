@@ -4,7 +4,12 @@ import { Trans, useTranslation } from "react-i18next";
 import { LinearGradient } from "expo-linear-gradient";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, ArrowRight, Check, CircleHelp, Info, TriangleAlert } from "@tamagui/lucide-icons-2";
+import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
+import { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
+import { Check } from "@tamagui/lucide-icons-2/icons/Check";
+import { CircleHelp } from "@tamagui/lucide-icons-2/icons/CircleHelp";
+import { Info } from "@tamagui/lucide-icons-2/icons/Info";
+import { TriangleAlert } from "@tamagui/lucide-icons-2/icons/TriangleAlert";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
 

@@ -7,7 +7,9 @@ import Carousel from "react-native-reanimated-carousel";
 
 import { useRouter } from "expo-router";
 
-import { Headphones, LogIn, UserPlus } from "@tamagui/lucide-icons-2";
+import { Headphones } from "@tamagui/lucide-icons-2/icons/Headphones";
+import { LogIn } from "@tamagui/lucide-icons-2/icons/LogIn";
+import { UserPlus } from "@tamagui/lucide-icons-2/icons/UserPlus";
 import { useWindowDimensions } from "tamagui";
 
 import { sdk } from "@farcaster/miniapp-sdk";

@@ -4,15 +4,13 @@ import { useTranslation } from "react-i18next";
 import { selectionAsync } from "expo-haptics";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import {
-  ArrowDownUp,
-  ArrowLeft,
-  ArrowRight,
-  ArrowUp,
-  ChevronRight,
-  CircleHelp,
-  CircleX,
-} from "@tamagui/lucide-icons-2";
+import { ArrowDownUp } from "@tamagui/lucide-icons-2/icons/ArrowDownUp";
+import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
+import { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
+import { ArrowUp } from "@tamagui/lucide-icons-2/icons/ArrowUp";
+import { ChevronRight } from "@tamagui/lucide-icons-2/icons/ChevronRight";
+import { CircleHelp } from "@tamagui/lucide-icons-2/icons/CircleHelp";
+import { CircleX } from "@tamagui/lucide-icons-2/icons/CircleX";
 import { ScrollView, XStack, YStack, type TamaguiElement } from "tamagui";
 
 import { useQueries, useQuery } from "@tanstack/react-query";

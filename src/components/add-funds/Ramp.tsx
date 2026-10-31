@@ -6,17 +6,15 @@ import QRCode from "react-native-qrcode-styled";
 import { setStringAsync } from "expo-clipboard";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import {
-  ArrowLeft,
-  Banknote,
-  Clock,
-  Copy,
-  Percent,
-  QrCode,
-  Repeat,
-  Share as ShareIcon,
-  TriangleAlert,
-} from "@tamagui/lucide-icons-2";
+import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
+import { Banknote } from "@tamagui/lucide-icons-2/icons/Banknote";
+import { Clock } from "@tamagui/lucide-icons-2/icons/Clock";
+import { Copy } from "@tamagui/lucide-icons-2/icons/Copy";
+import { Percent } from "@tamagui/lucide-icons-2/icons/Percent";
+import { QrCode } from "@tamagui/lucide-icons-2/icons/QrCode";
+import { Repeat } from "@tamagui/lucide-icons-2/icons/Repeat";
+import { Share as ShareIcon } from "@tamagui/lucide-icons-2/icons/Share";
+import { TriangleAlert } from "@tamagui/lucide-icons-2/icons/TriangleAlert";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack } from "tamagui";
 

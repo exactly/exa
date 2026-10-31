@@ -3,7 +3,14 @@ import { useTranslation } from "react-i18next";
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, ArrowRight, CircleHelp, Eye, EyeOff, Info, Landmark, Zap } from "@tamagui/lucide-icons-2";
+import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
+import { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
+import { CircleHelp } from "@tamagui/lucide-icons-2/icons/CircleHelp";
+import { Eye } from "@tamagui/lucide-icons-2/icons/Eye";
+import { EyeOff } from "@tamagui/lucide-icons-2/icons/EyeOff";
+import { Info } from "@tamagui/lucide-icons-2/icons/Info";
+import { Landmark } from "@tamagui/lucide-icons-2/icons/Landmark";
+import { Zap } from "@tamagui/lucide-icons-2/icons/Zap";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack } from "tamagui";
 

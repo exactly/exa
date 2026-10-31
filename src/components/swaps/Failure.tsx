@@ -4,7 +4,8 @@ import { Pressable } from "react-native";
 
 import { LinearGradient } from "expo-linear-gradient";
 
-import { ArrowDown, X } from "@tamagui/lucide-icons-2";
+import { ArrowDown } from "@tamagui/lucide-icons-2/icons/ArrowDown";
+import { X } from "@tamagui/lucide-icons-2/icons/X";
 import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
 
 import formatTokenAmount from "../../utils/formatTokenAmount";

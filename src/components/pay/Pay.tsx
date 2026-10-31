@@ -3,7 +3,14 @@ import { useTranslation } from "react-i18next";
 
 import { useRouter } from "expo-router";
 
-import { Check, Coins, ExternalLink, Eye, EyeOff, FileText, Info, RefreshCw } from "@tamagui/lucide-icons-2";
+import { Check } from "@tamagui/lucide-icons-2/icons/Check";
+import { Coins } from "@tamagui/lucide-icons-2/icons/Coins";
+import { ExternalLink } from "@tamagui/lucide-icons-2/icons/ExternalLink";
+import { Eye } from "@tamagui/lucide-icons-2/icons/Eye";
+import { EyeOff } from "@tamagui/lucide-icons-2/icons/EyeOff";
+import { FileText } from "@tamagui/lucide-icons-2/icons/FileText";
+import { Info } from "@tamagui/lucide-icons-2/icons/Info";
+import { RefreshCw } from "@tamagui/lucide-icons-2/icons/RefreshCw";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack } from "tamagui";
 

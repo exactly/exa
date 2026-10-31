@@ -4,17 +4,15 @@ import { Trans, useTranslation } from "react-i18next";
 import { selectionAsync } from "expo-haptics";
 import { useRouter } from "expo-router";
 
-import {
-  ChevronRight,
-  CircleHelp,
-  ClockAlert,
-  CreditCard,
-  DollarSign,
-  Eye,
-  EyeOff,
-  Hash,
-  Snowflake,
-} from "@tamagui/lucide-icons-2";
+import { ChevronRight } from "@tamagui/lucide-icons-2/icons/ChevronRight";
+import { CircleHelp } from "@tamagui/lucide-icons-2/icons/CircleHelp";
+import { ClockAlert } from "@tamagui/lucide-icons-2/icons/ClockAlert";
+import { CreditCard } from "@tamagui/lucide-icons-2/icons/CreditCard";
+import { DollarSign } from "@tamagui/lucide-icons-2/icons/DollarSign";
+import { Eye } from "@tamagui/lucide-icons-2/icons/Eye";
+import { EyeOff } from "@tamagui/lucide-icons-2/icons/EyeOff";
+import { Hash } from "@tamagui/lucide-icons-2/icons/Hash";
+import { Snowflake } from "@tamagui/lucide-icons-2/icons/Snowflake";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, Separator, Spinner, Square, XStack, YStack } from "tamagui";
 

@@ -2,7 +2,8 @@ import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
-import { Check, X } from "@tamagui/lucide-icons-2";
+import { Check } from "@tamagui/lucide-icons-2/icons/Check";
+import { X } from "@tamagui/lucide-icons-2/icons/X";
 import { Square, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";

@@ -4,7 +4,12 @@ import { useTranslation } from "react-i18next";
 import { selectionAsync } from "expo-haptics";
 import { Redirect, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 
-import { ArrowDownToLine, ArrowLeft, ArrowUpRight, CircleDollarSign, CircleHelp, Info } from "@tamagui/lucide-icons-2";
+import { ArrowDownToLine } from "@tamagui/lucide-icons-2/icons/ArrowDownToLine";
+import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
+import { ArrowUpRight } from "@tamagui/lucide-icons-2/icons/ArrowUpRight";
+import { CircleDollarSign } from "@tamagui/lucide-icons-2/icons/CircleDollarSign";
+import { CircleHelp } from "@tamagui/lucide-icons-2/icons/CircleHelp";
+import { Info } from "@tamagui/lucide-icons-2/icons/Info";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";

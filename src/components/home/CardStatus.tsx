@@ -14,7 +14,13 @@ import { scheduleOnRN } from "react-native-worklets";
 
 import { selectionAsync } from "expo-haptics";
 
-import { CalendarDays, ChevronRight, CreditCard, Info, Snowflake, Wallet, Zap } from "@tamagui/lucide-icons-2";
+import { CalendarDays } from "@tamagui/lucide-icons-2/icons/CalendarDays";
+import { ChevronRight } from "@tamagui/lucide-icons-2/icons/ChevronRight";
+import { CreditCard } from "@tamagui/lucide-icons-2/icons/CreditCard";
+import { Info } from "@tamagui/lucide-icons-2/icons/Info";
+import { Snowflake } from "@tamagui/lucide-icons-2/icons/Snowflake";
+import { Wallet } from "@tamagui/lucide-icons-2/icons/Wallet";
+import { Zap } from "@tamagui/lucide-icons-2/icons/Zap";
 import { useToastController } from "@tamagui/toast";
 import { AnimatePresence, Spinner, Square, useTheme, View, XStack, YStack } from "tamagui";
 

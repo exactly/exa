@@ -4,7 +4,7 @@ import { Alert } from "react-native";
 
 import { setStringAsync } from "expo-clipboard";
 
-import { ExternalLink } from "@tamagui/lucide-icons-2";
+import { ExternalLink } from "@tamagui/lucide-icons-2/icons/ExternalLink";
 import { Separator, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";

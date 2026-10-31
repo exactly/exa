@@ -3,7 +3,9 @@ import { useTranslation } from "react-i18next";
 
 import { useRouter } from "expo-router";
 
-import { ArrowDownToLine, ArrowLeft, IdCard } from "@tamagui/lucide-icons-2";
+import { ArrowDownToLine } from "@tamagui/lucide-icons-2/icons/ArrowDownToLine";
+import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
+import { IdCard } from "@tamagui/lucide-icons-2/icons/IdCard";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack } from "tamagui";
 

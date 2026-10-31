@@ -2,7 +2,10 @@ import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FlatList, Pressable } from "react-native";
 
-import { ChartNoAxesCombined, Ellipsis, Search, X } from "@tamagui/lucide-icons-2";
+import { ChartNoAxesCombined } from "@tamagui/lucide-icons-2/icons/ChartNoAxesCombined";
+import { Ellipsis } from "@tamagui/lucide-icons-2/icons/Ellipsis";
+import { Search } from "@tamagui/lucide-icons-2/icons/Search";
+import { X } from "@tamagui/lucide-icons-2/icons/X";
 import { getTokens, ScrollView, XStack, YStack } from "tamagui";
 
 import chain from "@exactly/common/generated/chain";

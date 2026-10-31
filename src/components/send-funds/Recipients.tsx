@@ -3,7 +3,13 @@ import { useTranslation } from "react-i18next";
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, CircleHelp, Contact, PencilLine, QrCode, Settings, TriangleAlert } from "@tamagui/lucide-icons-2";
+import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
+import { CircleHelp } from "@tamagui/lucide-icons-2/icons/CircleHelp";
+import { Contact } from "@tamagui/lucide-icons-2/icons/Contact";
+import { PencilLine } from "@tamagui/lucide-icons-2/icons/PencilLine";
+import { QrCode } from "@tamagui/lucide-icons-2/icons/QrCode";
+import { Settings } from "@tamagui/lucide-icons-2/icons/Settings";
+import { TriangleAlert } from "@tamagui/lucide-icons-2/icons/TriangleAlert";
 import { useToastController } from "@tamagui/toast";
 import { getTokens, ScrollView, Spinner, XStack, YStack } from "tamagui";
 

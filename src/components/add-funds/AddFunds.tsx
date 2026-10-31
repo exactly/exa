@@ -3,7 +3,12 @@ import { useTranslation } from "react-i18next";
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, Banknote, Blocks, CircleHelp, Info, Wallet } from "@tamagui/lucide-icons-2";
+import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
+import { Banknote } from "@tamagui/lucide-icons-2/icons/Banknote";
+import { Blocks } from "@tamagui/lucide-icons-2/icons/Blocks";
+import { CircleHelp } from "@tamagui/lucide-icons-2/icons/CircleHelp";
+import { Info } from "@tamagui/lucide-icons-2/icons/Info";
+import { Wallet } from "@tamagui/lucide-icons-2/icons/Wallet";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";

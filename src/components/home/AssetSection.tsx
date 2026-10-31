@@ -1,6 +1,6 @@
 import React, { type ReactNode } from "react";
 
-import { Info } from "@tamagui/lucide-icons-2";
+import { Info } from "@tamagui/lucide-icons-2/icons/Info";
 import { XStack, YStack } from "tamagui";
 
 import Text from "../shared/Text";

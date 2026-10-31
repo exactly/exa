@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { useRouter } from "expo-router";
 
-import { ArrowRight } from "@tamagui/lucide-icons-2";
+import { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
 
 import accountCreated from "../../assets/images/account-created.webp";
 import Image from "../shared/Image";

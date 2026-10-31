@@ -1,7 +1,9 @@
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { CircleCheck, FileText, Headset } from "@tamagui/lucide-icons-2";
+import { CircleCheck } from "@tamagui/lucide-icons-2/icons/CircleCheck";
+import { FileText } from "@tamagui/lucide-icons-2/icons/FileText";
+import { Headset } from "@tamagui/lucide-icons-2/icons/Headset";
 import { XStack, YStack } from "tamagui";
 
 import Breakdown from "./Breakdown";

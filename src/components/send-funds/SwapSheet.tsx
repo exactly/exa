@@ -1,7 +1,8 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { ArrowRight, Shuffle } from "@tamagui/lucide-icons-2";
+import { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
+import { Shuffle } from "@tamagui/lucide-icons-2/icons/Shuffle";
 import { XStack, YStack } from "tamagui";
 
 import queryClient from "../../utils/queryClient";

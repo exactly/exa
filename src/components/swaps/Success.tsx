@@ -5,7 +5,10 @@ import { Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 
-import { ArrowDown, ArrowRight, Check, X } from "@tamagui/lucide-icons-2";
+import { ArrowDown } from "@tamagui/lucide-icons-2/icons/ArrowDown";
+import { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
+import { Check } from "@tamagui/lucide-icons-2/icons/Check";
+import { X } from "@tamagui/lucide-icons-2/icons/X";
 import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
 
 import formatTokenAmount from "../../utils/formatTokenAmount";

@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { selectionAsync } from "expo-haptics";
 
-import { ChevronRight } from "@tamagui/lucide-icons-2";
+import { ChevronRight } from "@tamagui/lucide-icons-2/icons/ChevronRight";
 
 import reportError from "../../utils/reportError";
 import Button from "../shared/StyledButton";

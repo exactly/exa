@@ -3,7 +3,9 @@ import { useTranslation } from "react-i18next";
 import { Platform } from "react-native";
 import { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 
-import { Loader, LockKeyhole, Snowflake } from "@tamagui/lucide-icons-2";
+import { Loader } from "@tamagui/lucide-icons-2/icons/Loader";
+import { LockKeyhole } from "@tamagui/lucide-icons-2/icons/LockKeyhole";
+import { Snowflake } from "@tamagui/lucide-icons-2/icons/Snowflake";
 import { AnimatePresence, XStack, YStack } from "tamagui";
 
 import { marketUSDCAddress } from "@exactly/common/generated/chain";

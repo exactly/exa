@@ -5,7 +5,11 @@ import { Alert, Pressable } from "react-native";
 import { setStringAsync } from "expo-clipboard";
 import { useRouter } from "expo-router";
 
-import { ArrowLeft, Check, HelpCircle, LogOut, SendHorizontal } from "@tamagui/lucide-icons-2";
+import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
+import { Check } from "@tamagui/lucide-icons-2/icons/Check";
+import { HelpCircle } from "@tamagui/lucide-icons-2/icons/HelpCircle";
+import { LogOut } from "@tamagui/lucide-icons-2/icons/LogOut";
+import { SendHorizontal } from "@tamagui/lucide-icons-2/icons/SendHorizontal";
 import { ScrollView, Separator, XStack } from "tamagui";
 
 import { useDisconnect } from "wagmi";

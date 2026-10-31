@@ -3,7 +3,9 @@ import { useTranslation } from "react-i18next";
 
 import { useRouter } from "expo-router";
 
-import { AlignJustify, ChevronRight, FileText } from "@tamagui/lucide-icons-2";
+import { AlignJustify } from "@tamagui/lucide-icons-2/icons/AlignJustify";
+import { ChevronRight } from "@tamagui/lucide-icons-2/icons/ChevronRight";
+import { FileText } from "@tamagui/lucide-icons-2/icons/FileText";
 import { Separator, YStack } from "tamagui";
 
 import Button from "../shared/StyledButton";

@@ -2,7 +2,8 @@ import React from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
-import { ExternalLink, X } from "@tamagui/lucide-icons-2";
+import { ExternalLink } from "@tamagui/lucide-icons-2/icons/ExternalLink";
+import { X } from "@tamagui/lucide-icons-2/icons/X";
 import { XStack, YStack } from "tamagui";
 
 import { presentArticle } from "../../utils/intercom";

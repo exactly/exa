@@ -3,7 +3,8 @@ import { Trans, useTranslation } from "react-i18next";
 
 import { useRouter } from "expo-router";
 
-import { Key, X } from "@tamagui/lucide-icons-2";
+import { Key } from "@tamagui/lucide-icons-2/icons/Key";
+import { X } from "@tamagui/lucide-icons-2/icons/X";
 import { XStack } from "tamagui";
 
 import passkeys from "../../assets/images/passkeys.webp";

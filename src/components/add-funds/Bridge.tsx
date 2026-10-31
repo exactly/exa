@@ -4,7 +4,14 @@ import { Pressable } from "react-native";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, ArrowRight, Check, CircleHelp, Clock, Repeat, Wallet, X } from "@tamagui/lucide-icons-2";
+import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
+import { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
+import { Check } from "@tamagui/lucide-icons-2/icons/Check";
+import { CircleHelp } from "@tamagui/lucide-icons-2/icons/CircleHelp";
+import { Clock } from "@tamagui/lucide-icons-2/icons/Clock";
+import { Repeat } from "@tamagui/lucide-icons-2/icons/Repeat";
+import { Wallet } from "@tamagui/lucide-icons-2/icons/Wallet";
+import { X } from "@tamagui/lucide-icons-2/icons/X";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, Spinner, Square, XStack, YStack } from "tamagui";
 

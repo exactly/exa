@@ -3,7 +3,11 @@ import { Trans, useTranslation } from "react-i18next";
 
 import { useRouter } from "expo-router";
 
-import { ArrowLeft, BriefcaseBusiness, ChartNoAxesCombined, CircleHelp, ShieldCheck } from "@tamagui/lucide-icons-2";
+import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
+import { BriefcaseBusiness } from "@tamagui/lucide-icons-2/icons/BriefcaseBusiness";
+import { ChartNoAxesCombined } from "@tamagui/lucide-icons-2/icons/ChartNoAxesCombined";
+import { CircleHelp } from "@tamagui/lucide-icons-2/icons/CircleHelp";
+import { ShieldCheck } from "@tamagui/lucide-icons-2/icons/ShieldCheck";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";

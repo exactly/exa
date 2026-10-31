@@ -3,7 +3,12 @@ import { useTranslation } from "react-i18next";
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, ArrowRight, Check, ChevronRight, CircleHelp, X } from "@tamagui/lucide-icons-2";
+import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
+import { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
+import { Check } from "@tamagui/lucide-icons-2/icons/Check";
+import { ChevronRight } from "@tamagui/lucide-icons-2/icons/ChevronRight";
+import { CircleHelp } from "@tamagui/lucide-icons-2/icons/CircleHelp";
+import { X } from "@tamagui/lucide-icons-2/icons/X";
 import { ScrollView, Separator, Square, XStack, YStack } from "tamagui";
 
 import { useMutation, useQuery } from "@tanstack/react-query";

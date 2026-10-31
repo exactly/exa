@@ -2,7 +2,8 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
-import { AlertTriangle, ChevronRight } from "@tamagui/lucide-icons-2";
+import { AlertTriangle } from "@tamagui/lucide-icons-2/icons/AlertTriangle";
+import { ChevronRight } from "@tamagui/lucide-icons-2/icons/ChevronRight";
 import { Text, View } from "tamagui";
 
 import { presentArticle } from "../../utils/intercom";

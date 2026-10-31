@@ -1,7 +1,8 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { Headphones, X } from "@tamagui/lucide-icons-2";
+import { Headphones } from "@tamagui/lucide-icons-2/icons/Headphones";
+import { X } from "@tamagui/lucide-icons-2/icons/X";
 import { AlertDialog, XStack, YStack } from "tamagui";
 
 import Button from "./StyledButton";

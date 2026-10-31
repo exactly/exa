@@ -4,7 +4,7 @@ import { Pressable } from "react-native";
 
 import { setStringAsync } from "expo-clipboard";
 
-import { Copy } from "@tamagui/lucide-icons-2";
+import { Copy } from "@tamagui/lucide-icons-2/icons/Copy";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, useThemeName, XStack, YStack } from "tamagui";
 

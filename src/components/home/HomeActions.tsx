@@ -3,7 +3,10 @@ import { useTranslation } from "react-i18next";
 
 import { useRouter } from "expo-router";
 
-import { ArrowDownToLine, ArrowUpRight, HandCoins, Repeat } from "@tamagui/lucide-icons-2";
+import { ArrowDownToLine } from "@tamagui/lucide-icons-2/icons/ArrowDownToLine";
+import { ArrowUpRight } from "@tamagui/lucide-icons-2/icons/ArrowUpRight";
+import { HandCoins } from "@tamagui/lucide-icons-2/icons/HandCoins";
+import { Repeat } from "@tamagui/lucide-icons-2/icons/Repeat";
 import { XStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";

@@ -3,17 +3,15 @@ import { useTranslation } from "react-i18next";
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import {
-  ArrowLeft,
-  ArrowLeftRight,
-  ArrowRight,
-  Calendar,
-  CircleDollarSign,
-  CircleHelp,
-  Info,
-  Percent,
-  TriangleAlert,
-} from "@tamagui/lucide-icons-2";
+import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
+import { ArrowLeftRight } from "@tamagui/lucide-icons-2/icons/ArrowLeftRight";
+import { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
+import { Calendar } from "@tamagui/lucide-icons-2/icons/Calendar";
+import { CircleDollarSign } from "@tamagui/lucide-icons-2/icons/CircleDollarSign";
+import { CircleHelp } from "@tamagui/lucide-icons-2/icons/CircleHelp";
+import { Info } from "@tamagui/lucide-icons-2/icons/Info";
+import { Percent } from "@tamagui/lucide-icons-2/icons/Percent";
+import { TriangleAlert } from "@tamagui/lucide-icons-2/icons/TriangleAlert";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import { useForm, useStore } from "@tanstack/react-form";

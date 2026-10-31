@@ -5,7 +5,10 @@ import { Pressable } from "react-native";
 import { setStringAsync } from "expo-clipboard";
 import { useRouter } from "expo-router";
 
-import { ClockArrowUp, Eye, EyeOff, Settings } from "@tamagui/lucide-icons-2";
+import { ClockArrowUp } from "@tamagui/lucide-icons-2/icons/ClockArrowUp";
+import { Eye } from "@tamagui/lucide-icons-2/icons/Eye";
+import { EyeOff } from "@tamagui/lucide-icons-2/icons/EyeOff";
+import { Settings } from "@tamagui/lucide-icons-2/icons/Settings";
 import { getTokens, useTheme } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";

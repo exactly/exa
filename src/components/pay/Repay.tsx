@@ -3,7 +3,9 @@ import { useTranslation } from "react-i18next";
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, ChevronRight, Coins } from "@tamagui/lucide-icons-2";
+import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
+import { ChevronRight } from "@tamagui/lucide-icons-2/icons/ChevronRight";
+import { Coins } from "@tamagui/lucide-icons-2/icons/Coins";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";

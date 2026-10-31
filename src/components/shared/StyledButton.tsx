@@ -1,7 +1,7 @@
 import type React from "react";
 import { use, useMemo, type ComponentPropsWithoutRef } from "react";
 
-import type { ArrowRight } from "@tamagui/lucide-icons-2";
+import type { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
 import { createStyledContext, Spinner, styled, withStaticProperties, XStack, YStack } from "tamagui";
 
 import Text from "./Text";

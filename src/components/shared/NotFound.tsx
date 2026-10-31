@@ -4,7 +4,7 @@ import { Platform, Pressable } from "react-native";
 
 import { SplashScreen, useRouter, useUnstableGlobalHref } from "expo-router";
 
-import { ExternalLink } from "@tamagui/lucide-icons-2";
+import { ExternalLink } from "@tamagui/lucide-icons-2/icons/ExternalLink";
 import { YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";

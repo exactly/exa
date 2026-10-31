@@ -3,7 +3,13 @@ import { useTranslation } from "react-i18next";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, CircleCheck, CircleHelp, Coins, CreditCard, FileText, Upload } from "@tamagui/lucide-icons-2";
+import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
+import { CircleCheck } from "@tamagui/lucide-icons-2/icons/CircleCheck";
+import { CircleHelp } from "@tamagui/lucide-icons-2/icons/CircleHelp";
+import { Coins } from "@tamagui/lucide-icons-2/icons/Coins";
+import { CreditCard } from "@tamagui/lucide-icons-2/icons/CreditCard";
+import { FileText } from "@tamagui/lucide-icons-2/icons/FileText";
+import { Upload } from "@tamagui/lucide-icons-2/icons/Upload";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import { MATURITY_INTERVAL } from "@exactly/lib";

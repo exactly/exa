@@ -4,7 +4,10 @@ import { PixelRatio, Pressable } from "react-native";
 
 import { useRouter } from "expo-router";
 
-import { ArrowDownToLine, ArrowRight, ChevronRight, IdCard } from "@tamagui/lucide-icons-2";
+import { ArrowDownToLine } from "@tamagui/lucide-icons-2/icons/ArrowDownToLine";
+import { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
+import { ChevronRight } from "@tamagui/lucide-icons-2/icons/ChevronRight";
+import { IdCard } from "@tamagui/lucide-icons-2/icons/IdCard";
 import { useToastController } from "@tamagui/toast";
 import { Spinner, XStack, YStack } from "tamagui";
 

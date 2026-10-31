@@ -1,7 +1,8 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { ArrowRight, X } from "@tamagui/lucide-icons-2";
+import { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
+import { X } from "@tamagui/lucide-icons-2/icons/X";
 import { YStack } from "tamagui";
 
 import stocks from "../../assets/images/stocks.webp";

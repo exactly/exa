@@ -2,7 +2,10 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
-import { CalendarDays, ExternalLink, X, Zap } from "@tamagui/lucide-icons-2";
+import { CalendarDays } from "@tamagui/lucide-icons-2/icons/CalendarDays";
+import { ExternalLink } from "@tamagui/lucide-icons-2/icons/ExternalLink";
+import { X } from "@tamagui/lucide-icons-2/icons/X";
+import { Zap } from "@tamagui/lucide-icons-2/icons/Zap";
 import { XStack, YStack } from "tamagui";
 
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";

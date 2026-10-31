@@ -4,7 +4,11 @@ import { Platform } from "react-native";
 
 import { setStringAsync } from "expo-clipboard";
 
-import { ChevronRight, Download, LetterText, Table, Upload } from "@tamagui/lucide-icons-2";
+import { ChevronRight } from "@tamagui/lucide-icons-2/icons/ChevronRight";
+import { Download } from "@tamagui/lucide-icons-2/icons/Download";
+import { LetterText } from "@tamagui/lucide-icons-2/icons/LetterText";
+import { Table } from "@tamagui/lucide-icons-2/icons/Table";
+import { Upload } from "@tamagui/lucide-icons-2/icons/Upload";
 import { useToastController } from "@tamagui/toast";
 import { Separator, XStack, YStack } from "tamagui";
 

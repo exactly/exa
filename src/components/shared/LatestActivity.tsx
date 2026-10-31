@@ -4,7 +4,7 @@ import { Pressable } from "react-native";
 
 import { useRouter } from "expo-router";
 
-import { ChevronRight } from "@tamagui/lucide-icons-2";
+import { ChevronRight } from "@tamagui/lucide-icons-2/icons/ChevronRight";
 import { XStack, YStack } from "tamagui";
 
 import ActivityItemView from "../activity/ActivityItem";

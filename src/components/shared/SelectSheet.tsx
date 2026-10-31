@@ -1,7 +1,8 @@
 import React, { useState, type ComponentProps } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Check, Search } from "@tamagui/lucide-icons-2";
+import { Check } from "@tamagui/lucide-icons-2/icons/Check";
+import { Search } from "@tamagui/lucide-icons-2/icons/Search";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import Input from "./Input";

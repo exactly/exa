@@ -2,7 +2,10 @@ import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
-import { Check, ChevronDown, Network, Search } from "@tamagui/lucide-icons-2";
+import { Check } from "@tamagui/lucide-icons-2/icons/Check";
+import { ChevronDown } from "@tamagui/lucide-icons-2/icons/ChevronDown";
+import { Network } from "@tamagui/lucide-icons-2/icons/Network";
+import { Search } from "@tamagui/lucide-icons-2/icons/Search";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { formatUnits } from "viem";

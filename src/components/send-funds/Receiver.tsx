@@ -4,20 +4,18 @@ import { Keyboard, type View as RNView } from "react-native";
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import {
-  ArrowLeft,
-  ArrowRight,
-  ArrowUp,
-  Check,
-  Contact as ContactIcon,
-  Pencil,
-  Plus,
-  QrCode,
-  Search,
-  Settings,
-  Wallet,
-  X,
-} from "@tamagui/lucide-icons-2";
+import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
+import { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
+import { ArrowUp } from "@tamagui/lucide-icons-2/icons/ArrowUp";
+import { Check } from "@tamagui/lucide-icons-2/icons/Check";
+import { Contact as ContactIcon } from "@tamagui/lucide-icons-2/icons/Contact";
+import { Pencil } from "@tamagui/lucide-icons-2/icons/Pencil";
+import { Plus } from "@tamagui/lucide-icons-2/icons/Plus";
+import { QrCode } from "@tamagui/lucide-icons-2/icons/QrCode";
+import { Search } from "@tamagui/lucide-icons-2/icons/Search";
+import { Settings } from "@tamagui/lucide-icons-2/icons/Settings";
+import { Wallet } from "@tamagui/lucide-icons-2/icons/Wallet";
+import { X } from "@tamagui/lucide-icons-2/icons/X";
 import { useToastController } from "@tamagui/toast";
 import { AnimatePresence, getTokens, ScrollView, Spinner, XStack, YStack } from "tamagui";
 

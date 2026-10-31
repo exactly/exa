@@ -1,7 +1,7 @@
 import React, { type ComponentPropsWithoutRef } from "react";
 import { useTranslation } from "react-i18next";
 
-import { ChevronDown } from "@tamagui/lucide-icons-2";
+import { ChevronDown } from "@tamagui/lucide-icons-2/icons/ChevronDown";
 import { XStack } from "tamagui";
 
 import ChainLogo from "./ChainLogo";

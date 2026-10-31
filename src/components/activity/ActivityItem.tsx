@@ -3,15 +3,13 @@ import { useTranslation } from "react-i18next";
 
 import { router } from "expo-router";
 
-import {
-  ArrowDownToLine,
-  ArrowUpFromLine,
-  CircleDollarSign,
-  ClockAlert,
-  Import,
-  ShoppingCart,
-  SquareDashed,
-} from "@tamagui/lucide-icons-2";
+import { ArrowDownToLine } from "@tamagui/lucide-icons-2/icons/ArrowDownToLine";
+import { ArrowUpFromLine } from "@tamagui/lucide-icons-2/icons/ArrowUpFromLine";
+import { CircleDollarSign } from "@tamagui/lucide-icons-2/icons/CircleDollarSign";
+import { ClockAlert } from "@tamagui/lucide-icons-2/icons/ClockAlert";
+import { Import } from "@tamagui/lucide-icons-2/icons/Import";
+import { ShoppingCart } from "@tamagui/lucide-icons-2/icons/ShoppingCart";
+import { SquareDashed } from "@tamagui/lucide-icons-2/icons/SquareDashed";
 import { Square, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";

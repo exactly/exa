@@ -6,7 +6,10 @@ import { selectionAsync } from "expo-haptics";
 import Head from "expo-router/head";
 import { TabSlot, TabTrigger, useTabsWithTriggers } from "expo-router/ui";
 
-import { CalendarCheck, CreditCard, History, Home } from "@tamagui/lucide-icons-2";
+import { CalendarCheck } from "@tamagui/lucide-icons-2/icons/CalendarCheck";
+import { CreditCard } from "@tamagui/lucide-icons-2/icons/CreditCard";
+import { History } from "@tamagui/lucide-icons-2/icons/History";
+import { Home } from "@tamagui/lucide-icons-2/icons/Home";
 import { getTokens, XStack, YStack } from "tamagui";
 
 import TabBarContext from "../../../components/context/TabBarContext";

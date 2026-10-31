@@ -7,7 +7,11 @@ import { setStringAsync } from "expo-clipboard";
 import { selectionAsync } from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { Copy, Info, RefreshCw, Share as ShareIcon, X } from "@tamagui/lucide-icons-2";
+import { Copy } from "@tamagui/lucide-icons-2/icons/Copy";
+import { Info } from "@tamagui/lucide-icons-2/icons/Info";
+import { RefreshCw } from "@tamagui/lucide-icons-2/icons/RefreshCw";
+import { Share as ShareIcon } from "@tamagui/lucide-icons-2/icons/Share";
+import { X } from "@tamagui/lucide-icons-2/icons/X";
 import { useToastController } from "@tamagui/toast";
 import { ScrollView, XStack, YStack, type ColorTokens } from "tamagui";
 

@@ -1,7 +1,9 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { AlertTriangle, CheckCircle, X } from "@tamagui/lucide-icons-2";
+import { AlertTriangle } from "@tamagui/lucide-icons-2/icons/AlertTriangle";
+import { CheckCircle } from "@tamagui/lucide-icons-2/icons/CheckCircle";
+import { X } from "@tamagui/lucide-icons-2/icons/X";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import chain from "@exactly/common/generated/chain";

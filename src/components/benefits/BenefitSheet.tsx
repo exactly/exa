@@ -1,7 +1,8 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { ExternalLink, X } from "@tamagui/lucide-icons-2";
+import { ExternalLink } from "@tamagui/lucide-icons-2/icons/ExternalLink";
+import { X } from "@tamagui/lucide-icons-2/icons/X";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import openBrowser from "../../utils/openBrowser";

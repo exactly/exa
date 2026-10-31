@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
-import { ArrowLeft, Headphones } from "@tamagui/lucide-icons-2";
+import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
+import { Headphones } from "@tamagui/lucide-icons-2/icons/Headphones";
 import { YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";

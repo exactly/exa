@@ -1,6 +1,6 @@
 import React from "react";
 
-import { ChevronRight } from "@tamagui/lucide-icons-2";
+import { ChevronRight } from "@tamagui/lucide-icons-2/icons/ChevronRight";
 import { Spinner, XStack, YStack } from "tamagui";
 
 import Text from "../shared/Text";

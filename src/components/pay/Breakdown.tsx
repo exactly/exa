@@ -3,7 +3,10 @@ import { useTranslation } from "react-i18next";
 
 import { useRouter } from "expo-router";
 
-import { Coins, CreditCard, FileText, ReceiptText } from "@tamagui/lucide-icons-2";
+import { Coins } from "@tamagui/lucide-icons-2/icons/Coins";
+import { CreditCard } from "@tamagui/lucide-icons-2/icons/CreditCard";
+import { FileText } from "@tamagui/lucide-icons-2/icons/FileText";
+import { ReceiptText } from "@tamagui/lucide-icons-2/icons/ReceiptText";
 import { Separator, XStack, YStack } from "tamagui";
 
 import { MATURITY_INTERVAL } from "@exactly/lib";

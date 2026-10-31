@@ -4,16 +4,14 @@ import { Pressable, ScrollView } from "react-native";
 
 import { useRouter } from "expo-router";
 
-import {
-  ArrowLeft,
-  ArrowLeftRight,
-  ArrowUpRight,
-  CircleHelp,
-  Coins,
-  RefreshCw,
-  SearchSlash,
-  Shuffle,
-} from "@tamagui/lucide-icons-2";
+import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
+import { ArrowLeftRight } from "@tamagui/lucide-icons-2/icons/ArrowLeftRight";
+import { ArrowUpRight } from "@tamagui/lucide-icons-2/icons/ArrowUpRight";
+import { CircleHelp } from "@tamagui/lucide-icons-2/icons/CircleHelp";
+import { Coins } from "@tamagui/lucide-icons-2/icons/Coins";
+import { RefreshCw } from "@tamagui/lucide-icons-2/icons/RefreshCw";
+import { SearchSlash } from "@tamagui/lucide-icons-2/icons/SearchSlash";
+import { Shuffle } from "@tamagui/lucide-icons-2/icons/Shuffle";
 import { XStack, YStack } from "tamagui";
 
 import { extractChain, type Chain } from "viem";
