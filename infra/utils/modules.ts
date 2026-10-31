@@ -67,7 +67,7 @@ export default define({
     sponsor: { secrets: ["postgres-url", "token"] },
   },
   workers: {
-    allow: { signers: ["allower"] },
+    allow: { secrets: ["postgres-url"], signers: ["allower"] },
     chat: {
       env: { WHATSAPP_PHONE_NUMBER_ID: "whatsappPhoneNumberId" },
       secrets: ["anthropic-api-key", "whatsapp-access-token"],
