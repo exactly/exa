@@ -65,6 +65,7 @@
 ## prohibited patterns
 
 - **`useEffect` for data fetching**: forbidden. all data fetching must use tanstack query. useEffect is acceptable only for setup, cleanup, and third-party sdk initialization.
+- **icon index imports**: use public `@tamagui/lucide-icons-2/icons/<Name>` entry points, never the package index, so metro skips unused icons.
 - **manual theme/color logic**: do not write components that manually switch between light/dark mode colors.
 
 ## expo fingerprint
