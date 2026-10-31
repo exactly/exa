@@ -29,6 +29,11 @@
     "prepare": { "dependsOn": ["^prepare"] },
     "test": { "dependsOn": ["prepare", "^prepare"], "cache": true },
     "test:*": { "dependsOn": ["prepare", "^prepare"], "cache": true },
+    "test:ts": {
+      "dependsOn": ["prepare", "^prepare"],
+      "cache": true,
+      "outputs": ["{workspaceRoot}/.cache/typescript/{projectRoot}/tsconfig.tsbuildinfo"]
+    },
     "test:eslint": { "dependsOn": ["prepare", "^prepare"], "cache": true, "options": { "max-warnings": 0 } },
     "build": {
       "dependsOn": ["^prepare"],
