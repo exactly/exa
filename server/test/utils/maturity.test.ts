@@ -13,7 +13,7 @@ import { Address } from "@exactly/common/validation";
 import { MATURITY_INTERVAL } from "@exactly/lib";
 
 import database, { credentials } from "../../database";
-import { closeQueue, reminders, setup } from "../../utils/maturity";
+import createMaturity, { closeQueue, reminders, setup } from "../../utils/maturity";
 import createOnesignal from "../../utils/onesignal";
 import { bullmq, close as closeRedis } from "../../utils/redis";
 
@@ -287,6 +287,13 @@ describe("worker", () => {
     vi.clearAllMocks();
     sendPushNotification.mockReset();
     sendPushNotification.mockResolvedValue({});
+  });
+
+  it("schedules checks on start", async () => {
+    await createMaturity(createOnesignal("onesignal")).ready;
+
+    const schedulers = await queue.getJobSchedulers();
+    expect(schedulers.map(({ key }) => key).toSorted()).toStrictEqual(["check-debts-1h", "check-debts-24h"]);
   });
 
   it("schedules maturity checks", async () => {

@@ -10,6 +10,7 @@ import {
 } from "@pulumi/gcp";
 import { automation, Config, getStack, interpolate } from "@pulumi/pulumi";
 import { hash } from "node:crypto";
+import { array, optional, parse, picklist } from "valibot";
 
 import modules from "./utils/modules.ts";
 import rejectSecrets from "./utils/rejectSecrets.ts";
@@ -20,6 +21,14 @@ const stack = getStack();
 await rejectSecrets(stack, await automation.LocalWorkspace.create({ workDir: import.meta.dirname }));
 
 const config = new Config();
+const disabled = new Set(
+  parse(
+    optional(array(picklist(Object.keys({ ...modules.services, ...modules.workers }), "unknown module")), []),
+    config.getObject("disabled"),
+  ),
+);
+const enabled = <Spec>(specs: Readonly<Record<string, Spec>>) =>
+  Object.entries(specs).filter(([name]) => !disabled.has(name));
 const project = new Config("gcp").require("project");
 const location = config.get("location") ?? "us-west1";
 const run = new projects.Service("run", { service: "run.googleapis.com" });
@@ -141,7 +150,7 @@ function module(
 }
 
 export const services = Object.fromEntries(
-  Object.entries(modules.services).map(([name, fields]) => {
+  enabled(modules.services).map(([name, fields]) => {
     const service = module(name, fields, name === "api" ? "api" : "hook");
     const target = new cloudrunv2.Service(
       name,
@@ -170,7 +179,7 @@ export const services = Object.fromEntries(
   }),
 );
 
-const workers = Object.entries(modules.workers).map(([name, w]) => module(name, w, "worker"));
+const workers = enabled(modules.workers).map(([name, w]) => module(name, w, "worker"));
 const pools = workers.map(({ dependencies, name, template }) => {
   const check = new cloudrunv2.Job(
     `${name}-check`,
