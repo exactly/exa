@@ -366,9 +366,6 @@ importers:
       '@expo/metro-runtime':
         specifier: ~55.0.6
         version: 55.0.7(expo@55.0.9)(react-dom@19.2.0(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)
-      '@farcaster/frame-sdk':
-        specifier: ^0.1.14
-        version: 0.1.14(typescript@5.9.3)(zod@4.6.7)
       '@farcaster/miniapp-sdk':
         specifier: ^0.2.3
         version: 0.2.3(typescript@5.9.3)(zod@4.6.7)
@@ -1039,24 +1036,15 @@ importers:
       '@hono/node-server':
         specifier: ^2.1.5
         version: 2.1.5(hono@4.13.13)
-      '@hono/sentry':
-        specifier: ^1.2.2
-        version: 1.2.2(hono@4.13.13)
       '@hono/valibot-validator':
         specifier: ^0.5.3
         version: 0.5.3(hono@4.13.13)(valibot@1.4.2(typescript@5.9.3))
       '@mastra/core':
         specifier: ^1.63.2
         version: 1.63.2(@grpc/grpc-js@1.14.5)(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(utf-8-validate@5.0.10)(zod@4.6.7)
-      '@mastra/memory':
-        specifier: ^1.28.1
-        version: 1.28.1(@mastra/core@1.63.2(@grpc/grpc-js@1.14.5)(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(utf-8-validate@5.0.10)(zod@4.6.7))
       '@mastra/observability':
         specifier: ^1.17.4
         version: 1.17.4(@mastra/core@1.63.2(@grpc/grpc-js@1.14.5)(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(utf-8-validate@5.0.10)(zod@4.6.7))(zod@4.6.7)
-      '@mastra/redis':
-        specifier: ^1.4.2
-        version: 1.4.2(@mastra/core@1.63.2(@grpc/grpc-js@1.14.5)(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(utf-8-validate@5.0.10)(zod@4.6.7))(@opentelemetry/api@1.9.1)
       '@mastra/sentry':
         specifier: ^1.2.14
         version: 1.2.14(@mastra/core@1.63.2(@grpc/grpc-js@1.14.5)(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(utf-8-validate@5.0.10)(zod@4.6.7))(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))(zod@4.6.7)
@@ -1098,7 +1086,7 @@ importers:
         version: 1.6.25(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(kysely@0.28.17)(pg@8.20.0))(pg@8.20.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(vitest@5.0.5)
       bullmq:
         specifier: ^5.79.0
-        version: 5.79.0(redis@5.12.1(@opentelemetry/api@1.9.1))
+        version: 5.79.0
       canonicalize:
         specifier: ^3.0.0
         version: 3.0.0
@@ -1135,9 +1123,6 @@ importers:
       react:
         specifier: 'catalog:'
         version: 19.2.0
-      redis-semaphore:
-        specifier: ^5.7.0
-        version: 5.7.0(ioredis@5.10.1)
       uuid:
         specifier: ^11.1.0
         version: 11.1.0
@@ -3741,10 +3726,6 @@ packages:
   '@expressive-code/plugin-text-markers@0.44.0':
     resolution: {integrity: sha512-0/m3A5b+lz2upyNq+wzZ1S69HRoJmyFs5LsR42lVZ9pmGRlBiSBYQpvqlji4DBj1+Riamxc0AvcCr5kuzOQeWA==}
 
-  '@farcaster/frame-sdk@0.1.14':
-    resolution: {integrity: sha512-qFwiDUKIbx+kuW9o8lUAP6Redl2r+ZmGnh3mLClojzec3S3CyMfCOuY5FtiyTmB9eAjeCJalQnQcP1fCRgbTUg==}
-    engines: {node: '>=22.11.0'}
-
   '@farcaster/miniapp-core@0.5.1':
     resolution: {integrity: sha512-5QFn9zTV8GHUqZF31X9iwq9tNlnoOgP/o0UXb+QmdNeJsWXrhUFBKYl+C7KQOhVw2xqWKhBSDgYIHOkSRua3vg==}
 
@@ -3760,11 +3741,6 @@ packages:
 
   '@farcaster/quick-auth@0.0.6':
     resolution: {integrity: sha512-tiZndhpfDtEhaKlkmS5cVDuS+A/tafqZT3y9I44rC69m3beJok6e8dIH2JhxVy3EvOWTyTBnrmNn6GOOh+qK6A==}
-    peerDependencies:
-      typescript: ^5.9.3
-
-  '@farcaster/quick-auth@0.0.8':
-    resolution: {integrity: sha512-NRIq1BcbcQCC6xBF5owfckkY00xKQVpqhpLNl5rICVpl0xeDsiVbkenIrHaUuyjtCK2W28YVc2ZCFRyz9ERHKg==}
     peerDependencies:
       typescript: ^5.9.3
 
@@ -3876,11 +3852,6 @@ packages:
     engines: {node: '>=20'}
     peerDependencies:
       hono: ^4 || ^5.0.0-0
-
-  '@hono/sentry@1.2.2':
-    resolution: {integrity: sha512-027grZBrRGDPor8mRd+QOBcSpUlF07YrTp/WFDXZhbvWZ+1LrZdERUqcdg1gBGDUTanHhd9ucblpNNN6+V1bxg==}
-    peerDependencies:
-      hono: '>=3.*'
 
   '@hono/valibot-validator@0.5.3':
     resolution: {integrity: sha512-91wjmjDvrTdEm2ZcuCyLBghtld78QoLEduzfkqLo1L74n6sqqoVfc0gDfmju1Ar6w1eK8Q0UyIubrtj4KMWVnQ==}
@@ -4240,12 +4211,6 @@ packages:
     peerDependencies:
       '@mastra/core': '>=1.0.0-0 <2.0.0-0'
 
-  '@mastra/memory@1.28.1':
-    resolution: {integrity: sha512-ZMKblBgsr7mVBVqsZTT2DYZ7yzCQq7Zc9iEsHrDDSFSa8s9k4ysS7fXNNWUzLzzr7jOiHtvrg6fmfH32snEy5w==}
-    engines: {node: '>=22.13.0'}
-    peerDependencies:
-      '@mastra/core': '>=1.4.1-0 <2.0.0-0'
-
   '@mastra/observability@1.17.4':
     resolution: {integrity: sha512-7TzbNNPR6h1LPUPW+kPkqqBKyubF9fZapGWJF4Y2f5JAhGva8Qj/NX0hbDgx54hqtvkTNh56+flAerwuNf1mMw==}
     engines: {node: '>=22.13.0'}
@@ -4258,12 +4223,6 @@ packages:
     engines: {node: '>=22.13.0'}
     peerDependencies:
       '@mastra/core': '>=1.16.0-0 <2.0.0-0'
-
-  '@mastra/redis@1.4.2':
-    resolution: {integrity: sha512-qCZBXWM/IymY9jdiUr52sNi6vOOyJBA7vjmOZPvH8Iaskz2ILB7ydEBmYvRlpSZhXWyQ5jImhhxVcn6OBORjyA==}
-    engines: {node: '>=22.13.0'}
-    peerDependencies:
-      '@mastra/core': '>=1.53.0-0 <2.0.0-0'
 
   '@mastra/schema-compat@1.3.7':
     resolution: {integrity: sha512-06WfY+j9rulYnDp8CM7pL7JIyrntkMolqmyyb1VJNEzlYTQCIcJcY0SwQiubZv2tztmoYGikszDiRVyXp0E9gA==}
@@ -5691,42 +5650,6 @@ packages:
     resolution: {integrity: sha512-9FC/6ho8uFa8fV50+FPy/ngWN53jaUu4GRXlAjcxIRrzhltJnpKkBG2Tp0IDraFJeWrOpk84RJ9EMEEYzaI1Bw==}
     engines: {node: '>=18'}
 
-  '@redis/bloom@5.12.1':
-    resolution: {integrity: sha512-PUUfv+ms7jgPSBVoo/DN4AkPHj4D5TZSd6SbJX7egzBplkYUcKmHRE8RKia7UtZ8bSQbLguLvxVO+asKtQfZWA==}
-    engines: {node: '>= 18.19.0'}
-    peerDependencies:
-      '@redis/client': ^5.12.1
-
-  '@redis/client@5.12.1':
-    resolution: {integrity: sha512-7aPGWeqA3uFm43o19umzdl16CEjK/JQGtSXVPevplTaOU3VJA/rseBC1QvYUz9lLDIMBimc4SW/zrW4S89BaCA==}
-    engines: {node: '>= 18.19.0'}
-    peerDependencies:
-      '@node-rs/xxhash': ^1.1.0
-      '@opentelemetry/api': '>=1 <2'
-    peerDependenciesMeta:
-      '@node-rs/xxhash':
-        optional: true
-      '@opentelemetry/api':
-        optional: true
-
-  '@redis/json@5.12.1':
-    resolution: {integrity: sha512-eOze75esLve4vfqDel7aMX08CNaiLLQS2fV8mpRN9NxPe1rVR4vQyYiW/OgtGUysF6QOr9ANhfxABKNOJfXdKg==}
-    engines: {node: '>= 18.19.0'}
-    peerDependencies:
-      '@redis/client': ^5.12.1
-
-  '@redis/search@5.12.1':
-    resolution: {integrity: sha512-ItlxbxC9cKI6IU1TLWoczwJCRb6TdmkEpWv05UrPawqaAnWGRu3rcIqsc5vN483T2fSociuyV1UkWIL5I4//2w==}
-    engines: {node: '>= 18.19.0'}
-    peerDependencies:
-      '@redis/client': ^5.12.1
-
-  '@redis/time-series@5.12.1':
-    resolution: {integrity: sha512-c6JL6E3EcZJuNqKFz+KM+l9l5mpcQiKvTwgA3blt5glWJ8hjDk0yeHN3beE/MpqYIQ8UEX44ItQzgkE/gCBELQ==}
-    engines: {node: '>= 18.19.0'}
-    peerDependencies:
-      '@redis/client': ^5.12.1
-
   '@rolldown/binding-android-arm-eabi@1.2.14':
     resolution: {integrity: sha512-aWR+XKH9+rW7m5fWq/5360J3mHycrx/o6xZM2DQFdJnTMdyP7/WzxPjhtLbVWdKo2y612/4U1bWqb3HQhiF7vg==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -6209,10 +6132,6 @@ packages:
     resolution: {integrity: sha512-OIjT7rzcWJjUC6r3eBT3Td1j0afDBMkbbx9jTocSD+ZSfc25eEU7hoIPS0WvfeIOTIN3y8bfQnXavwMReaNVHQ==}
     engines: {node: '>=18'}
 
-  '@sentry/core@8.9.2':
-    resolution: {integrity: sha512-ixm8NISFlPlEo3FjSaqmq4nnd13BRHoafwJ5MG+okCz6BKGZ1SexEggP42/QpGvDprUUHnfncG6WUMgcarr1zA==}
-    engines: {node: '>=14.18'}
-
   '@sentry/node-core@10.71.0':
     resolution: {integrity: sha512-sxd0/ZW+Uda/17H0R7lB2Othm37VYcdwKdWdyHRizg872TfCX4UwTTPaoS2tMJAUjV2tVh83ZA0fsoC2q9SpjA==}
     engines: {node: '>=18'}
@@ -6279,14 +6198,6 @@ packages:
   '@sentry/types@10.46.0':
     resolution: {integrity: sha512-ZJWEuevCTzxA2z+C5NQ+bXKxA+oVnZM5QacBZ+RX6NHItwgYOcp4GNM6Wc9xTymOUvVmBC0Vcj1wbx7TA2JX0Q==}
     engines: {node: '>=18'}
-
-  '@sentry/types@8.9.2':
-    resolution: {integrity: sha512-+LFOyQGl+zk5SZRGZD2MEURf7i5RHgP/mt3s85Rza+vz8M211WJ0YsjkIGUJFSY842nged5QLx4JysLaBlLymg==}
-    engines: {node: '>=14.18'}
-
-  '@sentry/utils@8.9.2':
-    resolution: {integrity: sha512-A4srR9mEBFdVXwSEKjQ94msUbVkMr8JeFiEj9ouOFORw/Y/ux/WV2bWVD/ZI9wq0TcTNK8L1wBgU8UMS5lIq3A==}
-    engines: {node: '>=14.18'}
 
   '@shikijs/core@4.5.0':
     resolution: {integrity: sha512-6CIgwq+bt2JZ3OSjb/nBkkwEf/CfpHcbam+Mg5Pllco7HAGRQ2/EFhZrrJtbyNTgKwknfVS+llsXGygiDGwJWw==}
@@ -9300,10 +9211,6 @@ packages:
   diacritics@1.3.0:
     resolution: {integrity: sha512-wlwEkqcsaxvPJML+rDh/2iS824jbREk6DUMUKkEaSlxdYHeS43cClJtsWglvw2RfeXGm6ohKDqsXteJ5sP5enA==}
 
-  diff@8.0.4:
-    resolution: {integrity: sha512-DPi0FmjiSU5EvQV0++GFDOJ9ASQUVFh5kD+OzOnYdi7n3Wpm9hWWGfB/O2blfHcMVTL5WkQXSnRiK9makhrcnw==}
-    engines: {node: '>=0.3.1'}
-
   diff@9.0.0:
     resolution: {integrity: sha512-svtcdpS8CgJyqAjEQIXdb3OjhFVVYjzGAPO8WGCmRbrml64SPw/jJD4GoE98aR7r25A0XcgrK3F02yw9R/vhQw==}
     engines: {node: '>=0.3.1'}
@@ -11206,10 +11113,6 @@ packages:
       typescript:
         optional: true
 
-  iconv-lite@0.4.24:
-    resolution: {integrity: sha512-v3MXnZAcvnywkTUEZomIActle7RXXeedOR31wwl7VlyoXO4Qi9arvSenNQWne1TcRwhCL1HwLI21bEqdpj8/rA==}
-    engines: {node: '>=0.10.0'}
-
   iconv-lite@0.6.3:
     resolution: {integrity: sha512-4fCk79wshMdzMp2rH06qWrJE4iolqLhCUH+OiuIgU++RB0+94NlDL81atO7GX55uUKueo0txHNtvEyI6D7WdMw==}
     engines: {node: '>=0.10.0'}
@@ -12868,11 +12771,6 @@ packages:
     resolution: {integrity: sha512-kKHJhxwpR/Okycz4HhQKKlhWe4ASEfPgkSWNmKFHd7+ezuQlxkA5cM3+XkBPvm1gmHen3w53qsYAv+8GwRrBlg==}
     engines: {node: '>=18'}
 
-  needle@2.9.1:
-    resolution: {integrity: sha512-6R9fqJ5Zcmf+uYaFgdIHmLwNldn5HbK8L5ybn7Uz+ylX/rnOsSp1AHcvQSrCaFN+qNM1wpymHqD7mVasEOlHGQ==}
-    engines: {node: '>= 4.4.x'}
-    hasBin: true
-
   negotiator@0.6.3:
     resolution: {integrity: sha512-+EUsqGPLsM+j/zdChZjsnX51g4XrHFOIXwfnCVPGlQk/k5giakcKsuxCObBRu6DSm9opw/O6slWbJdghQM4bBg==}
     engines: {node: '>= 0.6'}
@@ -13616,9 +13514,6 @@ packages:
     resolution: {integrity: sha512-DEvV2ZF2r2/63V+tK8hQvrR2ZGn10srHbXviTlcv7Kpzw8jWiNTqbVgjO3IY8RxrrOUF8VPMQQFysYYYv0YZxw==}
     engines: {node: '>=6'}
 
-  probe-image-size@7.4.0:
-    resolution: {integrity: sha512-cdEprVtZxV+awMde9X+4jILBFYh4CARxVrQaMl4wY4YcPWbul9jntXrIW95NInBDyJwcVUP3U0T6yukN8rMBaQ==}
-
   proc-log@4.2.0:
     resolution: {integrity: sha512-g8+OnU/L2v+wyiVK+D5fA34J7EH8jZ8DDlvwhRCMxmMj7UCBvxiO1mGeN+36JXIKF4zevU4kRBd8lVgG9vLelA==}
     engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
@@ -14079,19 +13974,6 @@ packages:
   redis-parser@3.0.0:
     resolution: {integrity: sha512-DJnGAeenTdpMEH6uAJRK/uiyEIH9WVsUmoLwzudwGJUwZPp80PDBWPHXSAGNPwNvIXAbe7MSUB1zQFugFml66A==}
     engines: {node: '>=4'}
-
-  redis-semaphore@5.7.0:
-    resolution: {integrity: sha512-2xjl8eYVVTKX8O8C/H70iWEGx8BSOOzI5P1tQgXEO8A8dR2/BPgU7QctCfcXOHsQ7/IIkebv1ulEdo2iC2SwvA==}
-    engines: {node: '>= 14.17.0'}
-    peerDependencies:
-      ioredis: ^4.1.0 || ^5
-    peerDependenciesMeta:
-      ioredis:
-        optional: true
-
-  redis@5.12.1:
-    resolution: {integrity: sha512-LDsoVvb/CpoV9EN3FXvgvSHNJWuCIzl9MiO3ppOevuGLpSGJhwfQjpEwfFJcQvNSddHADDdZaWx0HnmMxRXG7g==}
-    engines: {node: '>= 18.19.0'}
 
   refa@0.12.1:
     resolution: {integrity: sha512-J8rn6v4DBb2nnFqkqwy6/NnTYMcgLA+sLr0iIO41qpv0n+ngb7ksag2tMRl0inb1bbO/esUwzW1vbJi7K0sI0g==}
@@ -14804,9 +14686,6 @@ packages:
   stream-events@1.0.5:
     resolution: {integrity: sha512-E1GUzBSgvct8Jsb3v2X15pjzN1tYebtbLaMg+eBOUOAxgbLoSbT2NS91ckc5lJD1KfLjId+jXJRgo0qnV5Nerg==}
 
-  stream-parser@0.3.1:
-    resolution: {integrity: sha512-bJ/HgKq41nlKvlhccD5kaCr/P+Hu0wPNKPJOH7en+YrJu/9EgqUF+88w5Jb6KNcjOFMhfX4B2asfeAtIGuHObQ==}
-
   stream-replace-string@2.0.0:
     resolution: {integrity: sha512-TlnjJ1C0QrmxRNrON00JvaFFlNh5TTG00APw23j74ET7gkQpTASi6/L2fuiav8pzK715HXtUeClpBTw2NPSn6w==}
 
@@ -15111,9 +14990,6 @@ packages:
   totalist@3.0.1:
     resolution: {integrity: sha512-sf4i37nQ2LBx4m3wB74y+ubopq6W/dIzXg0FDGjsYnZHVa1Da8FH853wlL2gtUhg+xJXjfk3kUZS3BRoQeoQBQ==}
     engines: {node: '>=6'}
-
-  toucan-js@4.1.1:
-    resolution: {integrity: sha512-GTPwEaCRN8IbYe5/VeGiwxYvMO0dKaC16fTeLbF+QGswjkLZ9JUqAfDhLMyH2SWukYhmetH+uxWa1Bhluv/evQ==}
 
   tr46@0.0.3:
     resolution: {integrity: sha512-N3WMsuqV66lT30CrXNbEjx4GEwlow3v6rr4mCcv6prnfwhS01rkgyFdjPNBYd9br7LpXV1+Emh01fHnq2Gdgrw==}
@@ -19425,17 +19301,6 @@ snapshots:
     dependencies:
       '@expressive-code/core': 0.44.0
 
-  '@farcaster/frame-sdk@0.1.14(typescript@5.9.3)(zod@4.6.7)':
-    dependencies:
-      '@farcaster/miniapp-sdk': 0.2.3(typescript@5.9.3)(zod@4.6.7)
-      '@farcaster/quick-auth': 0.0.8(typescript@5.9.3)
-      comlink: 4.4.2
-      eventemitter3: 5.0.4
-      ox: 0.4.4(typescript@5.9.3)(zod@4.6.7)
-    transitivePeerDependencies:
-      - typescript
-      - zod
-
   '@farcaster/miniapp-core@0.5.1(typescript@5.9.3)':
     dependencies:
       '@solana/web3.js': '@favware/skip-dependency@1.2.2'
@@ -19462,12 +19327,6 @@ snapshots:
       viem: 2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7)
 
   '@farcaster/quick-auth@0.0.6(typescript@5.9.3)':
-    dependencies:
-      jose: 5.10.0
-      typescript: 5.9.3
-      zod: 3.25.76
-
-  '@farcaster/quick-auth@0.0.8(typescript@5.9.3)':
     dependencies:
       jose: 5.10.0
       typescript: 5.9.3
@@ -19588,11 +19447,6 @@ snapshots:
   '@hono/node-server@2.1.5(hono@4.13.13)':
     dependencies:
       hono: 4.13.13
-
-  '@hono/sentry@1.2.2(hono@4.13.13)':
-    dependencies:
-      hono: 4.13.13
-      toucan-js: 4.1.1
 
   '@hono/valibot-validator@0.5.3(hono@4.13.13)(valibot@1.4.2(typescript@5.9.3))':
     dependencies:
@@ -19961,19 +19815,6 @@ snapshots:
       sentiment: 5.0.2
       string-similarity: 4.0.4
 
-  '@mastra/memory@1.28.1(@mastra/core@1.63.2(@grpc/grpc-js@1.14.5)(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(utf-8-validate@5.0.10)(zod@4.6.7))':
-    dependencies:
-      '@mastra/core': 1.63.2(@grpc/grpc-js@1.14.5)(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(utf-8-validate@5.0.10)(zod@4.6.7)
-      '@mastra/schema-compat': 1.3.7(zod@4.6.7)
-      async-mutex: 0.5.0
-      diff: 8.0.4
-      json-schema: 0.4.0
-      lru-cache: 11.2.7
-      probe-image-size: 7.4.0
-      tokenx: 1.6.0
-      xxhash-wasm: 1.1.0
-      zod: 4.6.7
-
   '@mastra/observability@1.17.4(@mastra/core@1.63.2(@grpc/grpc-js@1.14.5)(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(utf-8-validate@5.0.10)(zod@4.6.7))(zod@4.6.7)':
     dependencies:
       '@mastra/core': 1.63.2(@grpc/grpc-js@1.14.5)(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(utf-8-validate@5.0.10)(zod@4.6.7)
@@ -20002,14 +19843,6 @@ snapshots:
       '@opentelemetry/exporter-zipkin': 2.10.0(@opentelemetry/api@1.9.1)
     transitivePeerDependencies:
       - zod
-
-  '@mastra/redis@1.4.2(@mastra/core@1.63.2(@grpc/grpc-js@1.14.5)(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(utf-8-validate@5.0.10)(zod@4.6.7))(@opentelemetry/api@1.9.1)':
-    dependencies:
-      '@mastra/core': 1.63.2(@grpc/grpc-js@1.14.5)(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(utf-8-validate@5.0.10)(zod@4.6.7)
-      redis: 5.12.1(@opentelemetry/api@1.9.1)
-    transitivePeerDependencies:
-      - '@node-rs/xxhash'
-      - '@opentelemetry/api'
 
   '@mastra/schema-compat@1.3.7(zod@4.6.7)':
     dependencies:
@@ -21923,28 +21756,6 @@ snapshots:
 
   '@readme/openapi-schemas@3.1.0': {}
 
-  '@redis/bloom@5.12.1(@redis/client@5.12.1(@opentelemetry/api@1.9.1))':
-    dependencies:
-      '@redis/client': 5.12.1(@opentelemetry/api@1.9.1)
-
-  '@redis/client@5.12.1(@opentelemetry/api@1.9.1)':
-    dependencies:
-      cluster-key-slot: 1.1.2
-    optionalDependencies:
-      '@opentelemetry/api': 1.9.1
-
-  '@redis/json@5.12.1(@redis/client@5.12.1(@opentelemetry/api@1.9.1))':
-    dependencies:
-      '@redis/client': 5.12.1(@opentelemetry/api@1.9.1)
-
-  '@redis/search@5.12.1(@redis/client@5.12.1(@opentelemetry/api@1.9.1))':
-    dependencies:
-      '@redis/client': 5.12.1(@opentelemetry/api@1.9.1)
-
-  '@redis/time-series@5.12.1(@redis/client@5.12.1(@opentelemetry/api@1.9.1))':
-    dependencies:
-      '@redis/client': 5.12.1(@opentelemetry/api@1.9.1)
-
   '@rolldown/binding-android-arm-eabi@1.2.14':
     optional: true
 
@@ -22336,11 +22147,6 @@ snapshots:
     dependencies:
       '@sentry/conventions': 0.16.0
 
-  '@sentry/core@8.9.2':
-    dependencies:
-      '@sentry/types': 8.9.2
-      '@sentry/utils': 8.9.2
-
   '@sentry/node-core@10.71.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))(@opentelemetry/instrumentation@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))':
     dependencies:
       '@sentry/conventions': 0.16.0
@@ -22421,12 +22227,6 @@ snapshots:
   '@sentry/types@10.46.0':
     dependencies:
       '@sentry/core': 10.71.0
-
-  '@sentry/types@8.9.2': {}
-
-  '@sentry/utils@8.9.2':
-    dependencies:
-      '@sentry/types': 8.9.2
 
   '@shikijs/core@4.5.0':
     dependencies:
@@ -25474,7 +25274,7 @@ snapshots:
       semver: 7.8.5
       uuid: 8.3.2
 
-  bullmq@5.79.0(redis@5.12.1(@opentelemetry/api@1.9.1)):
+  bullmq@5.79.0:
     dependencies:
       cron-parser: 4.9.0
       ioredis: 5.10.1
@@ -25482,8 +25282,6 @@ snapshots:
       node-abort-controller: 3.1.1
       semver: 7.8.1
       tslib: 2.8.1
-    optionalDependencies:
-      redis: 5.12.1(@opentelemetry/api@1.9.1)
 
   bundle-name@4.1.0:
     dependencies:
@@ -26390,8 +26188,6 @@ snapshots:
   dfa@1.2.0: {}
 
   diacritics@1.3.0: {}
-
-  diff@8.0.4: {}
 
   diff@9.0.0: {}
 
@@ -28815,10 +28611,6 @@ snapshots:
     optionalDependencies:
       typescript: 5.9.3
 
-  iconv-lite@0.4.24:
-    dependencies:
-      safer-buffer: 2.1.2
-
   iconv-lite@0.6.3:
     dependencies:
       safer-buffer: 2.1.2
@@ -30983,12 +30775,6 @@ snapshots:
 
   natural-orderby@5.0.0: {}
 
-  needle@2.9.1:
-    dependencies:
-      debug: 3.2.7
-      iconv-lite: 0.4.24
-      sax: 1.6.0
-
   negotiator@0.6.3: {}
 
   negotiator@0.6.4: {}
@@ -31973,12 +31759,6 @@ snapshots:
 
   prismjs@1.30.0: {}
 
-  probe-image-size@7.4.0:
-    dependencies:
-      lodash.merge: 4.6.2
-      needle: 2.9.1
-      stream-parser: 0.3.1
-
   proc-log@4.2.0: {}
 
   proc-log@5.0.0: {}
@@ -32514,23 +32294,6 @@ snapshots:
   redis-parser@3.0.0:
     dependencies:
       redis-errors: 1.2.0
-
-  redis-semaphore@5.7.0(ioredis@5.10.1):
-    dependencies:
-      debug: 4.4.3
-    optionalDependencies:
-      ioredis: 5.10.1
-
-  redis@5.12.1(@opentelemetry/api@1.9.1):
-    dependencies:
-      '@redis/bloom': 5.12.1(@redis/client@5.12.1(@opentelemetry/api@1.9.1))
-      '@redis/client': 5.12.1(@opentelemetry/api@1.9.1)
-      '@redis/json': 5.12.1(@redis/client@5.12.1(@opentelemetry/api@1.9.1))
-      '@redis/search': 5.12.1(@redis/client@5.12.1(@opentelemetry/api@1.9.1))
-      '@redis/time-series': 5.12.1(@redis/client@5.12.1(@opentelemetry/api@1.9.1))
-    transitivePeerDependencies:
-      - '@node-rs/xxhash'
-      - '@opentelemetry/api'
 
   refa@0.12.1:
     dependencies:
@@ -33422,10 +33185,6 @@ snapshots:
     dependencies:
       stubs: 3.0.0
 
-  stream-parser@0.3.1:
-    dependencies:
-      debug: 2.6.9
-
   stream-replace-string@2.0.0: {}
 
   stream-shift@1.0.3: {}
@@ -33811,12 +33570,6 @@ snapshots:
   toqr@0.1.1: {}
 
   totalist@3.0.1: {}
-
-  toucan-js@4.1.1:
-    dependencies:
-      '@sentry/core': 8.9.2
-      '@sentry/types': 8.9.2
-      '@sentry/utils': 8.9.2
 
   tr46@0.0.3: {}
 

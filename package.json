@@ -38,7 +38,6 @@
     "@exactly/lib": "^0.1.0",
     "@exactly/server": "workspace:^0.2.133",
     "@expo/metro-runtime": "~55.0.6",
-    "@farcaster/frame-sdk": "^0.1.14",
     "@farcaster/miniapp-sdk": "^0.2.3",
     "@farcaster/miniapp-wagmi-connector": "^1.1.1",
     "@intercom/intercom-react-native": "^9.8.0",
