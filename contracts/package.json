@@ -9,7 +9,7 @@
     "test": "nx test contracts",
     "test:fmt": "forge fmt --check",
     "test:gas": "FOUNDRY_PROFILE=snapshot forge snapshot --check",
-    "test:solhint": "solhint --max-warnings 0 '**/*.sol'",
+    "test:solhint": "solhint --disc --max-warnings 0 '**/*.sol'",
     "test:slither": "FOUNDRY_PROFILE=slither slither --foundry-out-directory out/slither . --skip-clean",
     "test:coverage": "FOUNDRY_PROFILE=coverage forge coverage --report lcov",
     "test:sizes": "FOUNDRY_PROFILE=sizes forge build --sizes"
