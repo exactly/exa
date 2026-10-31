@@ -13,7 +13,6 @@ import { yargsRunManyCommand } from "nx/src/command-line/run-many/command-object
 import { readNxJson } from "nx/src/config/nx-json";
 import { readCachedProjectGraph } from "nx/src/devkit-exports";
 import { array, parse, string } from "valibot";
-import { anvil } from "viem/chains";
 
 import type { commandsObject } from "nx/src/command-line/nx-commands";
 import type { PreTasksExecutionContext } from "nx/src/project-graph/plugins";
@@ -34,7 +33,7 @@ export async function preTasksExecution(_: unknown, { argv, workspaceRoot }: Pre
     .parse();
   const tests = targets.filter((target) => /^(?:test|e2e)(?::|$)/.test(target)).length;
   if (tests && tests < targets.length) throw new Error(`mixed test and non-test targets: ${targets.join(", ")}`);
-  if (tests) process.env.CHAIN_ID = String(anvil.id);
+  if (tests) process.env.CHAIN_ID = await import("viem/chains").then(({ anvil }) => String(anvil.id));
   if (targets.some((target) => /^e2e(?::|$)/.test(target))) {
     process.env.APP_DOMAIN ??= "localhost";
     process.env.EXPO_PUBLIC_ENV ??= "e2e";
