@@ -162,6 +162,8 @@ a cloud session has no access to the developer's key, so signing doesn't apply t
 
 history stays linear: never create merge commits. bring a branch up to date by rebasing it on `main`, and rebuild one that already holds a merge.
 
+a commit message never carries lines a git tool generated, like the `# Conflicts:` list a rebase leaves after a conflict: finish a resolved conflict with `git rebase --continue`, which strips it, never with `git commit --no-edit`, which keeps it. `main` already holds one such list: never copy it.
+
 until a commit reaches `main`, it is still open: fixes go into the commit that introduced the change, folded in while rebasing, never stacked on top as new commits, not even as `fixup!` commits waiting for a later fold.
 
 each change lands in its final form: no later commit of the same pr, or of a pr stacked on it, changes or removes it.
