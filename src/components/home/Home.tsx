@@ -22,6 +22,7 @@ import chain, {
 import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 import { borrowLimit, healthFactor, WAD, withdrawLimit } from "@exactly/lib";
 
+import ArrivalSheet from "./ArrivalSheet";
 import CardStatus from "./CardStatus";
 import CreditLimitSheet from "./CreditLimitSheet";
 import GettingStarted from "./GettingStarted";
@@ -56,7 +57,6 @@ import OverduePayments from "../pay/OverduePayments";
 import PaymentSheet from "../pay/PaymentSheet";
 import RolloverIntroSheet from "../pay/RolloverIntroSheet";
 import UpcomingPayments from "../pay/UpcomingPayments";
-import FundingAlert from "../shared/FundingAlert";
 import InfoAlert from "../shared/InfoAlert";
 import LatestActivity from "../shared/LatestActivity";
 import LiquidationAlert from "../shared/LiquidationAlert";
@@ -143,6 +143,7 @@ export default function Home() {
   const spotlightVisible = !!card && card.mode > 0 && !spotlightShown && focused;
   const promoSheetOpen =
     isPromoActive() && !promoSeen && !!card && card.status !== "FROZEN" && !spotlightVisible && focused;
+  const stocksIntroOpen = isKYCApproved && !stocksIntroShown && stocksAvailable && !spotlightVisible && focused;
   const toast = useToastController();
   const { mutate: mutateMode } = useMutation({
     ...cardModeMutationOptions,
@@ -255,7 +256,15 @@ export default function Home() {
                 />
               )}
               <PluginUpgrade />
-              <FundingAlert />
+              {isKYCApproved && !!bytecode && card === null && (
+                <InfoAlert
+                  title={t("Your Exa Card is ready. Activate it to make your first purchase.")}
+                  actionText={t("Activate Exa Card")}
+                  onPress={() => {
+                    router.push({ pathname: "/card", params: { activate: "true" } });
+                  }}
+                />
+              )}
               <YStack gap="$s5">
                 <PortfolioSummary
                   collateralUSD={collateralUSD}
@@ -349,8 +358,9 @@ export default function Home() {
             onClose={() => queryClient.setQueryData(["settings", "promo-seen", PROMO.id], true)}
             onActionPress={openInstallments}
           />
+          <ArrivalSheet focused={focused && !spotlightVisible && !promoSheetOpen && !stocksIntroOpen} />
           <StocksIntroSheet
-            open={isKYCApproved && !stocksIntroShown && stocksAvailable && !spotlightVisible && focused}
+            open={stocksIntroOpen}
             onClose={() => queryClient.setQueryData(["settings", "stocks-intro-shown"], true)}
             onActionPress={openStocks}
           />

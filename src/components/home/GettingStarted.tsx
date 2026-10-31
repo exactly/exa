@@ -11,6 +11,8 @@ import { IdCard } from "@tamagui/lucide-icons-2/icons/IdCard";
 import { useToastController } from "@tamagui/toast";
 import { Spinner, XStack, YStack } from "tamagui";
 
+import chain from "@exactly/common/generated/chain";
+
 import reportError from "../../utils/reportError";
 import useBeginKYC from "../../utils/useBeginKYC";
 import useOnboardingSteps from "../../utils/useOnboardingSteps";
@@ -89,7 +91,7 @@ export default function GettingStarted({ isDeployed, kyc }: { isDeployed: boolea
             <IdCard size={24 * PixelRatio.getFontScale()} color="$uiBrandSecondary" />
           )}
           <Text emphasized headline color="$uiBrandSecondary" maxFontSizeMultiplier={1.3}>
-            {step ? t(step.title) : ""}
+            {step ? t(step.title, { chain: chain.name }) : ""}
           </Text>
         </XStack>
         <Pressable hitSlop={15} onPress={handleStepPress}>

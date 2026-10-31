@@ -69,7 +69,9 @@ export default function RampOnboard({ direction }: { direction: "offramp" | "onr
                         : t("Send {{currency}} using your USDC", { currency })
                       : isCrypto
                         ? t("Deposit {{crypto}} via {{network}}", { crypto: currency, network })
-                        : t("Turn {{currency}} transfers to onchain USDC", { currency })}
+                        : currency === "EUR"
+                          ? t("Receive USDC from euro transfers")
+                          : t("Turn {{currency}} transfers to onchain USDC", { currency })}
                   </Text>
                   <Text color="$uiNeutralPlaceholder" footnote textAlign="center">
                     {offramp
@@ -89,7 +91,13 @@ export default function RampOnboard({ direction }: { direction: "offramp" | "onr
                             crypto: currency,
                             network,
                           })
-                        : t("Transfer from accounts in your name and automatically receive USDC in your Exa account.")}
+                        : currency === "EUR"
+                          ? t(
+                              "Get paid in euros by any company, or transfer from a bank account in your name. Everything arrives as USDC.",
+                            )
+                          : t(
+                              "Transfer from accounts in your name and automatically receive USDC in your Exa account.",
+                            )}
                   </Text>
                 </YStack>
               </YStack>
