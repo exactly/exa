@@ -164,7 +164,22 @@ jobs:
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - run: GITHUB_STEP_SUMMARY= flock /tmp/apt.lock pnpm nx e2e:web:release mobile > server.log 2>&1 &
-      - uses: actions/cache@v6
+      - uses: oras-project/setup-oras@v2 # cspell:ignore oras
+        continue-on-error: true
+      - id: maestro
+        run: |
+          d=$(mktemp -d)
+          trap 'rm -rf "$d"' EXIT
+          if timeout 30 oras pull "ghcr.io/exactly/maestro:${{ steps.script.outputs.hash }}" -o "$d" && mkdir "$d/build" && tar -xzf "$d/maestro.tgz" -C "$d/build" && test -x "$d/build/bin/maestro"; then
+            echo ${{ steps.script.outputs.hash }} > "$d/build/hash"
+            rm -rf .maestro/build
+            mv "$d/build" .maestro/build
+          else
+            echo cache=true >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/cache/restore@v6
+        id: cache
+        if: steps.maestro.outputs.cache == 'true'
         with: { path: .maestro/build, key: "maestro-${{ runner.os }}-${{ steps.script.outputs.hash }}" }
       - if: github.ref_name == 'main'
         run: echo ${{ steps.script.outputs.hash }} | cmp -s - .maestro/build/hash || for run in $(gh run list -w maestro.yaml -c "$GITHUB_SHA" --json databaseId -q '.[].databaseId'); do timeout 600 gh run watch -i 10 "$run" > /dev/null || true; done
@@ -186,6 +201,9 @@ jobs:
         run: |
           curl -X POST http://localhost:3000/e2e/shutdown || true
           for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done
+      - uses: actions/cache/save@v6
+        if: matrix.flow == 'portfolio' && steps.maestro.outputs.cache == 'true' && steps.cache.outputs.cache-hit != 'true'
+        with: { path: .maestro/build, key: "${{ steps.cache.outputs.cache-primary-key }}" }
       - uses: actions/cache/save@v6
         if: github.ref_name == 'main' && matrix.flow == 'portfolio'
         with: { path: ~/.nx, key: "${{ steps.nx.outputs.cache-primary-key }}" }
