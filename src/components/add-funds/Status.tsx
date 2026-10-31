@@ -9,7 +9,7 @@ import { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
 import { Headset } from "@tamagui/lucide-icons-2/icons/Headset";
 import { X } from "@tamagui/lucide-icons-2/icons/X";
 import { toast } from "@tamagui/toast";
-import { ScrollView, Spinner, YStack } from "tamagui";
+import { getTokens, ScrollView, Spinner, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
@@ -196,7 +196,7 @@ export default function Status() {
             <Button onPress={() => setOpenKYC(true)} primary>
               <Button.Text>{t("Continue")}</Button.Text>
               <Button.Icon>
-                <ArrowRight size={24} />
+                <ArrowRight size={getTokens().iconSize.lg.val} />
               </Button.Icon>
             </Button>
           ) : needsSupport ? (
@@ -210,7 +210,7 @@ export default function Status() {
               >
                 <Button.Text>{t("Contact support")}</Button.Text>
                 <Button.Icon>
-                  <Headset size={24} />
+                  <Headset size={getTokens().iconSize.lg.val} />
                 </Button.Icon>
               </Button>
               <Pressable onPress={handleClose}>
@@ -223,7 +223,7 @@ export default function Status() {
             <Button onPress={handleClose} primary>
               <Button.Text>{t("Close")}</Button.Text>
               <Button.Icon>
-                <X size={24} />
+                <X size={getTokens().iconSize.lg.val} />
               </Button.Icon>
             </Button>
           )

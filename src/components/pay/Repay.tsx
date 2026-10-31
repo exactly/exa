@@ -6,7 +6,7 @@ import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
 import { ChevronRight } from "@tamagui/lucide-icons-2/icons/ChevronRight";
 import { Coins } from "@tamagui/lucide-icons-2/icons/Coins";
-import { ScrollView, Separator, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { waitForCallsStatus } from "@wagmi/core/actions";
@@ -497,10 +497,10 @@ export default function Repay() {
   if (!maturity) return <Redirect href="/(main)/(home)" />;
   if (!isPending && !isSuccess && !writeError)
     return (
-      <SafeView fullScreen backgroundColor="backgroundMild" paddingBottom={0}>
+      <SafeView fullScreen backgroundColor="backgroundMild" paddingBottom="s0">
         <View fullScreen gap="s5" paddingTop="s4_5">
           <View flexDirection="row" gap="s3_5" justifyContent="space-around" alignItems="center">
-            <View padded position="absolute" left={0}>
+            <View padded position="absolute" left="s0">
               <IconButton
                 icon={ArrowLeft}
                 aria-label={t("Back")}
@@ -682,8 +682,8 @@ export default function Repay() {
             padded
             backgroundColor="backgroundSoft"
             borderRadius="r4"
-            borderBottomLeftRadius={0}
-            borderBottomRightRadius={0}
+            borderBottomLeftRadius="r0"
+            borderBottomRightRadius="r0"
           >
             <YStack gap="s4" paddingBottom={insets.bottom}>
               <XStack
@@ -703,7 +703,7 @@ export default function Repay() {
                   <Text primary emphasized headline textAlign="right">
                     {symbol}
                   </Text>
-                  <ChevronRight size={24} color="interactiveBaseBrandDefault" />
+                  <ChevronRight size={getTokens().iconSize.lg.val} color="interactiveBaseBrandDefault" />
                 </XStack>
               </XStack>
               <XStack justifyContent="space-between" gap="s3">

@@ -52,7 +52,7 @@ export default function Amount({
       >
         {`$${formatted}`}
       </Text>
-      <Text aria-hidden fontSize={17} lineHeight="17px" color={color} marginBottom="ios:4px" maxFontSizeMultiplier={1}>
+      <Text aria-hidden fontSize={17} lineHeight="17px" color={color} marginBottom="ios:s2" maxFontSizeMultiplier={1}>
         $
       </Text>
       <Text
@@ -73,7 +73,7 @@ export default function Amount({
         lineHeight="17px"
         color={color}
         alignSelf="flex-start"
-        marginTop="2px ios:0px"
+        marginTop="s1 ios:s0"
         maxFontSizeMultiplier={1}
       >
         {decimal}

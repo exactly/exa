@@ -134,7 +134,7 @@ export default function Pay() {
   return (
     <SafeView fullScreen tab backgroundColor="backgroundSoft">
       <View fullScreen backgroundColor={empty ? "backgroundSoft" : "backgroundMild"}>
-        <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="backgroundSoft" />
+        <View position="absolute" top="s0" left="s0" right="s0" height="50%" backgroundColor="backgroundSoft" />
         <ScrollView
           ref={scrollRef}
           backgroundColor="transparent"

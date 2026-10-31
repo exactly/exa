@@ -138,8 +138,8 @@ export default function Fees({ direction }: { direction: "offramp" | "onramp" })
               }}
             >
               <View
-                width={16}
-                height={16}
+                width="s4"
+                height="s4"
                 backgroundColor={acknowledged ? "backgroundBrand" : "transparent"}
                 borderColor="backgroundBrand"
                 borderWidth={1}

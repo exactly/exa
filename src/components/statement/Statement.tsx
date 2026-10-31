@@ -10,7 +10,7 @@ import { Coins } from "@tamagui/lucide-icons-2/icons/Coins";
 import { CreditCard } from "@tamagui/lucide-icons-2/icons/CreditCard";
 import { FileText } from "@tamagui/lucide-icons-2/icons/FileText";
 import { Upload } from "@tamagui/lucide-icons-2/icons/Upload";
-import { ScrollView, Separator, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import { MATURITY_INTERVAL } from "@exactly/lib";
 
@@ -62,7 +62,7 @@ export default function Statement() {
   const lastCard = cards.length - 1;
 
   return (
-    <SafeView fullScreen paddingBottom={0} backgroundColor="backgroundSoft">
+    <SafeView fullScreen paddingBottom="s0" backgroundColor="backgroundSoft">
       <View
         padded
         flexDirection="row"
@@ -94,7 +94,7 @@ export default function Statement() {
       <ScrollView backgroundColor="backgroundSoft" flex={1} showsVerticalScrollIndicator={false}>
         <View backgroundColor="backgroundSoft" paddingHorizontal="s5" paddingBottom="s5" gap="s2">
           <XStack gap="s3" alignItems="center">
-            <FileText size={20} color="uiNeutralPrimary" />
+            <FileText size={getTokens().iconSize.md.val} color="uiNeutralPrimary" />
             <Text emphasized title3 flex={1}>
               {t("Statement")}
             </Text>
@@ -258,7 +258,7 @@ export default function Statement() {
       <View backgroundColor={ready ? "backgroundStrong" : "backgroundSoft"} paddingBottom={insets.bottom}>
         {ready && (
           <XStack paddingHorizontal="s5" paddingVertical="s4" gap="s3" alignItems="center">
-            <FileText size={20} color="uiNeutralPrimary" />
+            <FileText size={getTokens().iconSize.md.val} color="uiNeutralPrimary" />
             <Text flex={1} color="uiNeutralPrimary" emphasized headline>
               {t("Total due")}
             </Text>
@@ -298,7 +298,7 @@ function TimelineRow({
 }) {
   return (
     <XStack gap="s3">
-      <YStack width={24} alignItems="center">
+      <YStack width="s5" alignItems="center">
         <View
           position="absolute"
           top={first ? 11 : 0}
@@ -310,9 +310,9 @@ function TimelineRow({
         />
         {node ? (
           <YStack
-            width={24}
-            height={24}
-            borderRadius={12}
+            width="s5"
+            height="s5"
+            borderRadius="r4"
             backgroundColor="backgroundSoft"
             alignItems="center"
             justifyContent="center"
@@ -321,7 +321,7 @@ function TimelineRow({
           </YStack>
         ) : bullet ? (
           <YStack height={22} justifyContent="center">
-            <View width={7} height={7} borderRadius={4} backgroundColor="uiNeutralSecondary" />
+            <View width={7} height={7} borderRadius="r2" backgroundColor="uiNeutralSecondary" />
           </YStack>
         ) : null}
       </YStack>
@@ -334,7 +334,7 @@ function TimelineRow({
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <XStack alignItems="center" gap="s3" height={24}>
+    <XStack alignItems="center" gap="s3" height="s5">
       <Text emphasized subHeadline color="uiNeutralPrimary">
         {children}
       </Text>

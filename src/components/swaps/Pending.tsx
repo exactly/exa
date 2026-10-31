@@ -5,7 +5,7 @@ import { LinearGradient } from "expo-linear-gradient";
 
 import { ArrowDown } from "@tamagui/lucide-icons-2/icons/ArrowDown";
 import { X } from "@tamagui/lucide-icons-2/icons/X";
-import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
 
 import estimate from "../../utils/estimate";
 import formatTokenAmount from "../../utils/formatTokenAmount";
@@ -49,9 +49,9 @@ export default function Pending({
       <StyledGradient
         locations={[0.5, 1]}
         position="absolute"
-        top={0}
-        left={0}
-        right={0}
+        top="s0"
+        left="s0"
+        right="s0"
         height={220}
         opacity={0.8}
         colors={[theme.backgroundStrong.val, theme.backgroundSoft.val]}
@@ -61,7 +61,7 @@ export default function Pending({
           <YStack gap="s7" paddingBottom="s9">
             <IconButton alignSelf="flex-start" icon={X} aria-label={t("Close")} onPress={onClose} />
             <XStack justifyContent="center" alignItems="center">
-              <Square borderRadius="r4" backgroundColor="backgroundStrong" size={80}>
+              <Square borderRadius="r4" backgroundColor="backgroundStrong" size="s10">
                 <ExaSpinner backgroundColor="transparent" color="uiNeutralPrimary" />
               </Square>
             </XStack>
@@ -97,7 +97,7 @@ export default function Pending({
                   {formatTokenAmount(fromAmount, fromToken.decimals, language)}
                 </Text>
               </XStack>
-              <ArrowDown size={24} color="interactiveBaseBrandDefault" />
+              <ArrowDown size={getTokens().iconSize.lg.val} color="interactiveBaseBrandDefault" />
               <Text title primary color="uiNeutralPrimary">
                 {`$${toUsdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               </Text>

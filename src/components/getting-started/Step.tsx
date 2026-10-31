@@ -2,7 +2,7 @@ import React from "react";
 import { Pressable } from "react-native";
 
 import { Check } from "@tamagui/lucide-icons-2/icons/Check";
-import { XStack, YStack } from "tamagui";
+import { getTokens, XStack, YStack } from "tamagui";
 
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -36,8 +36,8 @@ export default function Step({
         gap="s3_5"
       >
         <View
-          width={20}
-          height={20}
+          width="s4_5"
+          height="s4_5"
           borderRadius="r_0"
           backgroundColor="uiSuccessSecondary"
           borderWidth={1}
@@ -45,7 +45,7 @@ export default function Step({
           alignItems="center"
           justifyContent="center"
         >
-          <Check size={12} strokeWidth={4} color="interactiveOnBaseSuccessDefault" />
+          <Check size={getTokens().iconSize.xs.val} strokeWidth={4} color="interactiveOnBaseSuccessDefault" />
         </View>
         <Text emphasized subHeadline color="interactiveOnBaseSuccessSoft">
           {title}

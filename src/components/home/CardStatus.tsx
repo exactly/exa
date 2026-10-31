@@ -22,7 +22,7 @@ import { Snowflake } from "@tamagui/lucide-icons-2/icons/Snowflake";
 import { Wallet } from "@tamagui/lucide-icons-2/icons/Wallet";
 import { Zap } from "@tamagui/lucide-icons-2/icons/Zap";
 import { toast } from "@tamagui/toast";
-import { AnimatePresence, Spinner, Square, useTheme, View, XStack, YStack } from "tamagui";
+import { AnimatePresence, getTokens, Spinner, Square, useTheme, View, XStack, YStack } from "tamagui";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 
@@ -102,7 +102,7 @@ export default function CardStatus({
           <Text footnote brand emphasized>
             {t("Learn more")}
           </Text>
-          <ChevronRight size={14} color="interactiveBaseBrandDefault" />
+          <ChevronRight size={getTokens().iconSize.sm.val} color="interactiveBaseBrandDefault" />
         </Pressable>
       </XStack>
       <YStack paddingHorizontal="s4" paddingTop="s3" gap="s4">
@@ -113,14 +113,22 @@ export default function CardStatus({
           }}
         >
           <XStack
-            height={96}
+            height="s11"
             borderRadius="r4"
             overflow="hidden"
             alignItems="center"
             justifyContent="flex-end"
             backgroundColor={card?.productId === BASE_PRODUCT_ID ? "baseBlue" : "cardPreviewBackground"}
           >
-            <View position="absolute" top={0} left={0} right={0} bottom={0} alignItems="center" justifyContent="center">
+            <View
+              position="absolute"
+              top="s0"
+              left="s0"
+              right="s0"
+              bottom="s0"
+              alignItems="center"
+              justifyContent="center"
+            >
               <Art width="100%" height="100%" preserveAspectRatio="xMidYMid meet" />
             </View>
             <AnimatePresence>
@@ -154,7 +162,7 @@ export default function CardStatus({
                 onDetailsPress();
               }}
             >
-              <CreditCard size={14} color="white" />
+              <CreditCard size={getTokens().iconSize.sm.val} color="white" />
               <Text footnote emphasized color="white">
                 {t("Details")}
               </Text>
@@ -164,10 +172,10 @@ export default function CardStatus({
                 <View
                   key="frozen-overlay"
                   position="absolute"
-                  top={0}
-                  left={0}
-                  right={0}
-                  bottom={0}
+                  top="s0"
+                  left="s0"
+                  right="s0"
+                  bottom="s0"
                   backgroundColor="rgba(0,0,0,0.4)"
                   zIndex={2}
                   pointerEvents="none"
@@ -179,8 +187,8 @@ export default function CardStatus({
                 <View
                   key="frozen-icon"
                   position="absolute"
-                  top={0}
-                  bottom={0}
+                  top="s0"
+                  bottom="s0"
                   left="s4"
                   justifyContent="center"
                   zIndex={3}
@@ -189,7 +197,7 @@ export default function CardStatus({
                   opacity="1 enter:0 exit:0"
                   transform="enter:scale(0.7) exit:scale(0.7)"
                 >
-                  <Snowflake size={48} strokeWidth={2} color="white" />
+                  <Snowflake size={getTokens().iconSize.xxl.val} strokeWidth={2} color="white" />
                 </View>
               )}
             </AnimatePresence>
@@ -219,11 +227,11 @@ export default function CardStatus({
                 }}
               >
                 <XStack alignItems="center" gap="s3">
-                  <Square size={24}>
+                  <Square size="s5">
                     {isSettingCardStatus ? (
-                      <Spinner width={24} color="interactiveBaseBrandDefault" alignSelf="flex-start" />
+                      <Spinner width="s5" color="interactiveBaseBrandDefault" alignSelf="flex-start" />
                     ) : (
-                      <Snowflake size={24} color="interactiveBaseBrandDefault" />
+                      <Snowflake size={getTokens().iconSize.lg.val} color="interactiveBaseBrandDefault" />
                     )}
                   </Square>
                   <Text subHeadline color="uiNeutralPrimary">
@@ -338,7 +346,7 @@ function PayModeToggle({
       <XStack
         borderRadius="r_0"
         borderWidth={1}
-        height={48}
+        height="s8"
         style={{ borderColor }}
         onLayout={(event) => {
           setWidth(event.nativeEvent.layout.width);
@@ -389,7 +397,7 @@ function PayModeToggle({
             <View flex={1} alignItems="center">
               <XStack
                 backgroundColor="interactiveBaseSuccessDefault"
-                minHeight={20}
+                minHeight="s4_5"
                 borderRadius="r2"
                 alignItems="center"
                 justifyContent="center"
@@ -444,7 +452,7 @@ function LimitPaginator({
   });
   return (
     <View
-      height={48}
+      height="s8"
       overflow="hidden"
       marginVertical="s4"
       onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
@@ -453,7 +461,7 @@ function LimitPaginator({
         <XStack width={width * 2} x={mode > 0 ? -width : 0} transition={{ preset: "default", properties: "transform" }}>
           <XStack
             width={width}
-            height={48}
+            height="s8"
             alignItems="center"
             gap="s3"
             paddingHorizontal="s4"
@@ -461,7 +469,7 @@ function LimitPaginator({
             onPress={onSpendingLimitInfoPress}
             aria-label={t("Spending limit info")}
           >
-            <Wallet size={20} color="uiNeutralSecondary" />
+            <Wallet size={getTokens().iconSize.md.val} color="uiNeutralSecondary" />
             <XStack flex={1} alignItems="center" gap="s2">
               <Text callout emphasized>
                 {t("Spending limit")}
@@ -479,7 +487,7 @@ function LimitPaginator({
           </XStack>
           <XStack
             width={width}
-            height={48}
+            height="s8"
             alignItems="center"
             gap="s3"
             paddingHorizontal="s4"
@@ -487,7 +495,7 @@ function LimitPaginator({
             onPress={onCreditLimitInfoPress}
             aria-label={t("Credit limit info")}
           >
-            <CreditCard size={20} color="uiNeutralSecondary" />
+            <CreditCard size={getTokens().iconSize.md.val} color="uiNeutralSecondary" />
             <YStack flex={1} justifyContent="center">
               <XStack alignItems="center" gap="s2">
                 <Text callout emphasized>

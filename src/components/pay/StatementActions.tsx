@@ -6,7 +6,7 @@ import { useRouter } from "expo-router";
 import { AlignJustify } from "@tamagui/lucide-icons-2/icons/AlignJustify";
 import { ChevronRight } from "@tamagui/lucide-icons-2/icons/ChevronRight";
 import { FileText } from "@tamagui/lucide-icons-2/icons/FileText";
-import { Separator, YStack } from "tamagui";
+import { getTokens, Separator, YStack } from "tamagui";
 
 import Button from "../shared/StyledButton";
 
@@ -42,8 +42,8 @@ function Action({ icon: Icon, label, onPress }: { icon: typeof FileText; label: 
     <Button
       transparent
       gap="s3"
-      minHeight={0}
-      paddingHorizontal={0}
+      minHeight="s0"
+      paddingHorizontal="s0"
       paddingVertical="s4"
       aria-label={label}
       onPress={onPress}
@@ -51,7 +51,7 @@ function Action({ icon: Icon, label, onPress }: { icon: typeof FileText; label: 
       <Icon size={20} color="uiNeutralSecondary" />
       <Button.Text color="uiNeutralPrimary">{label}</Button.Text>
       <Button.Icon>
-        <ChevronRight size={20} color="interactiveBaseBrandDefault" />
+        <ChevronRight size={getTokens().iconSize.md.val} color="interactiveBaseBrandDefault" />
       </Button.Icon>
     </Button>
   );

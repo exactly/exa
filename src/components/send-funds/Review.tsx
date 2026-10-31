@@ -11,7 +11,7 @@ import { CircleHelp } from "@tamagui/lucide-icons-2/icons/CircleHelp";
 import { Info } from "@tamagui/lucide-icons-2/icons/Info";
 import { TriangleAlert } from "@tamagui/lucide-icons-2/icons/TriangleAlert";
 import { toast } from "@tamagui/toast";
-import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { waitForCallsStatus } from "@wagmi/core/actions";
@@ -145,9 +145,9 @@ export default function Review() {
           <StyledGradient
             locations={[0.5, 1]}
             position="absolute"
-            top={0}
-            left={0}
-            right={0}
+            top="s0"
+            left="s0"
+            right="s0"
             height={220}
             opacity={0.2}
             colors={[theme.uiSuccessSecondary.val, theme.backgroundSoft.val]}
@@ -158,11 +158,11 @@ export default function Review() {
             <YStack flex={1} justifyContent="center" alignItems="center" gap="s5">
               <Square
                 borderRadius="r4"
-                size={80}
+                size="s10"
                 backgroundColor={sent ? "interactiveBaseSuccessSoftDefault" : "backgroundStrong"}
               >
                 {sent ? (
-                  <Check size={32} color="uiSuccessSecondary" strokeWidth={2.5} />
+                  <Check size={getTokens().iconSize.xl.val} color="uiSuccessSecondary" strokeWidth={2.5} />
                 ) : (
                   <ExaSpinner backgroundColor="transparent" color="uiNeutralPrimary" />
                 )}

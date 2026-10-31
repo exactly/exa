@@ -9,7 +9,7 @@ import { Blocks } from "@tamagui/lucide-icons-2/icons/Blocks";
 import { CircleHelp } from "@tamagui/lucide-icons-2/icons/CircleHelp";
 import { Info } from "@tamagui/lucide-icons-2/icons/Info";
 import { Wallet } from "@tamagui/lucide-icons-2/icons/Wallet";
-import { ScrollView, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 import { isAddress } from "viem";
@@ -122,7 +122,7 @@ export default function AddFunds() {
                   />
                 )}
                 <AddFundsOption
-                  icon={<Blocks size={24} color="iconBrandDefault" />}
+                  icon={<Blocks size={getTokens().iconSize.lg.val} color="iconBrandDefault" />}
                   title={t("Digital assets")}
                   subtitle={t("USDC, ETH, stocks, and more")}
                   onPress={() => {
@@ -131,7 +131,7 @@ export default function AddFunds() {
                 />
                 {hasFiat !== false && chain.id !== base.id && (
                   <AddFundsOption
-                    icon={<Banknote size={24} color="iconBrandDefault" />}
+                    icon={<Banknote size={getTokens().iconSize.lg.val} color="iconBrandDefault" />}
                     title={t("Bank transfers")}
                     subtitle={t("Pesos, dollars, or euros")}
                     disabled={isKYCApproved && !hasFiat}

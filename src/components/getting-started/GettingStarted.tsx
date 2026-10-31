@@ -7,7 +7,7 @@ import { ArrowDownToLine } from "@tamagui/lucide-icons-2/icons/ArrowDownToLine";
 import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
 import { IdCard } from "@tamagui/lucide-icons-2/icons/IdCard";
 import { toast } from "@tamagui/toast";
-import { ScrollView, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, XStack, YStack } from "tamagui";
 
 import { useBytecode } from "wagmi";
 
@@ -35,11 +35,11 @@ export default function GettingStarted() {
   const steps = useOnboardingSteps({ kyc, isDeployed: !!bytecode });
   const currentStep = steps.find(({ status }) => status === "pending");
   return (
-    <SafeView fullScreen backgroundColor="backgroundBrandSoft" paddingBottom={0}>
+    <SafeView fullScreen backgroundColor="backgroundBrandSoft" paddingBottom="s0">
       <View gap="s4_5" fullScreen>
-        <View gap="s4_5" paddingBottom={0} padded>
+        <View gap="s4_5" paddingBottom="s0" padded>
           <View flexDirection="row" gap="s3_5" justifyContent="space-around" alignItems="center">
-            <View position="absolute" left={0}>
+            <View position="absolute" left="s0">
               <IconButton
                 icon={ArrowLeft}
                 aria-label={t("Back")}
@@ -78,7 +78,7 @@ export default function GettingStarted() {
                     status === "review" ? t("IN REVIEW") : status === "failed" ? t("VERIFICATION FAILED") : undefined
                   }
                   {...(id === "verify-identity" && {
-                    icon: <IdCard size={20} strokeWidth={2} color="uiBrandSecondary" />,
+                    icon: <IdCard size={getTokens().iconSize.md.val} strokeWidth={2} color="uiBrandSecondary" />,
                     description:
                       status === "review"
                         ? t("We’re reviewing the documents you submitted. This usually takes 2 to 3 business days.")
@@ -93,7 +93,9 @@ export default function GettingStarted() {
                     },
                   })}
                   {...(id === "add-funds" && {
-                    icon: <ArrowDownToLine size={20} strokeWidth={2} color="uiBrandSecondary" />,
+                    icon: (
+                      <ArrowDownToLine size={getTokens().iconSize.md.val} strokeWidth={2} color="uiBrandSecondary" />
+                    ),
                     description: t("Your funds serve as collateral to increase your spending limits."),
                     action: t("Learn more about collateral"),
                     onPress: () => {
@@ -120,9 +122,9 @@ function CurrentStep({ id }: { id: "add-funds" | "create-account" | "verify-iden
       <YStack gap="s4">
         <XStack>
           {addFunds ? (
-            <ArrowDownToLine size={32} color="uiBrandSecondary" />
+            <ArrowDownToLine size={getTokens().iconSize.xl.val} color="uiBrandSecondary" />
           ) : (
-            <IdCard size={32} color="uiBrandSecondary" />
+            <IdCard size={getTokens().iconSize.xl.val} color="uiBrandSecondary" />
           )}
         </XStack>
         <Text emphasized title3 color="uiBrandSecondary">

@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { CircleCheck } from "@tamagui/lucide-icons-2/icons/CircleCheck";
 import { FileText } from "@tamagui/lucide-icons-2/icons/FileText";
 import { Headset } from "@tamagui/lucide-icons-2/icons/Headset";
-import { XStack, YStack } from "tamagui";
+import { getTokens, XStack, YStack } from "tamagui";
 
 import Breakdown from "./Breakdown";
 import StatementActions from "./StatementActions";
@@ -68,9 +68,9 @@ export default function HistorySheet({ maturity, onClose }: { maturity: number |
           <YStack gap="s5">
             <XStack gap="s3" alignItems="center">
               {paidAt ? (
-                <CircleCheck size={32} color="uiSuccessSecondary" />
+                <CircleCheck size={getTokens().iconSize.xl.val} color="uiSuccessSecondary" />
               ) : (
-                <FileText size={32} color="uiNeutralSecondary" />
+                <FileText size={getTokens().iconSize.xl.val} color="uiNeutralSecondary" />
               )}
               <YStack flex={1} gap="s1">
                 <Text emphasized headline>

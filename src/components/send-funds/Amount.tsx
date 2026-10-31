@@ -11,7 +11,7 @@ import { ArrowUp } from "@tamagui/lucide-icons-2/icons/ArrowUp";
 import { ChevronRight } from "@tamagui/lucide-icons-2/icons/ChevronRight";
 import { CircleHelp } from "@tamagui/lucide-icons-2/icons/CircleHelp";
 import { CircleX } from "@tamagui/lucide-icons-2/icons/CircleX";
-import { ScrollView, XStack, YStack, type TamaguiElement } from "tamagui";
+import { getTokens, ScrollView, XStack, YStack, type TamaguiElement } from "tamagui";
 
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { safeParse } from "valibot";
@@ -327,8 +327,8 @@ export default function Amount() {
                 placeholder="0"
                 fontSize={size}
                 width={(digits * size) / probe}
-                height={64}
-                padding={0}
+                height="s9"
+                padding="s0"
                 borderWidth={0}
                 backgroundColor="transparent"
                 textAlign="center"
@@ -355,7 +355,7 @@ export default function Amount() {
                 setMode(mode === "usd" ? "token" : "usd");
               }}
             >
-              <ArrowDownUp size={20} color="interactiveBaseBrandDefault" />
+              <ArrowDownUp size={getTokens().iconSize.md.val} color="interactiveBaseBrandDefault" />
               <Text title3 color="uiNeutralPlaceholder">
                 {mode === "usd"
                   ? `${Number(formatUnits(destinationAmount, destinationDecimals)).toLocaleString(language, { maximumFractionDigits: 8 })} ${destination?.symbol ?? ""}`
@@ -408,13 +408,13 @@ export default function Amount() {
                     </>
                   ) : (
                     <>
-                      <View width={32} height={32} borderRadius="r_0" backgroundColor="interactiveDisabled" />
+                      <View width="s6" height="s6" borderRadius="r_0" backgroundColor="interactiveDisabled" />
                       <Text flex={1} callout primary>
                         {t("Select an asset")}
                       </Text>
                     </>
                   )}
-                  <ChevronRight size={20} color="interactiveBaseBrandDefault" />
+                  <ChevronRight size={getTokens().iconSize.md.val} color="interactiveBaseBrandDefault" />
                 </XStack>
               </>
             )}
@@ -497,7 +497,7 @@ export default function Amount() {
           >
             <Button.Text>{isTokensError ? t("Try again") : t("Change send asset")}</Button.Text>
             <Button.Icon>
-              <ArrowRight size={20} />
+              <ArrowRight size={getTokens().iconSize.md.val} />
             </Button.Icon>
           </Button>
         )}
@@ -524,7 +524,11 @@ export default function Amount() {
               {destinationAmount <= 0n ? t("Enter amount") : pay ? t("Review") : t("Select an asset")}
             </Button.Text>
             <Button.Icon>
-              {destinationAmount > 0n && pay ? <ArrowRight size={20} /> : <ArrowUp size={20} />}
+              {destinationAmount > 0n && pay ? (
+                <ArrowRight size={getTokens().iconSize.md.val} />
+              ) : (
+                <ArrowUp size={getTokens().iconSize.md.val} />
+              )}
             </Button.Icon>
           </Button>
         )}

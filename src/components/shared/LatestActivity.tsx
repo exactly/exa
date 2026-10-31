@@ -5,7 +5,7 @@ import { Pressable } from "react-native";
 import { useRouter } from "expo-router";
 
 import { ChevronRight } from "@tamagui/lucide-icons-2/icons/ChevronRight";
-import { XStack, YStack } from "tamagui";
+import { getTokens, XStack, YStack } from "tamagui";
 
 import ActivityItemView from "../activity/ActivityItem";
 import Text from "../shared/Text";
@@ -41,7 +41,7 @@ export default function LatestActivity({
               <Text color="interactiveTextBrandDefault" fontWeight="bold" emphasized footnote>
                 {t("View all")}
               </Text>
-              <ChevronRight size={14} color="interactiveTextBrandDefault" strokeWidth={2.5} />
+              <ChevronRight size={getTokens().iconSize.sm.val} color="interactiveTextBrandDefault" strokeWidth={2.5} />
             </XStack>
           </Pressable>
         ) : null}
@@ -49,7 +49,7 @@ export default function LatestActivity({
       <YStack>
         {!activity?.length &&
           (emptyComponent ?? (
-            <YStack alignItems="center" justifyContent="center" gap="s4_5" padding="s4" paddingTop={0}>
+            <YStack alignItems="center" justifyContent="center" gap="s4_5" padding="s4" paddingTop="s0">
               <Text textAlign="center" color="uiNeutralSecondary" emphasized title>
                 📋
               </Text>

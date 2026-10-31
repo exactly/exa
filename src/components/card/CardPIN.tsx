@@ -21,7 +21,7 @@ export default function CardPIN({ open, onClose }: { onClose: () => void; open: 
   const { data: card, isPending, error, refetch } = useQuery<CardWithPIN>({ queryKey: ["card", "pin"], enabled: open });
   return (
     <ModalSheet open={open} onClose={onClose}>
-      <SafeView paddingTop={0} borderTopLeftRadius="r4" borderTopRightRadius="r4" fullScreen>
+      <SafeView paddingTop="s0" borderTopLeftRadius="r4" borderTopRightRadius="r4" fullScreen>
         <ScrollView maxHeight="web:100vh">
           <View fullScreen flex={1}>
             <View flex={1} padded>

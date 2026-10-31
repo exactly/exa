@@ -2,7 +2,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 
 import { Check } from "@tamagui/lucide-icons-2/icons/Check";
-import { XStack, YStack } from "tamagui";
+import { getTokens, XStack, YStack } from "tamagui";
 
 import Blocky from "../shared/Blocky";
 import ModalSheet from "../shared/ModalSheet";
@@ -56,7 +56,7 @@ export default function ContactSheet({
             <Button primary onPress={onClose}>
               <Button.Text>{t("Done")}</Button.Text>
               <Button.Icon>
-                <Check size={20} />
+                <Check size={getTokens().iconSize.md.val} />
               </Button.Icon>
             </Button>
             <Text

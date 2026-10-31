@@ -68,8 +68,8 @@ export default function ActivityItem({
       }}
     >
       <YStack
-        width={40}
-        height={40}
+        width="s7"
+        height="s7"
         backgroundColor="backgroundStrong"
         borderRadius="r3"
         justifyContent="center"
@@ -158,7 +158,7 @@ function getActivityIcon(item: Item, processing: boolean, refund: boolean) {
       if (processing) return <ClockAlert color="interactiveOnBaseWarningSoft" />;
       if (item.merchant.icon)
         return (
-          <Square size={40} borderRadius="r3" backgroundColor="white">
+          <Square size="s7" borderRadius="r3" backgroundColor="white">
             <Image source={{ uri: item.merchant.icon }} width={26} height={26} contentFit="contain" />
           </Square>
         );

@@ -65,7 +65,7 @@ export default function VisaSignatureSheet({ open, onClose }: { onClose: () => v
   }, [isSuccess, onSuccess, onClose]);
   return (
     <ModalSheet key={open ? "open" : "closed"} open={open} onClose={close} disableDrag heightPercent={90}>
-      <SafeView paddingTop={0} borderTopLeftRadius="r4" borderTopRightRadius="r4" backgroundColor="black" fullScreen>
+      <SafeView paddingTop="s0" borderTopLeftRadius="r4" borderTopRightRadius="r4" backgroundColor="black" fullScreen>
         <View position="absolute" top="s5" right="s5" zIndex={100_000}>
           <IconButton icon={X} size={25} color="uiNeutralSecondary" aria-label={t("Close")} onPress={close} />
         </View>
@@ -117,8 +117,8 @@ export default function VisaSignatureSheet({ open, onClose }: { onClose: () => v
                     >
                       <XStack cursor="pointer">
                         <View
-                          width={16}
-                          height={16}
+                          width="s4"
+                          height="s4"
                           backgroundColor={acknowledged ? "backgroundBrand" : "transparent"}
                           borderColor="backgroundBrand"
                           borderWidth={1}
@@ -169,7 +169,7 @@ function Pending() {
   const { t } = useTranslation();
   return (
     <YStack flex={1} gap="s5" alignItems="center">
-      <Spinner color="white" size="large" width={40} height={40} />
+      <Spinner color="white" size="large" width="s7" height="s7" />
       <Text emphasized title3 color="white" textAlign="center">
         {t("Deactivating current Exa Card")}
       </Text>

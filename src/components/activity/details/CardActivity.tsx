@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { ClockAlert } from "@tamagui/lucide-icons-2/icons/ClockAlert";
 import { Import } from "@tamagui/lucide-icons-2/icons/Import";
 import { ShoppingCart } from "@tamagui/lucide-icons-2/icons/ShoppingCart";
-import { Square, XStack, YStack } from "tamagui";
+import { getTokens, Square, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
@@ -33,17 +33,17 @@ export default function CardActivity({
     <>
       <YStack gap="s7" paddingBottom="s9">
         <XStack justifyContent="center" alignItems="center">
-          <Square borderRadius="r4" backgroundColor="backgroundStrong" size={80}>
+          <Square borderRadius="r4" backgroundColor="backgroundStrong" size="s10">
             {refund ? (
-              <Import size={48} color="uiSuccessSecondary" strokeWidth={2} />
+              <Import size={getTokens().iconSize.xxl.val} color="uiSuccessSecondary" strokeWidth={2} />
             ) : processing ? (
-              <ClockAlert size={48} color="interactiveOnBaseWarningSoft" strokeWidth={2} />
+              <ClockAlert size={getTokens().iconSize.xxl.val} color="interactiveOnBaseWarningSoft" strokeWidth={2} />
             ) : item.merchant.icon ? (
-              <Square size={80} borderRadius="r4" backgroundColor="white">
+              <Square size="s10" borderRadius="r4" backgroundColor="white">
                 <Image source={{ uri: item.merchant.icon }} width={52} height={52} contentFit="contain" />
               </Square>
             ) : (
-              <ShoppingCart size={48} color="uiNeutralPrimary" strokeWidth={2} />
+              <ShoppingCart size={getTokens().iconSize.xxl.val} color="uiNeutralPrimary" strokeWidth={2} />
             )}
           </Square>
         </XStack>

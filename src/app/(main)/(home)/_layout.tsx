@@ -87,9 +87,9 @@ export default function HomeLayout() {
           </TabBarContext>
           <YStack
             position="absolute"
-            bottom={0}
-            left={0}
-            right={0}
+            bottom="s0"
+            left="s0"
+            right="s0"
             pointerEvents="box-none"
             paddingLeft={insets.left}
             paddingRight={insets.right}
@@ -108,8 +108,8 @@ export default function HomeLayout() {
                 {focused !== -1 && width > 0 && (
                   <View
                     position="absolute"
-                    top={0}
-                    bottom={0}
+                    top="s0"
+                    bottom="s0"
                     width={width / tabs.length}
                     x={(focused * width) / tabs.length}
                     transition={{ preset: "quick", spring: { overshootClamping: true } }}

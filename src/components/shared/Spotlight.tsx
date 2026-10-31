@@ -147,10 +147,10 @@ export default function Spotlight({
             position="absolute"
             top={-6}
             left={arrowLeft}
-            width={12}
-            height={12}
+            width="s3_5"
+            height="s3_5"
             backgroundColor="backgroundSoft"
-            borderRadius={2}
+            borderRadius="r1"
             transform={[{ rotate: "45deg" }]}
           />
           {children ?? (

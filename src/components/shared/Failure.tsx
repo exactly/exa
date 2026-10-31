@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
 import { X } from "@tamagui/lucide-icons-2/icons/X";
-import { Square, XStack, YStack } from "tamagui";
+import { getTokens, Square, XStack, YStack } from "tamagui";
 
 import { marketUSDCAddress } from "@exactly/common/generated/chain";
 
@@ -42,8 +42,8 @@ export default function Failure({
         <YStack gap="s7" paddingBottom="s9">
           <IconButton alignSelf="flex-start" icon={X} aria-label={t("Close")} onPress={onClose} />
           <XStack justifyContent="center" alignItems="center">
-            <Square borderRadius="r4" backgroundColor="interactiveBaseErrorSoftDefault" size={80}>
-              <X size={48} color="uiErrorSecondary" strokeWidth={2} />
+            <Square borderRadius="r4" backgroundColor="interactiveBaseErrorSoftDefault" size="s10">
+              <X size={getTokens().iconSize.xxl.val} color="uiErrorSecondary" strokeWidth={2} />
             </Square>
           </XStack>
           <YStack gap="s4_5" justifyContent="center" alignItems="center">

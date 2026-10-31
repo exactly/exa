@@ -73,8 +73,8 @@ export default function Recipients() {
   const recipients = allRecipients?.filter((recipient) => recipient.currency === currency) ?? [];
 
   return (
-    <SafeView fullScreen backgroundColor="backgroundMild" paddingBottom={0}>
-      <View gap="s5" paddingBottom={0} fullScreen padded>
+    <SafeView fullScreen backgroundColor="backgroundMild" paddingBottom="s0">
+      <View gap="s5" paddingBottom="s0" fullScreen padded>
         <XStack gap="s3_5" justifyContent="space-between" alignItems="center">
           <IconButton
             icon={ArrowLeft}
@@ -99,7 +99,7 @@ export default function Recipients() {
           <YStack flex={1} gap="s5">
             <YStack gap="s3_5">
               <AddFundsOption
-                icon={<Settings size={24} color="iconBrandDefault" />}
+                icon={<Settings size={getTokens().iconSize.lg.val} color="iconBrandDefault" />}
                 title={t("Transfer to a new beneficiary")}
                 subtitle={method ? t("Via {{method}}", { method: t(method) }) : t("Add new beneficiary")}
                 onPress={() => {
@@ -112,7 +112,7 @@ export default function Recipients() {
                     {t("or")}
                   </Text>
                   <AddFundsOption
-                    icon={<QrCode size={24} color="iconBrandDefault" />}
+                    icon={<QrCode size={getTokens().iconSize.lg.val} color="iconBrandDefault" />}
                     title={t("Scan QR code")}
                     onPress={() => {
                       router.push({ pathname: "/send-funds/new-recipient", params: { currency, provider, scan: "1" } });
@@ -268,7 +268,7 @@ function RecipientRow({
           >
             <Button.Text>{t("Edit contact")}</Button.Text>
             <Button.Icon>
-              <PencilLine size={20} />
+              <PencilLine size={getTokens().iconSize.md.val} />
             </Button.Icon>
           </Button>
           <Text

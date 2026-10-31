@@ -2,7 +2,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 
 import { ArrowDownToLine } from "@tamagui/lucide-icons-2/icons/ArrowDownToLine";
-import { Square, XStack, YStack } from "tamagui";
+import { getTokens, Square, XStack, YStack } from "tamagui";
 
 import TransactionDetails from "./TransactionDetails";
 import AssetLogo from "../../shared/AssetLogo";
@@ -20,8 +20,8 @@ export default function ReceivedActivity({ item }: { item: Extract<ActivityItem,
     <>
       <YStack gap="s7" paddingBottom="s9">
         <XStack justifyContent="center" alignItems="center">
-          <Square borderRadius="r4" backgroundColor="backgroundStrong" size={80}>
-            <ArrowDownToLine size={48} color="interactiveOnBaseSuccessSoft" strokeWidth={2} />
+          <Square borderRadius="r4" backgroundColor="backgroundStrong" size="s10">
+            <ArrowDownToLine size={getTokens().iconSize.xxl.val} color="interactiveOnBaseSuccessSoft" strokeWidth={2} />
           </Square>
         </XStack>
         <YStack gap="s4_5" justifyContent="center" alignItems="center">

@@ -27,13 +27,13 @@ export default function GradientScrollView({
     return [String(main.val), String(secondary.val)];
   }, [theme, config.gradientColors]);
   return (
-    <SafeView fullScreen backgroundColor={config.backgroundColor} paddingBottom={0}>
+    <SafeView fullScreen backgroundColor={config.backgroundColor} paddingBottom="s0">
       <StyledGradient
         locations={[0.5, 1]}
         position="absolute"
-        top={0}
-        left={0}
-        right={0}
+        top="s0"
+        left="s0"
+        right="s0"
         height={220}
         opacity={config.gradientOpacity}
         colors={gradientColors}

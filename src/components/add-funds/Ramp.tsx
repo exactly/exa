@@ -207,7 +207,7 @@ export default function Ramp() {
             <Text secondary emphasized>
               {deposits.length > 0 ? methods : t("Details")}
             </Text>
-            <View width={24} />
+            <View width="s5" />
           </View>
         </View>
         <ScrollView flex={1}>
@@ -484,7 +484,7 @@ function DetailRow({ label, value, isLoading, onCopy }: DetailRowProperties) {
   const { t } = useTranslation();
   return (
     <XStack gap="s3" alignItems="center" justifyContent="space-between">
-      <YStack flex={1} minWidth={0}>
+      <YStack flex={1} minWidth="s0">
         <Text secondary caption>
           {label}
         </Text>

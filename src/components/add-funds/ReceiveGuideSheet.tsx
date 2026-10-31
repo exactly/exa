@@ -5,7 +5,7 @@ import { Pressable } from "react-native";
 import { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
 import { Check } from "@tamagui/lucide-icons-2/icons/Check";
 import { Info } from "@tamagui/lucide-icons-2/icons/Info";
-import { ScrollView, Separator, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import chain from "@exactly/common/generated/chain";
 
@@ -125,7 +125,7 @@ export default function ReceiveGuideSheet({
                   <ChainLogo chainId={chainId} size={24} borderRadius="r_0" />
                 </View>
               </View>
-              <ArrowRight size={24} color="uiNeutralSecondary" />
+              <ArrowRight size={getTokens().iconSize.lg.val} color="uiNeutralSecondary" />
               <View position="relative">
                 {variant === "bridge" ? (
                   <AssetLogo symbol={asset} width={48} height={48} />
@@ -197,8 +197,8 @@ function Step({ index, text }: { index: number; text: string }) {
   return (
     <XStack gap="s3_5" alignItems="center">
       <View
-        width={24}
-        height={24}
+        width="s5"
+        height="s5"
         borderRadius="r_0"
         backgroundColor="interactiveBaseBrandSoftDefault"
         alignItems="center"

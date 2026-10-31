@@ -6,7 +6,7 @@ import { LinearGradient } from "expo-linear-gradient";
 
 import { ArrowDown } from "@tamagui/lucide-icons-2/icons/ArrowDown";
 import { X } from "@tamagui/lucide-icons-2/icons/X";
-import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
 
 import formatTokenAmount from "../../utils/formatTokenAmount";
 import queryClient from "../../utils/queryClient";
@@ -46,9 +46,9 @@ export default function Failure({
       <StyledGradient
         locations={[0.5, 1]}
         position="absolute"
-        top={0}
-        left={0}
-        right={0}
+        top="s0"
+        left="s0"
+        right="s0"
         height={220}
         opacity={0.2}
         colors={[theme.uiErrorSecondary.val, theme.backgroundSoft.val]}
@@ -66,8 +66,8 @@ export default function Failure({
               }}
             />
             <XStack justifyContent="center" alignItems="center">
-              <Square borderRadius="r4" backgroundColor="interactiveBaseErrorSoftDefault" size={80}>
-                <X size={48} color="uiErrorSecondary" strokeWidth={2} />
+              <Square borderRadius="r4" backgroundColor="interactiveBaseErrorSoftDefault" size="s10">
+                <X size={getTokens().iconSize.xxl.val} color="uiErrorSecondary" strokeWidth={2} />
               </Square>
             </XStack>
             <YStack gap="s4_5" justifyContent="center" alignItems="center">
@@ -92,7 +92,7 @@ export default function Failure({
                   height={16}
                 />
               </XStack>
-              <ArrowDown size={24} color="uiNeutralPrimary" />
+              <ArrowDown size={getTokens().iconSize.lg.val} color="uiNeutralPrimary" />
               <Text title primary color="uiNeutralPrimary">
                 {`$${toUsdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               </Text>

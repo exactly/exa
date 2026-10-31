@@ -5,7 +5,7 @@ import { Pressable } from "react-native";
 import { CalendarClock } from "@tamagui/lucide-icons-2/icons/CalendarClock";
 import { CircleHelp } from "@tamagui/lucide-icons-2/icons/CircleHelp";
 import { CreditCard } from "@tamagui/lucide-icons-2/icons/CreditCard";
-import { Separator, XStack, YStack } from "tamagui";
+import { getTokens, Separator, XStack, YStack } from "tamagui";
 
 import { presentArticle } from "../../../utils/intercom";
 import reportError from "../../../utils/reportError";
@@ -45,9 +45,9 @@ export default function PaymentDetails({ item }: { item: CreditActivity | DebitA
               {item.mode > 0 ? t("Pay Later") : t("Card")}
             </Text>
             {item.mode > 0 ? (
-              <CalendarClock size={20} color="uiBrandPrimary" />
+              <CalendarClock size={getTokens().iconSize.md.val} color="uiBrandPrimary" />
             ) : (
-              <CreditCard size={20} color="uiBrandPrimary" />
+              <CreditCard size={getTokens().iconSize.md.val} color="uiBrandPrimary" />
             )}
           </XStack>
         </XStack>

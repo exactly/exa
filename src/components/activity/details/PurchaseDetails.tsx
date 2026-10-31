@@ -6,7 +6,7 @@ import { setStringAsync } from "expo-clipboard";
 
 import { Copy } from "@tamagui/lucide-icons-2/icons/Copy";
 import { toast } from "@tamagui/toast";
-import { Separator, XStack, YStack } from "tamagui";
+import { getTokens, Separator, XStack, YStack } from "tamagui";
 
 import { format } from "date-fns";
 
@@ -67,7 +67,7 @@ export default function PurchaseDetails({
                 <Text callout color="uiNeutralPrimary">
                   {shortenHex(item.id)}
                 </Text>
-                <Copy size={20} color="uiNeutralPrimary" />
+                <Copy size={getTokens().iconSize.md.val} color="uiNeutralPrimary" />
               </XStack>
             </Pressable>
           </XStack>

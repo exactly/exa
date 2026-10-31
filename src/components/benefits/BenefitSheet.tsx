@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { ExternalLink } from "@tamagui/lucide-icons-2/icons/ExternalLink";
 import { X } from "@tamagui/lucide-icons-2/icons/X";
-import { ScrollView, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, XStack, YStack } from "tamagui";
 
 import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
@@ -35,7 +35,7 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
   return (
     <ModalSheet open={open} onClose={onClose}>
       <SafeView
-        paddingTop={0}
+        paddingTop="s0"
         paddingBottom="web:s4"
         borderTopLeftRadius="r4"
         borderTopRightRadius="r4"
@@ -71,7 +71,7 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
             <Button
               backgroundColor="interactiveBaseBrandDefault"
               justifyContent="space-between"
-              minHeight={64}
+              minHeight="s9"
               padding="s4"
               onPress={() => {
                 const { url, external } = benefit;
@@ -82,7 +82,7 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
               <Button.Text emphasized subHeadline color="interactiveOnBaseBrandDefault">
                 {benefit.buttonText ? t(benefit.buttonText) : t("Get benefit")}
               </Button.Text>
-              <ExternalLink size={20} color="interactiveOnBaseBrandDefault" />
+              <ExternalLink size={getTokens().iconSize.md.val} color="interactiveOnBaseBrandDefault" />
             </Button>
           </YStack>
         </ScrollView>

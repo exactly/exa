@@ -9,7 +9,7 @@ import { Check } from "@tamagui/lucide-icons-2/icons/Check";
 import { ChevronRight } from "@tamagui/lucide-icons-2/icons/ChevronRight";
 import { CircleHelp } from "@tamagui/lucide-icons-2/icons/CircleHelp";
 import { X } from "@tamagui/lucide-icons-2/icons/X";
-import { ScrollView, Separator, Square, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, Separator, Square, XStack, YStack } from "tamagui";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { waitForCallsStatus } from "@wagmi/core/actions";
@@ -215,7 +215,7 @@ export default function Review() {
     if (markets && amount > borrowAvailable)
       return <Redirect href={{ pathname: "/loan/amount", params: { market, amount: String(amount) } }} />;
     return (
-      <SafeView fullScreen paddingBottom={0}>
+      <SafeView fullScreen paddingBottom="s0">
         <View
           padded
           flexDirection="row"
@@ -370,7 +370,11 @@ export default function Review() {
                     >
                       {t("payment schedule")}
                     </Text>
-                    <ChevronRight size={12} color="interactiveBaseBrandDefault" strokeWidth={2} />
+                    <ChevronRight
+                      size={getTokens().iconSize.xs.val}
+                      color="interactiveBaseBrandDefault"
+                      strokeWidth={2}
+                    />
                   </XStack>
                 </YStack>
               )}
@@ -435,7 +439,7 @@ export default function Review() {
           />
           <XStack justifyContent="center" alignItems="center">
             <Square
-              size={80}
+              size="s10"
               borderRadius="r4"
               backgroundColor={
                 error
@@ -448,9 +452,13 @@ export default function Review() {
               }
             >
               {processing && <ExaSpinner backgroundColor="transparent" color="uiNeutralPrimary" />}
-              {success && isLatestPlugin && <Check size={48} color="uiInfoSecondary" strokeWidth={2} />}
-              {success && !isLatestPlugin && <Check size={48} color="uiSuccessSecondary" strokeWidth={2} />}
-              {error && <X size={48} color="uiErrorSecondary" strokeWidth={2} />}
+              {success && isLatestPlugin && (
+                <Check size={getTokens().iconSize.xxl.val} color="uiInfoSecondary" strokeWidth={2} />
+              )}
+              {success && !isLatestPlugin && (
+                <Check size={getTokens().iconSize.xxl.val} color="uiSuccessSecondary" strokeWidth={2} />
+              )}
+              {error && <X size={getTokens().iconSize.xxl.val} color="uiErrorSecondary" strokeWidth={2} />}
             </Square>
           </XStack>
           <YStack gap="s4_5" justifyContent="center" alignItems="center">

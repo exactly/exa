@@ -16,7 +16,7 @@ export default styled(View, {
         padding: "s4",
       },
     },
-    tab: { true: { paddingBottom: 0 } },
+    tab: { true: { paddingBottom: "s0" } },
     smallPadding: {
       true: {
         padding: "s3",

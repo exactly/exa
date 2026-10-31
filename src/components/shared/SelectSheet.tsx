@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { Check } from "@tamagui/lucide-icons-2/icons/Check";
 import { Search } from "@tamagui/lucide-icons-2/icons/Search";
-import { ScrollView, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, XStack, YStack } from "tamagui";
 
 import Input from "./Input";
 import ModalSheet from "./ModalSheet";
@@ -73,7 +73,7 @@ function OptionList({
             borderRadius="r3"
             overflow="hidden"
           >
-            <Search size={20} color="uiNeutralPlaceholder" />
+            <Search size={getTokens().iconSize.md.val} color="uiNeutralPlaceholder" />
             <Input
               flex={1}
               borderWidth={0}
@@ -115,7 +115,9 @@ function OptionList({
                   {option.label}
                 </Text>
               </XStack>
-              {option.value === value && <Check size={20} color="interactiveBaseBrandDefault" />}
+              {option.value === value && (
+                <Check size={getTokens().iconSize.md.val} color="interactiveBaseBrandDefault" />
+              )}
             </XStack>
           ))}
         </YStack>

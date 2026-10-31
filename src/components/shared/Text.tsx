@@ -42,8 +42,8 @@ const StyledText = styled(TamaguiText, {
     pill: {
       true: {
         fontWeight: "bold",
-        paddingHorizontal: 4,
-        paddingVertical: 2,
+        paddingHorizontal: "s2",
+        paddingVertical: "s1",
         borderRadius: "r2",
       },
     },

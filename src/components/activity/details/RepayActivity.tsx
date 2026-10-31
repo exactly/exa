@@ -2,7 +2,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 
 import { ArrowUpFromLine } from "@tamagui/lucide-icons-2/icons/ArrowUpFromLine";
-import { Square, XStack, YStack } from "tamagui";
+import { getTokens, Square, XStack, YStack } from "tamagui";
 
 import TransactionDetails from "./TransactionDetails";
 import AssetLogo from "../../shared/AssetLogo";
@@ -20,8 +20,8 @@ export default function RepayActivity({ item }: { item: Extract<ActivityItem, { 
     <>
       <YStack gap="s7" paddingBottom="s9">
         <XStack justifyContent="center" alignItems="center">
-          <Square borderRadius="r4" backgroundColor="backgroundStrong" size={80}>
-            <ArrowUpFromLine size={48} color="interactiveOnBaseErrorSoft" strokeWidth={2} />
+          <Square borderRadius="r4" backgroundColor="backgroundStrong" size="s10">
+            <ArrowUpFromLine size={getTokens().iconSize.xxl.val} color="interactiveOnBaseErrorSoft" strokeWidth={2} />
           </Square>
         </XStack>
         <YStack gap="s4_5" justifyContent="center" alignItems="center">

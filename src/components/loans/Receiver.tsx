@@ -11,7 +11,7 @@ import { CircleHelp } from "@tamagui/lucide-icons-2/icons/CircleHelp";
 import { ClipboardPaste } from "@tamagui/lucide-icons-2/icons/ClipboardPaste";
 import { TriangleAlert } from "@tamagui/lucide-icons-2/icons/TriangleAlert";
 import { toast } from "@tamagui/toast";
-import { ScrollView, Separator, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import { useForm, useStore } from "@tanstack/react-form";
 import { parse, safeParse } from "valibot";
@@ -78,7 +78,7 @@ export default function Receiver() {
     );
   }
   return (
-    <SafeView fullScreen paddingBottom={0}>
+    <SafeView fullScreen paddingBottom="s0">
       <View padded flexDirection="row" gap="s3_5" paddingBottom="s4" justifyContent="space-between" alignItems="center">
         <IconButton
           icon={ArrowLeft}
@@ -134,13 +134,13 @@ export default function Receiver() {
                 >
                   <XStack
                     backgroundColor={external ? "backgroundStrong" : "interactiveBaseBrandDefault"}
-                    width={20}
-                    height={20}
-                    borderRadius={12}
+                    width="s4_5"
+                    height="s4_5"
+                    borderRadius="r4"
                     alignItems="center"
                     justifyContent="center"
                   >
-                    {!external && <Check size={12} color="interactiveOnBaseBrandDefault" />}
+                    {!external && <Check size={getTokens().iconSize.xs.val} color="interactiveOnBaseBrandDefault" />}
                   </XStack>
                   <YStack gap="s1" flex={1}>
                     <Text headline>{t("Your Exa account")}</Text>
@@ -165,13 +165,13 @@ export default function Receiver() {
                 >
                   <XStack
                     backgroundColor={external ? "interactiveBaseBrandDefault" : "backgroundStrong"}
-                    width={20}
-                    height={20}
-                    borderRadius={12}
+                    width="s4_5"
+                    height="s4_5"
+                    borderRadius="r4"
                     alignItems="center"
                     justifyContent="center"
                   >
-                    {external && <Check size={12} color="interactiveOnBaseBrandDefault" />}
+                    {external && <Check size={getTokens().iconSize.xs.val} color="interactiveOnBaseBrandDefault" />}
                   </XStack>
                   <YStack gap="s1" flex={1}>
                     <Text headline>{t("External address on {{chain}}", { chain: chain.name })}</Text>
@@ -189,8 +189,8 @@ export default function Receiver() {
                             flex={1}
                             borderColor="uiNeutralTertiary hover:borderBrandStrong focus:borderBrandStrong focus-visible:borderBrandStrong"
                             borderRightColor="transparent hover:borderBrandStrong focus:borderBrandStrong focus-visible:borderBrandStrong"
-                            borderTopRightRadius={0}
-                            borderBottomRightRadius={0}
+                            borderTopRightRadius="r0"
+                            borderBottomRightRadius="r0"
                             placeholder={t("Enter receiver address")}
                             value={value}
                             onChangeText={handleChange}
@@ -199,8 +199,8 @@ export default function Receiver() {
                             outlined
                             borderColor="uiNeutralTertiary"
                             borderRadius="r3"
-                            borderTopLeftRadius={0}
-                            borderBottomLeftRadius={0}
+                            borderTopLeftRadius="r0"
+                            borderBottomLeftRadius="r0"
                             borderLeftWidth={0}
                             minHeight={44}
                             height={44}
@@ -213,7 +213,7 @@ export default function Receiver() {
                             }}
                           >
                             <Button.Icon>
-                              <ClipboardPaste size={24} />
+                              <ClipboardPaste size={getTokens().iconSize.lg.val} />
                             </Button.Icon>
                           </Button>
                         </XStack>

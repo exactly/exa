@@ -9,7 +9,7 @@ import { ChartLine } from "@tamagui/lucide-icons-2/icons/ChartLine";
 import { ChevronRight } from "@tamagui/lucide-icons-2/icons/ChevronRight";
 import { TrendingDown } from "@tamagui/lucide-icons-2/icons/TrendingDown";
 import { TrendingUp } from "@tamagui/lucide-icons-2/icons/TrendingUp";
-import { useTheme, XStack, YStack } from "tamagui";
+import { getTokens, useTheme, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 import { curveStep } from "d3-shape";
@@ -129,7 +129,7 @@ export default function PriceChart({
           setWidth(nativeEvent.layout.width);
         }}
       >
-        <YStack height={16}>
+        <YStack height="s4">
           {x !== undefined && point && (
             <Text
               caption2
@@ -146,7 +146,7 @@ export default function PriceChart({
         </YStack>
         {data === null ? (
           <YStack flex={1} alignItems="center" justifyContent="center" gap="s3">
-            <ChartLine size={24} color="uiNeutralPlaceholder" />
+            <ChartLine size={getTokens().iconSize.lg.val} color="uiNeutralPlaceholder" />
             <Text footnote color="uiNeutralSecondary">
               {t("Price history unavailable")}
             </Text>

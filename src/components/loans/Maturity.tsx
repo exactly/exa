@@ -38,7 +38,7 @@ export default function Maturity() {
 
   if (!market || !amount || !installments || (markets && !asset)) return <Redirect href="/loan" />;
   return (
-    <SafeView fullScreen paddingBottom={0}>
+    <SafeView fullScreen paddingBottom="s0">
       <View padded flexDirection="row" gap="s3_5" paddingBottom="s4" justifyContent="space-between" alignItems="center">
         <IconButton
           icon={ArrowLeft}
@@ -105,13 +105,15 @@ export default function Maturity() {
                       >
                         <XStack
                           backgroundColor={selected ? "interactiveBaseBrandDefault" : "backgroundStrong"}
-                          width={20}
-                          height={20}
-                          borderRadius={12}
+                          width="s4_5"
+                          height="s4_5"
+                          borderRadius="r4"
                           alignItems="center"
                           justifyContent="center"
                         >
-                          {selected && <Check size={12} color="interactiveOnBaseBrandDefault" />}
+                          {selected && (
+                            <Check size={getTokens().iconSize.xs.val} color="interactiveOnBaseBrandDefault" />
+                          )}
                         </XStack>
                         <YStack>
                           <Text headline color={invalid ? "interactiveOnDisabled" : "uiNeutralPrimary"}>

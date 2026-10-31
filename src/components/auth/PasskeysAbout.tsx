@@ -15,7 +15,7 @@ export default function PasskeysAbout() {
   const { t } = useTranslation();
   const router = useRouter();
   return (
-    <SafeView fullScreen paddingTop={0} backgroundColor="backgroundSoft">
+    <SafeView fullScreen paddingTop="s0" backgroundColor="backgroundSoft">
       <View
         flexDirection="column"
         alignItems="center"
@@ -26,8 +26,8 @@ export default function PasskeysAbout() {
       >
         <View
           position="relative"
-          height={4}
-          width={40}
+          height="s2"
+          width="s7"
           borderRadius="r_0"
           marginTop="s3"
           backgroundColor="backgroundMild"

@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Search } from "@tamagui/lucide-icons-2/icons/Search";
-import { ScrollView, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
@@ -104,7 +104,7 @@ export default function PaySheet({
           borderRadius="r3"
           overflow="hidden"
         >
-          <Search size={20} color="uiNeutralPlaceholder" />
+          <Search size={getTokens().iconSize.md.val} color="uiNeutralPlaceholder" />
           <Input
             flex={1}
             borderWidth={0}

@@ -4,7 +4,7 @@ import { Pressable } from "react-native";
 
 import { Check } from "@tamagui/lucide-icons-2/icons/Check";
 import { X } from "@tamagui/lucide-icons-2/icons/X";
-import { Square, XStack, YStack } from "tamagui";
+import { getTokens, Square, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
@@ -66,9 +66,9 @@ export default function Success({
                   backgroundColor={
                     isLatestPlugin ? "interactiveBaseInformationSoftDefault" : "interactiveBaseSuccessSoftDefault"
                   }
-                  size={80}
+                  size="s10"
                 >
-                  <Check size={48} color="uiSuccessSecondary" strokeWidth={2} />
+                  <Check size={getTokens().iconSize.xxl.val} color="uiSuccessSecondary" strokeWidth={2} />
                 </Square>
               </XStack>
               <YStack gap="s4_5" justifyContent="center" alignItems="center">

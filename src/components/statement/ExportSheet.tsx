@@ -10,7 +10,7 @@ import { LetterText } from "@tamagui/lucide-icons-2/icons/LetterText";
 import { Table } from "@tamagui/lucide-icons-2/icons/Table";
 import { Upload } from "@tamagui/lucide-icons-2/icons/Upload";
 import { toast } from "@tamagui/toast";
-import { Separator, XStack, YStack } from "tamagui";
+import { getTokens, Separator, XStack, YStack } from "tamagui";
 
 import { format } from "date-fns";
 
@@ -133,7 +133,7 @@ export default function ExportSheet({
   return (
     <ModalSheet open={open} onClose={onClose}>
       <SafeView
-        paddingTop={0}
+        paddingTop="s0"
         borderTopLeftRadius="r5"
         borderTopRightRadius="r5"
         backgroundColor="backgroundSoft"
@@ -141,14 +141,14 @@ export default function ExportSheet({
       >
         <XStack gap="s4" alignItems="center" paddingTop="s6" paddingBottom="s4_5" paddingHorizontal="s5">
           <XStack
-            width={48}
-            height={48}
+            width="s8"
+            height="s8"
             alignItems="center"
             justifyContent="center"
             borderRadius="r4"
             backgroundColor="backgroundStrong"
           >
-            <Upload size={32} color="uiSuccessSecondary" />
+            <Upload size={getTokens().iconSize.xl.val} color="uiSuccessSecondary" />
           </XStack>
           <YStack flex={1} gap="s2">
             <Text body color="uiNeutralSecondary">
@@ -217,7 +217,7 @@ function Option({
           </Text>
         )}
       </YStack>
-      <ChevronRight size={20} color="interactiveBaseBrandDefault" />
+      <ChevronRight size={getTokens().iconSize.md.val} color="interactiveBaseBrandDefault" />
     </XStack>
   );
 }

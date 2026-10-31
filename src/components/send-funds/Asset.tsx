@@ -216,8 +216,8 @@ export default function AssetSelection() {
   if (typeof receiver !== "string" || !receiver) return <Redirect href="/send-funds/receiver" />;
 
   return (
-    <SafeView fullScreen paddingBottom={0}>
-      <View gap="s4_5" paddingBottom={0} fullScreen padded>
+    <SafeView fullScreen paddingBottom="s0">
+      <View gap="s4_5" paddingBottom="s0" fullScreen padded>
         <XStack gap="s3_5" justifyContent="space-between" alignItems="center">
           <IconButton
             icon={ArrowLeft}
@@ -247,7 +247,7 @@ export default function AssetSelection() {
           borderRadius="r3"
           overflow="hidden"
         >
-          <Search size={20} color="uiNeutralPlaceholder" />
+          <Search size={getTokens().iconSize.md.val} color="uiNeutralPlaceholder" />
           <Input
             flex={1}
             borderWidth={0}

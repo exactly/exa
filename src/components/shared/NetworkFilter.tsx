@@ -99,7 +99,7 @@ function Mosaic({ chains, size }: { chains: { id: number }[]; size: number }) {
       flexWrap="wrap"
       justifyContent="center"
       alignContent="center"
-      gap={2}
+      gap="s1"
     >
       {chains.slice(0, 4).map((item) => (
         <ChainLogo key={item.id} chainId={item.id} size={size / 2 - 1} />

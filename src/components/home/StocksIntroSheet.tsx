@@ -29,7 +29,7 @@ export default function StocksIntroSheet({
   return (
     <ModalSheet open={open} onClose={onClose} heightPercent={90}>
       <SafeView
-        paddingTop={0}
+        paddingTop="s0"
         borderTopLeftRadius="r4"
         borderTopRightRadius="r4"
         backgroundColor="backgroundSoft"

@@ -8,7 +8,7 @@ import { useFocusEffect } from "expo-router";
 import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
 import { BoxSelect } from "@tamagui/lucide-icons-2/icons/BoxSelect";
 import { SwitchCamera } from "@tamagui/lucide-icons-2/icons/SwitchCamera";
-import { useWindowDimensions, XStack, YStack } from "tamagui";
+import { getTokens, useWindowDimensions, XStack, YStack } from "tamagui";
 
 import reportError from "../../utils/reportError";
 import useInsets from "../../utils/useInsets";
@@ -153,7 +153,7 @@ function BackControl({ onPress }: { onPress: () => void }) {
       aria-label={t("Back")}
       onPress={onPress}
     >
-      <ArrowLeft size={24} color="uiNeutralPrimary" />
+      <ArrowLeft size={getTokens().iconSize.lg.val} color="uiNeutralPrimary" />
       <Text headline>{t("Back")}</Text>
     </XStack>
   );

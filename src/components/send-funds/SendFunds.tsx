@@ -96,8 +96,8 @@ export default function SendFunds() {
   }
 
   return (
-    <SafeView fullScreen backgroundColor="backgroundMild" paddingBottom={0}>
-      <View gap="s6" paddingBottom={0} fullScreen padded>
+    <SafeView fullScreen backgroundColor="backgroundMild" paddingBottom="s0">
+      <View gap="s6" paddingBottom="s0" fullScreen padded>
         <YStack gap="s4_5">
           <XStack flexDirection="row" gap="s3_5" justifyContent="space-between" alignItems="center">
             <IconButton
@@ -129,7 +129,7 @@ export default function SendFunds() {
             {type !== "fiat" && (
               <>
                 <AddFundsOption
-                  icon={<Blocks size={24} color="iconBrandDefault" />}
+                  icon={<Blocks size={getTokens().iconSize.lg.val} color="iconBrandDefault" />}
                   title={t("Digital assets")}
                   subtitle={t("USDC, ETH, stocks, and more")}
                   onPress={() => {
@@ -138,7 +138,7 @@ export default function SendFunds() {
                 />
                 {hasFiat !== false && chain.id !== base.id && (
                   <AddFundsOption
-                    icon={<Banknote size={24} color="iconBrandDefault" />}
+                    icon={<Banknote size={getTokens().iconSize.lg.val} color="iconBrandDefault" />}
                     title={t("Bank transfers")}
                     subtitle={t("Pesos, dollars, or euros")}
                     disabled={isKYCApproved && !hasFiat}

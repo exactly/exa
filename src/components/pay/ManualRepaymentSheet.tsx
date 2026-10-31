@@ -30,7 +30,7 @@ export default function ManualRepaymentSheet({
   return (
     <ModalSheet key={open ? "open" : "closed"} open={open} onClose={onClose} disableDrag>
       <SafeView
-        paddingTop={0}
+        paddingTop="s0"
         borderTopLeftRadius="r4"
         borderTopRightRadius="r4"
         backgroundColor="backgroundSoft"
@@ -70,8 +70,8 @@ export default function ManualRepaymentSheet({
                 >
                   <XStack cursor="pointer" gap="s3" flex={1} alignItems="center">
                     <View
-                      width={16}
-                      height={16}
+                      width="s4"
+                      height="s4"
                       backgroundColor={acknowledged ? "backgroundBrand" : "transparent"}
                       borderColor="backgroundBrand"
                       borderWidth={1}

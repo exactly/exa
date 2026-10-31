@@ -20,7 +20,7 @@ export default function InfoSheet({
 }) {
   return (
     <ModalSheet open={open} onClose={onClose}>
-      <SafeView paddingTop={0} borderTopLeftRadius="r4" borderTopRightRadius="r4" fullScreen>
+      <SafeView paddingTop="s0" borderTopLeftRadius="r4" borderTopRightRadius="r4" fullScreen>
         <ScrollView maxHeight="web:100vh">
           <View fullScreen flex={1}>
             <YStack flex={1} padding="s4" gap="s4">

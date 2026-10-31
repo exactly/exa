@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
 import { Shuffle } from "@tamagui/lucide-icons-2/icons/Shuffle";
-import { XStack, YStack } from "tamagui";
+import { getTokens, XStack, YStack } from "tamagui";
 
 import queryClient from "../../utils/queryClient";
 import AssetLogo from "../shared/AssetLogo";
@@ -58,7 +58,7 @@ export default function SwapSheet({
             justifyContent="center"
           >
             <AssetLogo uri={payUri} symbol={paySymbol} width={40} height={40} chainId={payChain} network />
-            <Shuffle size={24} color="uiNeutralPrimary" />
+            <Shuffle size={getTokens().iconSize.lg.val} color="uiNeutralPrimary" />
             <AssetLogo uri={toUri} symbol={toSymbol} width={40} height={40} chainId={toChain} network />
           </XStack>
           <Text subHeadline secondary>
@@ -80,7 +80,7 @@ export default function SwapSheet({
             >
               <Button.Text>{t("Continue")}</Button.Text>
               <Button.Icon>
-                <ArrowRight size={20} />
+                <ArrowRight size={getTokens().iconSize.md.val} />
               </Button.Icon>
             </Button>
           </YStack>

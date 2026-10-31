@@ -19,7 +19,7 @@ import { RefreshCw } from "@tamagui/lucide-icons-2/icons/RefreshCw";
 import { Repeat } from "@tamagui/lucide-icons-2/icons/Repeat";
 import { TriangleAlert } from "@tamagui/lucide-icons-2/icons/TriangleAlert";
 import { toast } from "@tamagui/toast";
-import { ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
 
 import { useMutation, useQueries, useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { readContract } from "@wagmi/core/actions";
@@ -927,7 +927,7 @@ export default function Swaps() {
           </YStack>
         ) : processing ? (
           <YStack flex={1} justifyContent="center" alignItems="center" gap="s3" padding="s4">
-            <IdCard size={48} color="uiBrandSecondary" />
+            <IdCard size={getTokens().iconSize.xxl.val} color="uiBrandSecondary" />
             <Text emphasized primary headline textAlign="center">
               {t("Verification in review")}
             </Text>
@@ -937,7 +937,7 @@ export default function Swaps() {
           </YStack>
         ) : failed ? (
           <YStack flex={1} justifyContent="center" alignItems="center" gap="s3" padding="s4">
-            <IdCard size={48} color="uiBrandSecondary" />
+            <IdCard size={getTokens().iconSize.xxl.val} color="uiBrandSecondary" />
             <Text emphasized primary headline textAlign="center">
               {t("We couldn’t verify your identity")}
             </Text>
@@ -959,7 +959,7 @@ export default function Swaps() {
           </YStack>
         ) : unavailable ? (
           <YStack flex={1} justifyContent="center" alignItems="center" gap="s3" padding="s4">
-            <TriangleAlert size={48} color="uiNeutralSecondary" />
+            <TriangleAlert size={getTokens().iconSize.xxl.val} color="uiNeutralSecondary" />
             <Text emphasized primary headline textAlign="center">
               {t("An error occurred. Please try again later.")}
             </Text>
@@ -980,7 +980,7 @@ export default function Swaps() {
           </YStack>
         ) : unverified ? (
           <YStack flex={1} justifyContent="center" alignItems="center" gap="s3" padding="s4">
-            <IdCard size={48} color="uiBrandSecondary" />
+            <IdCard size={getTokens().iconSize.xxl.val} color="uiBrandSecondary" />
             <Text emphasized primary headline textAlign="center">
               {t("Verify your identity")}
             </Text>
@@ -1017,7 +1017,7 @@ export default function Swaps() {
           </YStack>
         ) : balancesUnavailable || chainsUnavailable ? (
           <YStack flex={1} justifyContent="center" alignItems="center" gap="s3" padding="s4">
-            <TriangleAlert size={48} color="uiNeutralSecondary" />
+            <TriangleAlert size={getTokens().iconSize.xxl.val} color="uiNeutralSecondary" />
             <Text emphasized primary headline textAlign="center">
               {t("An error occurred. Please try again later.")}
             </Text>
@@ -1038,7 +1038,7 @@ export default function Swaps() {
           </YStack>
         ) : empty ? (
           <YStack flex={1} justifyContent="center" alignItems="center" gap="s3" padding="s4">
-            <TriangleAlert size={48} color="uiNeutralSecondary" />
+            <TriangleAlert size={getTokens().iconSize.xxl.val} color="uiNeutralSecondary" />
             <Text emphasized primary headline textAlign="center">
               {t("Nothing to swap yet")}
             </Text>
@@ -1093,8 +1093,8 @@ export default function Swaps() {
                             <XStack paddingTop="s3_5" justifyContent="center" alignItems="center" zIndex={1}>
                               <XStack
                                 position="absolute"
-                                width={48}
-                                height={48}
+                                width="s8"
+                                height="s8"
                                 borderRadius="r_0"
                                 borderWidth={4}
                                 borderColor="backgroundSoft"
@@ -1127,7 +1127,7 @@ export default function Swaps() {
                                 }}
                               >
                                 <ArrowDownUp
-                                  size={20}
+                                  size={getTokens().iconSize.md.val}
                                   color={locked ? "interactiveOnDisabled" : "interactiveOnBaseBrandSoft"}
                                 />
                               </XStack>

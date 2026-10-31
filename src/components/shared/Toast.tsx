@@ -50,7 +50,7 @@ export default function NotificationToast() {
                     borderBottomLeftRadius="r3"
                   >
                     <InfoIcon
-                      size={24}
+                      size={getTokens().iconSize.lg.val}
                       color={
                         { success: "uiSuccessSecondary", error: "uiErrorSecondary", info: "uiInfoSecondary" }[type]
                       }

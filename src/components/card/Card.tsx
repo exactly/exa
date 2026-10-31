@@ -14,7 +14,7 @@ import { EyeOff } from "@tamagui/lucide-icons-2/icons/EyeOff";
 import { Hash } from "@tamagui/lucide-icons-2/icons/Hash";
 import { Snowflake } from "@tamagui/lucide-icons-2/icons/Snowflake";
 import { toast } from "@tamagui/toast";
-import { ScrollView, Separator, Spinner, Square, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, Separator, Spinner, Square, XStack, YStack } from "tamagui";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useBytecode } from "wagmi";
@@ -272,7 +272,7 @@ export default function Card() {
   return (
     <SafeView fullScreen tab backgroundColor="backgroundSoft">
       <View fullScreen backgroundColor="backgroundMild">
-        <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="backgroundSoft" />
+        <View position="absolute" top="s0" left="s0" right="s0" height="50%" backgroundColor="backgroundSoft" />
         <ScrollView
           ref={scrollRef}
           backgroundColor="transparent"
@@ -363,12 +363,16 @@ export default function Card() {
                     }}
                   >
                     <XStack gap="s3" justifyContent="flex-start" alignItems="center">
-                      <CreditCard size={24} color="interactiveBaseBrandDefault" fontWeight="bold" />
+                      <CreditCard
+                        size={getTokens().iconSize.lg.val}
+                        color="interactiveBaseBrandDefault"
+                        fontWeight="bold"
+                      />
                       <Text subHeadline color="uiNeutralPrimary">
                         {t("Card details")}
                       </Text>
                     </XStack>
-                    <ChevronRight color="uiBrandSecondary" size={24} />
+                    <ChevronRight color="uiBrandSecondary" size={getTokens().iconSize.lg.val} />
                   </XStack>
 
                   <Separator borderColor="borderNeutralSoft" />
@@ -395,11 +399,15 @@ export default function Card() {
                         }}
                       >
                         <XStack alignItems="center" gap="s3">
-                          <Square size={24}>
+                          <Square size="s5">
                             {isSettingCardStatus ? (
-                              <Spinner width={24} color="interactiveBaseBrandDefault" alignSelf="flex-start" />
+                              <Spinner width="s5" color="interactiveBaseBrandDefault" alignSelf="flex-start" />
                             ) : (
-                              <Snowflake size={24} color="interactiveBaseBrandDefault" fontWeight="bold" />
+                              <Snowflake
+                                size={getTokens().iconSize.lg.val}
+                                color="interactiveBaseBrandDefault"
+                                fontWeight="bold"
+                              />
                             )}
                           </Square>
                           <Text subHeadline color="uiNeutralPrimary">
@@ -427,12 +435,12 @@ export default function Card() {
                         }}
                       >
                         <XStack gap="s3" justifyContent="flex-start" alignItems="center">
-                          <Hash size={24} color="backgroundBrand" />
+                          <Hash size={getTokens().iconSize.lg.val} color="backgroundBrand" />
                           <Text subHeadline color="uiNeutralPrimary">
                             {t("View PIN number")}
                           </Text>
                         </XStack>
-                        <ChevronRight color="uiBrandSecondary" size={24} />
+                        <ChevronRight color="uiBrandSecondary" size={getTokens().iconSize.lg.val} />
                       </XStack>
                       <Separator borderColor="borderNeutralSoft" />
                     </>
@@ -451,7 +459,7 @@ export default function Card() {
                     }}
                   >
                     <XStack gap="s3" justifyContent="flex-start" alignItems="center">
-                      <DollarSign size={24} color="backgroundBrand" />
+                      <DollarSign size={getTokens().iconSize.lg.val} color="backgroundBrand" />
                       <Text subHeadline color="uiNeutralPrimary">
                         {t("Weekly spending limit")}
                       </Text>
@@ -465,7 +473,7 @@ export default function Card() {
                               maximumFractionDigits: 0,
                             })}`}
                           </Text>
-                          <ChevronRight color="uiBrandSecondary" size={24} />
+                          <ChevronRight color="uiBrandSecondary" size={getTokens().iconSize.lg.val} />
                         </>
                       ) : isFetchingCard ? (
                         <Skeleton width={100} height={16} />
@@ -484,7 +492,7 @@ export default function Card() {
                   activity={purchases}
                   title={t("Latest purchases")}
                   emptyComponent={
-                    <YStack alignItems="center" justifyContent="center" gap="s4_5" padding="s4" paddingTop={0}>
+                    <YStack alignItems="center" justifyContent="center" gap="s4_5" padding="s4" paddingTop="s0">
                       <Text textAlign="center" color="uiNeutralSecondary" emphasized title>
                         💳
                       </Text>

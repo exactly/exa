@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { selectionAsync } from "expo-haptics";
 
 import { ChevronRight } from "@tamagui/lucide-icons-2/icons/ChevronRight";
+import { getTokens } from "tamagui";
 
 import reportError from "../../utils/reportError";
 import Button from "../shared/StyledButton";
@@ -21,8 +22,8 @@ export default function PaymentRow({ maturity, onSelect }: { maturity: number; o
       transparent
       aria-label={label}
       gap="s3"
-      minHeight={0}
-      paddingHorizontal={0}
+      minHeight="s0"
+      paddingHorizontal="s0"
       onPress={() => {
         selectionAsync().catch(reportError);
         onSelect(maturity);
@@ -32,7 +33,7 @@ export default function PaymentRow({ maturity, onSelect }: { maturity: number; o
         {label}
       </Button.Text>
       <Button.Icon>
-        <ChevronRight size={20} color="interactiveBaseBrandDefault" />
+        <ChevronRight size={getTokens().iconSize.md.val} color="interactiveBaseBrandDefault" />
       </Button.Icon>
     </Button>
   );

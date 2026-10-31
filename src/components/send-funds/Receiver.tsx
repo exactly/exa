@@ -110,8 +110,8 @@ export default function ReceiverSelection() {
   }
 
   return (
-    <SafeView fullScreen paddingBottom={0}>
-      <View gap="s4_5" paddingBottom={0} fullScreen padded>
+    <SafeView fullScreen paddingBottom="s0">
+      <View gap="s4_5" paddingBottom="s0" fullScreen padded>
         <XStack gap="s3_5" justifyContent="space-between" alignItems="center">
           <IconButton
             icon={ArrowLeft}
@@ -154,7 +154,7 @@ export default function ReceiverSelection() {
                         borderRadius="r3"
                         overflow="hidden"
                       >
-                        <Search size={20} color="uiNeutralPlaceholder" />
+                        <Search size={getTokens().iconSize.md.val} color="uiNeutralPlaceholder" />
                         <Input
                           flex={1}
                           borderWidth={0}
@@ -169,8 +169,8 @@ export default function ReceiverSelection() {
                         />
                         {name && resolving ? (
                           <View
-                            width={40}
-                            height={40}
+                            width="s7"
+                            height="s7"
                             backgroundColor="backgroundMild"
                             alignItems="center"
                             justifyContent="center"
@@ -189,7 +189,7 @@ export default function ReceiverSelection() {
                               handleChange("");
                             }}
                           >
-                            <X size={24} color="iconBrandDefault" />
+                            <X size={getTokens().iconSize.lg.val} color="iconBrandDefault" />
                           </View>
                         ) : (
                           <View
@@ -203,7 +203,7 @@ export default function ReceiverSelection() {
                               router.push("/send-funds/qr");
                             }}
                           >
-                            <QrCode size={24} color="iconBrandDefault" />
+                            <QrCode size={getTokens().iconSize.lg.val} color="iconBrandDefault" />
                           </View>
                         )}
                       </XStack>
@@ -292,7 +292,7 @@ export default function ReceiverSelection() {
                     }}
                   >
                     <View padding="s3" borderRadius="r3" backgroundColor="backgroundMild">
-                      <Wallet size={20} color="uiNeutralPrimary" />
+                      <Wallet size={getTokens().iconSize.md.val} color="uiNeutralPrimary" />
                     </View>
                     <Text flex={1} subHeadline primary mono={!name} numberOfLines={1}>
                       {name ?? shortenHex(target, 6, 6)}
@@ -316,7 +316,7 @@ export default function ReceiverSelection() {
                       }}
                     >
                       <View padding="s3" borderRadius="r3" backgroundColor="backgroundMild">
-                        <Plus size={20} color="interactiveOnBaseBrandSoft" />
+                        <Plus size={getTokens().iconSize.md.val} color="interactiveOnBaseBrandSoft" />
                       </View>
                       <Text subHeadline primary>
                         {t("Save contact")}
@@ -479,7 +479,13 @@ export default function ReceiverSelection() {
               }}
             >
               <Button.Text>{ready ? t("Continue") : t("Enter recipient's address")}</Button.Text>
-              <Button.Icon>{ready ? <ArrowRight size={20} /> : <ArrowUp size={20} />}</Button.Icon>
+              <Button.Icon>
+                {ready ? (
+                  <ArrowRight size={getTokens().iconSize.md.val} />
+                ) : (
+                  <ArrowUp size={getTokens().iconSize.md.val} />
+                )}
+              </Button.Icon>
             </Button>
           </YStack>
         </ScrollView>

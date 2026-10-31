@@ -12,7 +12,7 @@ import { CircleHelp } from "@tamagui/lucide-icons-2/icons/CircleHelp";
 import { Info } from "@tamagui/lucide-icons-2/icons/Info";
 import { Percent } from "@tamagui/lucide-icons-2/icons/Percent";
 import { TriangleAlert } from "@tamagui/lucide-icons-2/icons/TriangleAlert";
-import { ScrollView, Separator, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import { useForm, useStore } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
@@ -139,7 +139,7 @@ export default function SendAmount() {
                     }),
                   })}
                 </Text>
-                <Info size={14} color="uiNeutralPlaceholder" />
+                <Info size={getTokens().iconSize.sm.val} color="uiNeutralPlaceholder" />
               </XStack>
             </YStack>
 
@@ -177,7 +177,7 @@ export default function SendAmount() {
                         backgroundColor="transparent"
                         textAlign="center"
                         color={hasError ? "interactiveBaseErrorDefault" : "uiNeutralPrimary"}
-                        minWidth={120}
+                        minWidth="s12"
                       />
                     </XStack>
                     <Separator

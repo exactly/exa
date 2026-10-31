@@ -65,7 +65,7 @@ export default function RampButton({
       <AddFundsOption
         disabled={offramp}
         icon={
-          <View position="relative" width={24} height={24}>
+          <View position="relative" width="s5" height="s5">
             <AssetLogo symbol={currency} width={24} height={24} />
             {network && network in networkLogos && (
               <View

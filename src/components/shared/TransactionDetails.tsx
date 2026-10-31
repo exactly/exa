@@ -5,7 +5,7 @@ import { Alert } from "react-native";
 import { setStringAsync } from "expo-clipboard";
 
 import { ExternalLink } from "@tamagui/lucide-icons-2/icons/ExternalLink";
-import { Separator, XStack, YStack } from "tamagui";
+import { getTokens, Separator, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -89,7 +89,7 @@ export default function TransactionDetails({ chainId, fee, hash }: { chainId?: n
               <Text callout mono textDecorationLine="underline">
                 {shortenHex(hash)}
               </Text>
-              <ExternalLink size={20} color="uiBrandPrimary" />
+              <ExternalLink size={getTokens().iconSize.md.val} color="uiBrandPrimary" />
             </XStack>
           </XStack>
         )}

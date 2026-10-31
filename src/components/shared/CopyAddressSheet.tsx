@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { AlertTriangle } from "@tamagui/lucide-icons-2/icons/AlertTriangle";
 import { CheckCircle } from "@tamagui/lucide-icons-2/icons/CheckCircle";
 import { X } from "@tamagui/lucide-icons-2/icons/X";
-import { ScrollView, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, XStack, YStack } from "tamagui";
 
 import chain from "@exactly/common/generated/chain";
 
@@ -46,7 +46,7 @@ export default function CopyAddressSheet({
           <YStack gap="s7">
             <YStack gap="s5">
               <XStack gap="s3" alignItems="center">
-                <CheckCircle size={24} color="uiSuccessSecondary" />
+                <CheckCircle size={getTokens().iconSize.lg.val} color="uiSuccessSecondary" />
                 <Text emphasized headline color="uiSuccessSecondary">
                   {t("Address copied")}
                 </Text>

@@ -20,7 +20,7 @@ export default function VerificationFailure({ open, onClose }: { onClose: () => 
   const { t } = useTranslation();
   return (
     <ModalSheet open={open} onClose={onClose}>
-      <SafeView paddingTop={0} borderTopLeftRadius="r4" borderTopRightRadius="r4" fullScreen>
+      <SafeView paddingTop="s0" borderTopLeftRadius="r4" borderTopRightRadius="r4" fullScreen>
         <View position="absolute" top="s5" right="s5" zIndex={100_000}>
           <IconButton icon={X} size={25} color="uiNeutralSecondary" aria-label={t("Close")} onPress={onClose} />
         </View>

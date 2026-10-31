@@ -73,7 +73,7 @@ export default function TransactionDetails({
               <Text callout textDecorationLine="underline">
                 {shortenHex(item.receiver)}
               </Text>
-              <Copy size={20} color="uiNeutralSecondary" />
+              <Copy size={getTokens().iconSize.md.val} color="uiNeutralSecondary" />
             </XStack>
           </XStack>
         )}

@@ -75,8 +75,8 @@ export default function Assets() {
   }, [tokens, markets, supportedAssets]);
   const visibleOthers = others.slice(0, 4);
   return (
-    <SafeView fullScreen backgroundColor="backgroundMild" paddingBottom={0}>
-      <View gap="s6" paddingBottom={0} fullScreen padded>
+    <SafeView fullScreen backgroundColor="backgroundMild" paddingBottom="s0">
+      <View gap="s6" paddingBottom="s0" fullScreen padded>
         <XStack gap="s3_5" justifyContent="space-between" alignItems="center">
           <IconButton
             icon={ArrowLeft}
@@ -155,7 +155,7 @@ export default function Assets() {
                   ))}
                   {others.length > 4 && (
                     <AddFundsOption
-                      icon={<Search size={24} color="iconBrandDefault" />}
+                      icon={<Search size={getTokens().iconSize.lg.val} color="iconBrandDefault" />}
                       title={t("More assets")}
                       onPress={() => setMoreShown(true)}
                     />

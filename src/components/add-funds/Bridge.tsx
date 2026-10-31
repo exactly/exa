@@ -13,7 +13,7 @@ import { Repeat } from "@tamagui/lucide-icons-2/icons/Repeat";
 import { Wallet } from "@tamagui/lucide-icons-2/icons/Wallet";
 import { X } from "@tamagui/lucide-icons-2/icons/X";
 import { toast } from "@tamagui/toast";
-import { ScrollView, Spinner, Square, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, Spinner, Square, XStack, YStack } from "tamagui";
 
 import { getAlchemyPaymasterAddress } from "@account-kit/infra";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -994,7 +994,7 @@ export default function Bridge() {
                       >
                         <XStack gap="s3_5" alignItems="center" justifyContent="space-between" flex={1}>
                           <XStack gap="s3_5" alignItems="center" flex={1}>
-                            <View width={40} height={40} position="relative">
+                            <View width="s7" height="s7" position="relative">
                               <AssetLogo
                                 symbol={destinationToken.symbol}
                                 uri={destinationToken.logoURI}
@@ -1003,8 +1003,8 @@ export default function Bridge() {
                               />
                               <View
                                 position="absolute"
-                                bottom={0}
-                                right={0}
+                                bottom="s0"
+                                right="s0"
                                 borderWidth={1}
                                 borderColor="white"
                                 borderRadius="r_0"
@@ -1300,7 +1300,7 @@ function ProcessingScreen({
           <IconButton alignSelf="flex-start" icon={X} aria-label={t("Close")} onPress={onClose} />
           <YStack gap="s4_5" justifyContent="center" alignItems="center">
             <Square
-              size={80}
+              size="s10"
               borderRadius="r4"
               backgroundColor={
                 status === "error"
@@ -1311,8 +1311,10 @@ function ProcessingScreen({
               }
             >
               {pending && <ExaSpinner backgroundColor="transparent" color="uiNeutralPrimary" />}
-              {status === "success" && <Check size={48} color="uiSuccessSecondary" strokeWidth={2} />}
-              {status === "error" && <X size={48} color="uiErrorSecondary" strokeWidth={2} />}
+              {status === "success" && (
+                <Check size={getTokens().iconSize.xxl.val} color="uiSuccessSecondary" strokeWidth={2} />
+              )}
+              {status === "error" && <X size={getTokens().iconSize.xxl.val} color="uiErrorSecondary" strokeWidth={2} />}
             </Square>
             <YStack gap="s3" justifyContent="center" alignItems="center">
               <Text secondary body>

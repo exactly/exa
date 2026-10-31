@@ -15,7 +15,7 @@ import { Info } from "@tamagui/lucide-icons-2/icons/Info";
 import { OctagonX } from "@tamagui/lucide-icons-2/icons/OctagonX";
 import { TriangleAlert } from "@tamagui/lucide-icons-2/icons/TriangleAlert";
 import { X } from "@tamagui/lucide-icons-2/icons/X";
-import { AnimatePresence, ScrollView, Separator, Square, XStack, YStack } from "tamagui";
+import { AnimatePresence, getTokens, ScrollView, Separator, Square, XStack, YStack } from "tamagui";
 
 import { ChainType } from "@lifi/sdk";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
@@ -678,7 +678,7 @@ export default function Confirm() {
           >
             <Button.Text>{t("Go back")}</Button.Text>
             <Button.Icon>
-              <ArrowLeft size={24} color="uiNeutralPrimary" />
+              <ArrowLeft size={getTokens().iconSize.lg.val} color="uiNeutralPrimary" />
             </Button.Icon>
           </Button>
         </View>
@@ -1006,7 +1006,7 @@ export default function Confirm() {
                     : t("Hold to send {{symbol}}", { symbol: destination?.symbol ?? "" })}
                 </Button.Text>
                 <Button.Icon>
-                  <ArrowRight size={20} />
+                  <ArrowRight size={getTokens().iconSize.md.val} />
                 </Button.Icon>
               </Button>
             </YStack>
@@ -1015,16 +1015,16 @@ export default function Confirm() {
                 <YStack
                   key={failure}
                   position="absolute"
-                  top={0}
-                  left={0}
-                  right={0}
-                  bottom={0}
+                  top="s0"
+                  left="s0"
+                  right="s0"
+                  bottom="s0"
                   backgroundColor="backgroundMild"
                   transition={{ preset: "default", properties: "opacity" }}
                   opacity="1 enter:0 exit:0"
                 >
                   <YStack flex={1} gap="s6" alignItems="center" padding="s7">
-                    <OctagonX size={48} color="uiErrorSecondary" />
+                    <OctagonX size={getTokens().iconSize.xxl.val} color="uiErrorSecondary" />
                     <Text title primary textAlign="center">
                       {failure === "route"
                         ? t("No route available for this transfer.")
@@ -1088,7 +1088,7 @@ export default function Confirm() {
                           : t("Try again")}
                     </Button.Text>
                     <Button.Icon>
-                      <ArrowRight size={20} />
+                      <ArrowRight size={getTokens().iconSize.md.val} />
                     </Button.Icon>
                   </Button>
                 </YStack>
@@ -1114,7 +1114,7 @@ export default function Confirm() {
           />
           <XStack justifyContent="center" alignItems="center">
             <Square
-              size={80}
+              size="s10"
               borderRadius="r4"
               backgroundColor={
                 failed
@@ -1130,8 +1130,10 @@ export default function Confirm() {
                 <ExaSpinner backgroundColor="transparent" color="uiNeutralPrimary" />
               )}
               {success && processing && <ExaSpinner backgroundColor="transparent" color="uiInfoSecondary" />}
-              {success && !processing && !failed && <Check size={48} color="uiSuccessSecondary" strokeWidth={2} />}
-              {failed && <X size={48} color="uiErrorSecondary" strokeWidth={2} />}
+              {success && !processing && !failed && (
+                <Check size={getTokens().iconSize.xxl.val} color="uiSuccessSecondary" strokeWidth={2} />
+              )}
+              {failed && <X size={getTokens().iconSize.xxl.val} color="uiErrorSecondary" strokeWidth={2} />}
             </Square>
           </XStack>
           <YStack gap="s4_5" justifyContent="center" alignItems="center">
@@ -1228,7 +1230,7 @@ export default function Confirm() {
               <Button primary onPress={retry}>
                 <Button.Text>{submitted ? t("Check status") : t("Try again")}</Button.Text>
                 <Button.Icon>
-                  <ArrowRight size={20} />
+                  <ArrowRight size={getTokens().iconSize.md.val} />
                 </Button.Icon>
               </Button>
               <Text

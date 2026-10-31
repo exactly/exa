@@ -67,8 +67,8 @@ export default function AmountSelector({
               cursor="pointer"
               textAlign="center"
               backgroundColor="backgroundSoft"
-              borderBottomLeftRadius={0}
-              borderBottomRightRadius={0}
+              borderBottomLeftRadius="r0"
+              borderBottomRightRadius="r0"
               flex={1}
               decimals={selectedMarket?.decimals ?? 18}
               onChangeText={(text) => {

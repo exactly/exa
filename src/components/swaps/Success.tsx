@@ -9,7 +9,7 @@ import { ArrowDown } from "@tamagui/lucide-icons-2/icons/ArrowDown";
 import { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
 import { Check } from "@tamagui/lucide-icons-2/icons/Check";
 import { X } from "@tamagui/lucide-icons-2/icons/X";
-import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
 
 import formatTokenAmount from "../../utils/formatTokenAmount";
 import queryClient from "../../utils/queryClient";
@@ -61,9 +61,9 @@ export default function Success({
       <StyledGradient
         locations={[0.5, 1]}
         position="absolute"
-        top={0}
-        left={0}
-        right={0}
+        top="s0"
+        left="s0"
+        right="s0"
         height={220}
         opacity={0.2}
         colors={[completed ? theme.uiSuccessSecondary.val : theme.uiInfoSecondary.val, theme.backgroundSoft.val]}
@@ -86,10 +86,10 @@ export default function Success({
                 backgroundColor={
                   completed ? "interactiveBaseSuccessSoftDefault" : "interactiveBaseInformationSoftDefault"
                 }
-                size={80}
+                size="s10"
               >
                 {completed ? (
-                  <Check size={48} color="uiSuccessSecondary" strokeWidth={2} />
+                  <Check size={getTokens().iconSize.xxl.val} color="uiSuccessSecondary" strokeWidth={2} />
                 ) : (
                   <ExaSpinner backgroundColor="transparent" color="uiInfoSecondary" />
                 )}
@@ -117,7 +117,7 @@ export default function Success({
                   {formatTokenAmount(fromAmount, fromToken.decimals, language)}
                 </Text>
               </XStack>
-              <ArrowDown size={24} color="interactiveBaseBrandDefault" />
+              <ArrowDown size={getTokens().iconSize.lg.val} color="interactiveBaseBrandDefault" />
               <Text title primary color="uiNeutralPrimary">
                 {`$${toUsdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               </Text>

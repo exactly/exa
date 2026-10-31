@@ -2,7 +2,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 
 import { Check } from "@tamagui/lucide-icons-2/icons/Check";
-import { XStack, YStack } from "tamagui";
+import { getTokens, XStack, YStack } from "tamagui";
 
 import chain, { previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerPreviewBorrowAtMaturity } from "@exactly/common/generated/hooks";
@@ -100,14 +100,14 @@ function Installment({
       <XStack gap="s3_5" alignItems="center" flex={1}>
         <XStack
           backgroundColor={selected ? "interactiveBaseBrandDefault" : "backgroundStrong"}
-          width={16}
-          height={16}
+          width="s4"
+          height="s4"
           padding="s2"
           borderRadius="r_0"
           alignItems="center"
           justifyContent="center"
         >
-          {selected && <Check size={12} color="interactiveOnBaseBrandDefault" />}
+          {selected && <Check size={getTokens().iconSize.xs.val} color="interactiveOnBaseBrandDefault" />}
         </XStack>
         <Text headline color={hasInstallments ? "uiNeutralSecondary" : "uiNeutralPrimary"}>
           {hasInstallments ? t("{{count}} installments of", { count: installment }) : t("Pay Now")}

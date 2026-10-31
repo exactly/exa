@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { selectionAsync } from "expo-haptics";
 
 import { ChevronRight } from "@tamagui/lucide-icons-2/icons/ChevronRight";
-import { Separator, XStack, YStack } from "tamagui";
+import { getTokens, Separator, XStack, YStack } from "tamagui";
 
 import { addDays, isSameDay } from "date-fns";
 import { useBytecode } from "wagmi";
@@ -142,7 +142,10 @@ export default function UpcomingPayments({
                 <Text sensitive emphasized title3 color={processing ? "interactiveTextDisabled" : "uiNeutralPrimary"}>
                   {formattedAmount}
                 </Text>
-                <ChevronRight size={20} color={processing ? "iconDisabled" : "interactiveBaseBrandDefault"} />
+                <ChevronRight
+                  size={getTokens().iconSize.md.val}
+                  color={processing ? "iconDisabled" : "interactiveBaseBrandDefault"}
+                />
               </XStack>
             </React.Fragment>
           );

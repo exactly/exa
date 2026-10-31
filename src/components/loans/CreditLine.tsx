@@ -34,7 +34,7 @@ export default function CreditLine() {
           {t("Available funding")}
         </Text>
       </XStack>
-      <YStack padding="s4" paddingTop={0}>
+      <YStack padding="s4" paddingTop="s0">
         <XStack alignItems="center" gap="s2">
           <AssetLogo symbol="USDC" width={20} height={20} />
           <Text emphasized title2 sensitive>

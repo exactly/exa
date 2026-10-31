@@ -10,7 +10,7 @@ import { ArrowUpRight } from "@tamagui/lucide-icons-2/icons/ArrowUpRight";
 import { CircleDollarSign } from "@tamagui/lucide-icons-2/icons/CircleDollarSign";
 import { CircleHelp } from "@tamagui/lucide-icons-2/icons/CircleHelp";
 import { Info } from "@tamagui/lucide-icons-2/icons/Info";
-import { ScrollView, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 import { object, optional, pipe, regex, safeParse, string, transform } from "valibot";
@@ -128,7 +128,7 @@ export default function Asset() {
   const priced =
     protocol && symbol ? { address, chainId, symbol, priceUSD: formatUnits(protocol.usdPrice, 18) } : entry;
   return (
-    <SafeView fullScreen backgroundColor="backgroundSoft" paddingBottom={0}>
+    <SafeView fullScreen backgroundColor="backgroundSoft" paddingBottom="s0">
       <View padded flexDirection="row" alignItems="center" justifyContent="space-between">
         <IconButton
           icon={ArrowLeft}
@@ -329,7 +329,7 @@ export default function Asset() {
                         <Text caption color="uiNeutralSecondary" numberOfLines={1} flexShrink={1}>
                           {t(labels[key])}
                         </Text>
-                        <Info size={12} color="interactiveOnBaseBrandSoft" y={1} />
+                        <Info size={getTokens().iconSize.xs.val} color="interactiveOnBaseBrandSoft" y={1} />
                       </XStack>
                     </YStack>
                   );

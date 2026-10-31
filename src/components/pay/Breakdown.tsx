@@ -7,7 +7,7 @@ import { Coins } from "@tamagui/lucide-icons-2/icons/Coins";
 import { CreditCard } from "@tamagui/lucide-icons-2/icons/CreditCard";
 import { FileText } from "@tamagui/lucide-icons-2/icons/FileText";
 import { ReceiptText } from "@tamagui/lucide-icons-2/icons/ReceiptText";
-import { Separator, XStack, YStack } from "tamagui";
+import { getTokens, Separator, XStack, YStack } from "tamagui";
 
 import { MATURITY_INTERVAL } from "@exactly/lib";
 
@@ -58,7 +58,7 @@ export default function Breakdown({
             <Text emphasized subHeadline color="interactiveBaseBrandDefault">
               {t("View statement")}
             </Text>
-            <FileText size={20} color="interactiveBaseBrandDefault" />
+            <FileText size={getTokens().iconSize.md.val} color="interactiveBaseBrandDefault" />
           </XStack>
         </XStack>
         <Text footnote color="uiNeutralSecondary">

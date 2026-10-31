@@ -4,7 +4,7 @@ import { Pressable } from "react-native";
 
 import { AlertTriangle } from "@tamagui/lucide-icons-2/icons/AlertTriangle";
 import { ChevronRight } from "@tamagui/lucide-icons-2/icons/ChevronRight";
-import { Text, View } from "tamagui";
+import { getTokens, Text, View } from "tamagui";
 
 import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
@@ -31,7 +31,7 @@ export default function LiquidationAlert() {
         width="20%"
         height="100%"
       >
-        <AlertTriangle size={32} color="interactiveOnBaseErrorDefault" />
+        <AlertTriangle size={getTokens().iconSize.xl.val} color="interactiveOnBaseErrorDefault" />
       </View>
 
       <View gap="s3_5" padding="s5" flex={1}>
@@ -47,7 +47,7 @@ export default function LiquidationAlert() {
             <Text color="interactiveOnBaseErrorSoft" fontSize={15} fontWeight="bold">
               {t("Learn more")}
             </Text>
-            <ChevronRight size={14} color="interactiveOnBaseErrorSoft" fontWeight="bold" />
+            <ChevronRight size={getTokens().iconSize.sm.val} color="interactiveOnBaseErrorSoft" fontWeight="bold" />
           </View>
         </Pressable>
       </View>

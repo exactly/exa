@@ -6,7 +6,7 @@ import { useRouter } from "expo-router";
 
 import { ArrowLeft } from "@tamagui/lucide-icons-2/icons/ArrowLeft";
 import { CircleHelp } from "@tamagui/lucide-icons-2/icons/CircleHelp";
-import { ScrollView, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, XStack, YStack } from "tamagui";
 
 import { formatUnits } from "viem";
 
@@ -56,9 +56,9 @@ export default function Calculator() {
   );
 
   return (
-    <SafeView fullScreen backgroundColor="backgroundSoft" paddingBottom={0}>
+    <SafeView fullScreen backgroundColor="backgroundSoft" paddingBottom="s0">
       <View fullScreen backgroundColor="backgroundMild">
-        <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="backgroundSoft" />
+        <View position="absolute" top="s0" left="s0" right="s0" height="50%" backgroundColor="backgroundSoft" />
         <ScrollView
           backgroundColor="transparent"
           contentContainerStyle={{ backgroundColor: "backgroundMild" }}
@@ -85,7 +85,7 @@ export default function Calculator() {
                 }
               }}
             >
-              <ArrowLeft size={24} color="uiNeutralPrimary" />
+              <ArrowLeft size={getTokens().iconSize.lg.val} color="uiNeutralPrimary" />
             </Pressable>
             <Text subHeadline emphasized>
               {t("Installments calculator")}
@@ -138,7 +138,7 @@ export default function Calculator() {
                   }}
                   selectTextOnFocus
                   fontSize={20}
-                  padding={0}
+                  padding="s0"
                   textAlign="right"
                   value={input}
                   flex={1}
@@ -192,7 +192,7 @@ export default function Calculator() {
                         {isBestRate && (
                           <YStack
                             backgroundColor="interactiveBaseSuccessDefault"
-                            borderRadius={4}
+                            borderRadius="r2"
                             paddingHorizontal="s2"
                             paddingVertical="s1"
                           >

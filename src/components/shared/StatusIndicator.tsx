@@ -2,9 +2,9 @@ import { styled } from "tamagui";
 
 import View from "./View";
 const StatusIndicator = styled(View, {
-  width: 12,
-  height: 12,
-  borderRadius: 100,
+  width: "s3_5",
+  height: "s3_5",
+  borderRadius: "r_0",
   backgroundColor: "uiBrandPrimary",
   position: "absolute",
   right: -2,

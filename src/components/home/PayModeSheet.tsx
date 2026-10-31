@@ -6,7 +6,7 @@ import { CalendarDays } from "@tamagui/lucide-icons-2/icons/CalendarDays";
 import { ExternalLink } from "@tamagui/lucide-icons-2/icons/ExternalLink";
 import { X } from "@tamagui/lucide-icons-2/icons/X";
 import { Zap } from "@tamagui/lucide-icons-2/icons/Zap";
-import { XStack, YStack } from "tamagui";
+import { getTokens, XStack, YStack } from "tamagui";
 
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 
@@ -54,14 +54,14 @@ export default function PayModeSheet({ onClose, open }: { onClose: () => void; o
               <XStack
                 backgroundColor="cardDebitInteractive"
                 borderRadius="r_0"
-                height={40}
+                height="s7"
                 alignItems="center"
                 justifyContent="center"
                 gap="s3"
                 paddingHorizontal="s4"
                 width="100%"
               >
-                <Zap size={20} color="cardDebitText" />
+                <Zap size={getTokens().iconSize.md.val} color="cardDebitText" />
                 <Text subHeadline emphasized color="cardDebitText">
                   {t("Now")}
                 </Text>
@@ -83,14 +83,14 @@ export default function PayModeSheet({ onClose, open }: { onClose: () => void; o
               <XStack
                 backgroundColor="cardCreditInteractive"
                 borderRadius="r_0"
-                height={40}
+                height="s7"
                 alignItems="center"
                 justifyContent="center"
                 gap="s3"
                 paddingHorizontal="s4"
                 width="100%"
               >
-                <CalendarDays size={20} color="cardCreditText" />
+                <CalendarDays size={getTokens().iconSize.md.val} color="cardCreditText" />
                 <Text subHeadline emphasized color="cardCreditText">
                   {t("Later")}
                 </Text>

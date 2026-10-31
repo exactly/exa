@@ -1,7 +1,7 @@
 import React from "react";
 
 import { ChevronRight } from "@tamagui/lucide-icons-2/icons/ChevronRight";
-import { Spinner, XStack, YStack } from "tamagui";
+import { getTokens, Spinner, XStack, YStack } from "tamagui";
 
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -38,8 +38,8 @@ export default function AddFundsOption({
       <XStack alignItems="center" gap="s3_5" justifyContent="space-between">
         <XStack gap="s3_5" alignItems="center" flex={1}>
           <View
-            width={40}
-            height={40}
+            width="s7"
+            height="s7"
             backgroundColor="interactiveBaseBrandSoftDefault"
             borderRadius="r3"
             padding="s3"
@@ -75,7 +75,7 @@ export default function AddFundsOption({
           {loading ? (
             <Spinner size="small" color="uiBrandSecondary" />
           ) : (
-            <ChevronRight size={24} color="uiBrandSecondary" />
+            <ChevronRight size={getTokens().iconSize.lg.val} color="uiBrandSecondary" />
           )}
         </View>
       </XStack>

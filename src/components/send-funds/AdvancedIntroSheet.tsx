@@ -2,7 +2,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 
 import { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
-import { YStack } from "tamagui";
+import { getTokens, YStack } from "tamagui";
 
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
@@ -51,7 +51,7 @@ export default function AdvancedIntroSheet({
             <Button primary onPress={onEnable}>
               <Button.Text>{t("Turn it on")}</Button.Text>
               <Button.Icon>
-                <ArrowRight size={20} />
+                <ArrowRight size={getTokens().iconSize.md.val} />
               </Button.Icon>
             </Button>
             <Text

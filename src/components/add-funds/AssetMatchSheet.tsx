@@ -5,7 +5,7 @@ import { Pressable } from "react-native";
 import { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
 import { Check } from "@tamagui/lucide-icons-2/icons/Check";
 import { CheckCircle } from "@tamagui/lucide-icons-2/icons/CheckCircle";
-import { ScrollView, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
@@ -55,7 +55,7 @@ export default function AssetMatchSheet({
         >
           <YStack gap="s5">
             <XStack gap="s3" alignItems="center">
-              <CheckCircle size={20} color="uiBrandSecondary" />
+              <CheckCircle size={getTokens().iconSize.md.val} color="uiBrandSecondary" />
               <Text emphasized primary headline>
                 {t("Supported asset match")}
               </Text>
@@ -80,7 +80,7 @@ export default function AssetMatchSheet({
                   </View>
                 )}
               </View>
-              <ArrowRight size={24} color="uiBrandSecondary" />
+              <ArrowRight size={getTokens().iconSize.lg.val} color="uiBrandSecondary" />
               <View position="relative">
                 <AssetLogo symbol={destinationSymbol} width={48} height={48} />
                 <View position="absolute" bottom={-4} right={-4}>

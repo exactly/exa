@@ -197,7 +197,7 @@ export default function TokenSelectModal({
 
   return (
     <ModalSheet open={open} onClose={close} disableDrag heightPercent={85}>
-      <SafeView paddingTop={0} paddingBottom={0} borderTopLeftRadius="r4" borderTopRightRadius="r4" fullScreen>
+      <SafeView paddingTop="s0" paddingBottom="s0" borderTopLeftRadius="r4" borderTopRightRadius="r4" fullScreen>
         <View paddingTop="s6" flex={1} gap="s4_5" fullScreen>
           <XStack alignItems="center" justifyContent="center" marginHorizontal="s4">
             <Text fontSize={20} fontWeight="bold" textAlign="center" paddingHorizontal="s6">
@@ -215,7 +215,7 @@ export default function TokenSelectModal({
             borderRadius="r3"
             overflow="hidden"
           >
-            <Search size={20} color="uiNeutralPlaceholder" />
+            <Search size={getTokens().iconSize.md.val} color="uiNeutralPlaceholder" />
             <Input
               flex={1}
               borderWidth={0}

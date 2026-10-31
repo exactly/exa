@@ -60,7 +60,7 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
   }, [card]);
   return (
     <ModalSheet open={open} onClose={onClose}>
-      <SafeView paddingTop={0} borderTopLeftRadius="r4" borderTopRightRadius="r4" fullScreen>
+      <SafeView paddingTop="s0" borderTopLeftRadius="r4" borderTopRightRadius="r4" fullScreen>
         <ScrollView>
           <View fullScreen flex={1} alignItems="center" width="100%">
             <View gap="s5" flex={1} alignItems="center" width="100%" padded>

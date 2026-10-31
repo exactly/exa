@@ -8,7 +8,7 @@ import { AlertTriangle } from "@tamagui/lucide-icons-2/icons/AlertTriangle";
 import { Copy } from "@tamagui/lucide-icons-2/icons/Copy";
 import { ShoppingCart } from "@tamagui/lucide-icons-2/icons/ShoppingCart";
 import { toast } from "@tamagui/toast";
-import { Separator, Square, View, XStack, YStack } from "tamagui";
+import { getTokens, Separator, Square, View, XStack, YStack } from "tamagui";
 
 import { format } from "date-fns";
 import { getName, registerLocale } from "i18n-iso-countries/index";
@@ -49,11 +49,11 @@ export default function DeclinedActivity({ item }: { item: PandaActivity }) {
     <>
       <YStack gap="s7" paddingBottom="s7">
         <XStack justifyContent="center" alignItems="center">
-          <Square borderRadius="r4" backgroundColor={item.merchant.icon ? "white" : "backgroundStrong"} size={80}>
+          <Square borderRadius="r4" backgroundColor={item.merchant.icon ? "white" : "backgroundStrong"} size="s10">
             {item.merchant.icon ? (
               <Image source={{ uri: item.merchant.icon }} width={52} height={52} contentFit="contain" />
             ) : (
-              <ShoppingCart size={48} color="uiNeutralPrimary" strokeWidth={2} />
+              <ShoppingCart size={getTokens().iconSize.xxl.val} color="uiNeutralPrimary" strokeWidth={2} />
             )}
           </Square>
         </XStack>
@@ -84,7 +84,7 @@ export default function DeclinedActivity({ item }: { item: PandaActivity }) {
             alignItems="center"
             alignSelf="stretch"
           >
-            <AlertTriangle size={32} color="interactiveOnBaseErrorDefault" />
+            <AlertTriangle size={getTokens().iconSize.xl.val} color="interactiveOnBaseErrorDefault" />
           </View>
           <View padding="s4" flex={1} justifyContent="center">
             <Text subHeadline color="interactiveOnBaseErrorSoft">
@@ -128,7 +128,7 @@ export default function DeclinedActivity({ item }: { item: PandaActivity }) {
                   <Text callout color="uiNeutralPrimary">
                     {shortenHex(item.id)}
                   </Text>
-                  <Copy size={20} color="uiNeutralPrimary" />
+                  <Copy size={getTokens().iconSize.md.val} color="uiNeutralPrimary" />
                 </XStack>
               </Pressable>
             </XStack>
