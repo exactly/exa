@@ -25,10 +25,7 @@ import createBridge, * as Bridge from "../../utils/ramps/bridge";
 import createManteca, * as Manteca from "../../utils/ramps/manteca";
 
 const bridge = Object.assign(
-  createBridge(
-    parse(pipe(string(), nonEmpty()), env.BRIDGE_API_KEY),
-    parse(pipe(string(), nonEmpty()), env.BRIDGE_API_URL),
-  ),
+  createBridge(parse(pipe(string(), nonEmpty()), env.BRIDGE_API_KEY), "https://127.0.0.1"),
   Bridge,
 );
 const manteca = Object.assign(

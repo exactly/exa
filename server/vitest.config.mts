@@ -6,6 +6,22 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     globalSetup: ["test/anvil.ts", "test/database.ts", "test/redis.ts", "test/spotlight.ts"],
+    deps: {
+      optimizer: {
+        ssr: {
+          enabled: true,
+          include: [
+            "viem",
+            "viem/account-abstraction",
+            "viem/accounts",
+            "viem/actions",
+            "viem/chains",
+            "viem/siwe",
+            "viem/utils",
+          ],
+        },
+      },
+    },
     coverage: {
       enabled: true,
       allowExternal: true,

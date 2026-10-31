@@ -5,7 +5,7 @@ import { addBreadcrumb, captureException } from "@sentry/node";
 import { Queue, type Job } from "bullmq";
 import { inArray, like } from "drizzle-orm";
 import { parse } from "valibot";
-import { decodeFunctionData, encodeFunctionData, encodeFunctionResult, multicall3Abi } from "viem";
+import { decodeFunctionData, encodeFunctionData, encodeFunctionResult, getAbiItem, multicall3Abi } from "viem";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import chain, { marketAbi, marketUSDCAddress } from "@exactly/common/generated/chain";
@@ -70,15 +70,17 @@ function mockFixedBorrowPositions(account: Address, position: Position) {
 }
 
 function mockFixedBorrowPositionsMany(entries: [Address, Position][]) {
+  const abi = [getAbiItem({ abi: marketAbi, name: "fixedBorrowPositions" })];
+  const positions = new Map(entries);
   mocks.readContract.mockImplementation(({ args }: { args: readonly [readonly AggregateCall[]] }) =>
     Promise.resolve(
       args[0].map(({ callData }) => {
-        const callArguments = decodeFunctionData({ abi: marketAbi, data: callData }).args;
-        const position = new Map(entries).get(parse(Address, callArguments[1]));
+        const callArguments = decodeFunctionData({ abi, data: callData }).args;
+        const position = positions.get(parse(Address, callArguments[1]));
         return {
           success: true,
           returnData: encodeFunctionResult({
-            abi: marketAbi,
+            abi,
             functionName: "fixedBorrowPositions",
             result: position ?? [0n, 0n],
           }),
