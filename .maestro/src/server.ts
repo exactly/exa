@@ -107,6 +107,7 @@ export function block(
 export function persona(referenceId: string, event = "approved") {
   const payload = JSON.stringify({
     data: {
+      id: `evt_${referenceId}`,
       attributes: {
         payload: {
           data: {
