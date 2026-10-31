@@ -9,7 +9,6 @@ import chain, {
   exaPreviewerAbi,
   exaPreviewerCode,
   marketUSDCAddress,
-  proposalManagerAddress,
 } from "@exactly/common/generated/chain";
 import ProposalType, {
   decodeCrossRepayAtMaturity,
@@ -33,7 +32,7 @@ export default function usePendingOperations() {
     code: encodeDeployData({
       abi: exaPreviewerAbi,
       bytecode: exaPreviewerCode,
-      args: [auditorAddress, marketUSDCAddress, proposalManagerAddress],
+      args: [auditorAddress, marketUSDCAddress],
     }),
     chainId: chain.id,
     args: exaAccount ? [exaAccount] : undefined,

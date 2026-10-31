@@ -10,9 +10,7 @@ import { ScrollView, XStack, YStack } from "tamagui";
 import { useQuery } from "@tanstack/react-query";
 import { formatDistanceStrict } from "date-fns";
 
-import accountInit from "@exactly/common/accountInit";
-import chain, { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
-import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
+import { marketUSDCAddress } from "@exactly/common/generated/chain";
 import { WAD } from "@exactly/lib";
 
 import Empty from "./Empty";
@@ -27,10 +25,10 @@ import { date } from "../../i18n";
 import { presentArticle } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useMarkets from "../../utils/useMarkets";
 import usePendingOperations from "../../utils/usePendingOperations";
+import useProposalManager from "../../utils/useProposalManager";
 import useStatements from "../../utils/useStatements";
 import useTabPress from "../../utils/useTabPress";
 import TabBarContext from "../context/TabBarContext";
@@ -43,25 +41,14 @@ import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-import type { Credential } from "@exactly/common/validation";
-
 export default function Pay() {
   const {
     t,
     i18n: { language },
   } = useTranslation();
   const router = useRouter();
-  const { address } = useAccount();
   const toast = useToastController();
-  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
-  const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
-    address,
-    chainId: chain.id,
-    factory: credential?.factory,
-    factoryData: credential && accountInit(credential),
-    query: { refetchOnMount: true, enabled: !!address && !!credential },
-  });
-  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
+  const proposalManager = useProposalManager();
   const { market: exaUSDC } = useAsset(marketUSDCAddress);
   const { markets, timestamp, refetch } = useMarkets({ refetchInterval: 30_000 });
 
@@ -186,7 +173,7 @@ export default function Pay() {
                     onViewStatement={viewStatement}
                     onRollover={() => {
                       if (rolloverIntroShown) {
-                        if (!isLatestPlugin) {
+                        if (!proposalManager) {
                           toast.show(t("Upgrade account to rollover"), {
                             duration: 1000,
                             burntOptions: { haptic: "error", preset: "error" },

@@ -494,10 +494,12 @@ export default function Confirm() {
   const proposal = useMemo(() => {
     if (!receipt) return;
     const [topic] = encodeEventTopics({ abi: proposalManagerAbi, eventName: "Proposed" });
-    const nonce = receipt.logs.find(({ topics }) => topics[0] === topic)?.topics[2];
-    return nonce ? { nonce: BigInt(nonce), since: receipt.blockNumber } : undefined;
+    const log = receipt.logs.find(({ topics }) => topics[0] === topic);
+    return log?.topics[2]
+      ? { manager: log.address, nonce: BigInt(log.topics[2]), since: receipt.blockNumber }
+      : undefined;
   }, [receipt]);
-  const { data: execution } = useQuery(executionOptions(address, proposal?.nonce, proposal?.since));
+  const { data: execution } = useQuery(executionOptions(address, proposal?.manager, proposal?.nonce, proposal?.since));
   const executionHash = execution?.executed ? execution.hash : undefined;
   const { data: routeStatus } = useQuery(
     statusOptions(

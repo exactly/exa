@@ -2,9 +2,11 @@
 pragma solidity ^0.8.0;
 
 import { ForkTest } from "./Fork.t.sol";
+import { IAccountLoupe } from "modular-account-libs/interfaces/IAccountLoupe.sol";
 
-import { AppPreviewer, MarketPreview } from "../src/AppPreviewer.sol";
-import { IAuditor, IMarket } from "../src/IExaAccount.sol";
+import { AppPreviewer, MarketPreview, ProposalManagerPreview } from "../src/AppPreviewer.sol";
+import { ExaPlugin } from "../src/ExaPlugin.sol";
+import { IAuditor, IExaAccount, IMarket, IProposalManager } from "../src/IExaAccount.sol";
 import { DeployProtocol } from "./mocks/Protocol.s.sol";
 
 contract AppPreviewerTest is ForkTest {
@@ -66,5 +68,65 @@ contract AppPreviewerTest is ForkTest {
     assertEq(markets[1].usdPrice, 1e18);
   }
 
+  function test_proposalManager_returnsPreview() external {
+    address account = _mockAccount();
+    ProposalManagerPreview memory preview = previewer.proposalManager(account);
+    assertEq(preview.proposalManager, makeAddr("manager"));
+    assertEq(preview.delay, 1 minutes);
+    assertEq(preview.queueNonce, 2);
+    assertEq(preview.nonce, 1);
+  }
+
+  function test_proposalManager_returnsEmpty_whenAccountIsNotDeployed() external view {
+    _assertEmpty(previewer.proposalManager(address(0xdead)));
+  }
+
+  function test_proposalManager_returnsEmpty_whenAddressIsNotAccount() external view {
+    _assertEmpty(previewer.proposalManager(address(auditor)));
+  }
+
+  function test_proposalManager_returnsEmpty_whenAccountHasNoPlugin() external {
+    address account = _mockAccount();
+    vm.mockCall(
+      account,
+      abi.encodeCall(IAccountLoupe.getExecutionFunctionConfig, (IExaAccount.propose.selector)),
+      abi.encode(address(0), bytes21(0), bytes21(0))
+    );
+    _assertEmpty(previewer.proposalManager(account));
+  }
+
+  function test_proposalManager_returnsEmpty_whenPluginHasNoProposalManager() external {
+    address account = _mockAccount();
+    vm.mockCallRevert(
+      makeAddr("plugin"), abi.encodeCall(ExaPlugin(payable(makeAddr("plugin"))).proposalManager, ()), ""
+    );
+    _assertEmpty(previewer.proposalManager(account));
+  }
+
   // solhint-enable func-name-mixedcase
+
+  function _mockAccount() internal returns (address account) {
+    account = makeAddr("account");
+    address plugin = makeAddr("plugin");
+    address manager = makeAddr("manager");
+    vm.etch(account, hex"00");
+    vm.etch(plugin, hex"00");
+    vm.etch(manager, hex"00");
+    vm.mockCall(
+      account,
+      abi.encodeCall(IAccountLoupe.getExecutionFunctionConfig, (IExaAccount.propose.selector)),
+      abi.encode(plugin, bytes21(0), bytes21(0))
+    );
+    vm.mockCall(plugin, abi.encodeCall(ExaPlugin(payable(plugin)).proposalManager, ()), abi.encode(manager));
+    vm.mockCall(manager, abi.encodeCall(IProposalManager.delay, ()), abi.encode(1 minutes));
+    vm.mockCall(manager, abi.encodeCall(IProposalManager.queueNonces, (account)), abi.encode(2));
+    vm.mockCall(manager, abi.encodeCall(IProposalManager.nonces, (account)), abi.encode(1));
+  }
+
+  function _assertEmpty(ProposalManagerPreview memory preview) internal pure {
+    assertEq(preview.proposalManager, address(0));
+    assertEq(preview.delay, 0);
+    assertEq(preview.queueNonce, 0);
+    assertEq(preview.nonce, 0);
+  }
 }

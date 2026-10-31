@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import { ForkTest } from "./Fork.t.sol";
 import { Auditor } from "@exactly/protocol/Auditor.sol";
 import { FixedLib, Market } from "@exactly/protocol/Market.sol";
+import { IAccountLoupe } from "modular-account-libs/interfaces/IAccountLoupe.sol";
 import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 import { MockERC20 } from "solmate/src/test/utils/mocks/MockERC20.sol";
 import { OwnersLib } from "webauthn-owner-plugin/OwnersLib.sol";
@@ -29,6 +30,7 @@ import {
 } from "../src/ExaPreviewer.sol";
 import { BorrowAtMaturityData, IExaAccount, InsufficientLiquidity } from "../src/IExaAccount.sol";
 import { IssuerChecker } from "../src/IssuerChecker.sol";
+import { ProposalManager } from "../src/ProposalManager.sol";
 import { Refunder } from "../src/Refunder.sol";
 
 import { DeployAccount } from "./mocks/Account.s.sol";
@@ -199,6 +201,44 @@ contract ExaPreviewerTest is ForkTest {
     assertEq(pendingProposals.length, 0);
   }
 
+  function test_pendingProposals_returnsEmpty_whenAccountIsNotDeployed() external view {
+    assertEq(previewer.pendingProposals(address(0xdead)).length, 0);
+  }
+
+  function test_pendingProposals_returnsEmpty_whenAddressIsNotAccount() external view {
+    assertEq(previewer.pendingProposals(address(exaUSDC)).length, 0);
+  }
+
+  function test_pendingProposals_returnsEmpty_whenPluginHasNoProposalManager() external {
+    vm.mockCallRevert(address(exaPlugin), abi.encodeCall(exaPlugin.proposalManager, ()), "");
+    assertEq(previewer.pendingProposals(address(account)).length, 0);
+  }
+
+  function test_pendingProposals_returnsEmpty_whenAccountHasNoPlugin() external {
+    vm.mockCall(
+      address(account),
+      abi.encodeCall(IAccountLoupe.getExecutionFunctionConfig, (IExaAccount.propose.selector)),
+      abi.encode(address(0), bytes21(0), bytes21(0))
+    );
+    assertEq(previewer.pendingProposals(address(account)).length, 0);
+  }
+
+  function test_pendingProposals_followsPluginProposalManager() external {
+    account.poke(exaUSDC);
+    vm.prank(address(account));
+    account.propose(exaUSDC, 10e6, ProposalType.WITHDRAW, abi.encode(address(0x1)));
+
+    _replaceProposalManager();
+    assertEq(previewer.pendingProposals(address(account)).length, 0);
+
+    vm.prank(address(account));
+    account.propose(exaUSDC, 20e6, ProposalType.WITHDRAW, abi.encode(address(0x2)));
+
+    PendingProposal[] memory pendingProposals = previewer.pendingProposals(address(account));
+    assertEq(pendingProposals.length, 1);
+    assertEq(pendingProposals[0].proposal.amount, 20e6);
+  }
+
   function test_collect_reverts_whenProposalsLeaveNoLiquidity() external {
     account.poke(exaUSDC);
 
@@ -261,6 +301,16 @@ contract ExaPreviewerTest is ForkTest {
 
     vm.expectRevert(InsufficientLiquidity.selector);
     previewer.collectDebit(10, block.timestamp, _issuerOp(10, block.timestamp));
+  }
+
+  function test_collectDebit_checksLiquidity_withPluginProposalManager() external {
+    account.poke(exaUSDC);
+    ProposalManager other = _replaceProposalManager();
+
+    vm.expectCall(address(other), abi.encodeCall(IProposalManager.checkLiquidity, (address(account))));
+    vm.expectCall(address(proposalManager), abi.encodeCall(IProposalManager.checkLiquidity, (address(account))), 0);
+    vm.prank(address(account));
+    previewer.collectDebit(10e6, block.timestamp, _issuerOp(10e6, block.timestamp));
   }
 
   function test_collectCollateral_collects() external {
@@ -333,6 +383,14 @@ contract ExaPreviewerTest is ForkTest {
   }
 
   // solhint-enable func-name-mixedcase
+
+  function _replaceProposalManager() internal returns (ProposalManager other) {
+    DeployProposalManager pm = new DeployProposalManager();
+    pm.run();
+    other = pm.proposalManager();
+    other.grantRole(other.PROPOSER_ROLE(), address(exaPlugin));
+    exaPlugin.setProposalManager(other);
+  }
 
   function _issuerOp(uint256 amount, uint256 timestamp) internal view returns (bytes memory signature) {
     return _sign(
