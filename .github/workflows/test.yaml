@@ -44,7 +44,9 @@ jobs:
       - uses: actions/cache/restore@v6
         id: nx
         with:
-          path: ~/.nx
+          path: |
+            ~/.nx
+            .cache/typescript
           key: nx-${{ runner.os }}-${{ github.job }}-${{ steps.machine.outputs.id }}-${{ github.sha }}
           restore-keys: nx-${{ runner.os }}-${{ github.job }}-${{ steps.machine.outputs.id }}-
       - run: pip install -r contracts/requirements.txt
@@ -56,7 +58,11 @@ jobs:
         env: { NX_KEY: "${{ steps.nx.outputs.cache-matched-key }}" }
       - uses: actions/cache/save@v6
         if: github.ref_name == 'main'
-        with: { path: ~/.nx, key: "${{ steps.nx.outputs.cache-primary-key }}" }
+        with:
+          path: |
+            ~/.nx
+            .cache/typescript
+          key: ${{ steps.nx.outputs.cache-primary-key }}
       - uses: actions/cache/save@v6
         if: github.ref_name == 'main' && steps.dependencies.outputs.cache-hit != 'true'
         with:
