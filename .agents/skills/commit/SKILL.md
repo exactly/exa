@@ -49,6 +49,8 @@ the start of the commit message is prime real estate. git UIs (github, gitlab, `
 
 a commit explains itself only when its goal isn't obvious from the subject and the diff, like an ignored advisory or a workaround for someone else's bug: then it says why in a few plain lines. an obvious commit explains nothing.
 
+never commit a message that keeps the `# Conflicts:` list or other comment lines git leaves in it.
+
 ### examples
 
 ✨, 🐛, 🔥, ♻️ and 🔧 are fallbacks: when a more specific gitmoji fits, it wins. neighbors are grouped together so the difference shows.
