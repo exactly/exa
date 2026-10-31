@@ -39,6 +39,12 @@ jobs:
             /tmp/metro-cache
           key: dependencies-${{ runner.os }}-${{ github.job }}-${{ hashFiles('contracts/foundry.toml', 'pnpm-lock.yaml', 'pnpm-workspace.yaml') }}
           restore-keys: dependencies-${{ runner.os }}-${{ github.job }}-
+      - uses: actions/cache/restore@v6
+        id: typescript
+        with:
+          path: .cache/typescript
+          key: typescript-${{ runner.os }}-${{ hashFiles('**/tsconfig.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml') }}
+          restore-keys: typescript-${{ runner.os }}-
       - id: machine
         run: echo "id=$(cat /var/lib/dbus/machine-id /etc/machine-id 2> /dev/null | head -n 1)" >> "$GITHUB_OUTPUT" # cspell:ignore dbus
       - uses: actions/cache/restore@v6
@@ -65,6 +71,9 @@ jobs:
             ~/.local/share/svm
             /tmp/metro-cache
           key: ${{ steps.dependencies.outputs.cache-primary-key }}
+      - uses: actions/cache/save@v6
+        if: github.ref_name == 'main' && steps.typescript.outputs.cache-hit != 'true'
+        with: { path: .cache/typescript, key: "${{ steps.typescript.outputs.cache-primary-key }}" }
 
       - uses: codecov/codecov-action@v7
         if: ${{ !cancelled() }}
