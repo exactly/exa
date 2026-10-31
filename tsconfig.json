@@ -3,6 +3,8 @@
   "compilerOptions": {
     "module": "ESNext",
     "lib": ["ESNext", "DOM"],
+    "incremental": true,
+    "tsBuildInfoFile": ".cache/typescript/tsconfig.tsbuildinfo",
     "pretty": true,
     "strict": true,
     "checkJs": true,
