@@ -24,6 +24,7 @@ auditConfig:
     - GHSA-28wg-ghj8-5hjv
     - GHSA-2v37-7h3g-55p8
     - GHSA-395f-4hp3-45gv
+    - GHSA-3g3m-2fjr-6pw4
     - GHSA-44jh-23m7-hpcf # cspell:ignore hpcf
     - GHSA-4x5r-pxfx-6jf8 # cspell:ignore pxfx
     - GHSA-52cp-r559-cp3m
@@ -34,6 +35,7 @@ auditConfig:
     - GHSA-86w9-cpqp-85rv # cspell:ignore cpqp
     - GHSA-965c-763c-88jm
     - GHSA-fxqj-rqcc-2cmp # cspell:ignore fxqj rqcc
+    - GHSA-g3hv-75wg-m249
     - GHSA-gcqx-w48m-w2h4 # cspell:ignore gcqx
     - GHSA-h67p-54hq-rp68
     - GHSA-5p2g-fcmc-qvqq # cspell:ignore fcmc qvqq
