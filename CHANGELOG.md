@@ -1,5 +1,13 @@
 # @exactly/mobile
 
+## 1.2.41
+
+### Patch Changes
+
+- [#1710](https://github.com/exactly/exa/pull/1710) [`f3b94fe`](https://github.com/exactly/exa/commit/f3b94feb7db8f8916673f3f9e4bab1c5687006a4) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 keep pin sheet height while the pin loads
+
+- [#1746](https://github.com/exactly/exa/pull/1746) [`9f169e1`](https://github.com/exactly/exa/commit/9f169e12a8e55913d90c3e0ebedb0ac1ed07601a) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ⚡️ import icons directly
+
 ## 1.2.40
 
 ### Patch Changes
