@@ -19,8 +19,10 @@ import {
   encodeErrorResult,
   encodeFunctionData,
   erc20Abi,
+  getAbiItem,
   hexToBigInt,
   http,
+  keccak256,
   padHex,
   zeroAddress,
   zeroHash,
@@ -38,6 +40,8 @@ import chain, {
   exaAccountFactoryAbi,
   exaAccountFactoryAddress,
   exaPluginAbi,
+  exaPluginAddress,
+  exaPreviewerAddress,
   issuerCheckerAbi,
   marketAbi,
   marketUSDCAddress,
@@ -58,6 +62,7 @@ import publicClient from "../../utils/publicClient";
 import createSardine from "../../utils/sardine";
 import createSegment from "../../utils/segment";
 import traceClient from "../../utils/traceClient";
+import validFactories from "../../utils/validFactories";
 import wallet from "../../utils/wallet";
 import anvilClient from "../anvilClient";
 
@@ -2576,6 +2581,199 @@ describe("card operations", () => {
   });
 });
 
+describe("plugin 1.0.0", () => {
+  const owner100 = createWalletClient({ chain, transport: http(), account: privateKeyToAccount(generatePrivateKey()) });
+  const factory = parse(
+    Address,
+    [...validFactories].find((address) => address !== exaAccountFactoryAddress),
+  );
+  const account100 = deriveAddress(factory, { x: padHex(owner100.account.address), y: zeroHash });
+  let release: Address;
+
+  beforeAll(async () => {
+    await database.transaction(async (tx) => {
+      await tx
+        .insert(credentials)
+        .values([{ id: account100, publicKey: new Uint8Array(), account: account100, factory }]);
+      await tx.insert(cards).values([
+        { id: `${account100}-debit`, credentialId: account100, lastFour: "1000", mode: 0 },
+        { id: `${account100}-credit`, credentialId: account100, lastFour: "1001", mode: 1 },
+        { id: `${account100}-upgraded`, credentialId: account100, lastFour: "1002", mode: 0 },
+      ]);
+    });
+    await Promise.all([
+      keeper.exaSend(
+        { name: "create account", op: "exa.account" },
+        {
+          address: factory,
+          abi: exaAccountFactoryAbi,
+          functionName: "createAccount",
+          args: [0n, [{ x: hexToBigInt(owner100.account.address), y: 0n }]],
+        },
+      ),
+      keeper.exaSend(
+        { name: "mint usdc", op: "tx.mint" },
+        { address: usdcAddress, abi: mockERC20Abi, functionName: "mint", args: [account100, 420_000_000n] },
+      ),
+      anvilClient.setBalance({ address: owner100.account.address, value: 10n ** 24n }),
+    ]);
+    await keeper.exaSend(
+      { name: "poke", op: "exa.poke" },
+      { address: account100, abi: exaPluginAbi, functionName: "poke", args: [marketUSDCAddress] },
+    );
+    release = await publicClient
+      .readContract({ address: account100, abi: upgradeableModularAccountAbi, functionName: "getInstalledPlugins" })
+      .then(([plugin]) => parse(Address, plugin));
+  });
+
+  it("collects debit", async () => {
+    const traceCall = vi.spyOn(traceClient, "traceCall");
+
+    await expect(purchase(`${account100}-debit`, 900)).resolves.toStrictEqual([200, 200, 9_000_000n]);
+
+    expect(segment.track).toHaveBeenCalledWith({
+      userId: account100,
+      event: "TransactionAuthorized",
+      properties: {
+        type: "panda",
+        cardId: `${account100}-debit`,
+        cardMode: 0,
+        source: null,
+        usdAmount: 9,
+        merchant: {
+          name: authorization.json.body.spend.merchantName,
+          category: authorization.json.body.spend.merchantCategory,
+          city: authorization.json.body.spend.merchantCity,
+          country: authorization.json.body.spend.merchantCountry,
+        },
+      },
+    });
+    expect(captureException).not.toHaveBeenCalled();
+    expect(
+      traceCall.mock.calls.map(([{ from, to, stateOverride }]) => [from, to, stateOverride?.[0]?.address]),
+    ).toStrictEqual([
+      [account100, exaPreviewerAddress, exaPluginAddress],
+      [keeper.account.address, account100, undefined],
+      [account100, exaPreviewerAddress, release],
+      [keeper.account.address, account100, undefined],
+    ]);
+  });
+
+  it("collects credit", async () => {
+    await expect(purchase(`${account100}-credit`, 10)).resolves.toStrictEqual([200, 200, 100_000n]);
+
+    expect(segment.track).toHaveBeenCalledWith({
+      userId: account100,
+      event: "TransactionAuthorized",
+      properties: {
+        type: "panda",
+        cardId: `${account100}-credit`,
+        cardMode: 1,
+        source: null,
+        usdAmount: 0.1,
+        merchant: {
+          name: authorization.json.body.spend.merchantName,
+          category: authorization.json.body.spend.merchantCategory,
+          city: authorization.json.body.spend.merchantCity,
+          country: authorization.json.body.spend.merchantCountry,
+        },
+      },
+    });
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  describe("after upgrade", () => {
+    beforeAll(async () => {
+      await anvilClient.waitForTransactionReceipt({
+        hash: await owner100.writeContract({
+          address: account100,
+          abi: upgradeableModularAccountAbi,
+          functionName: "executeBatch",
+          args: [
+            [
+              {
+                target: account100,
+                value: 0n,
+                data: encodeFunctionData({
+                  abi: upgradeableModularAccountAbi,
+                  functionName: "uninstallPlugin",
+                  args: [
+                    release,
+                    encodeAbiParameters(
+                      [
+                        {
+                          type: "tuple",
+                          components: [
+                            { name: "serializedManifest", type: "bytes" },
+                            { name: "forceUninstall", type: "bool" },
+                            { name: "callbackGasLimit", type: "uint256" },
+                          ],
+                        },
+                      ],
+                      [{ serializedManifest: "0x", forceUninstall: false, callbackGasLimit: 0n }],
+                    ),
+                    "0x",
+                  ],
+                }),
+              },
+              {
+                target: account100,
+                value: 0n,
+                data: encodeFunctionData({
+                  abi: upgradeableModularAccountAbi,
+                  functionName: "installPlugin",
+                  args: [
+                    exaPluginAddress,
+                    keccak256(
+                      encodeAbiParameters(getAbiItem({ abi: exaPluginAbi, name: "pluginManifest" }).outputs, [
+                        await publicClient.readContract({
+                          address: exaPluginAddress,
+                          abi: exaPluginAbi,
+                          functionName: "pluginManifest",
+                        }),
+                      ]),
+                    ),
+                    "0x",
+                    [],
+                  ],
+                }),
+              },
+            ],
+          ],
+        }),
+      });
+    });
+
+    it("collects debit", async () => {
+      const traceCall = vi.spyOn(traceClient, "traceCall");
+
+      await expect(purchase(`${account100}-upgraded`, 900)).resolves.toStrictEqual([200, 200, 9_000_000n]);
+
+      expect(segment.track).toHaveBeenCalledWith({
+        userId: account100,
+        event: "TransactionAuthorized",
+        properties: {
+          type: "panda",
+          cardId: `${account100}-upgraded`,
+          cardMode: 0,
+          source: null,
+          usdAmount: 9,
+          merchant: {
+            name: authorization.json.body.spend.merchantName,
+            category: authorization.json.body.spend.merchantCategory,
+            city: authorization.json.body.spend.merchantCity,
+            country: authorization.json.body.spend.merchantCountry,
+          },
+        },
+      });
+      expect(captureException).not.toHaveBeenCalled();
+      expect(
+        traceCall.mock.calls.map(([{ from, to, stateOverride }]) => [from, to, stateOverride?.[0]?.address]),
+      ).toStrictEqual([[account100, exaPreviewerAddress, exaPluginAddress]]);
+    });
+  });
+});
+
 describe("card notification", () => {
   beforeAll(async () => {
     await database.update(credentials).set({ pandaId: "cred" }).where(eq(credentials.id, "cred"));
@@ -4167,6 +4365,30 @@ function usdcToAddress(purchaseReceipt: TransactionReceipt, address: Address) {
 
 function usdcToCollector(purchaseReceipt: TransactionReceipt) {
   return usdcToAddress(purchaseReceipt, parse(Address, "0xDb90CDB64CfF03f254e4015C4F705C3F3C834400"));
+}
+
+async function purchase(cardId: string, amount: number) {
+  const body = {
+    ...authorization.json.body,
+    id: cardId,
+    spend: { ...authorization.json.body.spend, amount, cardId },
+  };
+
+  return [
+    await appClient.index
+      .$post({ ...authorization, json: { ...authorization.json, body } })
+      .then(({ status }) => status),
+    await appClient.index
+      .$post({ ...authorization, json: { ...authorization.json, action: "created", body } })
+      .then(({ status }) => status),
+    usdcToCollector(
+      await database.query.transactions
+        .findFirst({ where: eq(transactions.id, cardId) })
+        .then((transaction) =>
+          publicClient.waitForTransactionReceipt({ hash: transaction?.hashes[0] as Hex, confirmations: 0 }),
+        ),
+    ),
+  ];
 }
 
 async function execute(calldata: Hex) {

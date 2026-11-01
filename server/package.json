@@ -163,6 +163,10 @@
           {
             "projects": "@exactly/plugin",
             "target": "prepare"
+          },
+          {
+            "projects": "@exactly/common",
+            "target": "git:unshallow"
           }
         ],
         "inputs": [

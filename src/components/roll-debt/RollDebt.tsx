@@ -11,19 +11,12 @@ import { ScrollView, Separator, XStack, YStack } from "tamagui";
 import { useMutation } from "@tanstack/react-query";
 import { waitForCallsStatus } from "@wagmi/core/actions";
 import { digits, nonEmpty, pipe, safeParse, string, transform } from "valibot";
-import { encodeDeployData, encodeFunctionData } from "viem";
-import { useReadContract, useSendCalls } from "wagmi";
+import { encodeFunctionData } from "viem";
+import { useSendCalls } from "wagmi";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
-import chain, {
-  auditorAddress,
-  exaPreviewerAbi,
-  exaPreviewerCode,
-  marketUSDCAddress,
-  previewerAddress,
-  proposalManagerAddress,
-} from "@exactly/common/generated/chain";
+import chain, { marketUSDCAddress, previewerAddress } from "@exactly/common/generated/chain";
 import { useReadPreviewerPreviewBorrowAtMaturity } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
 import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
@@ -36,6 +29,7 @@ import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useInsets from "../../utils/useInsets";
+import usePendingOperations from "../../utils/usePendingOperations";
 import useSimulateProposal from "../../utils/useSimulateProposal";
 import exa from "../../utils/wagmi/exa";
 import Skeleton from "../shared/Skeleton";
@@ -261,21 +255,8 @@ function RolloverButton({
   });
 
   const {
-    data: pendingProposals,
-    refetch: refetchPendingProposals,
-    isPending: isPendingProposalsPending,
-  } = useReadContract({
-    abi: exaPreviewerAbi,
-    functionName: "pendingProposals",
-    code: encodeDeployData({
-      abi: exaPreviewerAbi,
-      bytecode: exaPreviewerCode,
-      args: [auditorAddress, marketUSDCAddress, proposalManagerAddress],
-    }),
-    chainId: chain.id,
-    args: address ? [address] : undefined,
-    query: { enabled: !!address, gcTime: 0, refetchInterval: 30_000 },
-  });
+    proposals: { data: pendingProposals, refetch: refetchPendingProposals, isPending: isPendingProposalsPending },
+  } = usePendingOperations();
 
   const { mutateAsync: mutateSendCalls } = useSendCalls();
   const {

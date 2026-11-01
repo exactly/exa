@@ -9,17 +9,10 @@ import { AnimatePresence, ScrollView, YStack } from "tamagui";
 
 import { TimeToFullDisplay } from "@sentry/react-native";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { encodeDeployData } from "viem";
-import { useBytecode, useReadContract } from "wagmi";
+import { useBytecode } from "wagmi";
 
 import business from "@exactly/common/business";
-import chain, {
-  auditorAddress,
-  exaPreviewerAbi,
-  exaPreviewerCode,
-  marketUSDCAddress,
-  proposalManagerAddress,
-} from "@exactly/common/generated/chain";
+import chain, { marketUSDCAddress } from "@exactly/common/generated/chain";
 import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 import { borrowLimit, healthFactor, WAD, withdrawLimit } from "@exactly/lib";
 
@@ -114,20 +107,11 @@ export default function Home() {
     totalBalanceUSD,
   } = usePortfolio();
 
-  const { refetch: refetchPendingProposals } = useReadContract({
-    abi: exaPreviewerAbi,
-    functionName: "pendingProposals",
-    code: encodeDeployData({
-      abi: exaPreviewerAbi,
-      bytecode: exaPreviewerCode,
-      args: [auditorAddress, marketUSDCAddress, proposalManagerAddress],
-    }),
-    chainId: chain.id,
-    args: account ? [account] : undefined,
-    query: { enabled: !!account && !!bytecode, gcTime: 0, refetchInterval: 30_000 },
-  });
   const { data: activity } = useQuery<ActivityItem[]>({ queryKey: ["activity"] });
-  const { isProcessing } = usePendingOperations();
+  const {
+    isProcessing,
+    proposals: { refetch: refetchPendingProposals },
+  } = usePendingOperations();
   const { markets, timestamp, refetch: refetchMarkets } = useMarkets();
   const { approved: isKYCApproved, status: kycStatus, isFetched: isKYCFetched } = useKYC();
   const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"], enabled: !!account && !!bytecode });

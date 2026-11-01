@@ -125,15 +125,7 @@ export default function PluginUpgrade() {
           code: encodeDeployData({
             abi: exaPreviewerAbi,
             bytecode: exaPreviewerCode,
-            args: [
-              auditorAddress,
-              marketUSDCAddress,
-              await readContract(exa, {
-                address: installedPlugins[0],
-                abi: exaPluginAbi,
-                functionName: "proposalManager",
-              }),
-            ],
+            args: [auditorAddress, marketUSDCAddress],
           }),
           functionName: "pendingProposals",
           args: [address],
@@ -143,11 +135,10 @@ export default function PluginUpgrade() {
         const resolutions: Hex[] = [];
         for (const { nonce } of proposals) {
           const execution = encodeFunctionData({ abi: exaPluginAbi, functionName: "executeProposal", args: [nonce] });
-          const block = await simulate(address, [...resolutions, execution]);
+          const skip = encodeFunctionData({ abi: exaPluginAbi, functionName: "setProposalNonce", args: [nonce + 1n] });
+          const block = await simulate(address, [...resolutions, execution, skip]);
           resolutions.push(
-            block?.calls.at(-1)?.status === "success"
-              ? execution
-              : encodeFunctionData({ abi: exaPluginAbi, functionName: "setProposalNonce", args: [nonce + 1n] }),
+            block?.calls.at(-2)?.status === "success" && block.calls.at(-1)?.status === "failure" ? execution : skip,
           );
         }
         calls = [
