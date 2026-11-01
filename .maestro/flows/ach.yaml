@@ -4,6 +4,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     file: ../subflows/mint.yaml
     env: { asset: USDC, to: "${output.account}", amount: "420" }
+- runScript: { file: ../dist/mint.js, env: { asset: USDC, to: "${output.account}", amount: "100", network: Anvil2 } }
 - runFlow: ../subflows/verifyIdentity.yaml
 - runFlow: ../subflows/ach.yaml
 - tapOn: Send
@@ -21,4 +22,10 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- runScript: { file: ../dist/deposited.js, env: { account: "${output.account}", network: Anvil2 } }
+- repeat:
+    times: 20
+    while: { true: "${output.deposited !== 100}" }
+    commands: [{ runScript: { file: ../dist/deposited.js, env: { account: "${output.account}", network: Anvil2 } } }]
+- assertTrue: ${output.deposited === 100}
 - runFlow: ../subflows/storeCoverage.yaml
