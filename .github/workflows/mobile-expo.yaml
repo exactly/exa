@@ -30,6 +30,7 @@ jobs:
           node-version: "^24.14.1"
           package-manager-cache: false
       - run: corepack enable
+        name: corepack
       - uses: foundry-rs/foundry-toolchain@v1
         with: { version: v1.7.1, cache: false }
       - uses: expo/expo-github-action@v9
@@ -38,21 +39,27 @@ jobs:
           eas-cache: false
           token: ${{ secrets.EXPO_TOKEN }}
       - run: pnpm install --frozen-lockfile
+        name: install
         env: { REDISMS_DISABLE_POSTINSTALL: "true" }
       - run: eas build --profile ${{ inputs.profile }} --platform all --non-interactive --no-wait
+        name: build
         if: inputs.build
       - run: eas update --auto --channel ${{ inputs.profile }} --platform all --non-interactive
+        name: update
       - run: echo "release=$(node -e 'console.log(require(`./src/generated/release`))')" >> $GITHUB_OUTPUT
+        name: release
         id: release
       - uses: actions/upload-artifact@v7
         with: { name: "${{ steps.release.outputs.release }}", path: dist }
       - run: npx sentry-expo-upload-sourcemaps dist
+        name: sourcemaps
         env:
           SENTRY_ORG: exactly
           SENTRY_PROJECT: exa
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_RELEASE: ${{ steps.release.outputs.release }}
       - id: commits
+        name: commits
         if: inputs.profile == 'production'
         run: |
           currentTag="$GITHUB_REF_NAME"

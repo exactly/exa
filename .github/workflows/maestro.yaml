@@ -16,8 +16,12 @@ jobs:
         with: { node-version: "^24.14.1" }
       - uses: oras-project/setup-oras@v2 # cspell:ignore oras
       - run: corepack enable
+        name: corepack
       - run: pnpm install --frozen-lockfile --ignore-scripts
+        name: install
       - run: GITHUB_STEP_SUMMARY= pnpm nx maestro e2e
+        name: build
       - uses: docker/login-action@v4
         with: { registry: ghcr.io, username: "${{ github.repository_owner }}", password: "${{ secrets.GITHUB_TOKEN }}" }
       - run: oras manifest fetch "$IMAGE:$(cat .maestro/build/hash)" > /dev/null || { tar -czf maestro.tgz --exclude hash -C .maestro/build . && oras push "$IMAGE:$(cat .maestro/build/hash)" maestro.tgz:application/vnd.oci.image.layer.v1.tar+gzip; }
+        name: push

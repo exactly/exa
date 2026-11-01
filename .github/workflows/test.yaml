@@ -40,6 +40,7 @@ jobs:
           key: dependencies-${{ runner.os }}-${{ github.job }}-${{ hashFiles('contracts/foundry.toml', 'pnpm-lock.yaml', 'pnpm-workspace.yaml') }}
           restore-keys: dependencies-${{ runner.os }}-${{ github.job }}-
       - id: machine
+        name: machine
         run: echo "id=$(cat /var/lib/dbus/machine-id /etc/machine-id 2> /dev/null | head -n 1)" >> "$GITHUB_OUTPUT" # cspell:ignore dbus
       - uses: actions/cache/restore@v6
         id: nx
@@ -50,11 +51,17 @@ jobs:
           key: nx-${{ runner.os }}-${{ github.job }}-${{ steps.machine.outputs.id }}-${{ github.sha }}
           restore-keys: nx-${{ runner.os }}-${{ github.job }}-${{ steps.machine.outputs.id }}-
       - run: pip install -r contracts/requirements.txt
+        name: pip
       - run: echo ::add-matcher::.github/matcher.json
+        name: matcher
       - run: flock /tmp/apt.lock sudo apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=5 install --update --no-install-recommends --yes redis-server > apt.log 2>&1 &
+        name: redis
       - run: corepack enable
+        name: corepack
       - run: pnpm install --frozen-lockfile
+        name: install
       - run: flock /tmp/apt.lock pnpm nx run-many -t test --parallel=$(git diff-tree --quiet "${NX_KEY##*-}" HEAD -- nx.json package.json pnpm-lock.yaml && echo 3 || echo 5)
+        name: test
         env: { NX_KEY: "${{ steps.nx.outputs.cache-matched-key }}" }
       - uses: actions/cache/save@v6
         if: github.ref_name == 'main'
@@ -103,6 +110,7 @@ jobs:
           flags: server
           name: server
       - if: ${{ !cancelled() }}
+        name: summary
         run: echo "## [codecov](https://app.codecov.io/gh/$GITHUB_REPOSITORY/commit/$GITHUB_SHA)" >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v7
@@ -147,6 +155,7 @@ jobs:
       - uses: foundry-rs/foundry-toolchain@v1
         with: { version: v1.7.1, cache: false }
       - id: script
+        name: hash
         run: echo "hash=$(node -p 'require("./.maestro/package.json").scripts.maestro' | cat - .maestro/patches/*.patch | git hash-object --stdin)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache/restore@v6
         id: dependencies
@@ -158,6 +167,7 @@ jobs:
           key: dependencies-${{ runner.os }}-${{ github.job }}-${{ hashFiles('contracts/foundry.toml', 'pnpm-lock.yaml', 'pnpm-workspace.yaml') }}
           restore-keys: dependencies-${{ runner.os }}-${{ github.job }}-
       - id: machine
+        name: machine
         run: echo "id=$(cat /var/lib/dbus/machine-id /etc/machine-id 2> /dev/null | head -n 1)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache/restore@v6
         id: nx
@@ -166,13 +176,19 @@ jobs:
           key: nx-${{ runner.os }}-${{ github.job }}-${{ steps.machine.outputs.id }}-${{ github.sha }}
           restore-keys: nx-${{ runner.os }}-${{ github.job }}-${{ steps.machine.outputs.id }}-
       - run: echo ::add-matcher::.github/matcher.json
+        name: matcher
       - run: flock /tmp/apt.lock sudo apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=5 install --update --no-install-recommends --yes redis-server > apt.log 2>&1 &
+        name: redis
       - run: corepack enable
+        name: corepack
       - run: pnpm install --frozen-lockfile
+        name: install
       - run: GITHUB_STEP_SUMMARY= flock /tmp/apt.lock pnpm nx e2e:web:release mobile > server.log 2>&1 &
+        name: server
       - uses: actions/cache@v6
         with: { path: .maestro/build, key: "maestro-${{ runner.os }}-${{ steps.script.outputs.hash }}" }
       - if: github.ref_name == 'main'
+        name: maestro
         run: echo ${{ steps.script.outputs.hash }} | cmp -s - .maestro/build/hash || for run in $(gh run list -w maestro.yaml -c "$GITHUB_SHA" --json databaseId -q '.[].databaseId'); do timeout 600 gh run watch -i 10 "$run" > /dev/null || true; done
         env: { GH_TOKEN: "${{ github.token }}" }
       - if: matrix.method == 'metamask'
@@ -183,12 +199,14 @@ jobs:
           key: metamask-${{ hashFiles('.maestro/package.json', '.maestro/subflows/metamask.yaml') }}
           restore-keys: metamask-
       - run: GITHUB_STEP_SUMMARY= pnpm nx e2e:${{ matrix.method }} e2e --flow=${{ matrix.flow }} --screen=${{ matrix.screen }} --skip-nx-cache
+        name: e2e
       - if: ${{ !cancelled() && matrix.method == 'metamask' && steps.metamask.outputs.cache-hit != 'true' && hashFiles('.maestro/node_modules/.cache/metamask/hash') != '' }}
         uses: actions/cache/save@v6
         with:
           path: .maestro/node_modules/.cache/metamask
           key: ${{ steps.metamask.outputs.cache-primary-key }}
       - if: always()
+        name: shutdown
         run: |
           curl -X POST http://localhost:3000/e2e/shutdown || true
           for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done

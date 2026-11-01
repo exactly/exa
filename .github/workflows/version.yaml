@@ -20,8 +20,11 @@ jobs:
       - uses: actions/setup-node@v7
         with: { node-version: 24, check-latest: true, package-manager-cache: false }
       - run: corepack enable
+        name: corepack
       - run: pnpm install --frozen-lockfile --ignore-scripts
+        name: install
       - id: title
+        name: title
         run: |
           pnpm changeset status --output=status.json 2>/dev/null || echo '{"releases":[]}' > status.json
           node -e 'console.log("title=🔖 release: " + require("./status.json").releases
@@ -43,4 +46,5 @@ jobs:
       - run: |
           status=$(gh api "repos/$GITHUB_REPOSITORY/compare/beta...$GITHUB_SHA" --jq .status)
           if [ "$status" = ahead ]; then gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/heads/beta" -f sha="$GITHUB_SHA"; fi
+        name: beta
         env: { GH_TOKEN: "${{ steps.github.outputs.token }}" }

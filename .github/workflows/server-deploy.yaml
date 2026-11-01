@@ -23,7 +23,9 @@ jobs:
       - uses: actions/checkout@v7
         with: { persist-credentials: false }
       - run: echo ::add-matcher::.github/matcher.json
+        name: matcher
       - id: account
+        name: account
         run: echo "email=github-$STACK@$(yq -er '.config."gcp:project"' "infra/Pulumi.$STACK.yaml").iam.gserviceaccount.com" >> "$GITHUB_OUTPUT"
       - uses: google-github-actions/auth@v3
         with:
@@ -34,13 +36,19 @@ jobs:
       - uses: foundry-rs/foundry-toolchain@v1
         with: { version: v1.7.1, cache: false }
       - run: corepack enable
+        name: corepack
       - run: pnpm install --frozen-lockfile
+        name: install
         env: { REDISMS_DISABLE_POSTINSTALL: "true" }
       - uses: pulumi/actions@v7
       - run: pulumi login "gs://exa-pulumi-state/$STACK"
+        name: login
       - run: pulumi stack select "$STACK" --create --cwd infra
+        name: stack
       - run: pulumi up --stack "$STACK" --cwd infra --refresh --yes --config "exa:rollout=$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --config "exa:serverImage=sha-$GITHUB_SHA"
+        name: up
       - run: pulumi stack output --json --cwd infra | jq -r '"## egress\n\n`\(.egressIp)`\n\n## services\n", (.services | to_entries[] | "- \(.key) <\(.value)>")' >> "$GITHUB_STEP_SUMMARY"
+        name: summary
   digitalocean:
     needs: sentry
     runs-on: ubuntu-latest
@@ -78,9 +86,11 @@ jobs:
           docker cp extract:/prod/server/generated/release.js ./server/generated/release.js
           docker rm extract
           echo "release=$(node -e 'console.log(require(`./server/generated/release`))')" >> $GITHUB_OUTPUT
+        name: extract
         id: extract
         if: inputs.stack == 'production'
       - id: commits
+        name: commits
         if: inputs.stack == 'production'
         run: |
           currentTag="$GITHUB_REF_NAME"

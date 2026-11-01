@@ -24,9 +24,12 @@ jobs:
       - uses: foundry-rs/foundry-toolchain@v1
         with: { version: v1.7.1, cache: false }
       - run: corepack enable
+        name: corepack
       - run: pnpm install --frozen-lockfile
+        name: install
         env: { REDISMS_DISABLE_POSTINSTALL: "true" }
       - run: pnpm nx build docs
+        name: build
       - uses: actions/upload-pages-artifact@v5
         with:
           path: docs/dist
