@@ -19,9 +19,13 @@ jobs:
     steps:
       - uses: eas/checkout
       - run: corepack enable
+        name: corepack
       - run: pnpm install --frozen-lockfile --ignore-scripts
+        name: install
       - run: pnpm nx generate:version mobile
+        name: version
       - id: fingerprint
+        name: fingerprint
         run: |
           for platform in android ios; do
             set-output $platform "$(pnpm exec fingerprint fingerprint:generate --platform $platform | node -p 'JSON.parse(require("fs").readFileSync(0)).hash')"
@@ -60,6 +64,7 @@ jobs:
     steps:
       - uses: eas/checkout
       - run: flock /tmp/apt.lock sudo sh -c "apt-get update && apt-get install --no-install-recommends --yes redis-server" > apt.log 2>&1 &
+        name: redis
       - name: start emulator # cspell:ignore avdmanager sdkmanager setsid swangle
         run: |
           sdkmanager --install "system-images;android-35;google_apis;x86_64" > /dev/null
@@ -70,8 +75,10 @@ jobs:
         if: ${{ github.ref_type != 'tag' }}
         with: { key: "nx-android-e2e-${{ github.sha }}", restore_keys: nx-android-e2e-, path: nx.tar }
       - run: tar -xf nx.tar -C ~ || true
+        name: unpack nx
       - uses: eas/install_node_modules
       - if: ${{ github.ref_name == 'main' }}
+        name: pack nx
         run: tar -cf nx.tar -C ~ .nx
       - uses: eas/save_cache
         if: ${{ github.ref_name == 'main' }}
@@ -79,6 +86,7 @@ jobs:
       - name: exa setup
         run: flock /tmp/apt.lock pnpm nx e2e server > server.log 2>&1 &
       - id: script
+        name: hash
         run: set-output hash "$(node -p 'require("./.maestro/package.json").scripts.maestro' | git hash-object --stdin)"
       - uses: eas/restore_cache
         id: maestro
@@ -95,6 +103,7 @@ jobs:
             .maestro/.gradle/caches/modules-2
             .maestro/.gradle/wrapper/dists
       - run: GRADLE_USER_HOME=$PWD/.maestro/.gradle pnpm nx maestro e2e && set-env PATH "$PWD/.maestro/build/bin:$PATH"
+        name: maestro
       - uses: eas/save_cache
         if: ${{ steps.maestro.outputs.cache_hit != 'true' }}
         with:
@@ -129,6 +138,7 @@ jobs:
             sleep 1
           done
       - run: pnpm e2e:maestro --format junit --output .maestro/junit.xml
+        name: e2e
       - name: exa teardown
         if: always()
         run: | # cspell:ignore pkill
@@ -188,23 +198,28 @@ jobs:
       SHARP_IGNORE_GLOBAL_LIBVIPS: "true" # cspell:ignore libvips
     steps:
       - run: brew install redis
+        name: redis
       - uses: eas/checkout
       - uses: eas/restore_cache
         if: ${{ github.ref_type != 'tag' }}
         with: { key: "nx-ios-e2e-${{ github.sha }}", restore_keys: nx-ios-e2e-, path: nx.tar }
       - run: tar -xf nx.tar -C ~ || true
+        name: unpack nx
       - uses: eas/restore_cache
         id: modules
         if: ${{ github.ref_type != 'tag' }}
         with: { key: "modules-${{ hashFiles('pnpm-lock.yaml') }}", restore_keys: modules-, path: modules.tar }
       - run: tar -xPf modules.tar || true
+        name: unpack modules
       - uses: eas/install_node_modules
       - if: ${{ github.ref_name == 'main' }}
+        name: pack nx
         run: tar -cf nx.tar -C ~ .nx
       - uses: eas/save_cache
         if: ${{ github.ref_name == 'main' }}
         with: { key: "nx-ios-e2e-${{ github.sha }}", path: nx.tar }
       - if: ${{ github.ref_name == 'main' && steps.modules.outputs.cache_hit != 'true' }}
+        name: pack modules
         run: tar -cPf modules.tar node_modules */node_modules .maestro/node_modules ~/Library/Caches/pnpm/lockfile-verified.jsonl
       - uses: eas/save_cache
         if: ${{ github.ref_name == 'main' && steps.modules.outputs.cache_hit != 'true' }}
@@ -212,6 +227,7 @@ jobs:
       - name: exa setup
         run: pnpm nx e2e server > server.log 2>&1 &
       - id: script
+        name: hash
         run: set-output hash "$(node -p 'require("./.maestro/package.json").scripts.maestro' | git hash-object --stdin)"
       - uses: eas/restore_cache
         id: maestro
@@ -228,6 +244,7 @@ jobs:
             .maestro/.gradle/caches/modules-2
             .maestro/.gradle/wrapper/dists
       - run: GRADLE_USER_HOME=$PWD/.maestro/.gradle pnpm nx maestro e2e && set-env PATH "$PWD/.maestro/build/bin:$PATH"
+        name: maestro
       - uses: eas/save_cache
         if: ${{ steps.maestro.outputs.cache_hit != 'true' }}
         with:
@@ -258,6 +275,7 @@ jobs:
             sleep 1
           done
       - run: pnpm e2e:maestro --format junit --output .maestro/junit.xml
+        name: e2e
       - name: exa teardown
         if: always()
         run: | # cspell:ignore pkill
