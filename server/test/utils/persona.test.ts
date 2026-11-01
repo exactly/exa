@@ -5,6 +5,7 @@ import { array, minLength, number, object, optional, pipe, safeParse, string, un
 import { baseSepolia, optimism } from "viem/chains";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 
+import appOrigin from "../../utils/appOrigin";
 import createPersona, * as Persona from "../../utils/persona";
 
 const chainMock = vi.hoisted(() => ({ id: 10 }));
@@ -167,6 +168,76 @@ describe("is missing or null util", () => {
     expect(result.success).toBe(false);
     expect(result.issues).toHaveLength(1);
     expect(issue && persona.isMissingOrNull(issue)).toBe(true);
+  });
+});
+
+describe("createInquiry", () => {
+  const inquiry = {
+    id: "inquiry-id",
+    type: "inquiry",
+    attributes: { status: "created", "reference-id": "reference-id" },
+  };
+  let fetchSpy: MockInstance<typeof fetch>;
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json({ data: inquiry }));
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("redirects to the app origin without prefilled fields", async () => {
+    await expect(persona.createInquiry("reference-id", "template-id")).resolves.toStrictEqual({ data: inquiry });
+
+    expect(fetchSpy).toHaveBeenCalledOnce();
+    expect(fetchSpy.mock.calls[0]?.[0]).toBe("https://persona.test/inquiries");
+    expect(fetchSpy.mock.calls[0]?.[1]?.method).toBe("POST");
+    const body = fetchSpy.mock.calls[0]?.[1]?.body;
+    if (typeof body !== "string") throw new Error("missing request body");
+    expect(JSON.parse(body)).toStrictEqual({
+      data: { attributes: { "inquiry-template-id": "template-id", "redirect-uri": `${appOrigin}/card` } },
+      meta: { "auto-create-account": true, "auto-create-account-reference-id": "reference-id" },
+    });
+  });
+
+  it("sends the redirect uri and prefilled fields", async () => {
+    await expect(
+      persona.createInquiry("reference-id", "template-id", "https://example.com", {
+        "name-first": "ALEXANDER J",
+        "name-last": "SAMPLE",
+      }),
+    ).resolves.toStrictEqual({ data: inquiry });
+
+    expect(fetchSpy).toHaveBeenCalledOnce();
+    const body = fetchSpy.mock.calls[0]?.[1]?.body;
+    if (typeof body !== "string") throw new Error("missing request body");
+    expect(JSON.parse(body)).toStrictEqual({
+      data: {
+        attributes: {
+          "inquiry-template-id": "template-id",
+          "redirect-uri": "https://example.com/card",
+          fields: { "name-first": "ALEXANDER J", "name-last": "SAMPLE" },
+        },
+      },
+      meta: { "auto-create-account": true, "auto-create-account-reference-id": "reference-id" },
+    });
+  });
+});
+
+describe("getInquiry", () => {
+  it("prefers an approved business inquiry", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({
+        data: [
+          { id: "inquiry-1", type: "inquiry", attributes: { status: "approved", "reference-id": "reference-id" } },
+        ],
+      }),
+    );
+    fetchSpy.mockClear();
+
+    await expect(persona.getInquiry("reference-id", persona.BUSINESS_TEMPLATE)).resolves.toMatchObject({
+      id: "inquiry-1",
+    });
+    expect(fetchSpy.mock.calls[0]?.[0]).toContain("filter[status]=approved");
   });
 });
 
@@ -572,6 +643,40 @@ describe("evaluateAccount", () => {
       );
 
       expect(result).toBe(persona.MANTECA_TEMPLATE_WITH_ID_CLASS);
+    });
+  });
+
+  describe("business", () => {
+    it("returns business template when account not found", async () => {
+      await expect(persona.evaluateAccount({ data: [] }, "business")).resolves.toBe(persona.BUSINESS_TEMPLATE);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    it("returns no template when the account has an approved business inquiry", async () => {
+      fetchSpy.mockResolvedValueOnce(
+        Response.json({
+          data: [
+            { id: "inquiry-1", type: "inquiry", attributes: { status: "approved", "reference-id": "reference-id" } },
+          ],
+        }),
+      );
+
+      await expect(
+        persona.evaluateAccount({ data: [{ id: "act_1", type: "account", attributes: {} }] }, "business"),
+      ).resolves.toBeUndefined();
+      expect(fetchSpy).toHaveBeenCalledOnce();
+      expect(fetchSpy.mock.calls[0]?.[0]).toContain(
+        `filter[account-id]=act_1&filter[inquiry-template-id]=${persona.BUSINESS_TEMPLATE}&filter[status]=approved`,
+      );
+    });
+
+    it("returns business template when the account has no approved business inquiry", async () => {
+      fetchSpy.mockResolvedValueOnce(Response.json({ data: [] }));
+
+      await expect(
+        persona.evaluateAccount({ data: [{ id: "act_1", type: "account", attributes: {} }] }, "business"),
+      ).resolves.toBe(persona.BUSINESS_TEMPLATE);
+      expect(fetchSpy).toHaveBeenCalledOnce();
     });
   });
 

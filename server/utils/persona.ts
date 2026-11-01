@@ -16,8 +16,10 @@ import {
   optional,
   picklist,
   pipe,
+  record,
   safeParse,
   string,
+  transform,
   unknown,
   ValiError,
   type BaseIssue,
@@ -37,6 +39,9 @@ export const CARD_LIMIT_CASE_TEMPLATE = "ctmpl_5cCoj56PD6NpsX3H3ZoMynZVfXbF"; //
 export const CARD_LIMIT_TEMPLATE = "itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2"; // cspell:ignore itmpl_HSA4M3SwiH2wiWVpvFn4ny1kPws2
 export const CRYPTOMATE_TEMPLATE = "itmpl_8uim4FvD5P3kFpKHX37CW817";
 export const PANDA_TEMPLATE = "itmpl_1igCJVqgf3xuzqKYD87HrSaDavU2";
+export const BUSINESS_TEMPLATE = "itmpl_AWN3X1RWCb3p8frTdiMmi8Y3mxRjNE";
+export const BUSINESS_PANDA_REPRESENTATIVE_TEMPLATE = "itmpl_AWN3X1Rf5Qg7tHSAsT6toxZbCGenVo";
+export const PANDA_BUSINESS_CHECKBOX_TEMPLATE = "itmpl_AWN3X1RFC36VkwnvPJzMF26DUMwmjV";
 export const MANTECA_TEMPLATE_EXTRA_FIELDS = "itmpl_gjYZshv7bc1DK8DNL8YYTQ1muejo";
 export const MANTECA_TEMPLATE_WITH_ID_CLASS = "itmpl_TjaqJdQYkht17v645zNFUfkaWNan";
 export const ADDRESS_TEMPLATE = "itmpl_FTHNSXqJjoMvUTBc85QECGHogrZx";
@@ -130,6 +135,7 @@ export default function persona(key: string, url: string) {
     unknownAccount: InferOutput<typeof UnknownAccount>,
     scope: AccountScope,
   ): Promise<
+    | typeof BUSINESS_TEMPLATE
     | typeof CARD_LIMIT_TEMPLATE
     | typeof MANTECA_TEMPLATE_EXTRA_FIELDS
     | typeof MANTECA_TEMPLATE_WITH_ID_CLASS
@@ -137,6 +143,18 @@ export default function persona(key: string, url: string) {
     | undefined
   > {
     switch (scope) {
+      case "business": {
+        const account = unknownAccount.data[0];
+        if (!account) return BUSINESS_TEMPLATE;
+        const { data } = await request(
+          GetInquiriesResponse,
+          `/inquiries?page[size]=1&filter[account-id]=${account.id}&filter[inquiry-template-id]=${BUSINESS_TEMPLATE}&filter[status]=approved`,
+          undefined,
+          "GET",
+          10_000,
+        );
+        return data[0] ? undefined : BUSINESS_TEMPLATE;
+      }
       case "document":
         throw new Error("document account scope not supported");
       case "cardLimit":
@@ -520,12 +538,27 @@ const CardLimitAccount = object({
   }),
 });
 
+const flat = pipe(
+  record(string(), object({ value: unknown() })),
+  transform((fields) => Object.fromEntries(Object.entries(fields).map(([name, { value }]) => [name, value]))),
+);
+
+const BusinessAccount = object({
+  attributes: object({
+    fields: optional(flat),
+    "reference-id": optional(string()),
+  }),
+  id: string(),
+  type: literal("account"),
+});
+
 const accountScopeSchemas = {
-  bridge: object({ data: array(BridgeAccount) }),
   basic: object({ data: array(BaseAccount) }),
-  manteca: object({ data: array(MantecaAccount) }),
-  document: object({ data: array(DocumentAccount) }),
+  bridge: object({ data: array(BridgeAccount) }),
+  business: object({ data: array(BusinessAccount) }),
   cardLimit: object({ data: array(CardLimitAccount) }),
+  document: object({ data: array(DocumentAccount) }),
+  manteca: object({ data: array(MantecaAccount) }),
 } as const;
 
 export type AccountScope = keyof typeof accountScopeSchemas;
@@ -546,8 +579,9 @@ export const Inquiry = object({
   id: string(),
   type: literal("inquiry"),
   attributes: object({
-    status: picklist(["created", "pending", "expired", "failed", "needs_review", "declined", "completed", "approved"]),
+    fields: optional(flat),
     "reference-id": string(),
+    status: picklist(["created", "pending", "expired", "failed", "needs_review", "declined", "completed", "approved"]),
   }),
 });
 
