@@ -6,6 +6,7 @@ import activity from "./activity";
 import authentication from "./auth/authentication";
 import registration from "./auth/registration";
 import card from "./card";
+import cards from "./cards";
 import kyc from "./kyc";
 import passkey from "./passkey";
 import paxRoute from "./pax";
@@ -87,6 +88,7 @@ export default function api({
     )
     .route("/activity", activity({ auth, database }))
     .route("/card", card({ auth, credit, database, panda, pax, persona, sardine, segment, walletExtension }))
+    .route("/cards", cards({ auth, database, panda }))
     .route("/kyc", kyc({ auth, database, panda, persona }))
     .route("/passkey", passkey({ auth, database })) // eslint-disable-line @typescript-eslint/no-deprecated -- // TODO remove
     .route("/pax", paxRoute({ auth, database, pax }))
