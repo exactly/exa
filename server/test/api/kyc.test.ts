@@ -50,6 +50,7 @@ const persona = Object.assign(
 );
 const app = route({
   auth: authenticate(""),
+  business: true,
   database,
   panda,
   persona,
@@ -1836,6 +1837,32 @@ describe("authenticated", () => {
     afterAll(async () => {
       await database.delete(credentials).where(eq(credentials.id, businessId));
     });
+
+    it.each(["business", "panda-business"] as const)(
+      "rejects the %s scope when business is disabled",
+      async (scope) => {
+        const client = testClient(route({ auth: authenticate(""), business: false, database, panda, persona }));
+        const headers = { "test-credential-id": businessId, SessionID: "fakeSession", "do-connecting-ip": "127.0.0.1" };
+        const getCompanyApplication = vi.spyOn(panda, "getCompanyApplication");
+        const getInquiry = vi.spyOn(persona, "getInquiry");
+
+        const responses = await Promise.all([
+          client.index.$get({ query: { scope } }, { headers }),
+          client.index.$post({ json: { scope } }, { headers }),
+        ]);
+
+        expect(getCompanyApplication).not.toHaveBeenCalled();
+        expect(getInquiry).not.toHaveBeenCalled();
+        await expect(
+          Promise.all(responses.map(async (response) => [response.status, await response.json()])),
+        ).resolves.toStrictEqual(
+          Array.from({ length: 2 }, () => [
+            400,
+            { code: "bad request", legacy: "bad request", message: ["scope business disabled"] },
+          ]),
+        );
+      },
+    );
 
     describe("getting kyc", () => {
       it("returns not started when the company application is missing", async () => {
