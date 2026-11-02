@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useReadContracts } from "wagmi";
 
 import accountInit from "@exactly/common/accountInit";
-import chain, { exaPluginAddress, proposalManagerAddress } from "@exactly/common/generated/chain";
+import chain from "@exactly/common/generated/chain";
 import { exaPluginAbi, useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
 
 import useAccount from "./useAccount";
@@ -19,12 +19,11 @@ export default function useProposalManager() {
     factoryData: credential && accountInit(credential),
     query: { enabled: !!address && !!credential, staleTime: Infinity },
   });
-  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
   const { data: [proposalManager] = [] } = useReadContracts({
     contracts: [
       { address: installedPlugins?.[0], abi: exaPluginAbi, functionName: "proposalManager", chainId: chain.id },
     ] as const,
-    query: { enabled: !!installedPlugins?.[0] && !isLatestPlugin },
+    query: { enabled: !!installedPlugins?.[0], staleTime: Infinity },
   });
-  return isLatestPlugin ? proposalManagerAddress : proposalManager && (proposalManager.result ?? null);
+  return proposalManager && (proposalManager.result ?? null);
 }
