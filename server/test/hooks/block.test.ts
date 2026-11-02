@@ -295,6 +295,24 @@ describe("validation", () => {
 describe("proposal", () => {
   let proposals: Log<bigint, number, false, (typeof proposalManagerAbi)[29], true>[];
 
+  function logs(emitter?: Address) {
+    return proposals.map(({ topics, data, address }) => ({ topics, data, account: { address: emitter ?? address } }));
+  }
+
+  function scheduled(zadd: ReturnType<typeof spyZadd>, account: Address = bobAccount) {
+    return zadd.mock.calls.filter(([key, , message]) => {
+      if (key !== "proposals" || typeof message !== "string") return false;
+      const proposalPayload = deserialize(message);
+      if (typeof proposalPayload !== "object" || proposalPayload === null) return false;
+      return (
+        "account" in proposalPayload &&
+        proposalPayload.account === account &&
+        "nonce" in proposalPayload &&
+        proposals.some(({ args }) => args.nonce === proposalPayload.nonce)
+      );
+    });
+  }
+
   describe("with valid proposals", () => {
     beforeEach(async () => {
       const hashes = await Promise.all(
@@ -384,7 +402,7 @@ describe("proposal", () => {
           recipient: "alice.eth",
         }),
         idempotencyKey: v5(
-          `https://exact.ly/proposal/${chain.id}/${proposalManagerAddress}/${withdraw.args.account}/${withdraw.args.nonce}`,
+          `https://exact.ly/proposal/${chain.id}/${withdraw.args.account}/${withdraw.args.nonce}`,
           v5.URL,
         ),
       });
@@ -397,13 +415,125 @@ describe("proposal", () => {
           recipient: shortenHex(receiver),
         }),
         idempotencyKey: v5(
-          `https://exact.ly/proposal/${chain.id}/${proposalManagerAddress}/${anotherWithdraw.args.account}/${anotherWithdraw.args.nonce}`,
+          `https://exact.ly/proposal/${chain.id}/${anotherWithdraw.args.account}/${anotherWithdraw.args.nonce}`,
           v5.URL,
         ),
       });
       expect(hasExpectedTransfers(receipts, expected)).toBe(true);
       expect(removals).toStrictEqual([1, 1]);
       expect(setUser).toHaveBeenCalledWith({ id: bobAccount });
+    });
+
+    it("ignores proposals emitted by another plugin", async () => {
+      const sendPushNotification = sendPushNotificationMock.mockResolvedValue({});
+      vi.spyOn(ensClient, "getEnsName").mockResolvedValue(null);
+      const zadd = spyZadd();
+
+      const ignored = await post(logs(exaPluginAddress));
+
+      expect(ignored.status).toBe(200);
+      expect(scheduled(zadd)).toStrictEqual([]);
+
+      const executions = waitForSuccessfulProposalExecutions(proposals.map(({ args }) => args.nonce));
+      const removals = waitForProposalRemovals(proposals.map(({ args }) => args));
+      const [response, , removed] = await Promise.all([post(logs()), executions, removals]);
+      await vi.waitUntil(() => sendPushNotification.mock.calls.length === proposals.length, 26_666);
+
+      expect(response.status).toBe(200);
+      expect(scheduled(zadd)).toHaveLength(proposals.length);
+      expect(removed).toStrictEqual(proposals.map(() => 1));
+    });
+
+    it("ignores proposals of accounts whose proposal manager lookup reverts", async () => {
+      const sendPushNotification = sendPushNotificationMock.mockResolvedValue({});
+      vi.spyOn(ensClient, "getEnsName").mockResolvedValue(null);
+      const owner = privateKeyToAccount(generatePrivateKey());
+      const account = deriveAddress(exaAccountFactoryAddress, { x: padHex(owner.address), y: zeroHash });
+      await keeper.exaSend(
+        { name: "create account", op: "exa.account" },
+        {
+          address: exaAccountFactoryAddress,
+          abi: exaAccountFactoryAbi,
+          functionName: "createAccount",
+          args: [0n, [{ x: hexToBigInt(owner.address), y: 0n }]],
+        },
+      );
+      await database.insert(credentials).values({
+        id: "proposal-manager-reverts",
+        publicKey: new Uint8Array(hexToBytes(owner.address)),
+        account,
+        factory: exaAccountFactoryAddress,
+      });
+      const { readContract } = publicClient;
+      vi.spyOn(publicClient, "readContract").mockImplementation((parameters) =>
+        parameters.functionName === "proposalManager" && parameters.args?.[0] === account
+          ? Promise.reject(revertError("proposalManager"))
+          : readContract(parameters),
+      );
+      const zadd = spyZadd();
+      const [proposal] = proposals;
+      if (!proposal) throw new Error("missing proposal");
+      const [signature, , ...indexed] = proposal.topics;
+      const executions = waitForSuccessfulProposalExecutions(proposals.map(({ args }) => args.nonce));
+      const removals = waitForProposalRemovals(proposals.map(({ args }) => args));
+
+      const [response, , removed] = await Promise.all([
+        post([
+          {
+            topics: [signature, encodeAbiParameters([{ type: "address" }], [account]), ...indexed],
+            data: proposal.data,
+            account: { address: proposal.address },
+          },
+          ...logs(),
+        ]),
+        executions,
+        removals,
+      ]);
+      await vi.waitUntil(() => sendPushNotification.mock.calls.length === proposals.length, 26_666);
+
+      expect(response.status).toBe(200);
+      expect(scheduled(zadd)).toHaveLength(proposals.length);
+      expect(scheduled(zadd, account)).toStrictEqual([]);
+      expect(removed).toStrictEqual(proposals.map(() => 1));
+    });
+
+    it.each([
+      ["plain", new Error("rpc unavailable")],
+      [
+        "wrapped",
+        getContractError(new HttpRequestError({ url: "http://localhost:8545", details: "rpc unavailable" }), {
+          abi: [],
+          args: [],
+          functionName: "proposalManager",
+        }),
+      ],
+    ])("fails when the proposal manager of an account can't be read (%s error)", async (_, error) => {
+      const sendPushNotification = sendPushNotificationMock.mockResolvedValue({});
+      vi.spyOn(ensClient, "getEnsName").mockResolvedValue(null);
+      const { readContract } = publicClient;
+      const read = vi
+        .spyOn(publicClient, "readContract")
+        .mockImplementation((parameters) =>
+          parameters.functionName === "proposalManager" && parameters.args?.[0] === bobAccount
+            ? Promise.reject(error)
+            : readContract(parameters),
+        );
+      const zadd = spyZadd();
+
+      const failed = await post(logs());
+
+      expect(failed.status).toBe(500);
+      expect(scheduled(zadd)).toStrictEqual([]);
+      expect(vi.mocked(captureException).mock.calls.filter(([captured]) => captured === error)).toStrictEqual([]);
+
+      read.mockRestore();
+      const executions = waitForSuccessfulProposalExecutions(proposals.map(({ args }) => args.nonce));
+      const removals = waitForProposalRemovals(proposals.map(({ args }) => args));
+      const [response, , removed] = await Promise.all([post(logs()), executions, removals]);
+      await vi.waitUntil(() => sendPushNotification.mock.calls.length === proposals.length, 26_666);
+
+      expect(response.status).toBe(200);
+      expect(removed).toStrictEqual(proposals.map(() => 1));
     });
 
     it("executes withdrawals despite a notification failure", async () => {
@@ -452,7 +582,7 @@ describe("proposal", () => {
             recipient: "alice.eth",
           }),
           idempotencyKey: v5(
-            `https://exact.ly/proposal/${chain.id}/${proposalManagerAddress}/${proposals[index]?.args.account}/${proposals[index]?.args.nonce}`,
+            `https://exact.ly/proposal/${chain.id}/${proposals[index]?.args.account}/${proposals[index]?.args.nonce}`,
             v5.URL,
           ),
         });
@@ -483,20 +613,6 @@ describe("proposal", () => {
 
       const removals = waitForProposalRemovals(proposals.map(({ args }) => args));
       await post(logs());
-      await removals;
-      await vi.waitUntil(() => sendPushNotificationMock.mock.calls.length === 2, 26_666);
-    });
-
-    it("executes proposals emitted by a legacy plugin on optimism", async () => {
-      vi.spyOn(ensClient, "getEnsName").mockResolvedValue(null);
-      sendPushNotificationMock.mockResolvedValue({});
-      const currentHook = createBlockHook({ ...defaults, chainId: optimism.id });
-      await currentHook.ready;
-
-      const removals = waitForProposalRemovals(proposals.map(({ args }) => args));
-      const response = await testClient(currentHook.app).index.$post(blockPayloadWith(logs(legacyPlugins[0])));
-
-      expect(response.status).toBe(200);
       await removals;
       await vi.waitUntil(() => sendPushNotificationMock.mock.calls.length === 2, 26_666);
     });
@@ -534,10 +650,6 @@ describe("proposal", () => {
       await vi.waitUntil(() => sendPushNotificationMock.mock.calls.length === 2, 26_666);
     });
   });
-
-  function logs(emitter?: Address) {
-    return proposals.map(({ topics, data, address }) => ({ topics, data, account: { address: emitter ?? address } }));
-  }
 
   describe("with a withdraw in the block", () => {
     beforeEach(async () => {
@@ -587,7 +699,7 @@ describe("proposal", () => {
               recipient: shortenHex(padHex("0x69", { size: 20 })),
             }),
             idempotencyKey: v5(
-              `https://exact.ly/proposal/${chain.id}/${proposalManagerAddress}/${proposals[0]?.args.account}/${proposals[0]?.args.nonce}`,
+              `https://exact.ly/proposal/${chain.id}/${proposals[0]?.args.account}/${proposals[0]?.args.nonce}`,
               v5.URL,
             ),
           }),
@@ -667,7 +779,7 @@ describe("proposal", () => {
       expect(removals).toStrictEqual([1]);
       await expect(
         publicClient.readContract({
-          address: proposalManagerAddress,
+          address: withdraw.address,
           abi: proposalManagerAbi,
           functionName: "nonces",
           args: [bobAccount],
@@ -684,7 +796,7 @@ describe("proposal", () => {
               recipient: shortenHex(padHex("0x69", { size: 20 })),
             }),
             idempotencyKey: v5(
-              `https://exact.ly/proposal/${chain.id}/${proposalManagerAddress}/${withdraw.args.account}/${withdraw.args.nonce}`,
+              `https://exact.ly/proposal/${chain.id}/${withdraw.args.account}/${withdraw.args.nonce}`,
               v5.URL,
             ),
           }),
@@ -710,7 +822,11 @@ describe("proposal", () => {
       const executions = waitForSuccessfulProposalExecutions([redeem.args.nonce]);
       const removals = waitForProposalRemovals([{ account: redeem.args.account, nonce: redeem.args.nonce }]);
 
-      const [, [receipt], removed] = await Promise.all([postProposal(redeem), executions, removals]);
+      const [, [receipt], removed] = await Promise.all([
+        post([{ topics: redeem.topics, data: redeem.data, account: { address: redeem.address } }]),
+        executions,
+        removals,
+      ]);
       const [withdraw] = parseEventLogs({ abi: marketAbi, eventName: "Withdraw", logs: receipt?.logs ?? [] });
       await vi.waitUntil(() => sendPushNotification.mock.calls.length === 1, 26_666);
 
@@ -723,15 +839,12 @@ describe("proposal", () => {
           symbol: "WETH",
           recipient: shortenHex(padHex("0x69", { size: 20 })),
         }),
-        idempotencyKey: v5(
-          `https://exact.ly/proposal/${chain.id}/${proposalManagerAddress}/${redeem.args.account}/${redeem.args.nonce}`,
-          v5.URL,
-        ),
+        idempotencyKey: v5(`https://exact.ly/proposal/${chain.id}/${redeem.args.account}/${redeem.args.nonce}`, v5.URL),
       });
       expect(removed).toStrictEqual([1]);
       await expect(
         publicClient.readContract({
-          address: proposalManagerAddress,
+          address: redeem.address,
           abi: proposalManagerAbi,
           functionName: "nonces",
           args: [bobAccount],
@@ -763,7 +876,11 @@ describe("proposal", () => {
       const executions = waitForSuccessfulProposalExecutions([redeem.args.nonce]);
       const removals = waitForProposalRemovals([{ account: redeem.args.account, nonce: redeem.args.nonce }]);
 
-      const [, [receipt], removed] = await Promise.all([postProposal(redeem), executions, removals]);
+      const [, [receipt], removed] = await Promise.all([
+        post([{ topics: redeem.topics, data: redeem.data, account: { address: redeem.address } }]),
+        executions,
+        removals,
+      ]);
       const [withdraw] = parseEventLogs({ abi: marketAbi, eventName: "Withdraw", logs: receipt?.logs ?? [] });
       await vi.waitUntil(() => sendPushNotification.mock.calls.length === 1, 26_666);
 
@@ -777,10 +894,7 @@ describe("proposal", () => {
           symbol: "USDC",
           recipient: shortenHex(padHex("0x69", { size: 20 })),
         }),
-        idempotencyKey: v5(
-          `https://exact.ly/proposal/${chain.id}/${proposalManagerAddress}/${redeem.args.account}/${redeem.args.nonce}`,
-          v5.URL,
-        ),
+        idempotencyKey: v5(`https://exact.ly/proposal/${chain.id}/${redeem.args.account}/${redeem.args.nonce}`, v5.URL),
       });
       expect(removed).toStrictEqual([1]);
     });
@@ -823,7 +937,10 @@ describe("proposal", () => {
       });
       const removals = waitForProposalRemovals([{ account: redeem.args.account, nonce: redeem.args.nonce }]);
 
-      const [, removed] = await Promise.all([postProposal(redeem), removals]);
+      const [, removed] = await Promise.all([
+        post([{ topics: redeem.topics, data: redeem.data, account: { address: redeem.address } }]),
+        removals,
+      ]);
       await vi.waitUntil(() => sendPushNotification.mock.calls.length === 1, 26_666);
 
       expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
@@ -833,10 +950,7 @@ describe("proposal", () => {
           symbol: "USDC",
           recipient: ensName ?? shortenHex(padHex("0x69", { size: 20 })),
         }),
-        idempotencyKey: v5(
-          `https://exact.ly/proposal/${chain.id}/${proposalManagerAddress}/${redeem.args.account}/${redeem.args.nonce}`,
-          v5.URL,
-        ),
+        idempotencyKey: v5(`https://exact.ly/proposal/${chain.id}/${redeem.args.account}/${redeem.args.nonce}`, v5.URL),
       });
       expect(captureException).toHaveBeenCalledWith(new Error("missing withdraw event"), {
         level: "error",
@@ -888,7 +1002,7 @@ describe("proposal", () => {
       expect(removals).toStrictEqual([1]);
       await expect(
         publicClient.readContract({
-          address: proposalManagerAddress,
+          address: revert.address,
           abi: proposalManagerAbi,
           functionName: "nonces",
           args: [bobAccount],
@@ -1595,7 +1709,7 @@ describe("proposal", () => {
 
       await expect(
         publicClient.readContract({
-          address: proposalManagerAddress,
+          address: none.address,
           abi: proposalManagerAbi,
           functionName: "nonces",
           args: [bobAccount],
@@ -1758,16 +1872,25 @@ describe("proposal", () => {
 
 describe("legacy withdraw", () => {
   const withdrawUnlock = 1000n;
-  const withdrawOwner = padHex("0xdead", { size: 20 });
-  const withdrawAccount = deriveAddress(exaAccountFactoryAddress, { x: padHex(withdrawOwner), y: zeroHash });
+  const owner = privateKeyToAccount(generatePrivateKey());
+  const withdrawAccount = deriveAddress(exaAccountFactoryAddress, { x: padHex(owner.address), y: zeroHash });
   const withdrawMarket = getAddress(padHex("0xbeef", { size: 20 }));
   const withdrawReceiver = getAddress(padHex("0xcafe", { size: 20 }));
-  const { simulateContract } = publicClient;
+  const { readContract, simulateContract } = publicClient;
 
   beforeAll(async () => {
+    await keeper.exaSend(
+      { name: "create account", op: "exa.account" },
+      {
+        address: exaAccountFactoryAddress,
+        abi: exaAccountFactoryAbi,
+        functionName: "createAccount",
+        args: [0n, [{ x: hexToBigInt(owner.address), y: 0n }]],
+      },
+    );
     await database.insert(credentials).values({
       id: "legacy-withdraw",
-      publicKey: new Uint8Array(hexToBytes(withdrawOwner)),
+      publicKey: new Uint8Array(hexToBytes(owner.address)),
       account: withdrawAccount,
       factory: exaAccountFactoryAddress,
     });
@@ -1813,6 +1936,65 @@ describe("legacy withdraw", () => {
     ).toStrictEqual([]);
   });
 
+  it("ignores withdrawals from an undeployed account", async () => {
+    const zadd = vi.spyOn<{ zadd: (key: string, score: number, member: string) => Promise<number> }, "zadd">(
+      Redis.prototype,
+      "zadd",
+    );
+
+    const undeployed = getAddress(padHex("0xdead", { size: 20 }));
+    await database.insert(credentials).values({
+      id: "legacy-withdraw-undeployed",
+      publicKey: new Uint8Array(hexToBytes(undeployed)),
+      account: undeployed,
+      factory: exaAccountFactoryAddress,
+    });
+
+    const response = await appClient.index.$post(legacyPayload(1_600_000n, undeployed));
+
+    expect(response.status).toBe(200);
+    expect(
+      zadd.mock.calls.filter(([key, , member]) => key === "withdraw" && member.includes(undeployed)),
+    ).toStrictEqual([]);
+  });
+
+  it("ignores withdrawals from an account whose plugins read reverts", async () => {
+    vi.spyOn(publicClient, "readContract").mockImplementation((parameters) =>
+      parameters.functionName === "getInstalledPlugins" && parameters.address === withdrawAccount
+        ? Promise.reject(revertError("getInstalledPlugins"))
+        : readContract(parameters),
+    );
+    const zadd = spyZadd();
+
+    const response = await appClient.index.$post(legacyPayload(1_650_000n));
+
+    expect(response.status).toBe(200);
+    expect(
+      zadd.mock.calls.filter(([key, , member]) => key === "withdraw" && member.includes(withdrawAccount)),
+    ).toStrictEqual([]);
+  });
+
+  it("fails when the account's plugins can't be read", async () => {
+    const error = new Error("rpc unavailable");
+    vi.spyOn(publicClient, "readContract").mockImplementation((parameters) =>
+      parameters.functionName === "getInstalledPlugins" && parameters.address === withdrawAccount
+        ? Promise.reject(error)
+        : readContract(parameters),
+    );
+    const zadd = vi.spyOn<{ zadd: (key: string, score: number, member: string) => Promise<number> }, "zadd">(
+      Redis.prototype,
+      "zadd",
+    );
+
+    const response = await appClient.index.$post(legacyPayload(1_750_000n));
+
+    expect(response.status).toBe(500);
+    expect(
+      zadd.mock.calls.filter(([key, , member]) => key === "withdraw" && member.includes(withdrawAccount)),
+    ).toStrictEqual([]);
+    expect(vi.mocked(captureException).mock.calls.filter(([captured]) => captured === error)).toStrictEqual([]);
+  });
+
   it("ignores proposals from unknown accounts", async () => {
     const unknownAccount = getAddress(padHex("0xbad", { size: 20 }));
     const proposed = getAbiItem({ abi: proposalManagerAbi, name: "Proposed" });
@@ -1845,15 +2027,15 @@ describe("legacy withdraw", () => {
   });
 
   async function createFactoryAccount() {
-    const owner = privateKeyToAccount(generatePrivateKey());
-    const account = deriveAddress(exaAccountFactoryAddress, { x: padHex(owner.address), y: zeroHash });
+    const signer = privateKeyToAccount(generatePrivateKey());
+    const account = deriveAddress(exaAccountFactoryAddress, { x: padHex(signer.address), y: zeroHash });
     await keeper.exaSend(
       { name: "create account", op: "exa.account" },
       {
         address: exaAccountFactoryAddress,
         abi: exaAccountFactoryAbi,
         functionName: "createAccount",
-        args: [0n, [{ x: hexToBigInt(owner.address), y: 0n }]],
+        args: [0n, [{ x: hexToBigInt(signer.address), y: 0n }]],
       },
     );
     return account;
@@ -1917,6 +2099,17 @@ describe("legacy withdraw", () => {
 
     expect(response.status).toBe(500);
     expect(zadd.mock.calls.filter((call) => call[2].includes(account))).toEqual([]);
+  });
+
+  it("fails without queueing when the rpc is behind the block of a credentialed account", async () => {
+    const payload = await payloadAtHead(1_406_250n, withdrawAccount);
+    payload.json.event.data.block.number += 1000;
+    const zadd = spyZadd();
+
+    const response = await appClient.index.$post(payload);
+
+    expect(response.status).toBe(500);
+    expect(zadd.mock.calls.filter((call) => call[2].includes(withdrawAccount))).toEqual([]);
   });
 
   it("schedules withdrawals from factory accounts without credentials", async () => {
@@ -2062,9 +2255,10 @@ describe("legacy withdraw", () => {
         ? Promise.resolve({ status: "success" } as TransactionReceipt)
         : exaSend(span, call, options),
     );
-    vi.spyOn(publicClient, "readContract").mockImplementation(({ functionName }) => {
-      if (functionName === "decimals") return Promise.resolve(6);
-      if (functionName === "symbol") return Promise.resolve("exaUSDC");
+    vi.spyOn(publicClient, "readContract").mockImplementation((parameters) => {
+      if (parameters.functionName === "getInstalledPlugins") return readContract(parameters);
+      if (parameters.functionName === "decimals") return Promise.resolve(6);
+      if (parameters.functionName === "symbol") return Promise.resolve("exaUSDC");
       return Promise.reject(new Error("unexpected readContract call"));
     });
 
@@ -2101,9 +2295,10 @@ describe("legacy withdraw", () => {
         ? Promise.resolve({ status: "success" } as TransactionReceipt)
         : exaSend(span, call, options),
     );
-    vi.spyOn(publicClient, "readContract").mockImplementation(({ functionName }) => {
-      if (functionName === "decimals") return Promise.resolve(6);
-      if (functionName === "symbol") return Promise.resolve("exaUSDC");
+    vi.spyOn(publicClient, "readContract").mockImplementation((parameters) => {
+      if (parameters.functionName === "getInstalledPlugins") return readContract(parameters);
+      if (parameters.functionName === "decimals") return Promise.resolve(6);
+      if (parameters.functionName === "symbol") return Promise.resolve("exaUSDC");
       return Promise.reject(new Error("unexpected readContract call"));
     });
 
@@ -2139,9 +2334,10 @@ describe("legacy withdraw", () => {
         ? Promise.resolve({ status: "success" } as TransactionReceipt)
         : exaSend(span, call, options),
     );
-    vi.spyOn(publicClient, "readContract").mockImplementation(({ functionName }) => {
-      if (functionName === "decimals") return Promise.resolve(6);
-      if (functionName === "symbol") return Promise.resolve("exaUSDC");
+    vi.spyOn(publicClient, "readContract").mockImplementation((parameters) => {
+      if (parameters.functionName === "getInstalledPlugins") return readContract(parameters);
+      if (parameters.functionName === "decimals") return Promise.resolve(6);
+      if (parameters.functionName === "symbol") return Promise.resolve("exaUSDC");
       return Promise.reject(new Error("unexpected readContract call"));
     });
 
@@ -2180,9 +2376,10 @@ describe("legacy withdraw", () => {
         ? Promise.resolve({ status: "success" } as TransactionReceipt)
         : exaSend(span, call, options),
     );
-    vi.spyOn(publicClient, "readContract").mockImplementation(({ functionName }) => {
-      if (functionName === "decimals") return Promise.resolve(6);
-      if (functionName === "symbol") return Promise.resolve("exaUSDC");
+    vi.spyOn(publicClient, "readContract").mockImplementation((parameters) => {
+      if (parameters.functionName === "getInstalledPlugins") return readContract(parameters);
+      if (parameters.functionName === "decimals") return Promise.resolve(6);
+      if (parameters.functionName === "symbol") return Promise.resolve("exaUSDC");
       return Promise.reject(new Error("unexpected readContract call"));
     });
 
@@ -3595,7 +3792,7 @@ const withdrawProposal = {
     event: {
       data: {
         block: {
-          number: 24_484_514,
+          number: 1,
           timestamp: 1_740_771_568,
           logs: [{ topics: [], data: "0x", account: { address: zeroAddress } }],
         },
@@ -3605,6 +3802,13 @@ const withdrawProposal = {
     },
   },
 };
+
+function revertError(functionName: string) {
+  return new ContractFunctionExecutionError(new ContractFunctionRevertedError({ abi: [], functionName }), {
+    abi: [],
+    functionName,
+  });
+}
 
 function hasExpectedTransfers(
   receipts: readonly TransactionReceipt[],
@@ -3730,22 +3934,6 @@ function proposeWithdraw(
       args: [market, amount, proposalType, encodeAbiParameters([{ type: "address" }], [receiver])],
     }),
   );
-}
-
-function postProposal({ address, data, topics }: { address: Address; data: Hex; topics: [Hex, ...Hex[]] }) {
-  return appClient.index.$post({
-    ...withdrawProposal,
-    json: {
-      ...withdrawProposal.json,
-      event: {
-        ...withdrawProposal.json.event,
-        data: {
-          ...withdrawProposal.json.event.data,
-          block: { ...withdrawProposal.json.event.data.block, logs: [{ topics, data, account: { address } }] },
-        },
-      },
-    },
-  });
 }
 
 async function getLogs(hashes: Hex[]) {
