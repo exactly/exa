@@ -36,7 +36,7 @@ import deploy from "@exactly/plugin/deploy.json";
 
 import anvilClient from "./anvilClient";
 
-export default async function setup() {
+export default async function setup({ broadcastsOnly = false } = {}) {
   if (!env.NX_TASK_TARGET_PROJECT) {
     await $({
       cwd: "..",
@@ -183,6 +183,10 @@ export default async function setup() {
   await forge("script/ExaPreviewer.s.sol");
   await forge("script/ExaPlugin.s.sol");
   await forge("script/ExaAccountFactory.s.sol");
+  if (broadcastsOnly) {
+    await started;
+    return teardown;
+  }
 
   const bob = privateKeyToAddress(padHex("0xb0b"));
   await Promise.all([
@@ -333,11 +337,13 @@ export default async function setup() {
     ]);
   }
 
-  return async function teardown() {
+  return teardown;
+
+  async function teardown() {
     if (docker) await $({ cwd: "test" })`docker compose down`;
     await Promise.all(rpcs.map((rpc) => rpc.stop()));
     await Promise.all(instances.map((instance) => instance.stop()));
-  };
+  }
 }
 
 export const chains = [anvil, ...(env.NODE_ENV === "e2e" ? [{ ...moonbeamDev, name: "Anvil2" }] : [])].map((chain) => ({
