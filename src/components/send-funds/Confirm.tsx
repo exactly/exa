@@ -14,6 +14,7 @@ import { keepPreviousData, skipToken, useQuery } from "@tanstack/react-query";
 import { getTransactionReceipt, readContract } from "@wagmi/core/actions";
 import { parse, safeParse } from "valibot";
 import {
+  decodeEventLog,
   encodeEventTopics,
   encodeFunctionData,
   erc20Abi,
@@ -28,7 +29,7 @@ import {
 } from "viem";
 import { useReadContract, useSimulateContract } from "wagmi";
 
-import chain, { alchemyChains, marketWETHAddress, proposalManagerAddress } from "@exactly/common/generated/chain";
+import chain, { alchemyChains, marketWETHAddress } from "@exactly/common/generated/chain";
 import { proposalManagerAbi } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
 import shortenHex from "@exactly/common/shortenHex";
@@ -621,9 +622,17 @@ export default function Confirm() {
     if (!receipt) return;
     const [topic] = encodeEventTopics({ abi: proposalManagerAbi, eventName: "Proposed" });
     const log = receipt.logs.find(({ topics }) => topics[0] === topic);
-    return log?.topics[2]
-      ? { proposalManager: log.address, nonce: BigInt(log.topics[2]), since: receipt.blockNumber }
-      : undefined;
+    if (!log) return;
+    return {
+      ...decodeEventLog({
+        abi: proposalManagerAbi,
+        eventName: "Proposed",
+        data: log.data,
+        topics: [topic, ...log.topics.slice(1)],
+      }).args,
+      proposalManager: log.address,
+      since: receipt.blockNumber,
+    };
   }, [receipt]);
   const { data: execution } = useQuery(
     executionOptions(address, proposal?.proposalManager, proposal?.nonce, proposal?.since),
@@ -651,17 +660,10 @@ export default function Confirm() {
     const { logs } = receipt;
     if (market) {
       if (typeof withdrawn === "bigint") return withdrawn;
-      const [log] = parseEventLogs({
-        abi: proposalManagerAbi,
-        eventName: "Proposed",
-        args: { account: address },
-        logs: emitted(logs, proposalManagerAddress),
-      });
-      if (!log) return;
-      const { proposalType, amount: proposed } = log.args;
-      return proposalType === (ProposalType.Redeem as number) && market.totalFloatingDepositShares > 0n
-        ? (proposed * market.totalFloatingDepositAssets) / market.totalFloatingDepositShares
-        : proposed;
+      if (!proposal) return;
+      return proposal.proposalType === (ProposalType.Redeem as number) && market.totalFloatingDepositShares > 0n
+        ? (proposal.amount * market.totalFloatingDepositAssets) / market.totalFloatingDepositShares
+        : proposal.amount;
     }
     if (isNativeTransfer) {
       const [log] = parseEventLogs({ abi: wrapAbi, args: { dst: address }, logs: emitted(logs, wrap?.token) });
@@ -674,7 +676,18 @@ export default function Confirm() {
       logs: emitted(logs, externalAddress),
     });
     return log?.args.value;
-  }, [receipt, address, routed, market, withdrawn, isNativeTransfer, wrap?.token, externalAddress, receiverHex]);
+  }, [
+    receipt,
+    address,
+    routed,
+    market,
+    withdrawn,
+    proposal,
+    isNativeTransfer,
+    wrap?.token,
+    externalAddress,
+    receiverHex,
+  ]);
   const { data: routeStatus } = useQuery(
     statusOptions(
       routed ? (proposal ? executionHash : hash) : undefined,

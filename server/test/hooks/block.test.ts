@@ -68,7 +68,6 @@ import chain, {
   marketUSDCAddress,
   marketWETHAddress,
   proposalManagerAbi,
-  proposalManagerAddress,
   upgradeableModularAccountAbi,
   usdcAddress,
 } from "@exactly/common/generated/chain";
@@ -182,7 +181,7 @@ describe("initialization", () => {
     const { plugins, managers } = await factoryEmitters();
     expect(options.graphql_query.query).toContain(
       `addresses: ${JSON.stringify(
-        [...new Set([exaPluginAddress, proposalManagerAddress, marketUSDCAddress, ...plugins, ...managers])].toSorted(),
+        [...new Set([exaPluginAddress, marketUSDCAddress, ...plugins, ...managers])].toSorted(),
       )}`,
     );
     expect(options.graphql_query.query).toContain(`"${withdrawTopic}" # Withdraw`);
@@ -213,9 +212,7 @@ describe("initialization", () => {
     if (!options || !("graphql_query" in options)) throw new Error("missing webhook");
 
     expect(options.graphql_query.query).toContain(
-      `addresses: ${JSON.stringify(
-        [...new Set([exaPluginAddress, proposalManagerAddress, marketUSDCAddress, ...plugins])].toSorted(),
-      )}`,
+      `addresses: ${JSON.stringify([...new Set([exaPluginAddress, marketUSDCAddress, ...plugins])].toSorted())}`,
     );
   });
 
@@ -240,7 +237,6 @@ describe("initialization", () => {
         [
           ...new Set([
             exaPluginAddress,
-            proposalManagerAddress,
             marketUSDCAddress,
             legacyFactoryPlugin,
             ...legacyPlugins,
@@ -280,7 +276,7 @@ describe("validation", () => {
             block: {
               number: 1,
               timestamp: 1,
-              logs: [{ topics: [zeroHash], data: "0x", account: { address: proposalManagerAddress } }],
+              logs: [{ topics: [zeroHash], data: "0x", account: { address: exaPluginAddress } }],
             },
           },
         },
@@ -2003,7 +1999,7 @@ describe("legacy withdraw", () => {
         proposed.inputs.filter(({ indexed }) => !indexed),
         [ProposalType.Withdraw, 1n, encodeAbiParameters([{ type: "address" }], [unknownAccount]), 1n],
       ),
-      account: { address: proposalManagerAddress },
+      account: { address: exaPluginAddress },
     });
 
     const response = await appClient.index.$post(payload);
@@ -2039,11 +2035,11 @@ describe("legacy withdraw", () => {
 
   async function proposedAtHead(account: Address) {
     const payload = await payloadAtHead(1n, withdrawAccount);
-    payload.json.event.data.block.logs = [proposedLog(account)];
+    payload.json.event.data.block.logs = [await proposedLog(account)];
     return payload;
   }
 
-  function proposedLog(account: Address) {
+  async function proposedLog(account: Address) {
     const proposed = getAbiItem({ abi: proposalManagerAbi, name: "Proposed" });
     return {
       topics: encodeEventTopics({
@@ -2054,14 +2050,20 @@ describe("legacy withdraw", () => {
         proposed.inputs.filter(({ indexed }) => !indexed),
         [ProposalType.Withdraw, 1n, encodeAbiParameters([{ type: "address" }], [account]), 1n],
       ),
-      account: { address: proposalManagerAddress },
+      account: {
+        address: await publicClient.readContract({
+          address: exaPluginAddress,
+          abi: exaPluginAbi,
+          functionName: "proposalManager",
+        }),
+      },
     };
   }
 
   it("schedules proposals from factory accounts without credentials", async () => {
     const account = await createFactoryAccount();
     const payload = await payloadAtHead(1n, account);
-    payload.json.event.data.block.logs = [proposedLog(account)];
+    payload.json.event.data.block.logs = [await proposedLog(account)];
     const zadd = spyZadd();
     const setAttribute = spySetAttribute();
 
@@ -2097,7 +2099,7 @@ describe("legacy withdraw", () => {
     const account = await createFactoryAccount();
     const accounts = [account, ...Array.from({ length: 100 }, () => privateKeyToAccount(generatePrivateKey()).address)];
     const payload = await payloadAtHead(1n, withdrawAccount);
-    payload.json.event.data.block.logs = accounts.map((address) => proposedLog(address));
+    payload.json.event.data.block.logs = await Promise.all(accounts.map((address) => proposedLog(address)));
     const original = publicClient.getLogs.bind(publicClient);
     const lookups = vi
       .spyOn(publicClient, "getLogs")
@@ -2172,7 +2174,7 @@ describe("legacy withdraw", () => {
     const account = await createFactoryAccount();
     const accounts = [...Array.from({ length: 100 }, () => privateKeyToAccount(generatePrivateKey()).address), account];
     const payload = await payloadAtHead(1n, withdrawAccount);
-    payload.json.event.data.block.logs = accounts.map((address) => proposedLog(address));
+    payload.json.event.data.block.logs = await Promise.all(accounts.map((address) => proposedLog(address)));
     const lookups = vi.spyOn(publicClient, "getLogs");
     const zadd = spyZadd();
     const setAttribute = spySetAttribute();
