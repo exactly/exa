@@ -68,7 +68,6 @@ import chain, {
   marketUSDCAddress,
   marketWETHAddress,
   proposalManagerAbi,
-  proposalManagerAddress,
   upgradeableModularAccountAbi,
   usdcAddress,
 } from "@exactly/common/generated/chain";
@@ -182,7 +181,7 @@ describe("initialization", () => {
     const { plugins, managers } = await factoryEmitters();
     expect(options.graphql_query.query).toContain(
       `addresses: ${JSON.stringify(
-        [...new Set([exaPluginAddress, proposalManagerAddress, marketUSDCAddress, ...plugins, ...managers])].toSorted(),
+        [...new Set([exaPluginAddress, marketUSDCAddress, ...plugins, ...managers])].toSorted(),
       )}`,
     );
     expect(options.graphql_query.query).toContain(`"${withdrawTopic}" # Withdraw`);
@@ -213,9 +212,7 @@ describe("initialization", () => {
     if (!options || !("graphql_query" in options)) throw new Error("missing webhook");
 
     expect(options.graphql_query.query).toContain(
-      `addresses: ${JSON.stringify(
-        [...new Set([exaPluginAddress, proposalManagerAddress, marketUSDCAddress, ...plugins])].toSorted(),
-      )}`,
+      `addresses: ${JSON.stringify([...new Set([exaPluginAddress, marketUSDCAddress, ...plugins])].toSorted())}`,
     );
   });
 
@@ -240,7 +237,6 @@ describe("initialization", () => {
         [
           ...new Set([
             exaPluginAddress,
-            proposalManagerAddress,
             marketUSDCAddress,
             legacyFactoryPlugin,
             ...legacyPlugins,
@@ -280,7 +276,7 @@ describe("validation", () => {
             block: {
               number: 1,
               timestamp: 1,
-              logs: [{ topics: [zeroHash], data: "0x", account: { address: proposalManagerAddress } }],
+              logs: [{ topics: [zeroHash], data: "0x", account: { address: exaPluginAddress } }],
             },
           },
         },
@@ -2007,7 +2003,7 @@ describe("legacy withdraw", () => {
         proposed.inputs.filter(({ indexed }) => !indexed),
         [ProposalType.Withdraw, 1n, encodeAbiParameters([{ type: "address" }], [unknownAccount]), 1n],
       ),
-      account: { address: proposalManagerAddress },
+      account: { address: exaPluginAddress },
     });
 
     const response = await appClient.index.$post(payload);
