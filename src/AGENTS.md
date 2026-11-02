@@ -2,7 +2,7 @@
 
 - **stack**: react native, expo, tamagui, tanstack query.
 - **architecture**: smart components (screens) vs dumb components (ui only). complex logic in one place is preferred - easier to reason about the whole thing.
-- **styling**: tamagui tokens preferred. exceptions tolerated until v2 migration. no manual dark mode logic.
+- **styling**: tamagui tokens preferred. no manual dark mode logic.
 - **data**: tanstack query is the single source of truth - including ui state (e.g., `["settings", "sensitive"]`). **no `useEffect` for data fetching**. side effects like navigation setup, cleanup, and third-party sdk init are acceptable.
 
 ## component design
@@ -42,15 +42,15 @@
 
 ## styling (tamagui)
 
-- **design tokens only**: all styling must use predefined tokens from `tamagui.config.ts`. never use hardcoded values. a token missing from its scale is dropped silently (dev logs only the first one per session). `space` only has `s*` keys and `radius` only `r*`, so padding, margins and gaps take `$s4`, never `$4`. width and height read `size`, where `$4` resolves to tamagui's 44, not 16.
-  - ✅ `padding="$s4"`
-  - ✅ `color="$color.text.brand"`
+- **design tokens only**: all styling must use predefined tokens from `tamagui.config.ts`. never use hardcoded values. a token missing from its scale is dropped silently (dev logs only the first one per session). `space` only has `s*` keys and `radius` only `r*`, so padding, margins and gaps take `s4`, never `4`. width and height read `size`, where `4` resolves to tamagui's 44, not 16. tokens are flat values without `$`.
+  - ✅ `padding="s4"`
+  - ✅ `color="uiNeutralPrimary"`
   - ❌ `padding: 16`
   - ❌ `color: '#ff0000'`
-- **active states**: tamagui paints a checked checkbox with `$backgroundActive`, which the theme lacks, over its plain `backgroundColor`, and an active toggle with it on hover and focus. style those states through `activeStyle`, as the shared `Checkbox` does, or use `unstyled`.
+- **active states**: style a checked checkbox through an `activeStyle` prop built with `style()`, as the shared `Checkbox` does.
 - **no justified links**: never set `textAlign="justify"` on text with pressable spans. android's hit test ignores justification, so taps miss the link.
 - **stacks over views**: use `XStack` and `YStack` for layout instead of react native's `View`.
-- **responsive styles**: use platform selectors (`$platform-web`, `$platform-ios`) and media queries for platform-specific styles.
+- **responsive styles**: use value prefixes for platforms and states (`paddingBottom="web:s7 android:s5"`, `opacity="1 press:0.7"`, `opacity="1 enter:0 exit:0"`).
 
 ## navigation (expo router)
 
@@ -64,7 +64,7 @@
 ## prohibited patterns
 
 - **`useEffect` for data fetching**: forbidden. all data fetching must use tanstack query. useEffect is acceptable only for setup, cleanup, and third-party sdk initialization.
-- **icon index imports**: use public `@tamagui/lucide-icons-2/icons/<Name>` entry points, never the package index, so metro skips unused icons.
+- **icon packages**: never add one. icons are generated into `src/generated/icons` by the `generate:icons` target (part of `prepare`) from the `generated/icons/<Name>` imports in `src`. to add one, import it from its own file, never the index, so metro skips unused icons, and run `pnpm run prepare`.
 - **manual theme/color logic**: do not write components that manually switch between light/dark mode colors.
 
 ## expo fingerprint
