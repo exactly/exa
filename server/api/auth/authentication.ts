@@ -141,6 +141,7 @@ export const LegacyAuthentication = object({
 
 export default function route({
   authSecret,
+  business,
   createCredential,
   database,
   intercom,
@@ -148,6 +149,7 @@ export default function route({
   walletExtension,
 }: {
   authSecret: string;
+  business: boolean;
   createCredential: ReturnType<typeof createCredentialFactory>;
   database: NodePgDatabase<typeof schema>;
   intercom: ReturnType<typeof createIntercom>;
@@ -404,7 +406,9 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
               factory,
               source: headers?.["client-fid"],
               ip: headers?.["do-connecting-ip"],
-              ...(headers?.origin && Object.hasOwn(tenants, headers.origin) && { salt: tenants[headers.origin] }),
+              ...(business &&
+                headers?.origin &&
+                Object.hasOwn(tenants, headers.origin) && { salt: tenants[headers.origin] }),
             });
             const account = deriveAddress(result.factory, { x: result.x, y: result.y, salt: result.salt });
             const intercomToken = await intercom(account, result.auth);
