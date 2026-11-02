@@ -19,6 +19,7 @@ import {
   erc20Abi,
   getAddress,
   getContractError,
+  hexToBigInt,
   http,
   maxUint256,
   nonceManager,
@@ -32,15 +33,17 @@ import {
   type Log,
   type TransactionReceipt,
 } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { anvil } from "viem/chains";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import chain, {
   auditorAbi,
+  exaAccountFactoryAbi,
   exaAccountFactoryAddress,
   exaPluginAbi,
+  exaPluginAddress,
   exaPreviewerAbi,
   exaPreviewerAddress,
   issuerCheckerAbi,
@@ -48,7 +51,6 @@ import chain, {
   marketUSDCAddress,
   marketWETHAddress,
   proposalManagerAbi,
-  proposalManagerAddress,
   upgradeableModularAccountAbi,
   usdcAddress,
 } from "@exactly/common/generated/chain";
@@ -56,6 +58,7 @@ import ProposalType, { decodeWithdraw } from "@exactly/common/ProposalType";
 import shortenHex from "@exactly/common/shortenHex";
 import deploy from "@exactly/plugin/deploy.json";
 
+import database from "../../database";
 import createBlockHook from "../../hooks/block";
 import t, { f } from "../../i18n";
 import createAlchemy from "../../utils/alchemy";
@@ -64,6 +67,7 @@ import createOnesignal from "../../utils/onesignal";
 import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
 import revertFingerprint from "../../utils/revertFingerprint";
+import validFactories from "../../utils/validFactories";
 import wallet from "../../utils/wallet";
 import anvilClient from "../anvilClient";
 
@@ -79,6 +83,7 @@ const bob = createWalletClient({
 const bobAccount = deriveAddress(exaAccountFactoryAddress, { x: padHex(bob.account.address), y: zeroHash });
 const defaults = {
   alchemy: createAlchemy("webhooks"),
+  database,
   executor: bob.account,
   onesignal: createOnesignal("onesignal"),
   redis,
@@ -93,15 +98,16 @@ beforeAll(async () => {
 });
 
 describe("initialization", () => {
+  const existing: NonNullable<Awaited<ReturnType<typeof findWebhook>>> = {
+    id: "existing",
+    is_active: true,
+    network: "ANVIL",
+    signing_key: "existing-signing-key",
+    webhook_type: "GRAPHQL",
+    webhook_url: "http://localhost:8081/hooks/block",
+  };
+
   it("starts with a discovered key when reconciliation fails", async () => {
-    const existing: NonNullable<Awaited<ReturnType<typeof findWebhook>>> = {
-      id: "existing",
-      is_active: true,
-      network: "ANVIL",
-      signing_key: "existing-signing-key",
-      webhook_type: "GRAPHQL",
-      webhook_url: "http://localhost:8081/hooks/block",
-    };
     vi.mocked(findWebhook).mockResolvedValueOnce(existing);
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("not found", { status: 404 }));
     const currentHook = createBlockHook(defaults);
@@ -116,18 +122,8 @@ describe("initialization", () => {
   });
 
   it("keeps both keys when the old webhook deletion fails", async () => {
-    const existing: NonNullable<Awaited<ReturnType<typeof findWebhook>>> = {
-      id: "stale",
-      is_active: true,
-      network: "ANVIL",
-      signing_key: "stale-signing-key",
-      webhook_type: "GRAPHQL",
-      webhook_url: "http://localhost:8081/hooks/block",
-    };
     vi.mocked(findWebhook).mockResolvedValueOnce(existing);
-    vi.spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(Response.json({ data: { graphql_query: "{ block { timestamp } }" } }))
-      .mockResolvedValueOnce(new Response("unavailable", { status: 503 }));
+    mockDashboard("{ block { timestamp } }", new Response("unavailable", { status: 503 }));
     const currentHook = createBlockHook(defaults);
 
     await expect(currentHook.ready).resolves.toBeDefined();
@@ -146,6 +142,105 @@ describe("initialization", () => {
 
     await expect(currentHook.ready).rejects.toBe(error);
   });
+
+  it("watches the proposal manager of every installed plugin", async () => {
+    const owner = privateKeyToAccount(generatePrivateKey());
+    const factory = [...validFactories].find((address) => address !== exaAccountFactoryAddress);
+    if (!factory) throw new Error("missing previous factory");
+    const account = deriveAddress(factory, { x: padHex(owner.address), y: zeroHash });
+    await keeper.exaSend(
+      { name: "create account", op: "exa.account" },
+      {
+        address: factory,
+        abi: exaAccountFactoryAbi,
+        functionName: "createAccount",
+        args: [0n, [{ x: hexToBigInt(owner.address), y: 0n }]],
+      },
+    );
+    const [plugin] = await publicClient.readContract({
+      address: account,
+      abi: upgradeableModularAccountAbi,
+      functionName: "getInstalledPlugins",
+    });
+    if (!plugin) throw new Error("missing installed plugin");
+    const head = Number(await anvilClient.getBlockNumber({ cacheTime: 0 }));
+    await vi.waitFor(
+      async () => {
+        const status = (await fetch("http://localhost:42069/status").then((response) => response.json())) as Record<
+          string,
+          { block: { number: number } }
+        >;
+        expect(status[chain.name]?.block.number).toBeGreaterThanOrEqual(head);
+      },
+      { timeout: 10_000 },
+    );
+    vi.mocked(createWebhook).mockClear();
+
+    await createBlockHook(defaults).ready;
+
+    const proposalManagers = await Promise.all(
+      [plugin, exaPluginAddress].map((address) =>
+        publicClient.readContract({ address, abi: exaPluginAbi, functionName: "proposalManager" }),
+      ),
+    );
+    const options = vi.mocked(createWebhook).mock.lastCall?.[0];
+    const query = options && "graphql_query" in options ? options.graphql_query.query : undefined;
+    for (const proposalManager of proposalManagers) expect(query).toContain(proposalManager);
+  });
+
+  it("replaces a webhook watching stale emitters", async () => {
+    const stale = getAddress(padHex("0xdead", { size: 20 }));
+    vi.mocked(findWebhook).mockResolvedValueOnce(existing);
+    mockDashboard(`{ block { number logs(filter: { addresses: ["${stale}"] }) { topics } } }`);
+
+    await createBlockHook(defaults).ready;
+
+    const options = vi.mocked(createWebhook).mock.lastCall?.[0];
+    const query = options && "graphql_query" in options ? options.graphql_query.query : undefined;
+    expect(query).toContain(
+      await publicClient.readContract({
+        address: exaPluginAddress,
+        abi: exaPluginAbi,
+        functionName: "proposalManager",
+      }),
+    );
+    expect(query).not.toContain(stale);
+    expect(fetch).toHaveBeenCalledWith(`https://dashboard.alchemy.com/api/delete-webhook?webhook_id=${existing.id}`, {
+      headers: defaults.alchemy.headers,
+      method: "DELETE",
+    });
+    expect(headerValidator).toHaveBeenLastCalledWith(new Set(["mock-signing-key"]));
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("replaces a webhook without an address list", async () => {
+    vi.mocked(findWebhook).mockResolvedValueOnce(existing);
+    mockDashboard("{ block { number logs(filter: {}) { topics } } }");
+
+    await createBlockHook(defaults).ready;
+
+    expect(createWebhook).toHaveBeenCalledOnce();
+    expect(fetch).toHaveBeenCalledWith(`https://dashboard.alchemy.com/api/delete-webhook?webhook_id=${existing.id}`, {
+      headers: defaults.alchemy.headers,
+      method: "DELETE",
+    });
+    expect(headerValidator).toHaveBeenLastCalledWith(new Set(["mock-signing-key"]));
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  function mockDashboard(query: string, deletion = new Response()) {
+    const { fetch } = globalThis;
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      switch (input) {
+        case `https://dashboard.alchemy.com/api/dashboard-webhook-graphql-query?webhook_id=${existing.id}`:
+          return Promise.resolve(Response.json({ data: { graphql_query: query } }));
+        case `https://dashboard.alchemy.com/api/delete-webhook?webhook_id=${existing.id}`:
+          return Promise.resolve(deletion);
+        default:
+          return fetch(input, init);
+      }
+    });
+  }
 });
 
 describe("validation", () => {
@@ -262,6 +357,65 @@ describe("proposal", () => {
       expect(setUser).toHaveBeenCalledWith({ id: bobAccount });
     });
 
+    it("ignores proposals emitted by another contract", async () => {
+      const sendPushNotification = sendPushNotificationMock.mockResolvedValue({});
+      vi.spyOn(ensClient, "getEnsName").mockResolvedValue(null);
+      const zadd = vi.spyOn<{ zadd: (key: string, score: number, member: string) => Promise<number> }, "zadd">(
+        Redis.prototype,
+        "zadd",
+      );
+      function post(emitter?: Address) {
+        return appClient.index.$post({
+          ...withdrawProposal,
+          json: {
+            ...withdrawProposal.json,
+            event: {
+              ...withdrawProposal.json.event,
+              data: {
+                ...withdrawProposal.json.event.data,
+                block: {
+                  ...withdrawProposal.json.event.data.block,
+                  logs: proposals.map(({ topics, data, address }) => ({
+                    topics,
+                    data,
+                    account: { address: emitter ?? address },
+                  })),
+                },
+              },
+            },
+          },
+        });
+      }
+
+      function queued() {
+        return zadd.mock.calls.filter(([key, , message]) => {
+          if (key !== "proposals" || typeof message !== "string") return false;
+          const proposalPayload = deserialize(message);
+          if (typeof proposalPayload !== "object" || proposalPayload === null) return false;
+          return (
+            "account" in proposalPayload &&
+            proposalPayload.account === bobAccount &&
+            "nonce" in proposalPayload &&
+            proposals.some(({ args }) => args.nonce === proposalPayload.nonce)
+          );
+        });
+      }
+
+      const ignored = await post(exaPluginAddress);
+
+      expect(ignored.status).toBe(200);
+      expect(queued()).toStrictEqual([]);
+
+      const executions = waitForSuccessfulProposalExecutions(proposals.map(({ args }) => args.nonce));
+      const removals = waitForProposalRemovals(proposals.map(({ args }) => args));
+      const [response, , removed] = await Promise.all([post(), executions, removals]);
+      await vi.waitUntil(() => sendPushNotification.mock.calls.length === proposals.length, 26_666);
+
+      expect(response.status).toBe(200);
+      expect(queued()).toHaveLength(proposals.length);
+      expect(removed).toStrictEqual(proposals.map(() => 1));
+    });
+
     it("executes withdrawals despite a notification failure", async () => {
       const setUser = await spyScopeSetUser();
       const error = new Error("push failed");
@@ -361,7 +515,7 @@ describe("proposal", () => {
       expect(removals).toStrictEqual([1]);
       await expect(
         publicClient.readContract({
-          address: proposalManagerAddress,
+          address: withdraw.address,
           abi: proposalManagerAbi,
           functionName: "nonces",
           args: [bobAccount],
@@ -410,7 +564,7 @@ describe("proposal", () => {
       expect(removals).toStrictEqual([1]);
       await expect(
         publicClient.readContract({
-          address: proposalManagerAddress,
+          address: revert.address,
           abi: proposalManagerAbi,
           functionName: "nonces",
           args: [bobAccount],
@@ -1117,7 +1271,7 @@ describe("proposal", () => {
 
       await expect(
         publicClient.readContract({
-          address: proposalManagerAddress,
+          address: none.address,
           abi: proposalManagerAbi,
           functionName: "nonces",
           args: [bobAccount],
@@ -1280,12 +1434,25 @@ describe("proposal", () => {
 
 describe("legacy withdraw", () => {
   const withdrawUnlock = 1000n;
-  const withdrawAccount = getAddress(padHex("0xdead", { size: 20 }));
+  const owner = privateKeyToAccount(generatePrivateKey());
+  const withdrawAccount = deriveAddress(exaAccountFactoryAddress, { x: padHex(owner.address), y: zeroHash });
   const withdrawMarket = getAddress(padHex("0xbeef", { size: 20 }));
   const withdrawReceiver = getAddress(padHex("0xcafe", { size: 20 }));
-  const { simulateContract } = publicClient;
+  const { readContract, simulateContract } = publicClient;
 
-  function legacyPayload(amount: bigint) {
+  beforeAll(async () => {
+    await keeper.exaSend(
+      { name: "create account", op: "exa.account" },
+      {
+        address: exaAccountFactoryAddress,
+        abi: exaAccountFactoryAbi,
+        functionName: "createAccount",
+        args: [0n, [{ x: hexToBigInt(owner.address), y: 0n }]],
+      },
+    );
+  });
+
+  function legacyPayload(amount: bigint, emitter: Address = exaPluginAddress, account: Address = withdrawAccount) {
     return {
       header: {},
       json: {
@@ -1299,12 +1466,12 @@ describe("legacy withdraw", () => {
                 {
                   topics: [
                     "0x0c652a21d96e4efed065c3ef5961e4be681be99b95dd55126669ae9be95767e0",
-                    encodeAbiParameters([{ type: "address" }], [withdrawAccount]),
+                    encodeAbiParameters([{ type: "address" }], [account]),
                     encodeAbiParameters([{ type: "address" }], [withdrawMarket]),
                     encodeAbiParameters([{ type: "address" }], [withdrawReceiver]),
                   ] as [Hex, ...Hex[]],
                   data: encodeAbiParameters([{ type: "uint256" }, { type: "uint256" }], [amount, withdrawUnlock]),
-                  account: { address: zeroAddress },
+                  account: { address: emitter },
                 },
               ],
             },
@@ -1313,6 +1480,51 @@ describe("legacy withdraw", () => {
       },
     };
   }
+
+  it("ignores withdrawals emitted by a plugin the account didn't install", async () => {
+    const zadd = vi.spyOn<{ zadd: (key: string, score: number, member: string) => Promise<number> }, "zadd">(
+      Redis.prototype,
+      "zadd",
+    );
+
+    const response = await appClient.index.$post(legacyPayload(1_500_000n, zeroAddress));
+
+    expect(response.status).toBe(200);
+    expect(zadd.mock.calls.filter(([key]) => key === "withdraw")).toStrictEqual([]);
+  });
+
+  it("ignores withdrawals from an undeployed account", async () => {
+    const zadd = vi.spyOn<{ zadd: (key: string, score: number, member: string) => Promise<number> }, "zadd">(
+      Redis.prototype,
+      "zadd",
+    );
+
+    const response = await appClient.index.$post(
+      legacyPayload(1_600_000n, exaPluginAddress, getAddress(padHex("0xdead", { size: 20 }))),
+    );
+
+    expect(response.status).toBe(200);
+    expect(zadd.mock.calls.filter(([key]) => key === "withdraw")).toStrictEqual([]);
+  });
+
+  it("fails when the account's plugins can't be read", async () => {
+    const error = new Error("rpc unavailable");
+    vi.spyOn(publicClient, "readContract").mockImplementation((parameters) =>
+      parameters.functionName === "getInstalledPlugins" && parameters.address === withdrawAccount
+        ? Promise.reject(error)
+        : readContract(parameters),
+    );
+    const zadd = vi.spyOn<{ zadd: (key: string, score: number, member: string) => Promise<number> }, "zadd">(
+      Redis.prototype,
+      "zadd",
+    );
+
+    const response = await appClient.index.$post(legacyPayload(1_750_000n));
+
+    expect(response.status).toBe(500);
+    expect(zadd.mock.calls.filter(([key]) => key === "withdraw")).toStrictEqual([]);
+    expect(vi.mocked(captureException).mock.calls.filter(([captured]) => captured === error)).toStrictEqual([]);
+  });
 
   it("removes withdraw from queue on InsufficientAccountLiquidity", async () => {
     const setUser = await spyScopeSetUser();
@@ -1423,9 +1635,10 @@ describe("legacy withdraw", () => {
         ? Promise.resolve({ status: "success" } as TransactionReceipt)
         : exaSend(span, call, options),
     );
-    vi.spyOn(publicClient, "readContract").mockImplementation(({ functionName }) => {
-      if (functionName === "decimals") return Promise.resolve(6);
-      if (functionName === "symbol") return Promise.resolve("exaUSDC");
+    vi.spyOn(publicClient, "readContract").mockImplementation((parameters) => {
+      if (parameters.functionName === "getInstalledPlugins") return readContract(parameters);
+      if (parameters.functionName === "decimals") return Promise.resolve(6);
+      if (parameters.functionName === "symbol") return Promise.resolve("exaUSDC");
       return Promise.reject(new Error("unexpected readContract call"));
     });
 
@@ -1458,9 +1671,10 @@ describe("legacy withdraw", () => {
         ? Promise.resolve({ status: "success" } as TransactionReceipt)
         : exaSend(span, call, options),
     );
-    vi.spyOn(publicClient, "readContract").mockImplementation(({ functionName }) => {
-      if (functionName === "decimals") return Promise.resolve(6);
-      if (functionName === "symbol") return Promise.resolve("exaUSDC");
+    vi.spyOn(publicClient, "readContract").mockImplementation((parameters) => {
+      if (parameters.functionName === "getInstalledPlugins") return readContract(parameters);
+      if (parameters.functionName === "decimals") return Promise.resolve(6);
+      if (parameters.functionName === "symbol") return Promise.resolve("exaUSDC");
       return Promise.reject(new Error("unexpected readContract call"));
     });
 
@@ -1492,9 +1706,10 @@ describe("legacy withdraw", () => {
         ? Promise.resolve({ status: "success" } as TransactionReceipt)
         : exaSend(span, call, options),
     );
-    vi.spyOn(publicClient, "readContract").mockImplementation(({ functionName }) => {
-      if (functionName === "decimals") return Promise.resolve(6);
-      if (functionName === "symbol") return Promise.resolve("exaUSDC");
+    vi.spyOn(publicClient, "readContract").mockImplementation((parameters) => {
+      if (parameters.functionName === "getInstalledPlugins") return readContract(parameters);
+      if (parameters.functionName === "decimals") return Promise.resolve(6);
+      if (parameters.functionName === "symbol") return Promise.resolve("exaUSDC");
       return Promise.reject(new Error("unexpected readContract call"));
     });
 
@@ -1529,9 +1744,10 @@ describe("legacy withdraw", () => {
         ? Promise.resolve({ status: "success" } as TransactionReceipt)
         : exaSend(span, call, options),
     );
-    vi.spyOn(publicClient, "readContract").mockImplementation(({ functionName }) => {
-      if (functionName === "decimals") return Promise.resolve(6);
-      if (functionName === "symbol") return Promise.resolve("exaUSDC");
+    vi.spyOn(publicClient, "readContract").mockImplementation((parameters) => {
+      if (parameters.functionName === "getInstalledPlugins") return readContract(parameters);
+      if (parameters.functionName === "decimals") return Promise.resolve(6);
+      if (parameters.functionName === "symbol") return Promise.resolve("exaUSDC");
       return Promise.reject(new Error("unexpected readContract call"));
     });
 
