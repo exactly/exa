@@ -69,7 +69,7 @@ const deposit = max
 const accrual = max ? 86_400 : 0;
 anvil("anvil_mine", [1, Number(proposalDelay) + accrual]);
 const fromBlock = anvil("eth_blockNumber", []);
-block(account, proposals);
+block(proposalManager, account, proposals);
 
 const nonceSet = encodeEventTopics({
   abi: proposalManagerAbi,

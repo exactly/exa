@@ -35,6 +35,14 @@ export const exaPlugins = indexer
   })
   .existing();
 
+export const proposalManagers = indexer
+  .view("proposal_managers", {
+    chainId: integer("chain_id").notNull(),
+    plugin: text("plugin").$type<Hex>().notNull(),
+    address: text("address").$type<Hex>().notNull(),
+  })
+  .existing();
+
 export const collectors = indexer
   .view("collectors", {
     chainId: integer("chain_id").notNull(),
