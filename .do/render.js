@@ -15,29 +15,11 @@ for (const line of readFileSync(argv[2], "utf8").split(/\r?\n/)) {
     inIf = true;
     inElse = false;
 
-    const expr = ifMatch[1].trim();
-
-    let match = expr.match(/^!\s*env\.(\w+)\s*$/);
-    if (match) {
-      condition = !env[match[1]];
-      continue;
-    }
-
-    match = expr.match(/^env\.(\w+)\s*$/);
-    if (match) {
-      condition = !!env[match[1]];
-      continue;
-    }
-
-    match = expr.match(/^env\.(\w+)\s*(==|!=)\s*(?:"([^"]*)"|'([^']*)')\s*$/);
-    if (match) {
-      const got = env[match[1]] ?? "";
-      const want = match[3] ?? match[4] ?? "";
-      condition = match[2] === "==" ? got === want : got !== want;
-      continue;
-    }
-
-    throw new Error(`unsupported @if expression: ${expr}`);
+    condition = ifMatch[1]
+      .split("||")
+      .map((expr) => test(expr.trim()))
+      .some(Boolean);
+    continue;
   }
 
   if (/^\s*#\s*@else\s*$/.test(line)) {
@@ -107,3 +89,18 @@ stdout.write(
     throw new Error(`unsupported expression: ${expr}`);
   }),
 );
+
+/** @param {string} expr */
+function test(expr) {
+  let match = expr.match(/^!\s*env\.(\w+)\s*$/);
+  if (match) return !env[match[1]];
+
+  match = expr.match(/^env\.(\w+)\s*$/);
+  if (match) return !!env[match[1]];
+
+  match = expr.match(/^env\.(\w+)\s*(==|!=)\s*(?:"([^"]*)"|'([^']*)')\s*$/);
+  if (!match) throw new Error(`unsupported @if expression: ${expr}`);
+  const got = env[match[1]] ?? "";
+  const want = match[3] ?? match[4] ?? "";
+  return match[2] === "==" ? got === want : got !== want;
+}
