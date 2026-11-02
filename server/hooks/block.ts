@@ -24,6 +24,7 @@ import {
   BaseError,
   CallExecutionError,
   ContractFunctionExecutionError,
+  ContractFunctionRevertedError,
   ContractFunctionZeroDataError,
   decodeEventLog,
   encodeErrorResult,
@@ -39,6 +40,8 @@ import { entryPoint06Abi, entryPoint06Address } from "viem/account-abstraction";
 import { optimism, optimismSepolia } from "viem/chains";
 
 import chain, {
+  appPreviewerAbi,
+  appPreviewerCode,
   auditorAbi,
   exaAccountFactoryAbi,
   exaPluginAbi,
@@ -219,30 +222,29 @@ export default function hook({
       const proposed =
         proposalsBySignature
           .get("0x4cf7794d9c19185f7d95767c53e511e2e67ae50f68ece9c9079c6ae83403a3e7")
-          ?.map(({ topics, data }) => decodeEventLog({ topics, data, abi: [...exaPluginAbi, ...proposalManagerAbi] }))
-          .map((event) => {
+          ?.map(({ topics, data, account: { address: emitter } }) => {
+            const event = decodeEventLog({ topics, data, abi: [...exaPluginAbi, ...proposalManagerAbi] });
             const p = v.safeParse(Proposal, { ...event.args, timestamp });
-            if (p.success) return p.output;
+            if (p.success) return { emitter, proposal: p.output };
             captureException(p.issues, { level: "error" });
             return null;
           })
-          .filter((x) => x !== null)
-          .reduce((accumulator, event) => {
-            const account = event.account;
-            if (!accumulator.has(account)) {
-              accumulator.set(account, []);
-            }
-            accumulator.get(account)?.push(event);
-            return accumulator;
-          }, new Map<string, v.InferOutput<typeof Proposal>[]>()) ??
-        new Map<string, v.InferOutput<typeof Proposal>[]>();
+          .filter((x) => x !== null) ?? [];
 
-      const withdraws =
+      const withdrawn =
         proposalsBySignature
           .get("0x0c652a21d96e4efed065c3ef5961e4be681be99b95dd55126669ae9be95767e0")
-          ?.map(({ topics, data }) => decodeEventLog({ topics, data, abi: legacyExaPluginAbi })) ?? [];
+          ?.map(({ topics, data, account: { address: emitter } }) => ({
+            emitter,
+            event: decodeEventLog({ topics, data, abi: legacyExaPluginAbi }),
+          })) ?? [];
 
-      const accounts = [...new Set([...proposed.keys(), ...withdraws.map(({ args }) => args.account)])];
+      const accounts = [
+        ...new Set([
+          ...proposed.map(({ proposal }) => proposal.account),
+          ...withdrawn.map(({ event }) => event.args.account),
+        ]),
+      ];
       const known =
         accounts.length > 0
           ? await database.query.credentials
@@ -251,15 +253,72 @@ export default function hook({
           : new Set<string>();
       const unknown = accounts.filter((account) => !known.has(account));
       if (unknown.length > 0) getActiveSpan()?.setAttribute("exa.unknown", unknown);
-      const proposalsByAccount = new Map(proposed.entries().filter(([account]) => known.has(account)));
-      const oldWithdraws = withdraws.filter(({ args }) => known.has(args.account));
+      const proposals = proposed.filter(({ proposal }) => known.has(proposal.account));
+      const oldWithdraws = withdrawn.filter(({ event }) => known.has(event.args.account));
+
+      const [proposalManagers, plugins] = await Promise.all([
+        Promise.all(
+          [...new Set(proposals.map(({ proposal }) => proposal.account))].map(async (account) => {
+            const { proposalManager } = await publicClient
+              .readContract({
+                abi: appPreviewerAbi,
+                code: appPreviewerCode,
+                functionName: "proposalManager",
+                args: [account],
+              })
+              .catch((error: unknown) => {
+                if (reverted(error)) return { proposalManager: undefined };
+                throw error;
+              });
+            return [account, proposalManager] as const;
+          }),
+        ).then((entries) => new Map<string, string | undefined>(entries)),
+        Promise.all(
+          [...new Set(oldWithdraws.map(({ event }) => event.args.account))].map(async (account) => {
+            const installed = await publicClient
+              .readContract({
+                address: account,
+                abi: upgradeableModularAccountAbi,
+                functionName: "getInstalledPlugins",
+              })
+              .catch((error: unknown) => {
+                if (reverted(error)) return [];
+                throw error;
+              });
+            return [account, installed] as const;
+          }),
+        ).then((entries) => new Map<string, readonly string[]>(entries)),
+      ]);
+
+      const proposalsByAccount = proposals
+        .filter(({ emitter, proposal }) => {
+          if (proposalManagers.get(proposal.account) === emitter) return true;
+          debug("ignored proposal %s of %s from %s", proposal.nonce, proposal.account, emitter);
+          return false;
+        })
+        .reduce((accumulator, { proposal }) => {
+          const { account } = proposal;
+          if (!accumulator.has(account)) {
+            accumulator.set(account, []);
+          }
+          accumulator.get(account)?.push(proposal);
+          return accumulator;
+        }, new Map<string, v.InferOutput<typeof Proposal>[]>());
+
+      const withdraws = oldWithdraws
+        .filter(({ emitter, event }) => {
+          if (plugins.get(event.args.account)?.includes(emitter)) return true;
+          debug("ignored withdraw of %s from %s", event.args.account, emitter);
+          return false;
+        })
+        .map(({ event }) => event);
 
       const failures: unknown[] = [];
       await Promise.all([
         ...proposalsByAccount.values().map(async (ps) => {
           for (const proposal of ps.toSorted((a, b) => Number(a.nonce - b.nonce))) await scheduleProposal(proposal);
         }),
-        ...oldWithdraws.map(async (event) => {
+        ...withdraws.map(async (event) => {
           const withdraw = v.parse(Withdraw, { ...event.args, timestamp });
           return startSpan(
             {
@@ -533,10 +592,7 @@ export default function hook({
                                 symbol: symbol.slice(3),
                                 recipient: ensName ?? shortenHex(receiver),
                               }),
-                        idempotencyKey: v5(
-                          `https://exact.ly/proposal/${chain.id}/${proposalManagerAddress}/${account}/${nonce}`,
-                          v5.URL,
-                        ),
+                        idempotencyKey: v5(`https://exact.ly/proposal/${chain.id}/${account}/${nonce}`, v5.URL),
                       }),
                     ),
                 ).catch((error: unknown) => captureException(error));
@@ -764,6 +820,15 @@ export default function hook({
   }
 
   return { app, ready };
+}
+
+function reverted(error: unknown) {
+  return (
+    error instanceof BaseError &&
+    error.walk(
+      (cause) => cause instanceof ContractFunctionRevertedError || cause instanceof ContractFunctionZeroDataError,
+    ) !== null
+  );
 }
 
 const isTerminalWithdrawReason = (reason: string) =>
