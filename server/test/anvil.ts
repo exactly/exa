@@ -220,12 +220,15 @@ export default async function setup({ broadcastsOnly = false } = {}) {
   );
 
   const files = await readdir(__dirname, { recursive: true }); // eslint-disable-line unicorn/prefer-module
-  for (const testFile of files.filter((file) => file.endsWith(".test.ts") || file.endsWith("e2e.ts"))) {
-    const address = privateKeyToAddress(keccak256(toBytes(testFile)));
-    await anvilClient.setBalance({ address, value: 10n ** 24n });
+  const addresses = files
+    .filter((file) => file.endsWith(".test.ts") || file.endsWith("e2e.ts"))
+    .map((file) => privateKeyToAddress(keccak256(toBytes(file))));
+  await Promise.all(addresses.map((address) => anvilClient.setBalance({ address, value: 10n ** 24n })));
+  const hashes: Hex[] = [];
+  for (const address of addresses) {
     for (const contract of [exaPlugin, refunder]) {
-      await anvilClient.waitForTransactionReceipt({
-        hash: await anvilClient.writeContract({
+      hashes.push(
+        await anvilClient.writeContract({
           address: contract,
           functionName: "grantRole",
           args: [keccak256(toHex("KEEPER_ROLE")), address],
@@ -240,9 +243,10 @@ export default async function setup({ broadcastsOnly = false } = {}) {
           ],
           account: null,
         }),
-      });
+      );
     }
   }
+  await Promise.all(hashes.map((hash) => anvilClient.waitForTransactionReceipt({ hash })));
 
   await Promise.all(
     chains.slice(1).map(async (chain) => {
