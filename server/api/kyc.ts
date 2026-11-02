@@ -6,6 +6,7 @@ import * as honoOpenapi from "hono-openapi";
 import { resolver, validator as vValidator } from "hono-openapi/valibot";
 import {
   array,
+  check,
   fallback,
   flatten,
   is,
@@ -92,15 +93,21 @@ function buildBaseResponse(example = "string") {
 
 export default function route({
   auth,
+  business,
   database,
   panda,
   persona,
 }: {
   auth: Auth;
+  business: boolean;
   database: NodePgDatabase<typeof schema>;
   panda: ReturnType<typeof createPanda>;
   persona: ReturnType<typeof createPersona>;
 }) {
+  const Scope = pipe(
+    picklist(["basic", "bridge", "business", "cardLimit", "manteca", "panda-business"]),
+    check((scope) => business || (scope !== "business" && scope !== "panda-business"), "business disabled"),
+  );
   return new Hono()
     .get(
       "/",
@@ -109,7 +116,7 @@ export default function route({
         "query",
         object({
           countryCode: optional(literal("true")),
-          scope: optional(picklist(["basic", "bridge", "business", "cardLimit", "manteca", "panda-business"])),
+          scope: optional(Scope),
         }),
         validatorHook(),
       ),
@@ -297,7 +304,7 @@ export default function route({
         "json",
         object({
           redirectURI: optional(string()),
-          scope: optional(picklist(["basic", "bridge", "business", "cardLimit", "manteca", "panda-business"])),
+          scope: optional(Scope),
         }),
         validatorHook({ debug }),
       ),
