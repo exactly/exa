@@ -52,7 +52,6 @@ import chain, {
   marketUSDCAddress,
   marketWETHAddress,
   proposalManagerAbi,
-  proposalManagerAddress,
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
 import ProposalType, { decodeWithdraw } from "@exactly/common/ProposalType";
@@ -937,7 +936,7 @@ function discoverEmitters(chainId: number) {
     .then(
       (addresses) =>
         new Set(
-          [exaPluginAddress, proposalManagerAddress, ...addresses.flat()]
+          [exaPluginAddress, ...addresses.flat()]
             .filter((address) => address !== undefined)
             .map((address) => v.parse(Address, address))
             .toSorted(),
