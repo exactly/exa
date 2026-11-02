@@ -39,8 +39,6 @@ export default function ProfileHeader() {
   const { data: hidden } = useQuery<boolean>({ queryKey: ["settings", "sensitive"] });
   const { data: card } = useQuery<CardDetails>({ queryKey: ["card", "details"] });
   const [hour, setHour] = useState(() => new Date().getHours());
-  const [natural, setNatural] = useState<{ height: number; width: number }>();
-  const [width, setWidth] = useState<number>();
   const first = hidden ? undefined : card?.displayName?.split(" ")[0];
   const greeting = first
     ? t("Hi, {{name}}", { name: first.charAt(0).toUpperCase() + first.slice(1).toLowerCase() })
@@ -89,30 +87,7 @@ export default function ProfileHeader() {
                 />
               </View>
             </View>
-            <View
-              key={greeting}
-              transition="quick"
-              enterStyle={{ opacity: 0, transform: [{ translateY: 6 }] }}
-              transform={[{ translateY: 0 }]}
-              flexDirection="row"
-              flexShrink={1}
-              width={natural?.width}
-              height={natural?.height}
-              aria-hidden
-              onLayout={({ nativeEvent }) => setWidth(nativeEvent.layout.width)}
-            >
-              <View position="absolute" onLayout={({ nativeEvent }) => setNatural(nativeEvent.layout)}>
-                <Text
-                  callout
-                  emphasized
-                  whiteSpace="nowrap"
-                  transformOrigin="left"
-                  transform={[{ scale: natural && width ? width / natural.width : 1 }]}
-                >
-                  {greeting}
-                </Text>
-              </View>
-            </View>
+            <Greeting key={greeting} text={greeting} />
           </View>
         </Pressable>
         <View display="flex" flexDirection="row" alignItems="center" gap="$s4">
@@ -151,6 +126,38 @@ export default function ProfileHeader() {
           setCopyAddressShown(false);
         }}
       />
+    </View>
+  );
+}
+
+function Greeting({ text }: { text?: string }) {
+  const [natural, setNatural] = useState<number>();
+  const [width, setWidth] = useState<number>();
+  return (
+    <View
+      transition="quick"
+      animateOnly={["opacity"]}
+      enterStyle={{ opacity: 0 }}
+      opacity={1}
+      flexDirection="row"
+      flexShrink={1}
+      aria-hidden
+      onLayout={({ nativeEvent }) => setWidth(nativeEvent.layout.width)}
+    >
+      <Text callout emphasized numberOfLines={1} opacity={0}>
+        {text}
+      </Text>
+      <View position="absolute" onLayout={({ nativeEvent }) => setNatural(nativeEvent.layout.width)}>
+        <Text
+          callout
+          emphasized
+          whiteSpace="nowrap"
+          transformOrigin="left"
+          transform={[{ scale: natural && width ? width / natural : 1 }]}
+        >
+          {text}
+        </Text>
+      </View>
     </View>
   );
 }
