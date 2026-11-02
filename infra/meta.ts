@@ -7,6 +7,11 @@ import { array, object, optional, parse, picklist, string } from "valibot";
 import modules from "./utils/modules.ts";
 import rejectSecrets from "./utils/rejectSecrets.ts";
 
+process.on("uncaughtException", (error) => {
+  console.error(error.message); // eslint-disable-line no-console
+  process.exitCode = 1;
+});
+
 if (argv[2] !== "preview" && argv[2] !== "up") throw new Error("expected preview or up");
 if (argv[3] === undefined) throw new Error("expected stack");
 
@@ -451,18 +456,15 @@ const selected = await automation.LocalWorkspace.selectStack(
 const owners = stacks.map(({ name }) => name).toSorted((a, b) => b.length - a.length);
 const state = await selected.exportStack();
 const { resources } = parse(object({ resources: optional(array(object({ urn: string() })), []) }), state.deployment);
-try {
-  await selected[argv[2]]({
-    exclude: resources
-      .map(({ urn }) => urn)
-      .filter((urn) => {
-        const name = urn.slice(urn.lastIndexOf("::") + 2);
-        const owner = owners.find((stack) => name === stack || name.startsWith(`${stack}-`));
-        return owner !== undefined && owner !== target.name;
-      }),
-    onOutput: (output) => stdout.write(output),
-  });
-} catch (error: unknown) {
-  console.error(error instanceof Error ? error.message : error); // eslint-disable-line no-console
-  process.exitCode = 1;
-}
+await selected[argv[2]]({
+  exclude: resources
+    .map(({ urn }) => urn)
+    .filter((urn) => {
+      const name = urn.slice(urn.lastIndexOf("::") + 2);
+      const owner = owners.find((stack) => name === stack || name.startsWith(`${stack}-`));
+      return owner !== undefined && owner !== target.name;
+    }),
+  ...(argv[4] === "--json"
+    ? { onEvent: (event: automation.EngineEvent) => stdout.write(`${JSON.stringify(event)}\n`) }
+    : { onOutput: (output: string) => stdout.write(output) }),
+});
