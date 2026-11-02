@@ -121,13 +121,20 @@ describe("hook bin", () => {
       config: {
         alchemy,
         blockKey: "block-alchemy-block-key",
+        database,
         executor: account,
         onesignal,
         redis: expect.any(Redis) as Redis,
       },
       load: () => import("../../hooks/bin/block"),
       name: "block",
-      secrets: ["block-alchemy-webhooks-key", "block-alchemy-block-key", "block-onesignal-api-key", "redis-url"],
+      secrets: [
+        "block-alchemy-webhooks-key",
+        "block-alchemy-block-key",
+        "block-postgres-url",
+        "block-onesignal-api-key",
+        "redis-url",
+      ],
     },
     {
       accounts: [],
