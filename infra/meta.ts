@@ -6,6 +6,11 @@ import process, { argv, stdout } from "node:process";
 import modules from "./utils/modules.ts";
 import rejectSecrets from "./utils/rejectSecrets.ts";
 
+process.on("uncaughtException", (error) => {
+  console.error(error.message); // eslint-disable-line no-console
+  process.exitCode = 1;
+});
+
 if (argv[2] !== "preview" && argv[2] !== "up") throw new Error("expected preview or up");
 if (argv[3] === undefined) throw new Error("expected stack");
 
@@ -427,14 +432,11 @@ const selected = await automation.LocalWorkspace.selectStack(
     workDir: import.meta.dirname,
   },
 );
-try {
-  await selected[argv[2]]({
-    exclude: stacks
-      .filter(({ name }) => name !== argv[3])
-      .flatMap(({ name }) => [`urn:pulumi:meta::exa::**::${name}`, `urn:pulumi:meta::exa::**::${name}-*`]),
-    onOutput: (output) => stdout.write(output),
-  });
-} catch (error: unknown) {
-  console.error(error instanceof Error ? error.message : error); // eslint-disable-line no-console
-  process.exitCode = 1;
-}
+await selected[argv[2]]({
+  exclude: stacks
+    .filter(({ name }) => name !== argv[3])
+    .flatMap(({ name }) => [`urn:pulumi:meta::exa::**::${name}`, `urn:pulumi:meta::exa::**::${name}-*`]),
+  ...(argv[4] === "--json"
+    ? { onEvent: (event: automation.EngineEvent) => stdout.write(`${JSON.stringify(event)}\n`) }
+    : { onOutput: (output: string) => stdout.write(output) }),
+});
