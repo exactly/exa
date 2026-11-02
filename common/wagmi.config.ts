@@ -221,7 +221,6 @@ export default defineConfig([
                 marketUSDC: loadDeployment("MarketUSDC").address,
                 marketWETH: loadDeployment("MarketWETH").address,
                 previewer: loadDeployment("Previewer").address,
-                proposalManager: loadBroadcast("ProposalManager").transactions[0]?.contractAddress,
                 ratePreviewer: loadDeployment("RatePreviewer").address,
                 refunder: loadBroadcast("Refunder").transactions[0]?.contractAddress,
                 usdc: loadDeployment("USDC").address,
