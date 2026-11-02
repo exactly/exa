@@ -138,6 +138,7 @@ describe("api", () => {
           authSecret,
           database,
           bridge: undefined as never,
+          business: true,
           credit: undefined as never,
           intercom: undefined as never,
           manteca: undefined as never,

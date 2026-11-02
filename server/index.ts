@@ -84,23 +84,6 @@ const subscribe = createSubscribe(redis);
 const walletExtension = createWalletExtension(
   parse(pipe(string("wallet"), nonEmpty("wallet")), env.WALLET_EXTENSION_SECRET),
 );
-const api = createApi({
-  authSecret: parse(pipe(string("auth"), nonEmpty("auth")), env.AUTH_SECRET),
-  bridge,
-  credit,
-  database,
-  intercom,
-  manteca,
-  panda,
-  pax,
-  persona,
-  redis,
-  sardine,
-  segment,
-  subscribe,
-  walletExtension,
-});
-
 const hooks = {
   activity: () => createActivityHook({ alchemy, database, onesignal, poke, redis }),
   block: () => createBlockHook({ alchemy, blockKey: env.ALCHEMY_BLOCK_KEY, executor: keeper, onesignal, redis }),
@@ -154,11 +137,28 @@ const disabled = new Set<string>(
     pipe(
       optional(string(), ""),
       transform((value) => value.split(",").filter(Boolean)),
-      array(picklist([...Object.keys(hooks), ...Object.keys(workers)], "unknown module")),
+      array(picklist([...Object.keys(hooks), ...Object.keys(workers), "business"], "unknown module")),
     ),
     env.DISABLED_MODULES,
   ),
 );
+const api = createApi({
+  authSecret: parse(pipe(string("auth"), nonEmpty("auth")), env.AUTH_SECRET),
+  bridge,
+  business: !disabled.has("business"),
+  credit,
+  database,
+  intercom,
+  manteca,
+  panda,
+  pax,
+  persona,
+  redis,
+  sardine,
+  segment,
+  subscribe,
+  walletExtension,
+});
 const enabledHooks = Object.entries(hooks)
   .filter(([name]) => !disabled.has(name))
   .map(([name, create]) => [name, create()] as const);
