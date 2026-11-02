@@ -1,9 +1,10 @@
 import { captureException } from "@sentry/core";
-import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { organization, siwe } from "better-auth/plugins";
+import { betterAuth } from "better-auth/minimal";
 import { createAccessControl } from "better-auth/plugins/access";
+import { organization } from "better-auth/plugins/organization";
 import { adminAc, defaultStatements, memberAc, ownerAc } from "better-auth/plugins/organization/access";
+import { siwe } from "better-auth/plugins/siwe";
 import { randomBytes } from "node:crypto";
 import { safeParse } from "valibot";
 import { parseSiweMessage } from "viem/siwe";
