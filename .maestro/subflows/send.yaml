@@ -6,7 +6,6 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: { file: scrollTo.yaml, env: { element: Send, center: true } }
 - tapOn: Send
 - tapOn: Digital assets
-- assertVisible: Send to
 - runFlow:
     when: { true: "${!output.introSheet}" }
     commands:
@@ -14,6 +13,7 @@ appId: ${APP_ID ?? "app.exactly"}
       - tapOn: "${pay ? 'Turn it on' : 'Not now'}"
       - runFlow: { file: tapAria.yaml, env: { aria: Dismiss } }
       - evalScript: ${output.introSheet = true, output.advanced = !!pay}
+- assertVisible: Send to
 - runFlow:
     when: { true: "${!!pay && !output.advanced}" }
     commands:

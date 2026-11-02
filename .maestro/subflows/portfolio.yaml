@@ -18,7 +18,6 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: { file: tapAria.yaml, env: { aria: Back } }
 - assertVisible: Sell
 - runFlow: { file: tapAria.yaml, env: { aria: Send } }
-- assertVisible: Send to
 - runFlow:
     when: { true: "${!output.introSheet}" }
     commands:
@@ -26,6 +25,7 @@ appId: ${APP_ID ?? "app.exactly"}
       - runFlow: { file: tapAria.yaml, env: { aria: Dismiss } }
       - assertVisible: Advanced mode on.
       - evalScript: ${output.introSheet = output.advanced = true}
+- assertVisible: Send to
 - runFlow: { file: tapAria.yaml, env: { aria: Back } }
 - runFlow: { file: scrollTo.yaml, env: { element: Balance } }
 - runFlow: { file: tapAria.yaml, env: { aria: Back } }
