@@ -40,9 +40,13 @@
         "executor": "nx:noop"
       },
       "generate:astro": {
+        "command": "pnpm run generate:astro",
         "outputs": [
           "{projectRoot}/.astro"
-        ]
+        ],
+        "options": {
+          "cwd": "{projectRoot}"
+        }
       },
       "build": {
         "dependsOn": [

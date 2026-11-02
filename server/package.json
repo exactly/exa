@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "pkgroll --clean-dist --sourcemap --src . && sentry-cli sourcemaps inject -o exactly -p server dist",
-    "prepare:generated": "mkdir -p generated",
+    "prepare:generated": "nx prepare:generated server",
     "generate:release": "echo \"module.exports = /** @type {const} */ ('$(git describe --tags --abbrev=7 --match '@exactly/server@*' | sed 's/@exactly\\///')')\" > generated/release.js",
     "generate:openapi": "tsx script/openapi.ts",
     "generate:broadcasts": "[ \"$CHAIN_ID\" != 31337 ] || NODE_ENV=development tsx -e 'require(\"./test/anvil\").default().then((teardown) => teardown())'",
@@ -136,7 +136,14 @@
         ],
         "executor": "nx:noop"
       },
+      "prepare:generated": {
+        "command": "mkdir -p generated",
+        "options": {
+          "cwd": "{projectRoot}"
+        }
+      },
       "generate:release": {
+        "command": "pnpm run generate:release",
         "dependsOn": [
           "prepare:generated",
           {
@@ -148,17 +155,25 @@
         "outputs": [
           "{projectRoot}/generated/release.js"
         ],
-        "cache": false
+        "cache": false,
+        "options": {
+          "cwd": "{projectRoot}"
+        }
       },
       "generate:openapi": {
+        "command": "pnpm run generate:openapi",
         "dependsOn": [
           "prepare:generated"
         ],
         "outputs": [
           "{projectRoot}/generated/openapi.json"
-        ]
+        ],
+        "options": {
+          "cwd": "{projectRoot}"
+        }
       },
       "generate:broadcasts": {
+        "command": "pnpm run generate:broadcasts",
         "dependsOn": [
           {
             "projects": "@exactly/plugin",
@@ -176,7 +191,10 @@
           "{workspaceRoot}/contracts/broadcast/*/31337/run-latest.json",
           "{workspaceRoot}/contracts/cache/tooling",
           "{workspaceRoot}/contracts/out/tooling"
-        ]
+        ],
+        "options": {
+          "cwd": "{projectRoot}"
+        }
       },
       "generate:app": {
         "dependsOn": [
