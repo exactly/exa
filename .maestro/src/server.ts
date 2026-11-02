@@ -61,6 +61,7 @@ export function activity(asset: Address, toAddress: Address, value: number, hash
 }
 
 export function block(
+  proposalManager: Address,
   account: Address,
   proposals: {
     amount: bigint;
@@ -70,7 +71,6 @@ export function block(
     proposalType: number;
     unlock: bigint;
   }[],
-  proposalManager: Address,
 ) {
   const payload = JSON.stringify({
     type: "GRAPHQL",
