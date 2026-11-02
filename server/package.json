@@ -159,6 +159,14 @@
           "{projectRoot}/generated/openapi.json"
         ]
       },
+      "generate:database": {
+        "dependsOn": [
+          "prepare:generated"
+        ],
+        "outputs": [
+          "{projectRoot}/generated/schema.sql"
+        ]
+      },
       "generate:broadcasts": {
         "dependsOn": [
           {
@@ -218,7 +226,8 @@
         "dependsOn": [
           "prepare",
           "^prepare",
-          "^build"
+          "^build",
+          "generate:database"
         ],
         "inputs": [
           "default",
@@ -233,7 +242,8 @@
         "dependsOn": [
           "prepare",
           "^prepare",
-          "^build"
+          "^build",
+          "generate:database"
         ],
         "inputs": [
           "default",
