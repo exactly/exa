@@ -67,9 +67,11 @@ const createCredential = createCredentialFactory({
 });
 const intercom = createIntercom(parse(pipe(string(), nonEmpty()), env.INTERCOM_IDENTITY_KEY));
 const appClient = testClient(
-  authentication({ authSecret, createCredential, database, intercom, redis, walletExtension }),
+  authentication({ authSecret, business: true, createCredential, database, intercom, redis, walletExtension }),
 );
-const registrationAppClient = testClient(registration({ createCredential, intercom, redis, walletExtension }));
+const registrationAppClient = testClient(
+  registration({ business: true, createCredential, intercom, redis, walletExtension }),
+);
 
 function expectWalletExtensionExpire(expire: number, auth: number, start: number) {
   expect(expire).toBeGreaterThan(auth);
@@ -817,6 +819,25 @@ describe("authentication", () => {
     await expect(redis.exists("session:test-session")).resolves.toBe(0);
   });
 
+  it("creates a personal credential from the tenant origin when business is disabled using siwe", async () => {
+    vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
+    const id = own(parse(Address, slice(keccak256(toBytes("auth:siwe-business-disabled")), 12)));
+
+    const response = await testClient(
+      authentication({ authSecret, business: false, createCredential, database, intercom, redis, walletExtension }),
+    ).index.$post(
+      { json: { method: "siwe", id, signature: "0xdeadbeef" } },
+      { headers: { cookie: "session_id=test-session", origin: business } },
+    );
+
+    expect(response.status).toBe(200);
+    const credential = await database.query.credentials.findFirst({
+      where: eq(credentials.id, id),
+      columns: { salt: true },
+    });
+    expect(credential?.salt).toBe(zeroAddress);
+  });
+
   it.each<{ header: Record<string, string>; name: string }>([
     { header: { origin: "http://localhost:8081" }, name: "the local origin" },
     { header: { origin: unregistered }, name: "an unregistered origin" },
@@ -1419,6 +1440,24 @@ describe("registration", () => {
       deriveAddress(exaAccountFactoryAddress, { x: zeroHash, y: zeroHash, salt: credential.salt }),
     );
     await expect(redis.exists("session:test-session")).resolves.toBe(0);
+  });
+
+  it("creates a personal credential from the tenant origin when business is disabled using webauthn", async () => {
+    const id = own("ZGlzYWJsZWQtYnVzaW5lc3MtcmVnaXN0cmF0aW9u"); // cspell:ignore ZGlzYWJsZWQtYnVzaW5lc3MtcmVnaXN0cmF0aW9u
+    await redis.set("session:test-session", "test-challenge");
+    const response = await testClient(
+      registration({ business: false, createCredential, intercom, redis, walletExtension }),
+    ).index.$post(
+      { json: registrationWebauthnAssertion({ id, rawId: id }) },
+      { headers: { cookie: "session_id=test-session", origin: business } },
+    );
+
+    expect(response.status).toBe(200);
+    const credential = await database.query.credentials.findFirst({
+      where: eq(credentials.id, id),
+      columns: { salt: true },
+    });
+    expect(credential?.salt).toBe(zeroAddress);
   });
 
   it("ignores the referer when creating a credential using webauthn", async () => {

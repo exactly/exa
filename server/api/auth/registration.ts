@@ -153,11 +153,13 @@ const RegistrationOptions = variant("method", [
 ]);
 
 export default function route({
+  business,
   createCredential,
   intercom,
   redis,
   walletExtension,
 }: {
+  business: boolean;
   createCredential: ReturnType<typeof createCredentialFactory>;
   intercom: ReturnType<typeof createIntercom>;
   redis: Redis;
@@ -423,7 +425,9 @@ export default function route({
             webauthn,
             source: headers?.["client-fid"],
             ip: headers?.["do-connecting-ip"],
-            ...(headers?.origin && Object.hasOwn(tenants, headers.origin) && { salt: tenants[headers.origin] }),
+            ...(business &&
+              headers?.origin &&
+              Object.hasOwn(tenants, headers.origin) && { salt: tenants[headers.origin] }),
           });
           const account = deriveAddress(result.factory, { x: result.x, y: result.y, salt: result.salt });
           const intercomToken = await intercom(account, new Date(Date.now() + AUTH_EXPIRY));

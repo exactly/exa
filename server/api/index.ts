@@ -35,6 +35,7 @@ import type { Redis } from "ioredis";
 export default function api({
   authSecret,
   bridge,
+  business,
   credit,
   database,
   intercom,
@@ -50,6 +51,7 @@ export default function api({
 }: {
   authSecret: string;
   bridge: ReturnType<typeof createBridge>;
+  business: boolean;
   credit: ReturnType<typeof createCredit>;
   database: NodePgDatabase<typeof schema>;
   intercom: ReturnType<typeof createIntercom>;
@@ -80,10 +82,21 @@ export default function api({
       if (!c.req.header("origin") && !c.req.header("sec-fetch-site")) return next();
       return csrf({ origin: [...origins, "http://localhost:8081"] })(c, next);
     })
-    .route("/auth/registration", registration({ createCredential: credential, intercom, redis, walletExtension }))
+    .route(
+      "/auth/registration",
+      registration({ business, createCredential: credential, intercom, redis, walletExtension }),
+    )
     .route(
       "/auth/authentication",
-      authentication({ authSecret, createCredential: credential, database, intercom, redis, walletExtension }),
+      authentication({
+        authSecret,
+        business,
+        createCredential: credential,
+        database,
+        intercom,
+        redis,
+        walletExtension,
+      }),
     )
     .route("/activity", activity({ auth, database }))
     .route("/card", card({ auth, credit, database, panda, pax, persona, sardine, segment, walletExtension }))
