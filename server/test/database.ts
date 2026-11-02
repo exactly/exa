@@ -1,4 +1,4 @@
-import { pushSchema } from "drizzle-kit/api";
+import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import EmbeddedPostgres from "embedded-postgres";
 import { spawn, type ChildProcess } from "node:child_process";
@@ -50,20 +50,16 @@ export default async function setup() {
   const postgresURL = "postgres://postgres:postgres@localhost:8432/postgres?sslmode=disable"; // cspell:ignore sslmode
   const database = await (async () => {
     await Promise.race([waitOn({ resources: ["tcp:localhost:8432"], timeout: 120_000 }), postgresExited]);
-    const stdoutWrite = process.stdout.write; // eslint-disable-line @typescript-eslint/unbound-method
     const db = drizzle(postgresURL, { schema });
     try {
-      process.stdout.write = () => true;
       await Promise.all([
-        pushSchema(schema, db as never).then(({ apply }) => apply()),
+        readFile("generated/schema.sql", "utf8").then((statements) => db.execute(sql.raw(statements))),
         Promise.race([waitOn({ resources: ["tcp:localhost:8545"], timeout: 120_000 }), postgresExited]),
       ]);
       return db;
     } catch (error) {
       await db.$client.end().catch(() => undefined);
       throw error;
-    } finally {
-      process.stdout.write = stdoutWrite;
     }
   })().catch(async (error: unknown) => {
     await postgres.stop().catch(() => undefined);

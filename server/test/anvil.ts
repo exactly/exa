@@ -36,9 +36,13 @@ import deploy from "@exactly/plugin/deploy.json";
 
 import anvilClient from "./anvilClient";
 
-export default async function setup() {
+export default async function setup({ broadcastsOnly = false } = {}) {
   if (!env.NX_TASK_TARGET_PROJECT) {
-    await $({ cwd: "..", env: { CHAIN_ID: String(foundry.id) }, preferLocal: true })`nx prepare server`;
+    await $({
+      cwd: "..",
+      env: { CHAIN_ID: String(foundry.id) },
+      preferLocal: true,
+    })`nx run-many -t prepare generate:database -p server`;
   }
   const instances = chains.map(({ id, rpcUrls }) =>
     Instance.anvil({
@@ -179,6 +183,10 @@ export default async function setup() {
   await forge("script/ExaPreviewer.s.sol");
   await forge("script/ExaPlugin.s.sol");
   await forge("script/ExaAccountFactory.s.sol");
+  if (broadcastsOnly) {
+    await started;
+    return teardown;
+  }
 
   const bob = privateKeyToAddress(padHex("0xb0b"));
   await Promise.all([
@@ -212,12 +220,15 @@ export default async function setup() {
   );
 
   const files = await readdir(__dirname, { recursive: true }); // eslint-disable-line unicorn/prefer-module
-  for (const testFile of files.filter((file) => file.endsWith(".test.ts") || file.endsWith("e2e.ts"))) {
-    const address = privateKeyToAddress(keccak256(toBytes(testFile)));
-    await anvilClient.setBalance({ address, value: 10n ** 24n });
+  const addresses = files
+    .filter((file) => file.endsWith(".test.ts") || file.endsWith("e2e.ts"))
+    .map((file) => privateKeyToAddress(keccak256(toBytes(file))));
+  await Promise.all(addresses.map((address) => anvilClient.setBalance({ address, value: 10n ** 24n })));
+  const hashes: Hex[] = [];
+  for (const address of addresses) {
     for (const contract of [exaPlugin, refunder]) {
-      await anvilClient.waitForTransactionReceipt({
-        hash: await anvilClient.writeContract({
+      hashes.push(
+        await anvilClient.writeContract({
           address: contract,
           functionName: "grantRole",
           args: [keccak256(toHex("KEEPER_ROLE")), address],
@@ -232,9 +243,10 @@ export default async function setup() {
           ],
           account: null,
         }),
-      });
+      );
     }
   }
+  await Promise.all(hashes.map((hash) => anvilClient.waitForTransactionReceipt({ hash })));
 
   await Promise.all(
     chains.slice(1).map(async (chain) => {
@@ -329,11 +341,13 @@ export default async function setup() {
     ]);
   }
 
-  return async function teardown() {
+  return teardown;
+
+  async function teardown() {
     if (docker) await $({ cwd: "test" })`docker compose down`;
     await Promise.all(rpcs.map((rpc) => rpc.stop()));
     await Promise.all(instances.map((instance) => instance.stop()));
-  };
+  }
 }
 
 export const chains = [anvil, ...(env.NODE_ENV === "e2e" ? [{ ...moonbeamDev, name: "Anvil2" }] : [])].map((chain) => ({

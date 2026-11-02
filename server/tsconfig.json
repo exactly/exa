@@ -27,6 +27,7 @@
     "middleware/**/*.ts",
     "utils/**/*.ts",
     "script/**/*.ts",
+    "script/**/*.mts",
     "test/**/*.ts",
     "index.ts",
     "instrument.cjs",

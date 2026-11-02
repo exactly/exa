@@ -162,16 +162,18 @@ export default defineConfig([
                 swapper:
                   (deploy.accounts.swapper as Record<string, string>)[chainId] ?? deploy.accounts.swapper.default,
                 exaAccountFactory:
-                  chainId === base.id || chainId === baseSepolia.id || chainId === anvil.id
-                    ? /== return ==\n0: address (0x[\da-f]{40})/i.exec(
-                        execSync(`forge script -s 'getAddress()' script/ExaAccountFactory.s.sol --chain ${chainId}`, {
-                          env: { ...env, FOUNDRY_PROFILE: "tooling" },
-                          cwd: "../contracts",
-                          encoding: "utf8",
-                        }),
-                      )?.[1]
-                    : ({ [optimism.id]: "0x961EbA47650e2198A959Ef5f337E542df5E4F61b" }[chainId] ??
-                      "0x98d3E8B291d9E89C25D8371b7e8fFa8BC32E0aEC"),
+                  chainId === anvil.id
+                    ? loadBroadcast("ExaAccountFactory").transactions[1]?.contractAddress
+                    : chainId === base.id || chainId === baseSepolia.id
+                      ? /== return ==\n0: address (0x[\da-f]{40})/i.exec(
+                          execSync(`forge script -s 'getAddress()' script/ExaAccountFactory.s.sol --chain ${chainId}`, {
+                            env: { ...env, FOUNDRY_PROFILE: "tooling" },
+                            cwd: "../contracts",
+                            encoding: "utf8",
+                          }),
+                        )?.[1]
+                      : ({ [optimism.id]: "0x961EbA47650e2198A959Ef5f337E542df5E4F61b" }[chainId] ??
+                        "0x98d3E8B291d9E89C25D8371b7e8fFa8BC32E0aEC"),
               }).map(([key, address]) => {
                 if (!address) throw new Error(`missing ${key}`);
                 return `export const ${key}Address = "${getAddress(address)}" as const`;

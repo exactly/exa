@@ -7,7 +7,8 @@
     "prepare:generated": "mkdir -p generated",
     "generate:release": "echo \"module.exports = /** @type {const} */ ('$(git describe --tags --abbrev=7 --match '@exactly/server@*' | sed 's/@exactly\\///')')\" > generated/release.js",
     "generate:openapi": "tsx script/openapi.ts",
-    "generate:broadcasts": "[ \"$CHAIN_ID\" != 31337 ] || NODE_ENV=development tsx -e 'require(\"./test/anvil\").default().then((teardown) => teardown())'",
+    "generate:database": "tsx script/database.mts",
+    "generate:broadcasts": "[ \"$CHAIN_ID\" != 31337 ] || NODE_ENV=development tsx -e 'require(\"./test/anvil\").default({ broadcastsOnly: true }).then((teardown) => teardown())'",
     "db:push": "drizzle-kit push",
     "e2e": "tsx script/e2e.ts",
     "eval:chat": "tsx test/workers/chat.eval.ts",
@@ -158,6 +159,14 @@
           "{projectRoot}/generated/openapi.json"
         ]
       },
+      "generate:database": {
+        "dependsOn": [
+          "prepare:generated"
+        ],
+        "outputs": [
+          "{projectRoot}/generated/schema.sql"
+        ]
+      },
       "generate:broadcasts": {
         "dependsOn": [
           {
@@ -217,7 +226,8 @@
         "dependsOn": [
           "prepare",
           "^prepare",
-          "^build"
+          "^build",
+          "generate:database"
         ],
         "inputs": [
           "default",
@@ -232,7 +242,8 @@
         "dependsOn": [
           "prepare",
           "^prepare",
-          "^build"
+          "^build",
+          "generate:database"
         ],
         "inputs": [
           "default",
