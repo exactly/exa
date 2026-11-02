@@ -61,6 +61,7 @@ export function activity(asset: Address, toAddress: Address, value: number, hash
 }
 
 export function block(
+  proposalManager: Address,
   account: Address,
   proposals: {
     amount: bigint;
@@ -88,7 +89,7 @@ export function block(
               [{ type: "uint8" }, { type: "uint256" }, { type: "bytes" }, { type: "uint256" }],
               [proposalType, amount, data, unlock],
             ),
-            account: { address: account },
+            account: { address: proposalManager },
           })),
         },
       },
