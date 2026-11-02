@@ -59,7 +59,7 @@ if (market !== undefined) {
 
 anvil("anvil_mine", [1, Number(proposalDelay)]);
 const fromBlock = anvil("eth_blockNumber", []);
-block(account, proposals);
+block(proposalManager, account, proposals);
 
 const nonceSet = encodeEventTopics({
   abi: proposalManagerAbi,
