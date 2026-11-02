@@ -24,6 +24,7 @@ import {
   BaseError,
   CallExecutionError,
   ContractFunctionExecutionError,
+  ContractFunctionRevertedError,
   ContractFunctionZeroDataError,
   decodeEventLog,
   encodeErrorResult,
@@ -39,6 +40,8 @@ import { entryPoint06Abi, entryPoint06Address } from "viem/account-abstraction";
 import { optimism, optimismSepolia } from "viem/chains";
 
 import chain, {
+  appPreviewerAbi,
+  appPreviewerCode,
   auditorAbi,
   exaAccountFactoryAbi,
   exaPluginAbi,
@@ -221,36 +224,44 @@ export default function hook({
       const proposed =
         proposalsBySignature
           .get("0x4cf7794d9c19185f7d95767c53e511e2e67ae50f68ece9c9079c6ae83403a3e7")
-          ?.map(({ topics, data }) => decodeEventLog({ topics, data, abi: [...exaPluginAbi, ...proposalManagerAbi] }))
-          .map((event) => {
-            const p = v.safeParse(Proposal, { ...event.args, timestamp });
-            if (p.success) return p.output;
+          ?.map(({ topics, data, account: { address: emitter } }) => {
+            const p = v.safeParse(Proposal, {
+              ...decodeEventLog({ topics, data, abi: [...exaPluginAbi, ...proposalManagerAbi] }).args,
+              timestamp,
+            });
+            if (p.success) return { emitter, proposal: p.output };
             captureException(p.issues, { level: "error" });
             return null;
           })
-          .filter((x) => x !== null)
-          .reduce((accumulator, event) => {
-            const account = event.account;
-            if (!accumulator.has(account)) {
-              accumulator.set(account, []);
-            }
-            accumulator.get(account)?.push(event);
-            return accumulator;
-          }, new Map<string, v.InferOutput<typeof Proposal>[]>()) ??
-        new Map<string, v.InferOutput<typeof Proposal>[]>();
+          .filter((x) => x !== null) ?? [];
 
-      const withdraws =
+      const withdrawn =
         proposalsBySignature
           .get("0x0c652a21d96e4efed065c3ef5961e4be681be99b95dd55126669ae9be95767e0")
-          ?.map(({ topics, data }) => decodeEventLog({ topics, data, abi: legacyExaPluginAbi })) ?? [];
+          ?.map(({ topics, data, account: { address: emitter } }) => ({
+            emitter,
+            event: decodeEventLog({ topics, data, abi: legacyExaPluginAbi }),
+          })) ?? [];
 
-      const accounts = [...new Set([...proposed.keys(), ...withdraws.map(({ args }) => args.account)])];
+      const accounts = [
+        ...new Set([
+          ...proposed.map(({ proposal }) => proposal.account),
+          ...withdrawn.map(({ event }) => event.args.account),
+        ]),
+      ];
       const credentialed =
         accounts.length > 0
           ? await database.query.credentials
               .findMany({ columns: { account: true }, where: inArray(credentials.account, accounts) })
               .then((rows) => new Set(rows.map(({ account }) => account)))
           : new Set<string>();
+      if (
+        accounts.length > 0 &&
+        number !== undefined &&
+        (await publicClient.getBlockNumber({ cacheTime: 0 })) < BigInt(number)
+      ) {
+        throw new Error("rpc behind block");
+      }
       const now = Date.now();
       for (const [account, expiry] of foreign) if (expiry <= now) foreign.delete(account);
       const uncached = accounts.filter(
@@ -269,44 +280,106 @@ export default function hook({
       const known = new Set(accounts.filter((account) => credentialed.has(account) || initialized.has(account)));
       const unknown = accounts.filter((account) => !known.has(account));
       if (unknown.length > 0) getActiveSpan()?.setAttribute("exa.unknown", unknown);
-      const proposalsByAccount = new Map(proposed.entries().filter(([account]) => known.has(account)));
-      const oldWithdraws = withdraws.filter(({ args }) => known.has(args.account));
+      const proposals = proposed.filter(({ proposal }) => known.has(proposal.account));
+      const oldWithdraws = withdrawn.filter(({ event }) => known.has(event.args.account));
+
+      const [proposalManagers, plugins] = await Promise.all([
+        Promise.all(
+          [...new Set(proposals.map(({ proposal }) => proposal.account))].map(
+            async (account) =>
+              [
+                account,
+                await publicClient
+                  .readContract({
+                    abi: appPreviewerAbi,
+                    code: appPreviewerCode,
+                    functionName: "proposalManager",
+                    args: [account],
+                  })
+                  .catch((error: unknown) => {
+                    if (reverted(error)) return { proposalManager: undefined };
+                    throw error;
+                  })
+                  .then(({ proposalManager }) => proposalManager),
+              ] as const,
+          ),
+        ).then((entries) => new Map<string, string | undefined>(entries)),
+        Promise.all(
+          [...new Set(oldWithdraws.map(({ event }) => event.args.account))].map(
+            async (account) =>
+              [
+                account,
+                await publicClient
+                  .readContract({
+                    address: account,
+                    abi: upgradeableModularAccountAbi,
+                    functionName: "getInstalledPlugins",
+                  })
+                  .catch((error: unknown) => {
+                    if (reverted(error)) return [];
+                    throw error;
+                  }),
+              ] as const,
+          ),
+        ).then((entries) => new Map<string, readonly string[]>(entries)),
+      ]);
+
+      const proposalsByAccount = proposals
+        .filter(({ emitter, proposal }) => {
+          if (proposalManagers.get(proposal.account) === emitter) return true;
+          debug("ignored proposal %s of %s from %s", proposal.nonce, proposal.account, emitter);
+          return false;
+        })
+        .reduce((accumulator, { proposal }) => {
+          const { account } = proposal;
+          if (!accumulator.has(account)) {
+            accumulator.set(account, []);
+          }
+          accumulator.get(account)?.push(proposal);
+          return accumulator;
+        }, new Map<string, v.InferOutput<typeof Proposal>[]>());
 
       const failures: unknown[] = [];
       await Promise.all([
         ...proposalsByAccount.values().map(async (ps) => {
           for (const proposal of ps.toSorted((a, b) => Number(a.nonce - b.nonce))) await scheduleProposal(proposal);
         }),
-        ...oldWithdraws.map(async (event) => {
-          const withdraw = v.parse(Withdraw, { ...event.args, timestamp });
-          return startSpan(
-            {
-              name: "schedule withdraw",
-              op: "queue.publish",
-              attributes: {
-                account: withdraw.account,
-                market: withdraw.market,
-                receiver: withdraw.receiver,
-                amount: String(withdraw.amount),
-                unlock: Number(withdraw.unlock),
-                "messaging.system": "redis",
-                "messaging.operation.type": "send",
-                "messaging.destination.name": "withdraw",
-                "messaging.message.id": withdraw.id,
+        ...oldWithdraws
+          .filter(({ emitter, event }) => {
+            if (plugins.get(event.args.account)?.includes(emitter)) return true;
+            debug("ignored withdraw of %s from %s", event.args.account, emitter);
+            return false;
+          })
+          .map(async ({ event }) => {
+            const withdraw = v.parse(Withdraw, { ...event.args, timestamp });
+            return startSpan(
+              {
+                name: "schedule withdraw",
+                op: "queue.publish",
+                attributes: {
+                  account: withdraw.account,
+                  market: withdraw.market,
+                  receiver: withdraw.receiver,
+                  amount: String(withdraw.amount),
+                  unlock: Number(withdraw.unlock),
+                  "messaging.system": "redis",
+                  "messaging.operation.type": "send",
+                  "messaging.destination.name": "withdraw",
+                  "messaging.message.id": withdraw.id,
+                },
               },
-            },
-            async () => {
-              const { "sentry-trace": sentryTrace, baggage: sentryBaggage } = getTraceData();
-              withdraw.sentryTrace = sentryTrace;
-              withdraw.sentryBaggage = sentryBaggage;
-              const message = serialize(withdraw);
-              getActiveSpan()?.setAttribute("messaging.message.body.size", Buffer.byteLength(message));
-              const added = await redis.zadd("withdraw", Number(event.args.unlock), message);
-              if (added) scheduleWithdraw(message);
-              return added;
-            },
-          );
-        }),
+              async () => {
+                const { "sentry-trace": sentryTrace, baggage: sentryBaggage } = getTraceData();
+                withdraw.sentryTrace = sentryTrace;
+                withdraw.sentryBaggage = sentryBaggage;
+                const message = serialize(withdraw);
+                getActiveSpan()?.setAttribute("messaging.message.body.size", Buffer.byteLength(message));
+                const added = await redis.zadd("withdraw", Number(event.args.unlock), message);
+                if (added) scheduleWithdraw(message);
+                return added;
+              },
+            );
+          }),
         Promise.resolve(payments ?? settle()).then((settled) =>
           Promise.all(
             new Set(settled.map(({ transaction }) => transaction?.hash)).values().map(async (hash) => {
@@ -551,10 +624,7 @@ export default function hook({
                                 symbol: symbol.slice(3),
                                 recipient: ensName ?? shortenHex(receiver),
                               }),
-                        idempotencyKey: v5(
-                          `https://exact.ly/proposal/${chain.id}/${proposalManagerAddress}/${account}/${nonce}`,
-                          v5.URL,
-                        ),
+                        idempotencyKey: v5(`https://exact.ly/proposal/${chain.id}/${account}/${nonce}`, v5.URL),
                       }),
                     ),
                 ).catch((error: unknown) => captureException(error));
@@ -784,6 +854,15 @@ export default function hook({
   return { app, ready };
 }
 
+function reverted(error: unknown) {
+  return (
+    error instanceof BaseError &&
+    error.walk(
+      (cause) => cause instanceof ContractFunctionRevertedError || cause instanceof ContractFunctionZeroDataError,
+    ) !== null
+  );
+}
+
 const isTerminalWithdrawReason = (reason: string) =>
   reason === "InsufficientAccountLiquidity()" ||
   reason === "RuntimeValidationFunctionMissing(0x3ccfd60b)" ||
@@ -820,9 +899,6 @@ const FOREIGN_TTL = 5 * 60_000;
 async function initializedAccounts(accounts: string[], blockNumber?: number) {
   if (accounts.length === 0) return [];
   const toBlock = blockNumber === undefined ? undefined : BigInt(blockNumber);
-  if (toBlock !== undefined && (await publicClient.getBlockNumber({ cacheTime: 0 })) < toBlock) {
-    throw new Error("rpc behind block");
-  }
   const batches = Array.from({ length: Math.ceil(accounts.length / LOOKUP_BATCH) }, (_, index) =>
     accounts.slice(index * LOOKUP_BATCH, (index + 1) * LOOKUP_BATCH),
   );
