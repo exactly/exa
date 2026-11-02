@@ -7,6 +7,7 @@ concurrency:
 jobs:
   test:
     if: github.ref_name != 'beta' || github.event.head_commit.distinct
+    permissions: { contents: read, pull-requests: read }
     environment: test
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -79,6 +80,13 @@ jobs:
             /tmp/metro-cache
           key: ${{ steps.dependencies.outputs.cache-primary-key }}
 
+      - name: pr
+        if: ${{ !cancelled() }}
+        id: pr
+        run: |
+          number=$(gh api -X GET "repos/$GITHUB_REPOSITORY/pulls" -f head="$GITHUB_REPOSITORY_OWNER:$GITHUB_REF_NAME" -f per_page=1 -q '.[].number')
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+        env: { GH_TOKEN: "${{ github.token }}" }
       - uses: codecov/codecov-action@v7
         if: ${{ !cancelled() }}
         with:
@@ -87,6 +95,7 @@ jobs:
           plugins: noop
           files: contracts/lcov.info
           token: ${{ secrets.CODECOV_TOKEN }}
+          override_pr: ${{ steps.pr.outputs.number }}
           flags: contracts
           name: contracts
       - uses: codecov/codecov-action@v7
@@ -97,6 +106,7 @@ jobs:
           plugins: noop
           files: server/coverage/lcov.info
           token: ${{ secrets.CODECOV_TOKEN }}
+          override_pr: ${{ steps.pr.outputs.number }}
           flags: server
           name: server
       - uses: codecov/codecov-action@v7
@@ -107,6 +117,7 @@ jobs:
           exclude: node_modules
           files: server/coverage/junit.xml
           token: ${{ secrets.CODECOV_TOKEN }}
+          override_pr: ${{ steps.pr.outputs.number }}
           flags: server
           name: server
       - if: ${{ !cancelled() }}
@@ -124,7 +135,7 @@ jobs:
 
   e2e:
     if: github.ref_name != 'beta' || github.event.head_commit.distinct
-    permissions: { actions: read, contents: read }
+    permissions: { actions: read, contents: read, pull-requests: read }
     environment: test
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -207,9 +218,14 @@ jobs:
           key: ${{ steps.metamask.outputs.cache-primary-key }}
       - if: always()
         name: shutdown
+        id: shutdown
         run: |
           curl -X POST http://localhost:3000/e2e/shutdown || true
+          gh api -X GET "repos/$GITHUB_REPOSITORY/pulls" -f head="$GITHUB_REPOSITORY_OWNER:$GITHUB_REF_NAME" -f per_page=1 -q '.[].number' > "$RUNNER_TEMP/pr" &
           for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done
+          wait $!
+          echo "pr=$(cat "$RUNNER_TEMP/pr")" >> "$GITHUB_OUTPUT"
+        env: { GH_TOKEN: "${{ github.token }}" }
       - uses: actions/cache/save@v6
         if: github.ref_name == 'main' && matrix.flow == 'portfolio'
         with: { path: ~/.nx, key: "${{ steps.nx.outputs.cache-primary-key }}" }
@@ -229,6 +245,7 @@ jobs:
           plugins: noop
           files: server/coverage/lcov.info,server/coverage/app.lcov
           token: ${{ secrets.CODECOV_TOKEN }}
+          override_pr: ${{ steps.shutdown.outputs.pr }}
           flags: web
           name: ${{ matrix.flow }}
       - uses: codecov/codecov-action@v7
@@ -239,6 +256,7 @@ jobs:
           exclude: node_modules
           files: .maestro/junit/${{ matrix.flow }}.xml
           token: ${{ secrets.CODECOV_TOKEN }}
+          override_pr: ${{ steps.shutdown.outputs.pr }}
           flags: web
           name: ${{ matrix.flow }}
       - uses: actions/upload-artifact@v7
