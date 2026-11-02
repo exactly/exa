@@ -253,6 +253,7 @@ export default defineConfig([
                 ),
               )}`,
               `export const appPreviewerCode: \`0x\${string}\` = "${AppPreviewer.bytecode.object}"`,
+              `export const appPreviewerDeployedCode: \`0x\${string}\` = "${AppPreviewer.deployedBytecode.object}"`,
               `export const auditors: ReadonlyMap<number, \`0x\${string}\`> = new Map(${JSON.stringify(auditors)})`,
               `export const deployments: ReadonlyMap<number, Readonly<Record<"exaPlugin" | "exaPreviewer" | "issuerChecker" | "usdc", \`0x\${string}\`>>> = new Map(${JSON.stringify(deployments)})`,
               `export const exaPreviewerCode: \`0x\${string}\` = "${ExaPreviewer.bytecode.object}"`,

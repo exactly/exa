@@ -20,11 +20,10 @@ import chain, {
   balancerVaultAddress,
   integrationPreviewerAddress,
   marketUSDCAddress,
-  proposalManagerAddress,
   swapperAddress,
   usdcAddress,
 } from "@exactly/common/generated/chain";
-import { integrationPreviewerAbi, marketAbi, useReadProposalManagerDelay } from "@exactly/common/generated/hooks";
+import { integrationPreviewerAbi, marketAbi } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
 import { Address } from "@exactly/common/validation";
 import { divWad, fixedRepayAssets, fixedRepayPosition, min, WAD } from "@exactly/lib";
@@ -42,8 +41,7 @@ import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useInsets from "../../utils/useInsets";
 import usePortfolio from "../../utils/usePortfolio";
-import useProposalManager from "../../utils/useProposalManager";
-import useSimulateProposal from "../../utils/useSimulateProposal";
+import useSimulateProposal, { useProposalPreview } from "../../utils/useSimulateProposal";
 import exa from "../../utils/wagmi/exa";
 import AssetLogo from "../shared/AssetLogo";
 import Failure from "../shared/Failure";
@@ -124,10 +122,7 @@ export default function Repay() {
     query: { enabled: !!account && !!bytecode && !!maturity },
   });
 
-  const { data: proposalDelay, isLoading: isProposalDelayLoading } = useReadProposalManagerDelay({
-    address: useProposalManager() ?? proposalManagerAddress,
-    chainId: chain.id,
-  });
+  const { delay: proposalDelay, isLoading: isProposalDelayLoading } = useProposalPreview({ account });
   const simulationTimestamp = proposalDelay === undefined ? undefined : Number(timestamp) + Number(proposalDelay);
 
   const borrow = exaUSDC?.fixedBorrowPositions.find((b) => b.maturity === maturity);
