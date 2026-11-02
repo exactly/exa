@@ -104,7 +104,7 @@ export default function Activity() {
           }}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl onRefresh={refresh} />}
-          ListHeaderComponent={<ListHeader onLayout={onHeaderLayout} />}
+          ListHeaderComponent={<ListHeader onLayout={onHeaderLayout} title={layout.items.length > 0} />}
           ListEmptyComponent={<Empty />}
           data={layout.items}
           renderItem={renderItem}
@@ -137,15 +137,23 @@ type ActivityItemType =
   | { date: string; height: number; type: "header" }
   | { event: ActivityEvent; height: number; isLast: boolean; type: "event" };
 
-const ListHeader = memo(function ListHeader({ onLayout }: { onLayout: (event: LayoutChangeEvent) => void }) {
+const ListHeader = memo(function ListHeader({
+  onLayout,
+  title,
+}: {
+  onLayout: (event: LayoutChangeEvent) => void;
+  title: boolean;
+}) {
   const { t } = useTranslation();
   return (
     <View onLayout={onLayout}>
-      <View padded backgroundColor="$backgroundSoft">
-        <Text fontSize={20} fontWeight="bold">
-          {t("All Activity")}
-        </Text>
-      </View>
+      {title && (
+        <View padded backgroundColor="$backgroundSoft">
+          <Text fontSize={20} fontWeight="bold">
+            {t("All Activity")}
+          </Text>
+        </View>
+      )}
       <ProposalBanner />
       <ProcessingBalanceBanner />
     </View>
