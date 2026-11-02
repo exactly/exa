@@ -32,11 +32,15 @@ import { privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { anvil, foundry, moonbeamDev, optimism } from "viem/chains";
 
 import { Address } from "@exactly/common/validation";
-import deploy from "@exactly/plugin/deploy.json";
+import deployment from "@exactly/plugin/deploy.json";
 
 import anvilClient from "./anvilClient";
 
-export default async function setup() {
+export default function setup() {
+  return deploy({ fixtures: true });
+}
+
+export async function deploy({ fixtures = false } = {}) {
   if (!env.NX_TASK_TARGET_PROJECT) {
     await $({ cwd: "..", env: { CHAIN_ID: String(foundry.id) }, preferLocal: true })`nx prepare server`;
   }
@@ -179,6 +183,10 @@ export default async function setup() {
   await forge("script/ExaPreviewer.s.sol");
   await forge("script/ExaPlugin.s.sol");
   await forge("script/ExaAccountFactory.s.sol");
+  if (!fixtures) {
+    await started;
+    return teardown;
+  }
 
   const bob = privateKeyToAddress(padHex("0xb0b"));
   await Promise.all([
@@ -189,7 +197,7 @@ export default async function setup() {
       --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation --offline`;
   await Promise.all([
     anvilClient.stopImpersonatingAccount({ address: bob }),
-    anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[foundry.id] }),
+    anvilClient.mine({ blocks: 1, interval: deployment.proposalManager.delay[foundry.id] }),
   ]);
   await $(shell)`forge script test/mocks/BobExecute.s.sol --tc BobExecuteScript
       --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation --offline`;
@@ -329,11 +337,13 @@ export default async function setup() {
     ]);
   }
 
-  return async function teardown() {
+  return teardown;
+
+  async function teardown() {
     if (docker) await $({ cwd: "test" })`docker compose down`;
     await Promise.all(rpcs.map((rpc) => rpc.stop()));
     await Promise.all(instances.map((instance) => instance.stop()));
-  };
+  }
 }
 
 export const chains = [anvil, ...(env.NODE_ENV === "e2e" ? [{ ...moonbeamDev, name: "Anvil2" }] : [])].map((chain) => ({
