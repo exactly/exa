@@ -14,11 +14,10 @@ import chain, {
   balancerVaultAddress,
   integrationPreviewerAddress,
   marketUSDCAddress,
-  proposalManagerAddress,
   swapperAddress,
   usdcAddress,
 } from "@exactly/common/generated/chain";
-import { integrationPreviewerAbi, marketAbi, useReadProposalManagerDelay } from "@exactly/common/generated/hooks";
+import { integrationPreviewerAbi, marketAbi } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
 import { Address } from "@exactly/common/validation";
 import { divWad, fixedRepayAssets, fixedRepayPosition, min, WAD } from "@exactly/lib";
@@ -39,8 +38,8 @@ import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useInsets from "../../utils/useInsets";
 import usePortfolio from "../../utils/usePortfolio";
-import { useProposalManagerQuery } from "../../utils/useProposalManager";
-import useSimulateProposal from "../../utils/useSimulateProposal";
+import useProposalManager from "../../utils/useProposalManager";
+import useSimulateProposal, { useProposalPreview } from "../../utils/useSimulateProposal";
 import useSingleMutation from "../../utils/useSingleMutation";
 import exa from "../../utils/wagmi/exa";
 import waitForCalls from "../../utils/waitForCalls";
@@ -123,11 +122,8 @@ export default function Repay() {
     query: { enabled: !!account && !!bytecode && !!maturity },
   });
 
-  const { proposalManager, isLoading: isProposalManagerLoading } = useProposalManagerQuery();
-  const { data: proposalDelay, isLoading: isProposalDelayLoading } = useReadProposalManagerDelay({
-    address: proposalManager === null ? proposalManagerAddress : proposalManager,
-    chainId: chain.id,
-  });
+  const proposalManager = useProposalManager();
+  const { delay: proposalDelay, isLoading: isProposalDelayLoading } = useProposalPreview({ account });
   const simulationTimestamp = proposalDelay === undefined ? undefined : Number(timestamp) + Number(proposalDelay);
 
   const borrow = exaUSDC?.fixedBorrowPositions.find((b) => b.maturity === maturity);
@@ -548,7 +544,7 @@ export default function Repay() {
                   </Text>
                 </XStack>
 
-                {isProposalManagerLoading || isProposalDelayLoading ? (
+                {isProposalDelayLoading ? (
                   <Skeleton height={180} width="100%" />
                 ) : (
                   <RepayAmountSelector
