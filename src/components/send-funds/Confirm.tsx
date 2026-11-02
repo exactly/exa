@@ -28,7 +28,7 @@ import {
 } from "viem";
 import { useReadContract, useSimulateContract } from "wagmi";
 
-import chain, { alchemyChains, marketWETHAddress, proposalManagerAddress } from "@exactly/common/generated/chain";
+import chain, { alchemyChains, marketWETHAddress } from "@exactly/common/generated/chain";
 import { proposalManagerAbi } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
 import shortenHex from "@exactly/common/shortenHex";
@@ -653,7 +653,7 @@ export default function Confirm() {
         abi: proposalManagerAbi,
         eventName: "Proposed",
         args: { account: address },
-        logs: emitted(logs, proposalManagerAddress),
+        logs: emitted(logs, proposal?.proposalManager),
       });
       if (!log) return;
       const { proposalType, amount: proposed } = log.args;
@@ -672,7 +672,18 @@ export default function Confirm() {
       logs: emitted(logs, externalAddress),
     });
     return log?.args.value;
-  }, [receipt, address, routed, market, withdrawn, isNativeTransfer, wrap?.token, externalAddress, receiverHex]);
+  }, [
+    receipt,
+    address,
+    routed,
+    market,
+    withdrawn,
+    proposal?.proposalManager,
+    isNativeTransfer,
+    wrap?.token,
+    externalAddress,
+    receiverHex,
+  ]);
   const { data: routeStatus } = useQuery(
     statusOptions(
       routed ? (proposal ? executionHash : hash) : undefined,
