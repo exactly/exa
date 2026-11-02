@@ -17,7 +17,6 @@ import Text from "./Text";
 
 export default function Spotlight({
   children,
-  dismissible = false,
   label,
   onDismiss,
   onPress,
@@ -26,7 +25,6 @@ export default function Spotlight({
   targetRef,
 }: {
   children?: React.ReactNode;
-  dismissible?: boolean;
   label: string;
   onDismiss: () => void;
   onPress?: () => void;
@@ -106,14 +104,10 @@ export default function Spotlight({
     </SVG>
   );
   return (
-    <Modal transparent visible animationType="fade" statusBarTranslucent>
-      {dismissible ? (
-        <Pressable style={StyleSheet.absoluteFill} aria-label={t("Dismiss")} onPress={onDismiss}>
-          {backdrop}
-        </Pressable>
-      ) : (
-        <View style={StyleSheet.absoluteFill}>{backdrop}</View>
-      )}
+    <Modal transparent visible animationType="fade" statusBarTranslucent onRequestClose={onDismiss}>
+      <Pressable style={StyleSheet.absoluteFill} aria-label={t("Dismiss")} onPress={onDismiss}>
+        {backdrop}
+      </Pressable>
       <Pressable
         aria-label={label}
         style={[

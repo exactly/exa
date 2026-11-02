@@ -517,7 +517,6 @@ export default function ReceiverSelection() {
       />
       {introSeen && !spotlightSeen && (
         <Spotlight
-          dismissible
           label={t("Turn on Advanced mode at any time")}
           targetRef={cogRef}
           onDismiss={() => {
