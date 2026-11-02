@@ -38,7 +38,11 @@ import anvilClient from "./anvilClient";
 
 export default async function setup() {
   if (!env.NX_TASK_TARGET_PROJECT) {
-    await $({ cwd: "..", env: { CHAIN_ID: String(foundry.id) }, preferLocal: true })`nx prepare server`;
+    await $({
+      cwd: "..",
+      env: { CHAIN_ID: String(foundry.id) },
+      preferLocal: true,
+    })`nx run-many -t prepare generate:database -p server`;
   }
   const instances = chains.map(({ id, rpcUrls }) =>
     Instance.anvil({
