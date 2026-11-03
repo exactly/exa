@@ -54,11 +54,7 @@ export default function ModalSheet({
 const RequestCloseContext = createContext<(() => void) | undefined>(undefined);
 
 function SheetWindow({ children }: { children: React.ReactNode }) {
-  const content = (
-    <GestureHandlerRootView collapsable={false} style={{ flex: 1 }}>
-      {children}
-    </GestureHandlerRootView>
-  );
+  const content = <GestureHandlerRootView collapsable={false}>{children}</GestureHandlerRootView>;
   if (Platform.OS === "ios") {
     return <FullWindowOverlay>{content}</FullWindowOverlay>;
   }

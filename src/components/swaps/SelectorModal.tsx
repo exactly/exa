@@ -21,7 +21,7 @@ import Chip from "../shared/Chip";
 import IconButton from "../shared/IconButton";
 import Input from "../shared/Input";
 import ModalSheet from "../shared/ModalSheet";
-import NetworkFilter from "../shared/NetworkFilter";
+import NetworkFilter, { NetworkFilterSheet } from "../shared/NetworkFilter";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
@@ -196,137 +196,144 @@ export default function TokenSelectModal({
   }
 
   return (
-    <ModalSheet open={open} onClose={close} disableDrag heightPercent={85}>
-      <SafeView paddingTop={0} paddingBottom={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
-        <View paddingTop="$s6" fullScreen flex={1} gap="$s4_5">
-          <XStack alignItems="center" justifyContent="center" marginHorizontal="$s4">
-            <Text fontSize={20} fontWeight="bold" textAlign="center" paddingHorizontal="$s6">
-              {title ?? t("Select token")}
-            </Text>
-            <IconButton position="absolute" right={0} icon={X} aria-label={t("Close")} onPress={close} />
-          </XStack>
-          <XStack
-            alignItems="center"
-            gap="$s2"
-            marginHorizontal="$s4"
-            paddingLeft="$s3_5"
-            borderWidth={1}
-            borderColor="$borderNeutralSoft"
-            borderRadius="$r3"
-            overflow="hidden"
-          >
-            <Search size={20} color="$uiNeutralPlaceholder" />
-            <Input
-              flex={1}
-              borderWidth={0}
-              backgroundColor="transparent"
-              placeholder={t("Search by token name or address")}
-              placeholderTextColor="$uiNeutralPlaceholder"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-            {networks.length > 1 && (
-              <NetworkFilter
-                chains={networks}
-                value={typeof filter === "number" ? filter : undefined}
-                open={picking}
-                icon={
-                  filter === "stocks" ? (
-                    <ChartNoAxesCombined size={18} color="$interactiveOnBaseBrandSoft" />
-                  ) : undefined
-                }
-                onChange={setSelection}
-                onOpenChange={setPicking}
-              />
-            )}
-          </XStack>
-          {chips.length > 0 && (
-            <ScrollView
-              horizontal
-              flexGrow={0}
-              flexShrink={0}
-              showsHorizontalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
+    <>
+      <ModalSheet open={open} onClose={close} disableDrag heightPercent={85}>
+        <SafeView paddingTop={0} paddingBottom={0} fullScreen borderTopLeftRadius="$r4" borderTopRightRadius="$r4">
+          <View paddingTop="$s6" fullScreen flex={1} gap="$s4_5">
+            <XStack alignItems="center" justifyContent="center" marginHorizontal="$s4">
+              <Text fontSize={20} fontWeight="bold" textAlign="center" paddingHorizontal="$s6">
+                {title ?? t("Select token")}
+              </Text>
+              <IconButton position="absolute" right={0} icon={X} aria-label={t("Close")} onPress={close} />
+            </XStack>
+            <XStack
+              alignItems="center"
+              gap="$s2"
+              marginHorizontal="$s4"
+              paddingLeft="$s3_5"
+              borderWidth={1}
+              borderColor="$borderNeutralSoft"
+              borderRadius="$r3"
+              overflow="hidden"
             >
-              <XStack gap="$s3" alignItems="center" paddingHorizontal="$s4">
-                {chips.map((item) =>
-                  item === "stocks" ? (
-                    <Chip
-                      key={item}
-                      icon={<ChartNoAxesCombined size={16} color="$uiNeutralPrimary" />}
-                      label={t("Stocks")}
-                      selected={filter === "stocks"}
-                      onPress={() => {
-                        setSelection(onStocks || filter === "stocks" ? undefined : "stocks");
-                        if (!onStocks) return;
-                        setSearchQuery("");
-                        onStocks();
-                      }}
-                    />
-                  ) : (
-                    <Chip
-                      key={item.id}
-                      icon={<ChainLogo chainId={item.id} size={16} />}
-                      label={item.name}
-                      selected={filter === item.id}
-                      onPress={() => {
-                        setSelection(filter === item.id ? undefined : item.id);
-                      }}
-                    />
-                  ),
-                )}
-                {networks.length > 1 && (
-                  <Chip
-                    icon={<Ellipsis size={16} color="$uiNeutralPrimary" />}
-                    label={t("More")}
-                    selected={false}
-                    onPress={() => {
-                      setPicking(true);
-                    }}
-                  />
-                )}
-              </XStack>
-            </ScrollView>
-          )}
-          <View flex={1} paddingHorizontal="$s3">
-            {isLoading ? (
-              <SkeletonItems />
-            ) : (
-              <FlatList
-                data={filteredTokens}
-                renderItem={({ item }) => (
-                  <TokenListItem
-                    token={item.token}
-                    isSelected={
-                      selected?.token.address === item.token.address &&
-                      selected.token.chainId === item.token.chainId &&
-                      (item.external === undefined || item.external === selected.external)
-                    }
-                    onPress={() => {
-                      onSelect(item.token, item.external);
-                      setSearchQuery("");
-                    }}
-                    language={language}
-                    matchingAsset={item.asset}
-                  />
-                )}
-                keyExtractor={({ token, external }) => `${token.chainId}:${token.address}:${external}`}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, getTokens().space.$s4.val) }}
-                windowSize={5}
-                ListEmptyComponent={() => (
-                  <View padding="$s6" alignItems="center">
-                    <Text subHeadline color="$uiNeutralSecondary">
-                      {searchQuery ? t("No tokens found") : t("No tokens available")}
-                    </Text>
-                  </View>
-                )}
+              <Search size={20} color="$uiNeutralPlaceholder" />
+              <Input
+                flex={1}
+                borderWidth={0}
+                backgroundColor="transparent"
+                placeholder={t("Search by token name or address")}
+                placeholderTextColor="$uiNeutralPlaceholder"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
               />
+              {networks.length > 1 && (
+                <NetworkFilter
+                  chains={networks}
+                  value={typeof filter === "number" ? filter : undefined}
+                  icon={
+                    filter === "stocks" ? (
+                      <ChartNoAxesCombined size={18} color="$interactiveOnBaseBrandSoft" />
+                    ) : undefined
+                  }
+                  onOpenChange={setPicking}
+                />
+              )}
+            </XStack>
+            {chips.length > 0 && (
+              <ScrollView
+                horizontal
+                flexGrow={0}
+                flexShrink={0}
+                showsHorizontalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
+                <XStack gap="$s3" alignItems="center" paddingHorizontal="$s4">
+                  {chips.map((item) =>
+                    item === "stocks" ? (
+                      <Chip
+                        key={item}
+                        icon={<ChartNoAxesCombined size={16} color="$uiNeutralPrimary" />}
+                        label={t("Stocks")}
+                        selected={filter === "stocks"}
+                        onPress={() => {
+                          setSelection(onStocks || filter === "stocks" ? undefined : "stocks");
+                          if (!onStocks) return;
+                          setSearchQuery("");
+                          onStocks();
+                        }}
+                      />
+                    ) : (
+                      <Chip
+                        key={item.id}
+                        icon={<ChainLogo chainId={item.id} size={16} />}
+                        label={item.name}
+                        selected={filter === item.id}
+                        onPress={() => {
+                          setSelection(filter === item.id ? undefined : item.id);
+                        }}
+                      />
+                    ),
+                  )}
+                  {networks.length > 1 && (
+                    <Chip
+                      icon={<Ellipsis size={16} color="$uiNeutralPrimary" />}
+                      label={t("More")}
+                      selected={false}
+                      onPress={() => {
+                        setPicking(true);
+                      }}
+                    />
+                  )}
+                </XStack>
+              </ScrollView>
             )}
+            <View flex={1} paddingHorizontal="$s3">
+              {isLoading ? (
+                <SkeletonItems />
+              ) : (
+                <FlatList
+                  data={filteredTokens}
+                  renderItem={({ item }) => (
+                    <TokenListItem
+                      token={item.token}
+                      isSelected={
+                        selected?.token.address === item.token.address &&
+                        selected.token.chainId === item.token.chainId &&
+                        (item.external === undefined || item.external === selected.external)
+                      }
+                      onPress={() => {
+                        onSelect(item.token, item.external);
+                        setSearchQuery("");
+                      }}
+                      language={language}
+                      matchingAsset={item.asset}
+                    />
+                  )}
+                  keyExtractor={({ token, external }) => `${token.chainId}:${token.address}:${external}`}
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, getTokens().space.$s4.val) }}
+                  windowSize={5}
+                  ListEmptyComponent={() => (
+                    <View padding="$s6" alignItems="center">
+                      <Text subHeadline color="$uiNeutralSecondary">
+                        {searchQuery ? t("No tokens found") : t("No tokens available")}
+                      </Text>
+                    </View>
+                  )}
+                />
+              )}
+            </View>
           </View>
-        </View>
-      </SafeView>
-    </ModalSheet>
+        </SafeView>
+      </ModalSheet>
+      <NetworkFilterSheet
+        chains={networks}
+        value={typeof filter === "number" ? filter : undefined}
+        open={picking}
+        onChange={setSelection}
+        onOpenChange={setPicking}
+      />
+    </>
   );
 }
 

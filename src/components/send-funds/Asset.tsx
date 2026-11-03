@@ -34,7 +34,7 @@ import ChainLogo from "../shared/ChainLogo";
 import Chip from "../shared/Chip";
 import IconButton from "../shared/IconButton";
 import Input from "../shared/Input";
-import NetworkFilter from "../shared/NetworkFilter";
+import NetworkFilter, { NetworkFilterSheet } from "../shared/NetworkFilter";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
@@ -260,11 +260,9 @@ export default function AssetSelection() {
           <NetworkFilter
             chains={chips}
             value={typeof filter === "number" ? filter : undefined}
-            open={networks}
             icon={
               filter === "stocks" ? <ChartNoAxesCombined size={18} color="$interactiveOnBaseBrandSoft" /> : undefined
             }
-            onChange={setFilter}
             onOpenChange={setNetworks}
           />
         </XStack>
@@ -544,6 +542,13 @@ export default function AssetSelection() {
           </YStack>
         </ScrollView>
       </View>
+      <NetworkFilterSheet
+        chains={chips}
+        value={typeof filter === "number" ? filter : undefined}
+        open={networks}
+        onChange={setFilter}
+        onOpenChange={setNetworks}
+      />
       <NetworkSheet
         open={blocked !== null}
         compatible={blocked?.compatible}
