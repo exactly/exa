@@ -1,0 +1,158 @@
+From 9c43fb4374fed7c479ad3e817f61ee49ed309f14 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Tue, 3 Nov 2026 22:15:29 +0000
+Subject: [PATCH] fix: settle automatic web scrolling before taps
+
+automatic offscreen taps wait three seconds after requesting a smooth scroll and assume the requested distance was applied. this delays every such tap and misplaces clicks when scrolling is clamped or snapped.
+
+scroll into view instantly, retain bounded visual settling for scroll handlers, and aim using the actual final offset. in-viewport taps and explicit scroll gestures keep their existing paths.
+
+cover repeated taps, clamped scrolling, snapping, chained scrolls, no movement, blocked scroll events and unrelated animation with a local browser fixture.
+---
+ e2e/workspaces/web/fixtures/tap-scroll.html   | 59 +++++++++++++++++++
+ e2e/workspaces/web/tap-scroll.yaml            | 46 +++++++++++++++
+ .../main/java/maestro/drivers/CdpWebDriver.kt |  9 +--
+ 3 files changed, 110 insertions(+), 4 deletions(-)
+ create mode 100644 e2e/workspaces/web/fixtures/tap-scroll.html
+ create mode 100644 e2e/workspaces/web/tap-scroll.yaml
+
+diff --git a/e2e/workspaces/web/fixtures/tap-scroll.html b/e2e/workspaces/web/fixtures/tap-scroll.html
+new file mode 100644
+index 0000000..42f0810
+--- /dev/null
++++ b/e2e/workspaces/web/fixtures/tap-scroll.html
+@@ -0,0 +1,59 @@
++<!doctype html>
++<html>
++<head>
++  <meta charset="utf-8">
++  <title>automatic tap scrolling</title>
++  <style>
++    body { margin: 0; height: 3000px }
++    #target { position: absolute; left: 20px; top: 1100px; width: 160px; height: 40px }
++    #reset { position: fixed; left: 300px; top: 20px }
++    #result { position: fixed; left: 300px; top: 60px }
++    .snap, .pulse { display: none }
++    body[data-mode="clamped"] { height: 1400px }
++    body[data-mode="clamped"] #target { top: 1320px }
++    body[data-mode="chain"] #target { top: 900px; height: 400px }
++    body[data-mode="snap"] .snap { display: block; height: 1000px; scroll-snap-align: start }
++    body[data-mode="noop"] { height: 100vh; overflow: hidden }
++    body[data-mode="noop"] #target { position: fixed; top: 50%; transform: translateY(-50%) }
++    body[data-mode="infinite"] .pulse { display: block; position: fixed; right: 0; top: 0; width: 160px; height: 160px; animation: pulse .1s linear infinite alternate }
++    @keyframes pulse { from { background: red } to { background: blue } }
++  </style>
++</head>
++<body>
++  <div class="snap"></div><div class="snap"></div><div class="snap"></div>
++  <div class="pulse"></div>
++  <button id="target">target</button>
++  <button id="reset">reset</button>
++  <p id="result">ready</p>
++  <script>
++    const mode = new URLSearchParams(location.search).get("mode") || "normal";
++    document.body.dataset.mode = mode;
++    if (mode === "snap") document.documentElement.style.scrollSnapType = "y mandatory";
++    const target = document.getElementById("target");
++    const result = document.getElementById("result");
++    let ended = false;
++    let chained = false;
++    let hits = 0;
++    if (mode === "noop") result.textContent = "no click";
++    document.addEventListener("scroll", () => { ended = false });
++    document.addEventListener("scrollend", event => {
++      if (event.target !== document) return;
++      if (mode === "chain" && !chained) {
++        chained = true;
++        ended = false;
++        window.scrollBy({ top: 100, behavior: "smooth" });
++      } else {
++        ended = true;
++      }
++    });
++    target.onclick = () => {
++      result.textContent = mode === "noop" ? "unexpected click" : ended ? `pass ${++hits}` : "early";
++    };
++    document.getElementById("reset").onclick = () => {
++      window.scrollTo({ top: 0, behavior: "instant" });
++      result.textContent = "ready";
++    };
++    if (mode === "blocked") document.addEventListener("scrollend", event => event.stopImmediatePropagation());
++  </script>
++</body>
++</html>
+diff --git a/e2e/workspaces/web/tap-scroll.yaml b/e2e/workspaces/web/tap-scroll.yaml
+new file mode 100644
+index 0000000..7c2c84d
+--- /dev/null
++++ b/e2e/workspaces/web/tap-scroll.yaml
+@@ -0,0 +1,46 @@
++url: http://127.0.0.1:7357/tap-scroll.html
++name: offscreen taps wait for scrolling and use its final offset
++tags:
++  - passing
++  - web
++---
++- launchApp
++- tapOn:
++    point: "100,1120"
++- assertVisible: "pass 1"
++- tapOn:
++    id: reset
++- assertVisible: ready
++- tapOn:
++    point: "100,1120"
++- assertVisible: "pass 2"
++- tapOn:
++    id: reset
++- assertVisible: ready
++- tapOn:
++    point: "100,1120"
++- assertVisible: "pass 3"
++- openLink: http://127.0.0.1:7357/tap-scroll.html?mode=clamped
++- tapOn:
++    point: "100,1340"
++- assertVisible: "pass 1"
++- openLink: http://127.0.0.1:7357/tap-scroll.html?mode=chain
++- tapOn:
++    point: "100,1120"
++- assertVisible: "pass 1"
++- openLink: http://127.0.0.1:7357/tap-scroll.html?mode=snap
++- tapOn:
++    point: "100,1120"
++- assertVisible: "pass 1"
++- openLink: http://127.0.0.1:7357/tap-scroll.html?mode=noop
++- tapOn:
++    point: "100,1120"
++- assertVisible: "no click"
++- openLink: http://127.0.0.1:7357/tap-scroll.html?mode=blocked
++- tapOn:
++    point: "100,1120"
++- assertVisible: "pass 1"
++- openLink: http://127.0.0.1:7357/tap-scroll.html?mode=infinite
++- tapOn:
++    point: "100,1120"
++- assertVisible: "pass 1"
+diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+index 6ab6e92..468bb44 100644
+--- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+@@ -286,10 +286,11 @@ class CdpWebDriver(
+ 
+         if (point.y >= 0 && point.y.toLong() <= windowHeight) return 0L
+ 
+-        val scrolledPixels =
+-            executeJS("(() => {const delta = ${point.y} - Math.floor(window.innerHeight / 2); window.scrollBy({ top: delta, left: 0, behavior: 'smooth' }); return delta})()") as Int
+-        sleep(3000L)
+-        return scrolledPixels.toLong()
++        val start = executeJS(
++            "(() => {const start = window.scrollY; window.scrollBy({ top: ${point.y} - Math.floor(window.innerHeight / 2), left: 0, behavior: 'instant' }); return start})()"
++        ) as Number
++        waitUntilScreenIsStatic(3000)
++        return runBlocking { cdpClient.evaluate("Math.round(window.scrollY - $start)", currentTarget()).toLong() }
+     }
+ 
+     private fun sleep(ms: Long) {
+-- 
+2.52.0
+
