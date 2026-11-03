@@ -442,37 +442,39 @@ export default function hook({
       getActiveSpan()?.setAttributes({ "exa.pandaId": id });
       setContext("persona", { inquiryId: personaShareToken, pandaId: id });
 
-      if (account.success) {
-        pax
-          .addCapita({
-            birthdate: fields.birthdate.value,
-            document: fields.identificationNumber.value,
-            firstName: fields.nameFirst.value,
-            lastName: fields.nameLast.value,
-            email: fields.emailAddress.value,
-            phone: fields.phoneNumber?.value ?? "",
-            internalId: pax.deriveAssociateId(account.output),
-            product: "travel insurance",
-          })
-          .catch((error: unknown) => {
-            captureException(error, { level: "error", extra: { pandaId: id, referenceId } });
-          });
-      } else {
+      if (!account.success) {
         captureException(new Error("invalid account address"), {
           extra: { pandaId: id, referenceId, account: credential.account },
           level: "error",
         });
       }
-      persona
-        .addDocument(referenceId, {
-          id_class: { value: fields.identificationClass.value },
-          id_number: { value: fields.identificationNumber.value },
-          id_issuing_country: { value: fields.selectedCountryCode.value },
-          id_document_id: { value: fields.currentGovernmentId.value.id },
-        })
-        .catch((error: unknown) => {
-          captureException(error, { level: "fatal", extra: { referenceId } });
-        });
+      await Promise.all([
+        account.success &&
+          pax
+            .addCapita({
+              birthdate: fields.birthdate.value,
+              document: fields.identificationNumber.value,
+              firstName: fields.nameFirst.value,
+              lastName: fields.nameLast.value,
+              email: fields.emailAddress.value,
+              phone: fields.phoneNumber?.value ?? "",
+              internalId: pax.deriveAssociateId(account.output),
+              product: "travel insurance",
+            })
+            .catch((error: unknown) => {
+              captureException(error, { level: "error", extra: { pandaId: id, referenceId } });
+            }),
+        persona
+          .addDocument(referenceId, {
+            id_class: { value: fields.identificationClass.value },
+            id_number: { value: fields.identificationNumber.value },
+            id_issuing_country: { value: fields.selectedCountryCode.value },
+            id_document_id: { value: fields.currentGovernmentId.value.id },
+          })
+          .catch((error: unknown) => {
+            captureException(error, { level: "fatal", extra: { referenceId } });
+          }),
+      ]);
 
       return c.json({ id }, 200);
     },

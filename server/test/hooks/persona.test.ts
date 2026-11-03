@@ -521,6 +521,40 @@ describe("persona hook", () => {
     });
   });
 
+  it("captures pax and document failures before replying", async () => {
+    const paxError = new Error("pax failed");
+    const documentError = new Error("document failed");
+    const paxCall = Promise.withResolvers<Awaited<ReturnType<typeof pax.addCapita>>>();
+    const documentCall = Promise.withResolvers<Awaited<ReturnType<typeof persona.addDocument>>>();
+    vi.mocked(pax.addCapita).mockReturnValueOnce(paxCall.promise);
+    vi.mocked(persona.addDocument).mockReset().mockReturnValueOnce(documentCall.promise);
+    let replied = false;
+    const reply = postInquiry().finally(() => {
+      replied = true;
+    });
+
+    await vi.waitFor(() => {
+      expect(pax.addCapita).toHaveBeenCalled();
+      expect(persona.addDocument).toHaveBeenCalled();
+    });
+    paxCall.reject(paxError);
+    await new Promise(setImmediate);
+    expect(replied).toBe(false);
+    documentCall.reject(documentError);
+    const response = await reply;
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ id: "new-panda-id" });
+    expect(captureException).toHaveBeenCalledWith(paxError, {
+      level: "error",
+      extra: { pandaId: "new-panda-id", referenceId: "persona-ref" },
+    });
+    expect(captureException).toHaveBeenCalledWith(documentError, {
+      level: "fatal",
+      extra: { referenceId: "persona-ref" },
+    });
+  });
+
   it("does not allow very high risk accounts", async () => {
     vi.mocked(sardine.customer).mockReset().mockResolvedValueOnce({
       sessionKey: "test",
