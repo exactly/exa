@@ -1,33 +1,67 @@
-From 9f150c6b2ca72e9c87c269b315bf1aa24a354a52 Mon Sep 17 00:00:00 2001
+From a32e10d5f8714f2248070ebb9b691589c5ff3dff Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Fri, 23 Oct 2026 20:56:11 +0000
-Subject: [PATCH] fix: stop waiting for an idle window before taps
+Subject: [PATCH] fix: settle android taps on the view hierarchy
 
-waitForWindowToSettle polls isWindowUpdating until its 750 ms deadline even after the device reports the window idle, so every tap on Android waits at least 750 ms before it lands. isWindowUpdating already waits on the device for an update, so an idle answer means the window is quiet: stop polling there and settle on the hierarchy as before.
+tapOn passes the flow's app id to waitForAppToSettle, and on Android that polls isWindowUpdating until a 750 ms deadline. Each call waits up to 500 ms on the device for a window update of the app, so on an idle screen every tap waits about a second before it lands, and the poll then settles on the view hierarchy anyway. Settle taps on the view hierarchy alone, the same way every other command waits on Android.
 ---
- .../src/main/java/maestro/drivers/AndroidDriver.kt         | 7 ++-----
- 1 file changed, 2 insertions(+), 5 deletions(-)
+ .../java/maestro/drivers/AndroidDriver.kt     | 31 +------------------
+ 1 file changed, 1 insertion(+), 30 deletions(-)
 
 diff --git a/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt b/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
-index e5101ab..e6eb6eb 100644
+index e5101ab..4d14fc1 100644
 --- a/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
 +++ b/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
-@@ -738,11 +738,8 @@ class AndroidDriver(
-                 })
-             }.orThrow().isWindowUpdating
+@@ -716,38 +716,10 @@ class AndroidDriver(
  
+     override fun waitForAppToSettle(initialHierarchy: ViewHierarchy?, appId: String?, timeoutMs: Int?): ViewHierarchy? {
+         return metrics.measured("operation", mapOf("command" to "waitForAppToSettle", "appId" to appId, "timeoutMs" to timeoutMs.toString())) {
+-            if (appId != null) {
+-                waitForWindowToSettle(appId, initialHierarchy, timeoutMs)
+-            } else {
+-                ScreenshotUtils.waitForAppToSettle(initialHierarchy, this, timeoutMs)
+-            }
++            ScreenshotUtils.waitForAppToSettle(initialHierarchy, this, timeoutMs)
+         }
+     }
+ 
+-    private fun waitForWindowToSettle(
+-        appId: String,
+-        initialHierarchy: ViewHierarchy?,
+-        timeoutMs: Int? = null
+-    ): ViewHierarchy {
+-        val endTime = System.currentTimeMillis() + WINDOW_UPDATE_TIMEOUT_MS
+-        var hierarchy: ViewHierarchy? = null
+-        do {
+-            val windowUpdating = connection.execute("isWindowUpdating") {
+-                it.isWindowUpdating(checkWindowUpdatingRequest {
+-                    this.appId = appId
+-                })
+-            }.orThrow().isWindowUpdating
+-
 -            if (windowUpdating) {
 -                hierarchy = ScreenshotUtils.waitForAppToSettle(initialHierarchy, this, timeoutMs)
 -            } else {
 -                Thread.sleep(50) // avoid busy-spinning the device server while the window is already settled
 -            }
-+            if (!windowUpdating) break
-+            hierarchy = ScreenshotUtils.waitForAppToSettle(initialHierarchy, this, timeoutMs)
-         } while (System.currentTimeMillis() < endTime)
- 
-         return hierarchy ?: ScreenshotUtils.waitForAppToSettle(initialHierarchy, this)
+-        } while (System.currentTimeMillis() < endTime)
+-
+-        return hierarchy ?: ScreenshotUtils.waitForAppToSettle(initialHierarchy, this)
+-    }
+-
+     override fun waitUntilScreenIsStatic(timeoutMs: Long): Boolean {
+         return metrics.measured("operation", mapOf("command" to "waitUntilScreenIsStatic", "timeoutMs" to timeoutMs.toString())) {
+             ScreenshotUtils.waitUntilScreenIsStatic(timeoutMs, SCREENSHOT_DIFF_THRESHOLD, this)
+@@ -1572,7 +1544,6 @@ class AndroidDriver(
+         private val FINGERPRINT_LISTENING = Regex("AUTHENTICATING|ENROLLING_START|onEnrollmentProgress\\(.*left=[1-9]")
+         private val FINGERPRINT_IDLE = Regex("onAuthenticationSucceeded|onLockout|onError\\((CANCELED|UNABLE_TO_PROCESS, \\d+\\): fpHash)|onEnrollmentProgress\\(.*left=0")
+         private const val MAESTRO_DRIVER_STARTUP_TIMEOUT = "MAESTRO_DRIVER_STARTUP_TIMEOUT"
+-        private const val WINDOW_UPDATE_TIMEOUT_MS = 750
+         private const val MAESTRO_IME_ID = "dev.mobile.maestro/.input.MaestroInputMethodService"
+         private const val MAESTRO_IME_RECEIVER = "dev.mobile.maestro/.receivers.UnicodeInputReceiver"
+         private const val MAESTRO_IME_COMMIT_ACTION = "dev.mobile.maestro.ime.commitText"
 
-base-commit: 0df4cf3c8cad946e0494f462c6ce4987145cd36f
+base-commit: 67d8a677029261fa424a45a10d08eacd6aa0deed
 -- 
 2.43.0
 
