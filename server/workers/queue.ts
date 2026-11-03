@@ -21,14 +21,14 @@ export default function queue<Job extends Trace>(
   });
   return {
     close: () => instance.close(),
-    async enqueue(data: Omit<Job, keyof Trace>, jobId: string, spanName: string = name) {
+    async enqueue(data: Data<Job>, jobId: string, spanName: string = name, delay?: number) {
       await startSpan(
         { name: spanName, op: "queue.publish", attributes: { "messaging.destination.name": name } },
         async (span) => {
           const job = await instance.add(
             name,
             { ...data, sentryBaggage: spanToBaggageHeader(span), sentryTrace: spanToTraceHeader(span) },
-            { jobId },
+            { ...(delay && { delay }), jobId },
           );
           span.setAttribute("messaging.message.id", job.id);
           span.setAttribute("messaging.message.body.size", Buffer.byteLength(JSON.stringify(job.data)));
@@ -37,6 +37,8 @@ export default function queue<Job extends Trace>(
     },
   };
 }
+
+type Data<Job> = Job extends unknown ? Omit<Job, keyof Trace> : never;
 
 type Trace = {
   sentryBaggage?: string;

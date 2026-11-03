@@ -10,6 +10,7 @@ const refunder = privateKeyToAccount(padHex("0xfee"));
 const database = { $client: { end: vi.fn<() => Promise<void>>() } };
 const onesignal = {};
 const panda = {};
+const executor = privateKeyToAccount(padHex("0xe8ec"));
 const poker = privateKeyToAccount(padHex("0xb0b"));
 const sardine = {};
 const segment = { close: vi.fn<() => Promise<void>>() };
@@ -27,6 +28,7 @@ const mocks = {
   poke: vi.fn<
     (config: { bullmq: object; onesignal: object; poker: typeof poker; segment: typeof segment }) => Handle
   >(),
+  proposal: vi.fn<(config: { bullmq: object; executor: typeof executor; onesignal: object }) => Handle>(),
   refund:
     vi.fn<
       (config: {
@@ -63,6 +65,7 @@ beforeEach(() => {
   mocks.onesignal.mockReset().mockReturnValue(onesignal);
   mocks.panda.mockReset().mockReturnValue(panda);
   mocks.poke.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
+  mocks.proposal.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.chat.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.refund.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.sardine.mockReset().mockReturnValue(sardine);
@@ -70,7 +73,7 @@ beforeEach(() => {
   mocks.segment.mockReset().mockReturnValue(segment);
   mocks.signer
     .mockReset()
-    .mockImplementation((name) => Promise.resolve(name === "allower" ? allower : name === "poker" ? poker : refunder));
+    .mockImplementation((name) => Promise.resolve({ allower, executor, poker }[name] ?? refunder));
   mocks.subscribe.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.supervise.mockReset();
   mocks.whatsapp.mockReset().mockReturnValue(whatsapp);
@@ -81,6 +84,10 @@ beforeEach(() => {
         readonly redisUrl: string,
         readonly options: { maxRetriesPerRequest: null },
       ) {}
+
+      quit() {
+        return Promise.resolve("OK");
+      }
     },
   }));
   vi.doMock("../../supervise", async (importOriginal) => ({
@@ -100,6 +107,7 @@ beforeEach(() => {
   vi.doMock("../../workers/credit/worker", () => ({ default: mocks.credit }));
   vi.doMock("../../workers/hook/worker", () => ({ default: mocks.hook }));
   vi.doMock("../../workers/poke/worker", () => ({ default: mocks.poke }));
+  vi.doMock("../../workers/proposal/worker", () => ({ default: mocks.proposal }));
   vi.doMock("../../workers/refund/worker", () => ({ default: mocks.refund }));
   vi.doMock("../../workers/subscribe/worker", () => ({ default: mocks.subscribe }));
 });
@@ -220,6 +228,45 @@ describe("bin", () => {
     await expect(created).rejects.toBe(error);
     expect(mocks.signer.mock.calls.map(([signer]) => signer)).toStrictEqual(["poker"]);
     expect(mocks.poke).not.toHaveBeenCalled();
+  });
+
+  it("resolves proposal private config before constructing and supervising its worker", async () => {
+    await import("../../workers/proposal/bin");
+
+    const created = mocks.supervise.mock.calls[0]?.[1];
+    if (!created) throw new Error("missing worker");
+    expect(mocks.supervise).toHaveBeenCalledExactlyOnceWith("proposal", created);
+    const handle = await created;
+    expect(mocks.secret.mock.calls.map(([secret]) => secret)).toStrictEqual([
+      "redis-url",
+      "proposal-onesignal-api-key",
+    ]);
+    expect(new Set(mocks.secret.mock.calls.map(([, secrets]) => secrets)).size).toBe(1);
+    expect(mocks.signer.mock.calls.map(([signer]) => signer)).toStrictEqual(["executor"]);
+    expect(mocks.onesignal).toHaveBeenCalledExactlyOnceWith("proposal-onesignal-api-key");
+    expect(mocks.proposal).toHaveBeenCalledExactlyOnceWith({
+      bullmq: expect.objectContaining({ redisUrl: "redis-url", options: { maxRetriesPerRequest: null } }) as object,
+      executor,
+      onesignal,
+    });
+
+    await expect(handle.close()).resolves.toBeUndefined();
+    expect(mocks.close).toHaveBeenCalledOnce();
+  });
+
+  it("fails before constructing the proposal worker without its executor account", async () => {
+    const error = new Error("missing executor");
+    mocks.signer.mockRejectedValueOnce(error);
+    mocks.supervise.mockImplementation((_, created) => {
+      created.catch(() => undefined);
+    });
+
+    await import("../../workers/proposal/bin");
+    const created = mocks.supervise.mock.calls[0]?.[1];
+    if (!created) throw new Error("missing worker");
+
+    await expect(created).rejects.toBe(error);
+    expect(mocks.proposal).not.toHaveBeenCalled();
   });
 
   it("resolves refund private config before constructing and supervising its worker", async () => {
