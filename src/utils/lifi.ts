@@ -15,6 +15,7 @@ import {
   type ChainId,
   type Estimate,
   type ExtendedChain,
+  type TimingStrings,
   type Token,
   type TokenAmount,
 } from "@lifi/sdk";
@@ -317,6 +318,7 @@ export async function getRoute(
   }
   config.set({ integrator: "exa_app", userId: account });
   const { estimate, transactionRequest, tool } = await getQuote({
+    ...timing,
     fee: 0.0025,
     slippage: 0.015,
     integrator: "exa_app",
@@ -556,6 +558,7 @@ export async function getRouteFrom({
   }
   config.set({ integrator: "exa_app", userId: fromAddress });
   const request = {
+    ...timing,
     fee: 0.0025,
     slippage: bridgeSlippage,
     integrator: "exa_app",
@@ -975,3 +978,8 @@ const QuoteTransaction = object({
 type Allowlist = { block: bigint; proposalManager: Address; targets: readonly string[] };
 
 const unsupported = new Set<number>();
+
+const timing = {
+  swapStepTimingStrategies: ["minWaitTime-600-4-300"],
+  routeTimingStrategies: ["minWaitTime-600-4-300"],
+} satisfies TimingStrings;
