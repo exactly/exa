@@ -1,4 +1,4 @@
-From 7bf1a05dd59a096ec0c4abd60cc2bace33bf0f2d Mon Sep 17 00:00:00 2001
+From 15ed26d44bda209632530b23d160be0f2be65bb9 Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Wed, 21 Oct 2026 15:09:32 +0000
 Subject: [PATCH] feat: add --browser-args to pass arguments to the web browser
@@ -137,7 +137,7 @@ index 776eb78..71205bc 100644
          )
  
 
-base-commit: 0df4cf3c8cad946e0494f462c6ce4987145cd36f
+base-commit: 67d8a677029261fa424a45a10d08eacd6aa0deed
 -- 
 2.43.0
 

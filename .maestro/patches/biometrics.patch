@@ -1,4 +1,4 @@
-From 4db607578e11b6dc6eeba6d7176ffbaf96c0eaf8 Mon Sep 17 00:00:00 2001
+From fda299297b623ddbd680048d22bec37a4b749f1c Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Sun, 18 Oct 2026 22:51:13 +0000
 Subject: [PATCH] feat: add enrollBiometrics and matchBiometrics commands
@@ -462,10 +462,10 @@ index 5357d4a..835e70d 100644
          else -> null
      }
 diff --git a/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt b/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
-index c388689..abcb1b5 100644
+index 3d21f70..1698783 100644
 --- a/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
 +++ b/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
-@@ -485,6 +485,8 @@ class Orchestra(
+@@ -490,6 +490,8 @@ class Orchestra(
              is ToggleDarkModeCommand -> toggleDarkMode()
              is AssertDarkModeCommand -> assertDarkMode(expected = true)
              is AssertLightModeCommand -> assertDarkMode(expected = false)
@@ -474,7 +474,7 @@ index c388689..abcb1b5 100644
              is RetryCommand -> retryCommand(command, config)
              else -> true
          }.also { mutating ->
-@@ -508,6 +510,18 @@ class Orchestra(
+@@ -513,6 +515,18 @@ class Orchestra(
          return true
      }
  

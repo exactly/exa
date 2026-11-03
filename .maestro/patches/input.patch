@@ -1,4 +1,4 @@
-From b715d40c0388eee0b250b3ae360b7a424c6edcd3 Mon Sep 17 00:00:00 2001
+From d6e8ffebf23afb0acf568c877221e867d4203592 Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Fri, 23 Oct 2026 16:56:35 +0000
 Subject: [PATCH] fix: type into the focused element on web
@@ -11,7 +11,7 @@ pressKey had the same problem, sending its key to the active element through Chr
  1 file changed, 60 insertions(+), 17 deletions(-)
 
 diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-index b130c19..421bbda 100644
+index 7738c2f..c314e26 100644
 --- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
 +++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
 @@ -56,6 +56,36 @@ import java.util.logging.Logger
@@ -51,7 +51,7 @@ index b130c19..421bbda 100644
  
  class CdpWebDriver(
      val isStudio: Boolean,
-@@ -519,16 +549,27 @@ class CdpWebDriver(
+@@ -520,16 +550,27 @@ class CdpWebDriver(
      }
  
      override fun pressKey(code: KeyCode) {
@@ -87,7 +87,7 @@ index b130c19..421bbda 100644
      }
  
      override fun scrollVertical() {
-@@ -602,16 +643,18 @@ class CdpWebDriver(
+@@ -603,16 +644,18 @@ class CdpWebDriver(
      }
  
      override fun inputText(text: String) {

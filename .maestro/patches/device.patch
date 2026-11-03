@@ -1,4 +1,4 @@
-From 3c3de7c1d987ca5b20242de245d3c6ee31b8d8e8 Mon Sep 17 00:00:00 2001
+From 799abb601734ad1b4b4531aab95986b6355706ba Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Wed, 21 Oct 2026 18:41:42 +0000
 Subject: [PATCH] fix: read cached device info in scrollUntilVisible
@@ -9,10 +9,10 @@ scrollUntilVisible asked the driver for device info on every call, two script ro
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt b/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
-index abcb1b5..7fbcfcd 100644
+index 1698783..2ed954c 100644
 --- a/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
 +++ b/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
-@@ -865,7 +865,7 @@ class Orchestra(
+@@ -870,7 +870,7 @@ class Orchestra(
      private suspend fun scrollUntilVisible(command: ScrollUntilVisibleCommand): Boolean {
          val endTime = System.currentTimeMillis() + command.timeout.toLong()
          val direction = command.direction.toSwipeDirection()
@@ -22,7 +22,7 @@ index abcb1b5..7fbcfcd 100644
          var retryCenterCount = 0
          val maxRetryCenterCount = 4 // for when the list is no longer scrollable (last element) but the element is visible
 
-base-commit: 0df4cf3c8cad946e0494f462c6ce4987145cd36f
+base-commit: 67d8a677029261fa424a45a10d08eacd6aa0deed
 -- 
 2.43.0
 

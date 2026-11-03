@@ -1,4 +1,4 @@
-From f6363205e6bc29eec5d5f1206d165a46ca11dec8 Mon Sep 17 00:00:00 2001
+From 56eabb48ca615d9f351874c7830a18290a1a99ac Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Wed, 21 Oct 2026 18:51:54 +0000
 Subject: [PATCH] fix: follow popup, extension and browser UI windows on web
