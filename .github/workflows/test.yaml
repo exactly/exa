@@ -95,6 +95,7 @@ jobs:
           plugins: noop
           files: contracts/lcov.info
           token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
           override_pr: ${{ steps.pr.outputs.number }}
           flags: contracts
           name: contracts
@@ -106,6 +107,7 @@ jobs:
           plugins: noop
           files: server/coverage/lcov.info
           token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
           override_pr: ${{ steps.pr.outputs.number }}
           flags: server
           name: server
@@ -117,6 +119,7 @@ jobs:
           exclude: node_modules
           files: server/coverage/junit.xml
           token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
           override_pr: ${{ steps.pr.outputs.number }}
           flags: server
           name: server
@@ -245,6 +248,7 @@ jobs:
           plugins: noop
           files: server/coverage/lcov.info,server/coverage/app.lcov
           token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
           override_pr: ${{ steps.shutdown.outputs.pr }}
           flags: web
           name: ${{ matrix.flow }}
@@ -256,6 +260,7 @@ jobs:
           exclude: node_modules
           files: .maestro/junit/${{ matrix.flow }}.xml
           token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
           override_pr: ${{ steps.shutdown.outputs.pr }}
           flags: web
           name: ${{ matrix.flow }}
