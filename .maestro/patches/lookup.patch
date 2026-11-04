@@ -1,0 +1,417 @@
+From 0b35251bcd7adeed4f300bd70e1462edbb52cd7c Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Tue, 3 Nov 2026 21:35:57 +0000
+Subject: [PATCH] fix: avoid redundant delays in web viewport reads
+
+hierarchy lookups read the viewport width and height before querying the
+dom, paying two unrelated 100 ms delays. read those dimensions immediately
+and retain the existing delay for hierarchy queries, css queries and actions.
+this preserves the ten-attempt hierarchy recovery window and prevents
+unsuccessful element searches from traversing the dom without a gap.
+
+move the removed 200 ms into settling samples, keeping their aggregate
+300 ms delay and the existing 200 ms delay after a hierarchy change. other
+drivers retain their timing. viewport dimensions remain live across resizes.
+
+cover recovery, polling and settling with deterministic driver tests and
+opt-in browser tests (MAESTRO_TEST_BROWSER=true). no new readiness heuristic,
+retry loop or fallback is introduced; this deliberately retains the existing
+query delay rather than treating every javascript evaluation as safe to rush.
+---
+ .../main/java/maestro/drivers/CdpWebDriver.kt |  11 +-
+ .../java/maestro/utils/ScreenshotUtils.kt     |  14 +-
+ .../maestro/drivers/CdpLookupBrowserTest.kt   |  77 +++++++++++
+ .../java/maestro/drivers/CdpLookupTest.kt     | 124 ++++++++++++++++++
+ .../utils/ScreenshotUtilsTimingTest.kt        |  70 ++++++++++
+ 5 files changed, 285 insertions(+), 11 deletions(-)
+ create mode 100644 maestro-client/src/test/java/maestro/drivers/CdpLookupBrowserTest.kt
+ create mode 100644 maestro-client/src/test/java/maestro/drivers/CdpLookupTest.kt
+ create mode 100644 maestro-client/src/test/java/maestro/utils/ScreenshotUtilsTimingTest.kt
+
+diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+index c314e26..4d4ac5b 100644
+--- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+@@ -18,6 +18,7 @@ import maestro.SwipeDirection
+ import maestro.TreeNode
+ import maestro.ViewHierarchy
+ import maestro.device.Platform
++import maestro.utils.MaestroTimer
+ import maestro.utils.ScreenshotUtils
+ import maestro.web.input.inputHtmlDate
+ import maestro.web.input.isHtmlDateInput
+@@ -223,7 +224,7 @@ class CdpWebDriver(
+         )
+     }
+ 
+-    private fun executeJS(js: String): Any? {
++    private fun executeJS(js: String, delayMs: Long = 100): Any? {
+         return runBlocking {
+             repeat(JS_EXECUTION_MAX_ATTEMPTS) { attempt ->
+                 try {
+@@ -235,7 +236,7 @@ class CdpWebDriver(
+                         cdpClient.evaluate("$key = '$value'", target)
+                     }
+ 
+-                    Thread.sleep(100)
++                    if (delayMs > 0) MaestroTimer.sleep(MaestroTimer.Reason.WAIT_UNTIL_VISIBLE, delayMs)
+ 
+                     val resultStr = cdpClient.evaluate(js, target)
+ 
+@@ -308,8 +309,8 @@ class CdpWebDriver(
+     }
+ 
+     override fun deviceInfo(): DeviceInfo {
+-        val width = executeJS("window.innerWidth") as Int
+-        val height = executeJS("window.innerHeight") as Int
++        val width = executeJS("window.innerWidth", delayMs = 0) as Int
++        val height = executeJS("window.innerHeight", delayMs = 0) as Int
+ 
+         return DeviceInfo(
+             platform = Platform.WEB,
+@@ -749,7 +750,7 @@ class CdpWebDriver(
+     }
+ 
+     override fun waitForAppToSettle(initialHierarchy: ViewHierarchy?, appId: String?, timeoutMs: Int?): ViewHierarchy {
+-        return ScreenshotUtils.waitForAppToSettle(initialHierarchy, this)
++        return ScreenshotUtils.waitForAppToSettle(initialHierarchy, this, hierarchyDelayMs = 200)
+     }
+ 
+     override fun waitUntilScreenIsStatic(timeoutMs: Long): Boolean {
+diff --git a/maestro-client/src/main/java/maestro/utils/ScreenshotUtils.kt b/maestro-client/src/main/java/maestro/utils/ScreenshotUtils.kt
+index 90128b3..1aa1c74 100644
+--- a/maestro-client/src/main/java/maestro/utils/ScreenshotUtils.kt
++++ b/maestro-client/src/main/java/maestro/utils/ScreenshotUtils.kt
+@@ -38,14 +38,15 @@ class ScreenshotUtils {
+         fun waitForAppToSettle(
+             initialHierarchy: ViewHierarchy?,
+             driver: Driver,
+-            timeoutMs: Int? = null
++            timeoutMs: Int? = null,
++            hierarchyDelayMs: Long = 0
+         ): ViewHierarchy {
+             var latestHierarchy: ViewHierarchy
+             if (timeoutMs != null) {
+                 val endTime = System.currentTimeMillis() + timeoutMs
+-                latestHierarchy = initialHierarchy ?: viewHierarchy(driver)
++                latestHierarchy = initialHierarchy ?: viewHierarchy(driver, hierarchyDelayMs)
+                 do {
+-                    val hierarchyAfter = viewHierarchy(driver)
++                    val hierarchyAfter = viewHierarchy(driver, hierarchyDelayMs)
+                     if (latestHierarchy == hierarchyAfter) {
+                         val isLoading = latestHierarchy.root.attributes.getOrDefault("is-loading", "false").toBoolean()
+                         if (!isLoading) {
+@@ -55,9 +56,9 @@ class ScreenshotUtils {
+                     latestHierarchy = hierarchyAfter
+                 } while (System.currentTimeMillis() < endTime)
+             } else {
+-                latestHierarchy = initialHierarchy ?: viewHierarchy(driver)
++                latestHierarchy = initialHierarchy ?: viewHierarchy(driver, hierarchyDelayMs)
+                 repeat(10) {
+-                    val hierarchyAfter = viewHierarchy(driver)
++                    val hierarchyAfter = viewHierarchy(driver, hierarchyDelayMs)
+                     if (latestHierarchy == hierarchyAfter) {
+                         val isLoading = latestHierarchy.root.attributes.getOrDefault("is-loading", "false").toBoolean()
+                         if (!isLoading) {
+@@ -95,7 +96,8 @@ class ScreenshotUtils {
+             }
+         }
+ 
+-        private fun viewHierarchy(driver: Driver): ViewHierarchy {
++        private fun viewHierarchy(driver: Driver, delayMs: Long): ViewHierarchy {
++            if (delayMs > 0) MaestroTimer.sleep(MaestroTimer.Reason.WAIT_TO_SETTLE, delayMs)
+             return ViewHierarchy.from(driver, false)
+         }
+     }
+diff --git a/maestro-client/src/test/java/maestro/drivers/CdpLookupBrowserTest.kt b/maestro-client/src/test/java/maestro/drivers/CdpLookupBrowserTest.kt
+new file mode 100644
+index 0000000..7db637b
+--- /dev/null
++++ b/maestro-client/src/test/java/maestro/drivers/CdpLookupBrowserTest.kt
+@@ -0,0 +1,77 @@
++package maestro.drivers
++
++import com.google.common.truth.Truth.assertThat
++import kotlinx.coroutines.runBlocking
++import maestro.Maestro
++import maestro.OnDeviceElementQuery
++import org.junit.jupiter.api.AfterEach
++import org.junit.jupiter.api.BeforeEach
++import org.junit.jupiter.api.Test
++import org.junit.jupiter.api.assertThrows
++import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
++import org.openqa.selenium.JavascriptExecutor
++import org.openqa.selenium.Dimension
++
++@EnabledIfEnvironmentVariable(named = "MAESTRO_TEST_BROWSER", matches = "true")
++class CdpLookupBrowserTest {
++    private val driver = CdpWebDriver(isStudio = false, isHeadless = true, screenSize = "800x600", browserArgs = listOf("--no-sandbox"))
++    private val browser get() = driver.seleniumDriver as JavascriptExecutor
++
++    @BeforeEach
++    fun setUp() {
++        driver.open()
++        driver.seleniumDriver!!.get("data:text/html,<body><button>ready</button></body>")
++    }
++
++    @AfterEach
++    fun tearDown() {
++        driver.close()
++    }
++
++    @Test
++    fun `hierarchy survives a temporarily missing document body`() {
++        browser.executeScript("const body = document.body; body.remove(); setTimeout(() => document.documentElement.append(body), 800)")
++
++        assertThat(driver.contentDescriptor().aggregate().map { it.attributes["text"] }).contains("ready")
++    }
++
++    @Test
++    fun `permanently missing body fails within the recovery bound`() {
++        browser.executeScript("document.body.remove()")
++        val start = System.nanoTime()
++
++        assertThrows<IllegalStateException> { driver.contentDescriptor() }
++
++        assertThat((System.nanoTime() - start) / 1_000_000).isAtLeast(1000)
++        assertThat((System.nanoTime() - start) / 1_000_000).isLessThan(5000)
++    }
++
++    @Test
++    fun `hierarchy lookup sees a delayed element`() = runBlocking {
++        browser.executeScript("document.body.textContent = ''; setTimeout(() => document.body.innerHTML = '<button>late</button>', 800)")
++
++        val result = Maestro(driver).findElementWithTimeout(3000, { nodes -> nodes.filter { it.attributes["text"] == "late" } })
++
++        assertThat(result).isNotNull()
++    }
++
++    @Test
++    fun `css lookup sees a delayed element`() = runBlocking {
++        browser.executeScript("document.body.textContent = ''; setTimeout(() => document.body.innerHTML = '<button>late</button>', 800)")
++
++        val result = Maestro(driver).findElementsByOnDeviceQuery(3000, OnDeviceElementQuery.Css("button"))
++
++        assertThat(result?.elements).hasSize(1)
++    }
++
++    @Test
++    fun `viewport reads reflect browser resizing`() {
++        val before = driver.deviceInfo()
++        driver.seleniumDriver!!.manage().window().size = Dimension(1000, 700)
++
++        val after = driver.deviceInfo()
++
++        assertThat(after.widthPixels).isGreaterThan(before.widthPixels)
++        assertThat(after.heightPixels).isGreaterThan(before.heightPixels)
++    }
++}
+diff --git a/maestro-client/src/test/java/maestro/drivers/CdpLookupTest.kt b/maestro-client/src/test/java/maestro/drivers/CdpLookupTest.kt
+new file mode 100644
+index 0000000..99be0e5
+--- /dev/null
++++ b/maestro-client/src/test/java/maestro/drivers/CdpLookupTest.kt
+@@ -0,0 +1,124 @@
++package maestro.drivers
++
++import CdpClient
++import CdpTarget
++import com.google.common.truth.Truth.assertThat
++import io.mockk.coEvery
++import io.mockk.coVerify
++import io.mockk.every
++import io.mockk.mockk
++import kotlinx.coroutines.runBlocking
++import maestro.Maestro
++import maestro.OnDeviceElementQuery
++import maestro.utils.MaestroTimer
++import org.junit.jupiter.api.AfterEach
++import org.junit.jupiter.api.BeforeEach
++import org.junit.jupiter.api.Test
++import org.junit.jupiter.api.assertThrows
++import org.openqa.selenium.WebDriver
++
++class CdpLookupTest {
++    private val driver = CdpWebDriver(isStudio = false, isHeadless = true, screenSize = null)
++    private val client = mockk<CdpClient>()
++    private val timer = MaestroTimer.sleep
++    private var elapsed = 0L
++    private val reads = mutableListOf<Long>()
++    private val hierarchy = """{"attributes":{"text":"ready","bounds":"[0,0][100,100]"},"children":[]}"""
++
++    @BeforeEach
++    fun setUp() {
++        val selenium = mockk<WebDriver>(relaxed = true)
++        every { selenium.windowHandles } returns setOf("page")
++        every { selenium.windowHandle } returns "page"
++        driver.seleniumDriver = selenium
++        CdpWebDriver::class.java.getDeclaredField("cdpClient").apply {
++            isAccessible = true
++            set(driver, client)
++        }
++        coEvery { client.listTargets() } returns listOf(CdpTarget("page", "page", "http://localhost", "page", "ws://localhost"))
++        coEvery { client.evaluate(any(), any()) } returns "null"
++        coEvery { client.evaluate("window.innerWidth", any()) } returns "100"
++        coEvery { client.evaluate("window.innerHeight", any()) } returns "100"
++        MaestroTimer.setTimerFunc { _, duration -> elapsed += duration }
++    }
++
++    @AfterEach
++    fun tearDown() {
++        MaestroTimer.setTimerFunc(timer)
++    }
++
++    @Test
++    fun `viewport reads add no delay and reflect a resize`() {
++        assertThat(driver.deviceInfo().widthPixels).isEqualTo(100)
++        coEvery { client.evaluate("window.innerWidth", any()) } returns "200"
++        assertThat(driver.deviceInfo().widthPixels).isEqualTo(200)
++        assertThat(elapsed).isEqualTo(0)
++    }
++
++    @Test
++    fun `missing document can recover on the tenth paced hierarchy read`() {
++        coEvery { client.evaluate("window.maestro.getContentDescription()", any()) } answers {
++            reads.add(elapsed)
++            if (elapsed < 1000) "null" else hierarchy
++        }
++
++        assertThat(driver.contentDescriptor().attributes["text"]).isEqualTo("ready")
++        assertThat(reads).containsExactlyElementsIn((100L..1000L step 100).toList()).inOrder()
++    }
++
++    @Test
++    fun `lost execution context retains the hierarchy recovery window`() {
++        coEvery { client.evaluate("window.maestro.getContentDescription()", any()) } answers {
++            reads.add(elapsed)
++            if (elapsed < 800) error("Cannot find context with specified id") else hierarchy
++        }
++
++        assertThat(driver.contentDescriptor().attributes["text"]).isEqualTo("ready")
++        assertThat(reads).containsExactlyElementsIn((100L..800L step 100).toList()).inOrder()
++    }
++
++    @Test
++    fun `unavailable document exhausts the existing bounded recovery window`() {
++        assertThrows<IllegalStateException> { driver.contentDescriptor() }
++        assertThat(elapsed).isEqualTo(1000)
++        coVerify(exactly = 10) { client.evaluate("window.maestro.getContentDescription()", any()) }
++    }
++
++    @Test
++    fun `failed hierarchy matches keep yielding between DOM traversals`() = runBlocking {
++        coEvery { client.evaluate("window.maestro.getContentDescription()", any()) } answers {
++            reads.add(elapsed)
++            hierarchy
++        }
++        val found = Maestro(driver).findElementWithTimeout(1000, { nodes ->
++            if (reads.size == 3) nodes else emptyList()
++        })
++
++        assertThat(found).isNotNull()
++        assertThat(reads).containsExactly(100L, 200L, 300L).inOrder()
++    }
++
++    @Test
++    fun `failed css matches keep yielding between DOM queries`() = runBlocking {
++        coEvery { client.evaluate("window.maestro.queryCss(\"button\")", any()) } answers {
++            reads.add(elapsed)
++            if (reads.size == 3) "[$hierarchy]" else "[]"
++        }
++        val found = Maestro(driver).findElementsByOnDeviceQuery(1000, OnDeviceElementQuery.Css("button"))
++
++        assertThat(found?.elements).hasSize(1)
++        assertThat(reads).containsExactly(100L, 200L, 300L).inOrder()
++    }
++
++    @Test
++    fun `settling keeps three hundred milliseconds per hierarchy sample`() {
++        coEvery { client.evaluate("window.maestro.getContentDescription()", any()) } answers {
++            reads.add(elapsed)
++            hierarchy
++        }
++
++        driver.waitForAppToSettle(null, null, null)
++
++        assertThat(reads).containsExactly(300L, 600L).inOrder()
++    }
++}
+diff --git a/maestro-client/src/test/java/maestro/utils/ScreenshotUtilsTimingTest.kt b/maestro-client/src/test/java/maestro/utils/ScreenshotUtilsTimingTest.kt
+new file mode 100644
+index 0000000..929061d
+--- /dev/null
++++ b/maestro-client/src/test/java/maestro/utils/ScreenshotUtilsTimingTest.kt
+@@ -0,0 +1,70 @@
++package maestro.utils
++
++import com.google.common.truth.Truth.assertThat
++import io.mockk.every
++import io.mockk.mockk
++import maestro.DeviceInfo
++import maestro.Driver
++import maestro.TreeNode
++import maestro.ViewHierarchy
++import maestro.device.Platform
++import org.junit.jupiter.api.AfterEach
++import org.junit.jupiter.api.BeforeEach
++import org.junit.jupiter.api.Test
++
++class ScreenshotUtilsTimingTest {
++    private val sleeps = mutableListOf<Long>()
++    private val timer = MaestroTimer.sleep
++    private val driver = mockk<Driver>()
++    private val first = TreeNode(attributes = mutableMapOf("text" to "first", "bounds" to "[0,0][100,100]"), children = emptyList())
++    private val second = first.copy(attributes = first.attributes.toMutableMap().apply { put("text", "second") })
++
++    @BeforeEach
++    fun setUp() {
++        every { driver.deviceInfo() } returns DeviceInfo(Platform.WEB, 100, 100, 100, 100)
++        MaestroTimer.setTimerFunc { _, duration -> sleeps.add(duration) }
++    }
++
++    @AfterEach
++    fun tearDown() {
++        MaestroTimer.setTimerFunc(timer)
++    }
++
++    @Test
++    fun `delays both fresh samples when no initial hierarchy is available`() {
++        every { driver.contentDescriptor(false) } returns first
++
++        val settled = ScreenshotUtils.waitForAppToSettle(null, driver, hierarchyDelayMs = 200)
++
++        assertThat(settled).isEqualTo(ViewHierarchy(first))
++        assertThat(sleeps).containsExactly(200L, 200L).inOrder()
++    }
++
++    @Test
++    fun `delays the comparison with an existing hierarchy`() {
++        every { driver.contentDescriptor(false) } returns first
++
++        ScreenshotUtils.waitForAppToSettle(ViewHierarchy(first), driver, hierarchyDelayMs = 200)
++
++        assertThat(sleeps).containsExactly(200L)
++    }
++
++    @Test
++    fun `preserves the extra polling delay after a hierarchy change`() {
++        every { driver.contentDescriptor(false) } returnsMany listOf(first, second, second)
++
++        val settled = ScreenshotUtils.waitForAppToSettle(null, driver, hierarchyDelayMs = 200)
++
++        assertThat(settled).isEqualTo(ViewHierarchy(second))
++        assertThat(sleeps).containsExactly(200L, 200L, 200L, 200L).inOrder()
++    }
++
++    @Test
++    fun `adds no sample delay for other drivers`() {
++        every { driver.contentDescriptor(false) } returnsMany listOf(first, second, second)
++
++        ScreenshotUtils.waitForAppToSettle(null, driver)
++
++        assertThat(sleeps).containsExactly(200L)
++    }
++}
+-- 
+2.52.0
+

@@ -1,4 +1,4 @@
-From f6363205e6bc29eec5d5f1206d165a46ca11dec8 Mon Sep 17 00:00:00 2001
+From 415ffeb7bc0dd71dde78e7e150a6566c0094721c Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Wed, 21 Oct 2026 18:51:54 +0000
 Subject: [PATCH] fix: follow popup, extension and browser UI windows on web
@@ -16,10 +16,10 @@ Commands that run while a window closes no longer fail on it: reading the curren
  2 files changed, 84 insertions(+), 17 deletions(-)
 
 diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-index 4afc207..6ab6e92 100644
+index 9946970..b8fe421 100644
 --- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
 +++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-@@ -99,6 +99,9 @@ class CdpWebDriver(
+@@ -100,6 +100,9 @@ class CdpWebDriver(
      internal var seleniumDriver: org.openqa.selenium.WebDriver? = null
      private var maestroWebScript: String? = null
      private var lastSeenWindowHandles = setOf<String>()
@@ -29,7 +29,7 @@ index 4afc207..6ab6e92 100644
      private var injectedArguments: Map<String, Any> = emptyMap()
  
      private var webScreenRecorder: WebScreenRecorder? = null
-@@ -118,6 +121,8 @@ class CdpWebDriver(
+@@ -119,6 +122,8 @@ class CdpWebDriver(
  
      override fun open() {
          seleniumDriver = createSeleniumDriver()
@@ -38,7 +38,7 @@ index 4afc207..6ab6e92 100644
  
          try {
              seleniumDriver
-@@ -162,6 +167,8 @@ class CdpWebDriver(
+@@ -163,6 +168,8 @@ class CdpWebDriver(
                  setExperimentalOption("prefs", chromePrefs)
  
                  setExperimentalOption("detach", true)
@@ -47,8 +47,8 @@ index 4afc207..6ab6e92 100644
  
                  if (isHeadless) {
                      addArguments("--headless=new")
-@@ -226,8 +233,9 @@ class CdpWebDriver(
-     private fun executeJS(js: String): Any? {
+@@ -227,8 +234,9 @@ class CdpWebDriver(
+     private fun executeJS(js: String, delayMs: Long = 100): Any? {
          return runBlocking {
              repeat(JS_EXECUTION_MAX_ATTEMPTS) { attempt ->
 +                var targetId: String? = null
@@ -58,7 +58,7 @@ index 4afc207..6ab6e92 100644
  
                      cdpClient.evaluate("$maestroWebScript", target)
  
-@@ -249,7 +257,11 @@ class CdpWebDriver(
+@@ -250,7 +258,11 @@ class CdpWebDriver(
                      // The page can navigate or reload out from under us (e.g. right after
                      // launchApp/clearState), invalidating the CDP target mid-evaluation. Wait
                      // briefly for it to settle and retry against a freshly listed target.
@@ -71,7 +71,7 @@ index 4afc207..6ab6e92 100644
                          LOGGER.warn("Transient error executing JS, retrying (attempt ${attempt + 1})", e)
                          Thread.sleep(JS_EXECUTION_RETRY_DELAY_MS)
                      } else {
-@@ -304,6 +316,9 @@ class CdpWebDriver(
+@@ -305,6 +317,9 @@ class CdpWebDriver(
  
          seleniumDriver = null
          lastSeenWindowHandles = setOf()
@@ -81,7 +81,7 @@ index 4afc207..6ab6e92 100644
          webScreenRecorder = null
      }
  
-@@ -399,7 +414,7 @@ class CdpWebDriver(
+@@ -400,7 +415,7 @@ class CdpWebDriver(
          val rawMap = contentDesc as Map<String, Any>
          val enrichedMap = injectCrossOriginIframes(rawMap)
          val root = parseDomAsTreeNodes(enrichedMap)
@@ -90,7 +90,7 @@ index 4afc207..6ab6e92 100644
              root.attributes["url"] = url
          }
          return root
-@@ -439,15 +454,32 @@ class CdpWebDriver(
+@@ -440,15 +455,32 @@ class CdpWebDriver(
          // Checks whether there are any new window handles available and, if so, switches Selenium driver focus to it
          val driver = ensureOpen()
  
@@ -130,7 +130,7 @@ index 4afc207..6ab6e92 100644
  
                  try {
                      webScreenRecorder?.onWindowChange()
-@@ -461,6 +493,11 @@ class CdpWebDriver(
+@@ -462,6 +494,11 @@ class CdpWebDriver(
          }
      }
  
@@ -142,7 +142,7 @@ index 4afc207..6ab6e92 100644
      override fun clearAppState(appId: String) {
          ensureOpen()
  
-@@ -496,7 +533,7 @@ class CdpWebDriver(
+@@ -497,7 +534,7 @@ class CdpWebDriver(
      }
  
      override fun tap(point: Point) {
@@ -151,7 +151,7 @@ index 4afc207..6ab6e92 100644
  
          if (point.x >= SYNTHETIC_COORDINATE_SPACE_OFFSET && point.y >= SYNTHETIC_COORDINATE_SPACE_OFFSET) {
              tapOnSyntheticCoordinateSpace(point)
-@@ -505,9 +542,9 @@ class CdpWebDriver(
+@@ -506,9 +543,9 @@ class CdpWebDriver(
  
          val pixelsScrolled = scrollToPoint(point)
  
@@ -164,7 +164,7 @@ index 4afc207..6ab6e92 100644
                  mapOf(
                      "type" to type,
                      "x" to point.x,
-@@ -515,7 +552,20 @@ class CdpWebDriver(
+@@ -516,7 +553,20 @@ class CdpWebDriver(
                      "button" to if (type == "mouseMoved") "none" else "left",
                      "clickCount" to 1,
                  )
@@ -186,7 +186,7 @@ index 4afc207..6ab6e92 100644
          }
      }
  
-@@ -567,8 +617,7 @@ class CdpWebDriver(
+@@ -568,8 +618,7 @@ class CdpWebDriver(
              key - "text" + ("type" to "keyUp"),
              if (shift) SHIFT_KEY + ("type" to "keyUp") else null,
          )
@@ -196,7 +196,7 @@ index 4afc207..6ab6e92 100644
      }
  
      override fun scrollVertical() {
-@@ -1005,6 +1054,7 @@ class CdpWebDriver(
+@@ -1006,6 +1055,7 @@ class CdpWebDriver(
          // The only /json target type that is a real tab; everything else is a browser surface,
          // an extension worker or an iframe.
          private const val PAGE_TARGET_TYPE = "page"
@@ -233,5 +233,5 @@ index ca78c8e..e8ff77d 100644
          val messageId = idCounter.getAndIncrement()
          val originJson = Json.encodeToString(JsonPrimitive(origin))
 -- 
-2.43.0
+2.52.0
 
