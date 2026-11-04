@@ -195,7 +195,7 @@ export default defineConfig([
                         }),
                       )?.[1]
                     : ({ [optimism.id]: "0x961EbA47650e2198A959Ef5f337E542df5E4F61b" }[chainId] ??
-                      "0x98d3E8B291d9E89C25D8371b7e8fFa8BC32E0aEC"),
+                      "0xb29bAFff6E4fd67Cb6a56657237F66CcE468844D"),
               }).map(([key, address]) => {
                 if (!address) throw new Error(`missing ${key}`);
                 return `export const ${key}Address = "${getAddress(address)}" as const`;

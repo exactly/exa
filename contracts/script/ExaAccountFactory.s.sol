@@ -20,7 +20,8 @@ contract DeployExaAccountFactory is BaseScript {
     vm.startBroadcast(admin);
 
     factory = ExaAccountFactory(
-      payable(CREATE3_FACTORY.deploy(
+      payable(create3(
+          admin,
           _salt(IPlugin(exaPlugin)),
           abi.encodePacked(
             type(ExaAccountFactory).creationCode, abi.encode(admin, ownerPlugin, exaPlugin, ACCOUNT_IMPL, ENTRYPOINT)
@@ -43,7 +44,7 @@ contract DeployExaAccountFactory is BaseScript {
   function getAddress() external returns (address) {
     etchCanonical();
     vm.etch(address(0), vm.getDeployedCode("ExaPlugin.sol:ExaPlugin"));
-    return CREATE3_FACTORY.getDeployed(acct("admin"), _salt(IPlugin(address(0))));
+    return create3Address(acct("admin"), _salt(IPlugin(address(0))));
   }
 
   function constructorArguments() external returns (bytes memory) {

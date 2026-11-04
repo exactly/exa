@@ -74,7 +74,7 @@ export default async function setup() {
     const factory = parse(
       object({
         transactions: tuple([
-          object({ transactionType: literal("CALL"), function: literal("deploy(bytes32,bytes)") }),
+          object({ transactionType: literal("CALL"), function: literal("deployCreate3(bytes32,bytes)") }),
           object({ contractName: literal("ExaAccountFactory"), contractAddress: Address }),
         ]),
       }),
