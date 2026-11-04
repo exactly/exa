@@ -14,10 +14,8 @@ abstract contract SafeScript is BaseScript {
   using stdJson for string;
   using Surl for string;
 
-  IMultiSendCallOnly internal constant MULTI_SEND = IMultiSendCallOnly(0x9641d764fc13c8B624c04430C7356C1C7C8102e2); // github.com/safe-global/safe-deployments v1.4.1
+  IMultiSendCallOnly internal constant MULTI_SEND = IMultiSendCallOnly(0x9641d764fc13c8B624c04430C7356C1C7C8102e2);
 
-  /// @dev runs the body as `account`: broadcasts when it is an eoa (eip-7702 delegated or not),
-  /// proposes the calls it makes as one safe transaction otherwise.
   modifier through(address account) {
     {
       bytes memory code = account.code;
@@ -111,7 +109,6 @@ abstract contract SafeScript is BaseScript {
     }
   }
 
-  /// @dev gets `url` when `body` is empty, posts `body` to it otherwise.
   function request(string memory url, string memory body)
     internal
     virtual

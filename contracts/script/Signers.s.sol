@@ -8,7 +8,6 @@ import { IssuerChecker } from "../src/IssuerChecker.sol";
 
 import { SafeScript } from "./Safe.s.sol";
 
-/// @notice authorizes and funds the server signers, as one safe proposal when the admin is a multisig.
 contract Signers is SafeScript {
   bytes32 internal constant KEEPER_ROLE = keccak256("KEEPER_ROLE");
 
@@ -32,7 +31,6 @@ contract Signers is SafeScript {
     if (!target.hasRole(role, account)) target.grantRole(role, account);
   }
 
-  /// @dev tops `account` up to `balance`.
   function fund(address account, uint256 balance) internal {
     if (account.balance < balance) SafeTransferLib.safeTransferETH(account, balance - account.balance);
   }
