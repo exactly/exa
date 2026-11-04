@@ -188,6 +188,8 @@ jobs:
           restore-keys: nx-${{ runner.os }}-${{ github.job }}-${{ steps.machine.outputs.id }}-
       - run: echo ::add-matcher::.github/matcher.json
         name: matcher
+      - run: (while true; do echo "$(date +%T.%N) $(tr '\n' ' ' < /proc/pressure/cpu) | $(tr '\n' ' ' < /proc/pressure/io) | $(tr '\n' ' ' < /proc/pressure/memory) | $(free -m | awk 'NR==2{print $3,$6} NR==3{print $3}' | tr '\n' ' ') $(grep -E '^(Dirty|Writeback):' /proc/meminfo | tr -s ' ' | tr '\n' ' ')"; sleep 0.5; done) > pressure.log 2>&1 &
+        name: pressure
       - run: flock /tmp/apt.lock sudo apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=5 install --update --no-install-recommends --yes redis-server > apt.log 2>&1 &
         name: redis
       - run: corepack enable
@@ -265,6 +267,7 @@ jobs:
           name: e2e-${{ matrix.flow }}-artifacts
           path: |
             apt.log
+            pressure.log
             server.log
             .maestro/chrome.log
             server/coverage
