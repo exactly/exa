@@ -45,11 +45,24 @@ export default async function setup() {
       codeSizeLimit: 69_000,
       blockBaseFeePerGas: 1n,
       chainId: id,
-      port: Number(new URL(rpcUrls.default.http[0]).port) + (env.NODE_ENV === "e2e" ? 1 : 0),
+      port: Number(new URL(rpcUrls.default.http[0]).port) + 1,
     }),
   );
   await Promise.all(instances.map((instance) => instance.start()));
   const rpcs = env.NODE_ENV === "e2e" ? chains.map((chain) => alchemy(chain)) : [];
+  if (env.NODE_ENV !== "e2e") {
+    createServer((incoming, outgoing) => {
+      text(incoming)
+        .then((body) =>
+          request({ port: 8546, method: "POST", headers: { "content-type": "application/json" } }, (upstream) =>
+            upstream.pipe(outgoing.writeHead(upstream.statusCode ?? 502, upstream.headers)),
+          ).end(pending(body)),
+        )
+        .catch((error: unknown) => outgoing.writeHead(500).end(String(error)));
+    })
+      .listen(8545)
+      .unref();
+  }
   const docker = env.NODE_ENV === "e2e" && !env.CI && (await $`docker info`.then(() => true).catch(() => false));
   if (docker) {
     await $({ cwd: "test" })`docker compose down`;
@@ -500,7 +513,7 @@ function alchemy(chain: (typeof chains)[number]) {
           .end(
             method === "rundler_maxPriorityFeePerGas" // cspell:ignore rundler
               ? JSON.stringify({ jsonrpc: "2.0", id, method: "eth_maxPriorityFeePerGas", params: [] })
-              : body,
+              : pending(body),
           );
       })
       .catch((error: unknown) => outgoing.writeHead(500).end(String(error)));
@@ -516,4 +529,16 @@ function alchemy(chain: (typeof chains)[number]) {
       await bundler.stop();
     },
   };
+}
+
+// anvil 1.7.1 runs a `latest` call that races a mined block on the new state with the old timestamp
+function pending(body: string) {
+  return JSON.stringify(
+    JSON.parse(body, (_, value: null | { method?: string; params?: unknown[] }) => {
+      if (/^eth_(?:call|estimateGas)$/.test(value?.method ?? "") && (value?.params?.[1] ?? "latest") === "latest") {
+        value?.params?.splice(1, 1, "pending");
+      }
+      return value;
+    }),
+  );
 }
