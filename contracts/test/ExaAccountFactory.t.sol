@@ -101,7 +101,7 @@ contract ExaAccountFactoryTest is ForkTest {
     address account = factory.createAccount(0, owners.toPublicKeys());
     bytes memory pluginCode = address(exaPlugin).code;
 
-    vm.createSelectFork("optimism", 127_050_624);
+    vm.createSelectFork("optimism_sepolia", 39_900_000);
 
     set("ProposalManager", address(new MockAccessControl()));
     unset("WebauthnOwnerPlugin");
@@ -110,6 +110,14 @@ contract ExaAccountFactoryTest is ForkTest {
     f.run();
 
     assertEq(address(f.factory()), address(factory), "different factory address");
+    assertEq(
+      address(factory),
+      create3Address(
+        address(this),
+        keccak256(abi.encode(IPlugin(exaPlugin).pluginMetadata().name, IPlugin(exaPlugin).pluginMetadata().version))
+      ),
+      "factory not at create3 address"
+    );
     assertEq(factory.getAddress(0, owners.toPublicKeys()), account, "different account address");
   }
 
