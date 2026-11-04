@@ -7,7 +7,12 @@ appId: ${APP_ID ?? "app.exactly"}
       - retry:
           maxRetries: 3
           commands:
-            - tapOn: { text: "${tap ?? aria}", leftOf: Card }
+            - runFlow:
+                when: { true: "${typeof tap !== 'undefined'}" }
+                commands: [{ tapOn: { text: "${tap}", leftOf: Card } }]
+            - runFlow:
+                when: { true: "${typeof tap === 'undefined'}" }
+                commands: [{ tapOn: "${aria}" }]
             - extendedWaitUntil: { notVisible: "${aria}", timeout: 5000 }
 - runFlow:
     when: { platform: web }
@@ -15,5 +20,10 @@ appId: ${APP_ID ?? "app.exactly"}
       - retry:
           maxRetries: 3
           commands:
-            - tapOn: { text: "${tap ?? aria}", leftOf: Card }
+            - runFlow:
+                when: { true: "${typeof tap !== 'undefined'}" }
+                commands: [{ tapOn: { text: "${tap}", leftOf: Card } }]
+            - runFlow:
+                when: { true: "${typeof tap === 'undefined'}" }
+                commands: [{ tapOn: { id: "${aria}" } }]
             - extendedWaitUntil: { notVisible: { id: "${aria}" }, timeout: 5000 }

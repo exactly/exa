@@ -20,7 +20,7 @@ tags: [broad]
 - assertVisible: "032180000118359719"
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back, index: 0 } }
 - tapOn: Reals via PIX
-- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Show QR Code, center: true } }
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Show QR Code, offset: 1 } }
 - tapOn: Show QR Code
 - assertVisible: Deposit with PIX
 - tapOn: Close

@@ -115,7 +115,7 @@ index 20a0471ea6a29b9c5e01de5f9aeb5835bdfc883b..2ec6c5484751d1fb5b73c3b6f973faf8
          style: StyleSheet.absoluteFill,
          children: children
 diff --git a/lib/module/charts/line/HorizontalLine.js b/lib/module/charts/line/HorizontalLine.js
-index 0a051131304b3c9f1c9f5e41a6453fcc96c40ff1..714150669f30abe668fbe72ef3af7c5504bf6f4c 100644
+index 0a051131304b3c9f1c9f5e41a6453fcc96c40ff1..d447221b6e8551b3126006058e5aa7c33077dc27 100644
 --- a/lib/module/charts/line/HorizontalLine.js
 +++ b/lib/module/charts/line/HorizontalLine.js
 @@ -21,15 +21,13 @@ export function LineChartHorizontalLine({
@@ -135,11 +135,13 @@ index 0a051131304b3c9f1c9f5e41a6453fcc96c40ff1..714150669f30abe668fbe72ef3af7c55
    const y = useDerivedValue(() => {
      if (typeof at === 'number' || at.index != null) {
        const index = typeof at === 'number' ? at : at.index;
-@@ -48,11 +46,10 @@ export function LineChartHorizontalLine({
+@@ -47,12 +45,11 @@ export function LineChartHorizontalLine({
+      */
  
      const offsetTop = yDomain.max - at.value;
-     const percentageOffsetTop = offsetTop / (yDomain.max - yDomain.min);
+-    const percentageOffsetTop = offsetTop / (yDomain.max - yDomain.min);
 -    const chartDrawingHeight = height - X_AXIS_LABEL_RESERVED_HEIGHT;
++    const percentageOffsetTop = yDomain.max === yDomain.min ? 0.5 : offsetTop / (yDomain.max - yDomain.min);
      const heightBetweenGutters = chartDrawingHeight - gutter * 2;
      const offsetTopPixels = gutter + percentageOffsetTop * heightBetweenGutters;
      return withTiming(offsetTopPixels + offsetY);
@@ -325,7 +327,7 @@ index 634ea79c28a54f1d2cad9ae729cb27420c79519b..5048eb16e0eed4c55ecadef6f7c22f7e
            {children}
          </Animated.View>
 diff --git a/src/charts/line/HorizontalLine.tsx b/src/charts/line/HorizontalLine.tsx
-index 3a1dc5f4cec3e1b0473e73a319b1cd017406e317..1257b5aa70a04318d39adef230175d4fa10791e9 100644
+index 3a1dc5f4cec3e1b0473e73a319b1cd017406e317..f8aac0c780b8aff66886a9040e1d8e7970f7d0ce 100644
 --- a/src/charts/line/HorizontalLine.tsx
 +++ b/src/charts/line/HorizontalLine.tsx
 @@ -51,13 +51,11 @@ export function LineChartHorizontalLine({
@@ -343,11 +345,13 @@ index 3a1dc5f4cec3e1b0473e73a319b1cd017406e317..1257b5aa70a04318d39adef230175d4f
  
    const y = useDerivedValue(() => {
      if (typeof at === 'number' || at.index != null) {
-@@ -78,12 +76,11 @@ export function LineChartHorizontalLine({
+@@ -77,13 +75,12 @@ export function LineChartHorizontalLine({
+      */
  
      const offsetTop = yDomain.max - at.value;
-     const percentageOffsetTop = offsetTop / (yDomain.max - yDomain.min);
+-    const percentageOffsetTop = offsetTop / (yDomain.max - yDomain.min);
 -    const chartDrawingHeight = height - X_AXIS_LABEL_RESERVED_HEIGHT;
++    const percentageOffsetTop = yDomain.max === yDomain.min ? 0.5 : offsetTop / (yDomain.max - yDomain.min);
      const heightBetweenGutters = chartDrawingHeight - gutter * 2;
      const offsetTopPixels = gutter + percentageOffsetTop * heightBetweenGutters;
  
