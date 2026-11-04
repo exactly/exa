@@ -33,6 +33,7 @@ import {
   zeroHash,
   type LocalAccount,
 } from "viem";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 
 import {
   auditorAbi,
@@ -41,6 +42,7 @@ import {
   exaPreviewerAbi,
   exaPreviewerAddress,
   issuerCheckerAbi,
+  issuerCheckerAddress,
   marketAbi,
   proposalManagerAbi,
   upgradeableModularAccountAbi,
@@ -84,6 +86,8 @@ import type { UnofficialStatusCode } from "hono/utils/http-status";
 
 const debug = createDebug("exa:panda");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
+
+const mockIssuer = privateKeyToAccount(generatePrivateKey());
 
 export default function hook({
   database,
@@ -251,7 +255,7 @@ export default function hook({
               call: signed,
               sign,
               transaction,
-            } = await prepareCollection(card, payload, database, issuer, panda, wallet);
+            } = await prepareCollection(card, payload, database, issuer, panda, wallet, mockIssuer);
             const authorize = () => {
               trackAuthorized(account, payload, card.mode, card.credential.source, segment);
               return c.json({ code: "ok" });
@@ -275,7 +279,7 @@ export default function hook({
               }
             }).catch((error: unknown) => captureException(error, { level: "error" }));
             try {
-              const simulate = (data: Hex, plugin: Hex) =>
+              const simulate = (data: Hex, plugin: Hex, checker: Hex = issuerCheckerAddress) =>
                 startSpan({ name: "debug_traceCall", op: "tx.trace" }, () =>
                   traceClient.traceCall({
                     from: account,
@@ -304,6 +308,7 @@ export default function hook({
                           },
                         ],
                       },
+                      { address: checker, stateDiff: [{ slot: padHex("0x1"), value: padHex(mockIssuer.address) }] },
                     ],
                   }),
                 );
@@ -315,7 +320,11 @@ export default function hook({
                   const resigned = await sign(contracts.checker);
                   return {
                     call: resigned,
-                    trace: await simulate(encodeFunctionData({ abi: exaPluginAbi, ...resigned }), contracts.plugin),
+                    trace: await simulate(
+                      encodeFunctionData({ abi: exaPluginAbi, ...resigned }),
+                      contracts.plugin,
+                      contracts.checker,
+                    ),
                   };
                 }
                 return { call: signed, trace: first };
@@ -1094,6 +1103,7 @@ async function prepareCollection(
   issuer: LocalAccount,
   panda: ReturnType<typeof createPanda>,
   wallet: ReturnType<typeof createWallet>,
+  signer = issuer,
 ) {
   const account = v.parse(Address, card.credential.account);
   setTag("exa.mode", card.mode);
@@ -1134,7 +1144,7 @@ async function prepareCollection(
       (payload.action === "completed" && amount !== BigInt(Math.round((payload.body.spend.amount / 100) * 1e6)))
         ? authorized - Number(BigInt(`0x${payload.id.replaceAll(/[^0-9a-f]/g, "")}`) % 3600n)
         : authorized;
-    const signature = await signIssuerOp({ account, amount, timestamp }, issuer, checker); // TODO replace with payload signature
+    const signature = await signIssuerOp({ account, amount, timestamp }, signer, checker); // TODO replace with payload signature
     if (payload.body.spend.signature) {
       await startSpan(
         {
