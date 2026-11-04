@@ -67,6 +67,7 @@ skip = ["script/**"]
 
 [profile.snapshot.fuzz]
 runs = 64
+max_fuzz_dictionary_literals = 0
 
 [profile.tooling]
 cache_path = "cache/tooling"
