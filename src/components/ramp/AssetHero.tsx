@@ -40,7 +40,7 @@ export default function AssetHero({
   const isCrypto = !!network;
   const offramp = direction === "offramp";
   return (
-    <View width="100%" aspectRatio={1}>
+    <View width="100%" aspectRatio={1} flexShrink={1}>
       <View position="absolute" width="100%" height="100%">
         <ThemedSvg xml={background} width="100%" height="100%" />
       </View>

@@ -10,7 +10,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - assertVisible: Installment 1 of 3
 - copyTextFrom: { text: '\$[\s\d,.\xa0]+', rightOf: Installment 1 of 3 }
 - assertVisible: { text: "${maestro.copiedText}", rightOf: Total due }
-- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: tapAria.yaml, env: { aria: Back, index: 0 } }
 - runFlow: { file: scrollTo.yaml, env: { element: Upcoming payments, center: true } }
 - tapOn: { text: '[A-Z][a-z]{2} \d{1,2}, \d{2}', below: Upcoming payments, index: 0 }
 - runFlow: { file: tapAria.yaml, env: { aria: Breakdown } }
@@ -19,5 +19,5 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: { text: View statement, index: -1 }
 - assertVisible: ${merchant}.*
 - assertVisible: Installment 2 of 3
-- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: tapAria.yaml, env: { aria: Back, index: 0 } }
 - tapOn: { text: Home, leftOf: Card }

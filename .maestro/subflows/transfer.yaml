@@ -22,12 +22,12 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: { file: tapAria.yaml, env: { aria: "0x000000000000000000000000000000000000dEaD" } }
 - assertVisible: Select asset to send
 - runFlow: { file: tapAria.yaml, env: { aria: "^EXA on .+$" } }
-- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: tapAria.yaml, env: { aria: Back, index: 0 } }
 - assertVisible: Select asset to send
-- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: tapAria.yaml, env: { aria: Back, index: 0 } }
 - assertVisible: Send to
-- runFlow: { file: tapAria.yaml, env: { aria: Back } }
-- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: tapAria.yaml, env: { aria: Back, index: 0 } }
+- runFlow: { file: tapAria.yaml, env: { aria: Back, index: 0 } }
 - runFlow:
     when: { platform: web }
     commands:
@@ -35,5 +35,5 @@ appId: ${APP_ID ?? "app.exactly"}
       - tapOn: Digital assets
       - runFlow: { file: tapAria.yaml, env: { aria: Scan QR code } }
       - assertVisible: { id: "0x000000000000000000000000000000000000bEEF" }
-      - runFlow: { file: tapAria.yaml, env: { aria: Back } }
-      - runFlow: { file: tapAria.yaml, env: { aria: Back } }
+      - runFlow: { file: tapAria.yaml, env: { aria: Back, index: 0 } }
+      - runFlow: { file: tapAria.yaml, env: { aria: Back, index: 0 } }

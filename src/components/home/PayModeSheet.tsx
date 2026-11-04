@@ -6,12 +6,13 @@ import { CalendarDays } from "@tamagui/lucide-icons-2/icons/CalendarDays";
 import { ExternalLink } from "@tamagui/lucide-icons-2/icons/ExternalLink";
 import { X } from "@tamagui/lucide-icons-2/icons/X";
 import { Zap } from "@tamagui/lucide-icons-2/icons/Zap";
-import { XStack, YStack } from "tamagui";
+import { getTokens, XStack, YStack } from "tamagui";
 
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 
 import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
+import useInsets from "../../utils/useInsets";
 import IconButton from "../shared/IconButton";
 import ModalSheet from "../shared/ModalSheet";
 import Button from "../shared/StyledButton";
@@ -19,6 +20,7 @@ import Text from "../shared/Text";
 
 export default function PayModeSheet({ onClose, open }: { onClose: () => void; open: boolean }) {
   const { t } = useTranslation();
+  const insets = useInsets();
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
       <YStack
@@ -26,7 +28,7 @@ export default function PayModeSheet({ onClose, open }: { onClose: () => void; o
         borderTopLeftRadius="$r5"
         borderTopRightRadius="$r5"
         backgroundColor="$backgroundSoft"
-        $platform-android={{ paddingBottom: "$s5" }}
+        $platform-android={{ paddingBottom: Math.max(insets.bottom, getTokens().space.$s5.val) }}
       >
         <YStack gap="$s5" paddingTop="$s5" paddingHorizontal="$s5">
           <YStack gap="$s4">

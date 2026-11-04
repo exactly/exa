@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { AlertTriangle } from "@tamagui/lucide-icons-2/icons/AlertTriangle";
 import { CheckCircle } from "@tamagui/lucide-icons-2/icons/CheckCircle";
 import { X } from "@tamagui/lucide-icons-2/icons/X";
-import { ScrollView, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, XStack, YStack } from "tamagui";
 
 import chain from "@exactly/common/generated/chain";
 
@@ -16,6 +16,7 @@ import View from "./View";
 import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
+import useInsets from "../../utils/useInsets";
 
 export default function CopyAddressSheet({
   open,
@@ -32,6 +33,7 @@ export default function CopyAddressSheet({
 }) {
   const { address: accountAddress } = useAccount();
   const { t } = useTranslation();
+  const insets = useInsets();
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
       <ScrollView showsVerticalScrollIndicator={false} $platform-web={{ maxHeight: "100vh" }}>
@@ -41,7 +43,7 @@ export default function CopyAddressSheet({
           backgroundColor="$backgroundSoft"
           paddingHorizontal="$s5"
           $platform-web={{ paddingVertical: "$s7" }}
-          $platform-android={{ paddingBottom: "$s5" }}
+          $platform-android={{ paddingBottom: Math.max(insets.bottom, getTokens().space.$s5.val) }}
         >
           <YStack gap="$s7">
             <YStack gap="$s5">

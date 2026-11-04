@@ -5,13 +5,14 @@ import { Pressable } from "react-native";
 import { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
 import { Check } from "@tamagui/lucide-icons-2/icons/Check";
 import { CheckCircle } from "@tamagui/lucide-icons-2/icons/CheckCircle";
-import { ScrollView, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
 import chain from "@exactly/common/generated/chain";
 
 import { lifiChainsOptions } from "../../utils/lifi";
+import useInsets from "../../utils/useInsets";
 import AssetLogo from "../shared/AssetLogo";
 import ChainLogo from "../shared/ChainLogo";
 import ModalSheet from "../shared/ModalSheet";
@@ -38,6 +39,7 @@ export default function AssetMatchSheet({
   sourceSymbol: string;
 }) {
   const { t } = useTranslation();
+  const insets = useInsets();
   const { data: sourceNetwork } = useQuery({
     ...lifiChainsOptions,
     select: (chains) => chains.find((c) => c.id === (sourceChainId ?? chain.id))?.name,
@@ -51,7 +53,7 @@ export default function AssetMatchSheet({
           backgroundColor="$backgroundSoft"
           paddingHorizontal="$s5"
           $platform-web={{ paddingVertical: "$s7" }}
-          $platform-android={{ paddingBottom: "$s5" }}
+          $platform-android={{ paddingBottom: Math.max(insets.bottom, getTokens().space.$s5.val) }}
         >
           <YStack gap="$s5">
             <XStack gap="$s3" alignItems="center">

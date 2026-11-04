@@ -5,12 +5,13 @@ import { Pressable } from "react-native";
 import { ArrowRight } from "@tamagui/lucide-icons-2/icons/ArrowRight";
 import { Check } from "@tamagui/lucide-icons-2/icons/Check";
 import { Info } from "@tamagui/lucide-icons-2/icons/Info";
-import { ScrollView, Separator, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import chain from "@exactly/common/generated/chain";
 
 import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
+import useInsets from "../../utils/useInsets";
 import useMarkets from "../../utils/useMarkets";
 import AssetLogo from "../shared/AssetLogo";
 import ChainLogo from "../shared/ChainLogo";
@@ -41,6 +42,7 @@ export default function ReceiveGuideSheet({
   variant: "bridge" | "bridgeSwap" | "swap";
 }) {
   const { t } = useTranslation();
+  const insets = useInsets();
   const { supportedAssets } = useMarkets();
   const [hide, setHide] = useState(false);
   const learn = (
@@ -104,7 +106,7 @@ export default function ReceiveGuideSheet({
           backgroundColor="$backgroundSoft"
           paddingHorizontal="$s5"
           $platform-web={{ paddingVertical: "$s7" }}
-          $platform-android={{ paddingBottom: "$s5" }}
+          $platform-android={{ paddingBottom: Math.max(insets.bottom, getTokens().space.$s5.val) }}
         >
           <YStack gap="$s5">
             <Text emphasized primary headline>

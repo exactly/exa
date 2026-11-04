@@ -3,11 +3,12 @@ import { useTranslation } from "react-i18next";
 
 import { Check } from "@tamagui/lucide-icons-2/icons/Check";
 import { Search } from "@tamagui/lucide-icons-2/icons/Search";
-import { ScrollView, XStack, YStack } from "tamagui";
+import { getTokens, ScrollView, XStack, YStack } from "tamagui";
 
 import Input from "./Input";
 import ModalSheet from "./ModalSheet";
 import Text from "./Text";
+import useInsets from "../../utils/useInsets";
 
 export default function SelectSheet(properties: ComponentProps<typeof OptionList>) {
   return (
@@ -42,6 +43,7 @@ function OptionList({
   value: string;
 }) {
   const { t } = useTranslation();
+  const insets = useInsets();
   const [query, setQuery] = useState("");
   if (!open && query) setQuery("");
   const filtered =
@@ -58,7 +60,7 @@ function OptionList({
       paddingTop="$s5"
       paddingHorizontal="$s4"
       paddingBottom="$s7"
-      $platform-android={{ paddingBottom: "$s5" }}
+      $platform-android={{ paddingBottom: Math.max(insets.bottom, getTokens().space.$s5.val) }}
     >
       <YStack gap="$s5">
         <Text emphasized headline centered>

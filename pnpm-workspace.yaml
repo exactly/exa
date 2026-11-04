@@ -188,6 +188,7 @@ patchedDependencies:
   "@tamagui/animations-reanimated": patches/@tamagui__animations-reanimated.patch
   "@tamagui/sheet": patches/@tamagui__sheet.patch
   "@tamagui/slider": patches/@tamagui__slider.patch
+  "@tamagui/web": patches/@tamagui__web.patch
   embedded-postgres: patches/embedded-postgres.patch
   eslint-config-universe: patches/eslint-config-universe.patch
   prool@0.2.17: patches/prool@0.2.17.patch

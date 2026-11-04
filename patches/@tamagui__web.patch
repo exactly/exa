@@ -1,0 +1,385 @@
+diff --git a/dist/cjs/helpers/mainThreadPressEvents.native.js b/dist/cjs/helpers/mainThreadPressEvents.native.js
+index b83ef320551336385d2c970e5761bff0b78e1428..5c775a9a2b37f75413713cba33ad685d44fbff9f 100644
+--- a/dist/cjs/helpers/mainThreadPressEvents.native.js
++++ b/dist/cjs/helpers/mainThreadPressEvents.native.js
+@@ -29,133 +29,80 @@ __export(mainThreadPressEvents_native_exports, {
+ module.exports = __toCommonJS(mainThreadPressEvents_native_exports);
+ var import_native = require("@tamagui/native");
+ var import_react = require("react");
+-var DEFAULT_LONG_PRESS_DELAY = 500;
+-var DEFAULT_MIN_PRESS_DURATION = 130;
+ function useMainThreadPressEvents(events, viewProps) {
+-  var enabled = arguments.length > 2 && arguments[2] !== void 0 ? arguments[2] : true,
+-    debugName = arguments.length > 3 ? arguments[3] : void 0;
+-  var ref = (0, import_react.useRef)(null);
+-  if (!ref.current) {
+-    ref.current = {
+-      state: "idle",
+-      pressInTimer: null,
+-      pressOutTimer: null,
+-      longPressTimer: null,
+-      activateTime: 0,
+-      blockedByExternalOwnership: false
+-    };
+-  }
+-  if (!enabled || !events) return;
+-  var _events_delayPressIn;
+-  var delayPressIn = Math.max(0, (_events_delayPressIn = events.delayPressIn) !== null && _events_delayPressIn !== void 0 ? _events_delayPressIn : 0);
+-  var _events_delayPressOut;
+-  var delayPressOut = Math.max(0, (_events_delayPressOut = events.delayPressOut) !== null && _events_delayPressOut !== void 0 ? _events_delayPressOut : 0);
+-  var _events_delayLongPress;
+-  var delayLongPress = Math.max(0, (_events_delayLongPress = events.delayLongPress) !== null && _events_delayLongPress !== void 0 ? _events_delayLongPress : DEFAULT_LONG_PRESS_DELAY);
+-  var _events_minPressDuration;
+-  var minPressDuration = Math.max(0, (_events_minPressDuration = events.minPressDuration) !== null && _events_minPressDuration !== void 0 ? _events_minPressDuration : DEFAULT_MIN_PRESS_DURATION);
+-  function activate(e) {
+-    var _events_onPressIn;
+-    ref.current.state = "active";
+-    ref.current.activateTime = Date.now();
+-    (_events_onPressIn = events.onPressIn) === null || _events_onPressIn === void 0 ? void 0 : _events_onPressIn.call(events, e);
+-  }
+-  function deactivate(e) {
+-    var pressDuration = Date.now() - ref.current.activateTime;
+-    var remaining = Math.max(minPressDuration - pressDuration, delayPressOut);
+-    if (remaining > 0) {
+-      ref.current.pressOutTimer = setTimeout(function () {
+-        var _events_onPressOut2;
+-        (_events_onPressOut2 = events.onPressOut) === null || _events_onPressOut2 === void 0 ? void 0 : _events_onPressOut2.call(events, e);
+-      }, remaining);
+-    } else {
+-      var _events_onPressOut;
+-      (_events_onPressOut = events.onPressOut) === null || _events_onPressOut === void 0 ? void 0 : _events_onPressOut.call(events, e);
+-    }
+-  }
+-  function cleanup() {
+-    if (ref.current.pressInTimer) clearTimeout(ref.current.pressInTimer);
+-    if (ref.current.pressOutTimer) clearTimeout(ref.current.pressOutTimer);
+-    if (ref.current.longPressTimer) clearTimeout(ref.current.longPressTimer);
+-    ref.current.pressInTimer = null;
+-    ref.current.pressOutTimer = null;
+-    ref.current.longPressTimer = null;
++  var enabled = arguments.length > 2 && arguments[2] !== void 0 ? arguments[2] : true, debugName = arguments.length > 3 ? arguments[3] : void 0;
++  var usePressability = require("react-native/Libraries/Pressability/usePressability").default;
++  var initialized = (0, import_react.useRef)(false);
++  var ownsResponder = (0, import_react.useRef)(false);
++  var pressActive = (0, import_react.useRef)(false);
++  var active = enabled && Boolean(events);
++  if (active) initialized.current = true;
++  function endPress(e) {
++    var _events_onPressOut;
++    if (!pressActive.current) return;
++    pressActive.current = false;
++    events === null || events === void 0 ? void 0 : (_events_onPressOut = events.onPressOut) === null || _events_onPressOut === void 0 ? void 0 : _events_onPressOut.call(events, e);
+   }
++  var handlers = usePressability(initialized.current ? {
++    ...active ? events : {},
++    disabled: !active || (events === null || events === void 0 ? void 0 : events.disabled),
++    android_disableSound: true,
++    onPressIn: active ? function(e) {
++      var _events_onPressIn;
++      endPress(e);
++      pressActive.current = true;
++      (_events_onPressIn = events.onPressIn) === null || _events_onPressIn === void 0 ? void 0 : _events_onPressIn.call(events, e);
++    } : void 0,
++    onPressOut: active ? endPress : void 0,
++    hitSlop: viewProps.hitSlop,
++    pressRectOffset: viewProps.pressRetentionOffset
++  } : null);
++  if (!active || !handlers) return;
+   var userStartShouldSet = viewProps.onStartShouldSetResponder;
+   var userGrant = viewProps.onResponderGrant;
+   var userRelease = viewProps.onResponderRelease;
+   var userTerminate = viewProps.onResponderTerminate;
+   var userTerminationRequest = viewProps.onResponderTerminationRequest;
+   var userMove = viewProps.onResponderMove;
+-  viewProps.onStartShouldSetResponder = function (e) {
+-    if (userStartShouldSet === null || userStartShouldSet === void 0 ? void 0 : userStartShouldSet(e)) return true;
+-    return !events.disabled && !(0, import_native.unstable_hasExternalPressOwnership)();
++  var userClick = viewProps.onClick;
++  viewProps.onStartShouldSetResponder = function(e) {
++    return (userStartShouldSet === null || userStartShouldSet === void 0 ? void 0 : userStartShouldSet(e)) || !(0, import_native.unstable_hasExternalPressOwnership)() && handlers.onStartShouldSetResponder();
+   };
+-  viewProps.onResponderGrant = function (e) {
+-    cleanup();
+-    if ((0, import_native.unstable_hasExternalPressOwnership)()) {
+-      ref.current.state = "idle";
+-      ref.current.blockedByExternalOwnership = true;
+-      return;
+-    }
++  viewProps.onResponderGrant = function(e) {
++    endPress(e);
++    if ((0, import_native.unstable_hasExternalPressOwnership)()) return;
+     userGrant === null || userGrant === void 0 ? void 0 : userGrant(e);
+-    ref.current.blockedByExternalOwnership = false;
+-    ref.current.state = "pressing";
+-    if (delayPressIn > 0) {
+-      ref.current.pressInTimer = setTimeout(function () {
+-        return activate(e);
+-      }, delayPressIn);
+-    } else {
+-      activate(e);
+-    }
+-    if (events.onLongPress) {
+-      ref.current.longPressTimer = setTimeout(function () {
+-        if (ref.current.state === "active") {
+-          var _events_onLongPress;
+-          ref.current.state = "longPressed";
+-          (_events_onLongPress = events.onLongPress) === null || _events_onLongPress === void 0 ? void 0 : _events_onLongPress.call(events, e);
+-        }
+-      }, delayLongPress + delayPressIn);
+-    }
++    ownsResponder.current = true;
++    return handlers.onResponderGrant(e);
+   };
+-  viewProps.onResponderRelease = function (e) {
+-    if (ref.current.blockedByExternalOwnership || (0, import_native.unstable_hasExternalPressOwnership)()) {
+-      cleanup();
+-      ref.current.blockedByExternalOwnership = false;
+-      ref.current.state = "idle";
++  viewProps.onResponderRelease = function(e) {
++    if (!ownsResponder.current) return;
++    ownsResponder.current = false;
++    if ((0, import_native.unstable_hasExternalPressOwnership)()) {
++      handlers.onResponderTerminate(e);
++      endPress(e);
+       return;
+     }
+     userRelease === null || userRelease === void 0 ? void 0 : userRelease(e);
+-    var wasLongPressed = ref.current.state === "longPressed";
+-    cleanup();
+-    if (ref.current.state === "pressing") {
+-      activate(e);
+-    }
+-    if (!wasLongPressed) {
+-      var _events_onPress;
+-      (_events_onPress = events.onPress) === null || _events_onPress === void 0 ? void 0 : _events_onPress.call(events, e);
+-    }
+-    deactivate(e);
+-    ref.current.state = "idle";
+-    ref.current.blockedByExternalOwnership = false;
++    handlers.onResponderRelease(e);
+   };
+-  viewProps.onResponderTerminate = function (e) {
++  viewProps.onResponderTerminate = function(e) {
+     userTerminate === null || userTerminate === void 0 ? void 0 : userTerminate(e);
+-    cleanup();
+-    if (ref.current.state === "active" || ref.current.state === "longPressed") {
+-      deactivate(e);
+-    }
+-    ref.current.state = "idle";
+-    ref.current.blockedByExternalOwnership = false;
++    if (ownsResponder.current) handlers.onResponderTerminate(e);
++    endPress(e);
++    ownsResponder.current = false;
+   };
+-  viewProps.onResponderTerminationRequest = function (e) {
+-    if (userTerminationRequest) return userTerminationRequest(e);
+-    return events.cancelable !== false;
++  viewProps.onResponderTerminationRequest = function(e) {
++    var _ref;
++    return (_ref = userTerminationRequest === null || userTerminationRequest === void 0 ? void 0 : userTerminationRequest(e)) !== null && _ref !== void 0 ? _ref : handlers.onResponderTerminationRequest();
+   };
+-  viewProps.onResponderMove = function (e) {
+-    var _events_onPressMove;
++  viewProps.onResponderMove = function(e) {
+     userMove === null || userMove === void 0 ? void 0 : userMove(e);
+-    (_events_onPressMove = events.onPressMove) === null || _events_onPressMove === void 0 ? void 0 : _events_onPressMove.call(events, e);
++    if (ownsResponder.current) handlers.onResponderMove(e);
++  };
++  viewProps.onClick = function(e) {
++    userClick === null || userClick === void 0 ? void 0 : userClick(e);
++    if (!(0, import_native.unstable_hasExternalPressOwnership)()) handlers.onClick(e);
+   };
+ }
+ //# sourceMappingURL=mainThreadPressEvents.native.js.map
+diff --git a/dist/esm/helpers/mainThreadPressEvents.native.js b/dist/esm/helpers/mainThreadPressEvents.native.js
+index bd0a1d6f60b41537da58f37e5ae6e676beb2eb54..3262d9b3a75858fb14a09ee2d7cefe203ac94e57 100644
+--- a/dist/esm/helpers/mainThreadPressEvents.native.js
++++ b/dist/esm/helpers/mainThreadPressEvents.native.js
+@@ -1,132 +1,79 @@
+ import { unstable_hasExternalPressOwnership } from "@tamagui/native";
+ import { useRef } from "react";
+-var DEFAULT_LONG_PRESS_DELAY = 500;
+-var DEFAULT_MIN_PRESS_DURATION = 130;
+ function useMainThreadPressEvents(events, viewProps) {
+-  var enabled = arguments.length > 2 && arguments[2] !== void 0 ? arguments[2] : true,
+-    debugName = arguments.length > 3 ? arguments[3] : void 0;
+-  var ref = useRef(null);
+-  if (!ref.current) {
+-    ref.current = {
+-      state: "idle",
+-      pressInTimer: null,
+-      pressOutTimer: null,
+-      longPressTimer: null,
+-      activateTime: 0,
+-      blockedByExternalOwnership: false
+-    };
+-  }
+-  if (!enabled || !events) return;
+-  var _events_delayPressIn;
+-  var delayPressIn = Math.max(0, (_events_delayPressIn = events.delayPressIn) !== null && _events_delayPressIn !== void 0 ? _events_delayPressIn : 0);
+-  var _events_delayPressOut;
+-  var delayPressOut = Math.max(0, (_events_delayPressOut = events.delayPressOut) !== null && _events_delayPressOut !== void 0 ? _events_delayPressOut : 0);
+-  var _events_delayLongPress;
+-  var delayLongPress = Math.max(0, (_events_delayLongPress = events.delayLongPress) !== null && _events_delayLongPress !== void 0 ? _events_delayLongPress : DEFAULT_LONG_PRESS_DELAY);
+-  var _events_minPressDuration;
+-  var minPressDuration = Math.max(0, (_events_minPressDuration = events.minPressDuration) !== null && _events_minPressDuration !== void 0 ? _events_minPressDuration : DEFAULT_MIN_PRESS_DURATION);
+-  function activate(e) {
+-    var _events_onPressIn;
+-    ref.current.state = "active";
+-    ref.current.activateTime = Date.now();
+-    (_events_onPressIn = events.onPressIn) === null || _events_onPressIn === void 0 ? void 0 : _events_onPressIn.call(events, e);
+-  }
+-  function deactivate(e) {
+-    var pressDuration = Date.now() - ref.current.activateTime;
+-    var remaining = Math.max(minPressDuration - pressDuration, delayPressOut);
+-    if (remaining > 0) {
+-      ref.current.pressOutTimer = setTimeout(function () {
+-        var _events_onPressOut2;
+-        (_events_onPressOut2 = events.onPressOut) === null || _events_onPressOut2 === void 0 ? void 0 : _events_onPressOut2.call(events, e);
+-      }, remaining);
+-    } else {
+-      var _events_onPressOut;
+-      (_events_onPressOut = events.onPressOut) === null || _events_onPressOut === void 0 ? void 0 : _events_onPressOut.call(events, e);
+-    }
+-  }
+-  function cleanup() {
+-    if (ref.current.pressInTimer) clearTimeout(ref.current.pressInTimer);
+-    if (ref.current.pressOutTimer) clearTimeout(ref.current.pressOutTimer);
+-    if (ref.current.longPressTimer) clearTimeout(ref.current.longPressTimer);
+-    ref.current.pressInTimer = null;
+-    ref.current.pressOutTimer = null;
+-    ref.current.longPressTimer = null;
++  var enabled = arguments.length > 2 && arguments[2] !== void 0 ? arguments[2] : true, debugName = arguments.length > 3 ? arguments[3] : void 0;
++  var usePressability = require("react-native/Libraries/Pressability/usePressability").default;
++  var initialized = useRef(false);
++  var ownsResponder = useRef(false);
++  var pressActive = useRef(false);
++  var active = enabled && Boolean(events);
++  if (active) initialized.current = true;
++  function endPress(e) {
++    var _events_onPressOut;
++    if (!pressActive.current) return;
++    pressActive.current = false;
++    events === null || events === void 0 ? void 0 : (_events_onPressOut = events.onPressOut) === null || _events_onPressOut === void 0 ? void 0 : _events_onPressOut.call(events, e);
+   }
++  var handlers = usePressability(initialized.current ? {
++    ...active ? events : {},
++    disabled: !active || (events === null || events === void 0 ? void 0 : events.disabled),
++    android_disableSound: true,
++    onPressIn: active ? function(e) {
++      var _events_onPressIn;
++      endPress(e);
++      pressActive.current = true;
++      (_events_onPressIn = events.onPressIn) === null || _events_onPressIn === void 0 ? void 0 : _events_onPressIn.call(events, e);
++    } : void 0,
++    onPressOut: active ? endPress : void 0,
++    hitSlop: viewProps.hitSlop,
++    pressRectOffset: viewProps.pressRetentionOffset
++  } : null);
++  if (!active || !handlers) return;
+   var userStartShouldSet = viewProps.onStartShouldSetResponder;
+   var userGrant = viewProps.onResponderGrant;
+   var userRelease = viewProps.onResponderRelease;
+   var userTerminate = viewProps.onResponderTerminate;
+   var userTerminationRequest = viewProps.onResponderTerminationRequest;
+   var userMove = viewProps.onResponderMove;
+-  viewProps.onStartShouldSetResponder = function (e) {
+-    if (userStartShouldSet === null || userStartShouldSet === void 0 ? void 0 : userStartShouldSet(e)) return true;
+-    return !events.disabled && !unstable_hasExternalPressOwnership();
++  var userClick = viewProps.onClick;
++  viewProps.onStartShouldSetResponder = function(e) {
++    return (userStartShouldSet === null || userStartShouldSet === void 0 ? void 0 : userStartShouldSet(e)) || !unstable_hasExternalPressOwnership() && handlers.onStartShouldSetResponder();
+   };
+-  viewProps.onResponderGrant = function (e) {
+-    cleanup();
+-    if (unstable_hasExternalPressOwnership()) {
+-      ref.current.state = "idle";
+-      ref.current.blockedByExternalOwnership = true;
+-      return;
+-    }
++  viewProps.onResponderGrant = function(e) {
++    endPress(e);
++    if (unstable_hasExternalPressOwnership()) return;
+     userGrant === null || userGrant === void 0 ? void 0 : userGrant(e);
+-    ref.current.blockedByExternalOwnership = false;
+-    ref.current.state = "pressing";
+-    if (delayPressIn > 0) {
+-      ref.current.pressInTimer = setTimeout(function () {
+-        return activate(e);
+-      }, delayPressIn);
+-    } else {
+-      activate(e);
+-    }
+-    if (events.onLongPress) {
+-      ref.current.longPressTimer = setTimeout(function () {
+-        if (ref.current.state === "active") {
+-          var _events_onLongPress;
+-          ref.current.state = "longPressed";
+-          (_events_onLongPress = events.onLongPress) === null || _events_onLongPress === void 0 ? void 0 : _events_onLongPress.call(events, e);
+-        }
+-      }, delayLongPress + delayPressIn);
+-    }
++    ownsResponder.current = true;
++    return handlers.onResponderGrant(e);
+   };
+-  viewProps.onResponderRelease = function (e) {
+-    if (ref.current.blockedByExternalOwnership || unstable_hasExternalPressOwnership()) {
+-      cleanup();
+-      ref.current.blockedByExternalOwnership = false;
+-      ref.current.state = "idle";
++  viewProps.onResponderRelease = function(e) {
++    if (!ownsResponder.current) return;
++    ownsResponder.current = false;
++    if (unstable_hasExternalPressOwnership()) {
++      handlers.onResponderTerminate(e);
++      endPress(e);
+       return;
+     }
+     userRelease === null || userRelease === void 0 ? void 0 : userRelease(e);
+-    var wasLongPressed = ref.current.state === "longPressed";
+-    cleanup();
+-    if (ref.current.state === "pressing") {
+-      activate(e);
+-    }
+-    if (!wasLongPressed) {
+-      var _events_onPress;
+-      (_events_onPress = events.onPress) === null || _events_onPress === void 0 ? void 0 : _events_onPress.call(events, e);
+-    }
+-    deactivate(e);
+-    ref.current.state = "idle";
+-    ref.current.blockedByExternalOwnership = false;
++    handlers.onResponderRelease(e);
+   };
+-  viewProps.onResponderTerminate = function (e) {
++  viewProps.onResponderTerminate = function(e) {
+     userTerminate === null || userTerminate === void 0 ? void 0 : userTerminate(e);
+-    cleanup();
+-    if (ref.current.state === "active" || ref.current.state === "longPressed") {
+-      deactivate(e);
+-    }
+-    ref.current.state = "idle";
+-    ref.current.blockedByExternalOwnership = false;
++    if (ownsResponder.current) handlers.onResponderTerminate(e);
++    endPress(e);
++    ownsResponder.current = false;
+   };
+-  viewProps.onResponderTerminationRequest = function (e) {
+-    if (userTerminationRequest) return userTerminationRequest(e);
+-    return events.cancelable !== false;
++  viewProps.onResponderTerminationRequest = function(e) {
++    var _ref;
++    return (_ref = userTerminationRequest === null || userTerminationRequest === void 0 ? void 0 : userTerminationRequest(e)) !== null && _ref !== void 0 ? _ref : handlers.onResponderTerminationRequest();
+   };
+-  viewProps.onResponderMove = function (e) {
+-    var _events_onPressMove;
++  viewProps.onResponderMove = function(e) {
+     userMove === null || userMove === void 0 ? void 0 : userMove(e);
+-    (_events_onPressMove = events.onPressMove) === null || _events_onPressMove === void 0 ? void 0 : _events_onPressMove.call(events, e);
++    if (ownsResponder.current) handlers.onResponderMove(e);
++  };
++  viewProps.onClick = function(e) {
++    userClick === null || userClick === void 0 ? void 0 : userClick(e);
++    if (!unstable_hasExternalPressOwnership()) handlers.onClick(e);
+   };
+ }
+ export { useMainThreadPressEvents };
