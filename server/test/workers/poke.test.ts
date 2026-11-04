@@ -85,7 +85,14 @@ async function jobFinished(
   const job = await queue.add(
     "poke",
     { ...current, ...trace },
-    { attempts: 1, jobId: id, removeOnComplete: true, removeOnFail: true, ...options },
+    {
+      attempts: 1,
+      deduplication: { id, keepLastIfActive: true, replace: true },
+      jobId: id,
+      removeOnComplete: true,
+      removeOnFail: true,
+      ...options,
+    },
   );
   await result.catch(async (error: unknown) => {
     await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0);
@@ -147,9 +154,8 @@ describe("poke queue", () => {
     await expect(poke.enqueue(request)).resolves.toBeUndefined();
 
     const id = `${request.chainId}-${account}`;
-    const job = await queue.getJob(id);
-    if (!job) throw new Error("job not found");
-    expect(job.id).toBe(id);
+    const job = await getPoke(id);
+    expect(job.deduplicationId).toBe(id);
     expect(job.name).toBe("poke");
     expect(job.data).toStrictEqual({
       ...request,
@@ -158,8 +164,8 @@ describe("poke queue", () => {
     });
     expect(job.opts).toStrictEqual({
       attempts: 10,
-      backoff: { type: "exponential", delay: 1000 },
-      jobId: id,
+      backoff: { type: "fixed", delay: 2000 },
+      deduplication: { id, keepLastIfActive: true, replace: true },
       removeOnComplete: true,
       removeOnFail: true,
     });
@@ -176,13 +182,12 @@ describe("poke queue", () => {
     await job.remove();
   });
 
-  it("includes assets in job ids", async () => {
+  it("includes assets in deduplication ids", async () => {
     await poke.enqueue({ ...request, assets: [token] });
 
     const id = `${request.chainId}-${account}-${token}`;
-    const job = await queue.getJob(id);
-    if (!job) throw new Error("job not found");
-    expect(job.id).toBe(id);
+    const job = await getPoke(id);
+    expect(job.deduplicationId).toBe(id);
     expect(job.data).toStrictEqual({
       ...request,
       assets: [token],
@@ -192,15 +197,14 @@ describe("poke queue", () => {
     await job.remove();
   });
 
-  it("keeps chains separate in job ids", async () => {
+  it("keeps chains separate in deduplication ids", async () => {
     await Promise.all([poke.enqueue(request), poke.enqueue({ ...request, chainId: 1 })]);
 
-    const [current, mainnet] = await Promise.all([
-      queue.getJob(`${request.chainId}-${account}`),
-      queue.getJob(`1-${account}`),
+    const [current, mainnet] = await Promise.all([getPoke(`${request.chainId}-${account}`), getPoke(`1-${account}`)]);
+    expect([current.deduplicationId, mainnet.deduplicationId]).toStrictEqual([
+      `${request.chainId}-${account}`,
+      `1-${account}`,
     ]);
-    if (!current || !mainnet) throw new Error("job not found");
-    expect([current.id, mainnet.id]).toStrictEqual([`${request.chainId}-${account}`, `1-${account}`]);
     await Promise.all([current.remove(), mainnet.remove()]);
   });
 
@@ -353,7 +357,12 @@ describe("poke worker", () => {
 
     await jobFinished({ ...request, assets: [eth, weth], origin: "activity" });
 
-    expect(updateData).toHaveBeenCalledExactlyOnceWith({ ...request, assets: [], origin: "activity" });
+    expect(updateData).toHaveBeenCalledExactlyOnceWith({
+      ...request,
+      assets: [eth, weth],
+      origin: "activity",
+      pending: [],
+    });
     expect(await getWETHMarket(account)).toMatchObject({
       floatingDepositAssets: ethDeposit + wethDeposit,
       isCollateral: true,
@@ -489,6 +498,52 @@ describe("poke worker", () => {
     });
   });
 
+  it("pokes new funds of every activity asset on retry", async () => {
+    const wethDeposit = parseEther("2");
+    const usdcDeposit = 2_000_000n;
+    const readContract = publicClient.readContract;
+    let hidden = true;
+    await mint(token, account, wethDeposit);
+    vi.spyOn(publicClient, "readContract").mockImplementation(async (parameters) => {
+      if (hidden && parameters.functionName === "balanceOf" && parameters.address === token2) {
+        hidden = false;
+        await mint(token2, account, usdcDeposit);
+        return 0n as never;
+      }
+      return readContract(parameters as never);
+    });
+    vi.spyOn(QueueJob.prototype, "updateData").mockImplementationOnce(async () => {
+      await mint(token, account, wethDeposit);
+    });
+    const add = vi.spyOn(Queue.prototype, "add");
+
+    const job = await jobFinished(
+      { ...request, assets: [token2, token], origin: "activity" },
+      { attempts: 2, backoff: { type: "fixed", delay: 1 } },
+    );
+
+    expect(hidden).toBe(false);
+    expect(await getMarket(account, token)).toMatchObject({
+      floatingDepositAssets: 2n * wethDeposit,
+      isCollateral: true,
+    });
+    expect(await getMarket(account, token2)).toMatchObject({
+      floatingDepositAssets: usdcDeposit - 1n,
+      isCollateral: true,
+    });
+    expect(credits(add)).toStrictEqual([
+      ["credit", expect.objectContaining({ account }), { jobId: `poke-${job.id}-1` }],
+      ["credit", expect.objectContaining({ account }), { jobId: `poke-${job.id}-2` }],
+    ]);
+    expect(mocks.track).toHaveBeenCalledExactlyOnceWith({
+      event: "AccountFunded",
+      userId: account,
+      properties: { source: null },
+    });
+    expect(sendPushNotificationMock).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
   it("queues credit after each partial activity poke", async () => {
     const readContract = publicClient.readContract;
     let hidden = true;
@@ -514,6 +569,82 @@ describe("poke worker", () => {
     ]);
     expect(await getMarket(account, token)).toMatchObject({ isCollateral: true });
     expect(await getMarket(account, token2)).toMatchObject({ isCollateral: true });
+  });
+
+  it("pokes new funds while an earlier poke waits to retry", async () => {
+    const deposit = parseEther("2");
+    const id = `${request.chainId}-${account}-${token}`;
+    const retry = await queue.add(
+      "poke",
+      { ...request, assets: [token], origin: "activity" },
+      {
+        attempts: 2,
+        backoff: { type: "fixed", delay: 60_000 },
+        deduplication: { id, keepLastIfActive: true, replace: true },
+        jobId: id,
+        removeOnComplete: true,
+        removeOnFail: true,
+      },
+    );
+    await vi.waitUntil(async () => (await retry.getState()) === "delayed", { timeout: 5000 });
+    await mint(token, account, deposit);
+    const add = vi.spyOn(Queue.prototype, "add");
+
+    await poke.enqueue({ ...request, assets: [token], origin: "activity" });
+    await vi.waitUntil(async () => (await queue.getDeduplicationJobId(id)) === null, { timeout: 5000 });
+
+    await expect(queue.getJob(id)).resolves.toBeUndefined();
+    expect(await getWETHMarket(account)).toMatchObject({ floatingDepositAssets: deposit, isCollateral: true });
+    expect(credits(add)).toStrictEqual([
+      ["credit", expect.objectContaining({ account }), { jobId: expect.stringMatching(/^poke-\d+-1$/) as string }],
+    ]);
+    expect(mocks.track).toHaveBeenCalledExactlyOnceWith({
+      event: "AccountFunded",
+      userId: account,
+      properties: { source: null },
+    });
+    expect(sendPushNotificationMock).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("pokes funds that arrive while a poke is active", async () => {
+    const deposit = parseEther("2");
+    const id = `${request.chainId}-${account}-${token}`;
+    await mint(token, account, deposit);
+    const updateData = vi.spyOn(QueueJob.prototype, "updateData").mockImplementationOnce(async () => {
+      await mint(token, account, deposit);
+      await poke.enqueue({ ...request, assets: [token], origin: "activity" });
+    });
+    const add = vi.spyOn(Queue.prototype, "add");
+
+    await jobFinished({ ...request, assets: [token], origin: "activity" });
+    await vi.waitUntil(async () => (await queue.getDeduplicationJobId(id)) === null, { timeout: 5000 });
+
+    expect(updateData.mock.calls).toStrictEqual([
+      [{ ...request, assets: [token], origin: "activity", pending: [] }],
+      [
+        {
+          ...request,
+          assets: [token],
+          origin: "activity",
+          pending: [],
+          sentryBaggage: expect.any(String) as string,
+          sentryTrace: expect.any(String) as string,
+        },
+      ],
+    ]);
+    expect(credits(add)).toStrictEqual([
+      ["credit", expect.objectContaining({ account }), { jobId: `poke-${id}-1` }],
+      ["credit", expect.objectContaining({ account }), { jobId: expect.stringMatching(/^poke-\d+-1$/) as string }],
+    ]);
+    expect(await getWETHMarket(account)).toMatchObject({ floatingDepositAssets: 2n * deposit, isCollateral: true });
+    expect(mocks.track).toHaveBeenCalledExactlyOnceWith({
+      event: "AccountFunded",
+      userId: account,
+      properties: { source: null },
+    });
+    expect(sendPushNotificationMock).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it("captures exhausted activity as a no balance warning", async () => {
@@ -697,6 +828,12 @@ function createRequest() {
       source: null,
     } satisfies Parameters<ReturnType<typeof createPoke>["enqueue"]>[0],
   };
+}
+
+async function getPoke(id: string) {
+  const job = await queue.getDeduplicationJobId(id).then((jobId) => (jobId ? queue.getJob(jobId) : undefined));
+  if (!job) throw new Error("job not found");
+  return job;
 }
 
 async function getMarket(address: Address, asset: Address) {
