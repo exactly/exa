@@ -7,7 +7,7 @@ import { IAccessControl } from "openzeppelin-contracts/contracts/access/IAccessC
 
 import { IssuerChecker } from "../src/IssuerChecker.sol";
 
-import { ISafe } from "../script/Safe.s.sol";
+import { ISafe, NoOwner, ProposalFailed, UnsupportedChain } from "../script/Safe.s.sol";
 import { Signers } from "../script/Signers.s.sol";
 
 contract SignersTest is ForkTest {
@@ -124,6 +124,67 @@ contract SignersTest is ForkTest {
     assertEq(signers.body(), "");
   }
 
+  function test_run_proposesOnBase() external {
+    vm.makePersistent(address(signers));
+    vm.createSelectFork("base", 53_400_000);
+    vm.prank(address(safe));
+    safe.addOwnerWithThreshold(makeAddr("owner"), 1);
+    vm.deal(address(safe), 10 ether);
+
+    execute(proposal());
+
+    assertTrue(IAccessControl(broadcast("ExaPlugin")).hasRole(KEEPER_ROLE, executor));
+    assertTrue(IAccessControl(broadcast("ExaPlugin")).hasRole(KEEPER_ROLE, settler));
+    assertTrue(IAccessControl(broadcast("Refunder")).hasRole(KEEPER_ROLE, settler));
+    assertEq(IssuerChecker(broadcast("IssuerChecker")).issuer(), issuer);
+    assertEq(executor.balance, 1 ether);
+    assertEq(settler.balance, 1 ether);
+  }
+
+  function test_run_readsQueuedNonceFromSafeService() external {
+    vm.setEnv("SAFE_API_KEY", "test");
+    signers.live();
+    vm.pauseGasMetering();
+    uint256 nonce = proposal().readUint(".nonce");
+    vm.resumeGasMetering();
+
+    assertGe(nonce, safe.nonce());
+  }
+
+  function test_run_reverts_whenChainIsUnsupported() external {
+    set("ExaPlugin", address(plugin));
+    set("Refunder", address(refunder));
+    set("IssuerChecker", address(issuerChecker));
+    vm.chainId(1);
+
+    vm.expectRevert(UnsupportedChain.selector);
+    signers.run(1 ether);
+  }
+
+  function test_run_reverts_whenQueueRequestFails() external {
+    signers.respond(500, 201);
+
+    vm.expectRevert(
+      abi.encodeWithSelector(ProposalFailed.selector, 500, '{"count":0,"next":null,"previous":null,"results":[]}') // solhint-disable-line quotes
+    );
+    signers.run(1 ether);
+  }
+
+  function test_run_reverts_whenProposalIsRejected() external {
+    signers.respond(200, 422);
+
+    vm.expectRevert(abi.encodeWithSelector(ProposalFailed.selector, 422, ""));
+    signers.run(1 ether);
+  }
+
+  function test_run_reverts_whenNoWalletOwnsTheSafe() external {
+    vm.prank(address(safe));
+    safe.removeOwner(address(1), makeAddr("owner"), 1);
+
+    vm.expectRevert(NoOwner.selector);
+    signers.run(1 ether);
+  }
+
   function test_run_broadcastsWhenAdminIsAnAccount() external {
     address admin = makeAddr("admin");
     vm.startPrank(address(safe));
@@ -182,23 +243,37 @@ contract SignersTest is ForkTest {
 contract SignersHarness is Signers {
   string public body;
   uint256 internal queued;
+  bool internal online;
+  uint256 internal getStatus = 200;
+  uint256 internal postStatus = 201;
 
   function queue(uint256 nonce) external {
     queued = nonce;
   }
 
-  function request(string memory, string memory body_) internal override returns (uint256, bytes memory) {
+  function live() external {
+    online = true;
+  }
+
+  function respond(uint256 getStatus_, uint256 postStatus_) external {
+    getStatus = getStatus_;
+    postStatus = postStatus_;
+  }
+
+  function request(string memory url, string memory body_) internal override returns (uint256, bytes memory) {
     if (bytes(body_).length != 0) {
       body = body_;
-      return (201, "");
+      return (postStatus, "");
     }
-    if (queued == 0) return (200, '{"count":0,"next":null,"previous":null,"results":[]}'); // solhint-disable-line quotes
-    return (200, bytes(string.concat('{"count":1,"results":[{"nonce":', vm.toString(queued), "}]}"))); // solhint-disable-line quotes
+    if (online) return super.request(url, body_);
+    if (queued == 0) return (getStatus, '{"count":0,"next":null,"previous":null,"results":[]}'); // solhint-disable-line quotes
+    return (getStatus, bytes(string.concat('{"count":1,"results":[{"nonce":', vm.toString(queued), "}]}"))); // solhint-disable-line quotes
   }
 }
 
 interface ISafeOwners is ISafe {
   function addOwnerWithThreshold(address owner, uint256 threshold) external;
+  function removeOwner(address prevOwner, address owner, uint256 threshold) external;
   function execTransaction(
     address to,
     uint256 value,
