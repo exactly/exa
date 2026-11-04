@@ -100,6 +100,22 @@ contract SignersTest is ForkTest {
     assertEq(issuerChecker.issuer(), makeAddr("next issuer"));
   }
 
+  function test_run_topsSignersUpToBalance(uint256 balance, uint256 executorBalance, uint256 settlerBalance) external {
+    balance = bound(balance, 0, 5 ether);
+    executorBalance = bound(executorBalance, 0, 10 ether);
+    settlerBalance = bound(settlerBalance, 0, 10 ether);
+    vm.deal(executor, executorBalance);
+    vm.deal(settler, settlerBalance);
+
+    execute(proposal(balance));
+
+    assertEq(executor.balance, executorBalance < balance ? balance : executorBalance);
+    assertEq(settler.balance, settlerBalance < balance ? balance : settlerBalance);
+    assertEq(
+      address(safe).balance, 10 ether - (executor.balance - executorBalance) - (settler.balance - settlerBalance)
+    );
+  }
+
   function test_run_skipsProposalWhenNothingChanges() external {
     execute(proposal());
 
@@ -125,9 +141,13 @@ contract SignersTest is ForkTest {
   }
   // solhint-enable func-name-mixedcase
 
-  function proposal() internal returns (string memory body) {
+  function proposal() internal returns (string memory) {
+    return proposal(1 ether);
+  }
+
+  function proposal(uint256 balance) internal returns (string memory body) {
     uint256 snapshot = vm.snapshotState();
-    signers.run(1 ether);
+    signers.run(balance);
     body = signers.body();
     vm.revertToState(snapshot);
   }
