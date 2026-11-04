@@ -8,6 +8,10 @@ appId: ${APP_ID ?? "app.exactly"}
 - inputText: ${amount}
 - pressKey: enter
 - tapOn: Continue
+- runFlow:
+    when: { true: "${installments > 1}" }
+    commands:
+      - tapOn: 1 installment of
 - tapOn: "${installments + ' installment' + (installments > 1 ? 's' : '') + ' of'}"
 - tapOn: Continue
 - tapOn: "^[A-Z][a-z]+ \\d+, \\d{4}$"
