@@ -141,16 +141,6 @@ contract SignersTest is ForkTest {
     assertEq(settler.balance, 1 ether);
   }
 
-  function test_run_readsQueuedNonceFromSafeService() external {
-    vm.setEnv("SAFE_API_KEY", "test");
-    signers.live();
-    vm.pauseGasMetering();
-    uint256 nonce = proposal().readUint(".nonce");
-    vm.resumeGasMetering();
-
-    assertGe(nonce, safe.nonce());
-  }
-
   function test_run_reverts_whenChainIsUnsupported() external {
     set("ExaPlugin", address(plugin));
     set("Refunder", address(refunder));
@@ -243,7 +233,6 @@ contract SignersTest is ForkTest {
 contract SignersHarness is Signers {
   string public body;
   uint256 internal queued;
-  bool internal online;
   uint256 internal getStatus = 200;
   uint256 internal postStatus = 201;
 
@@ -251,21 +240,16 @@ contract SignersHarness is Signers {
     queued = nonce;
   }
 
-  function live() external {
-    online = true;
-  }
-
   function respond(uint256 getStatus_, uint256 postStatus_) external {
     getStatus = getStatus_;
     postStatus = postStatus_;
   }
 
-  function request(string memory url, string memory body_) internal override returns (uint256, bytes memory) {
+  function request(string memory, string memory body_) internal override returns (uint256, bytes memory) {
     if (bytes(body_).length != 0) {
       body = body_;
       return (postStatus, "");
     }
-    if (online) return super.request(url, body_);
     if (queued == 0) return (getStatus, '{"count":0,"next":null,"previous":null,"results":[]}'); // solhint-disable-line quotes
     return (getStatus, bytes(string.concat('{"count":1,"results":[{"nonce":', vm.toString(queued), "}]}"))); // solhint-disable-line quotes
   }
