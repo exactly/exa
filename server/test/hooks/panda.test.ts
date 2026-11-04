@@ -2866,8 +2866,9 @@ describe("multi-chain", () => {
 
   it("keeps retried collection on the same network", async () => {
     const cardId = `${accountMulti}-retry`;
+    const authorizedAt = new Date().toISOString();
 
-    await expect(remotePurchase(cardId, 300)).resolves.toStrictEqual([200, 200, 3_000_000n]);
+    await expect(remotePurchase(cardId, 300, authorizedAt)).resolves.toStrictEqual([200, 200, 3_000_000n]);
 
     const response = await appClient.index.$post({
       ...authorization,
@@ -2877,7 +2878,7 @@ describe("multi-chain", () => {
         body: {
           ...authorization.json.body,
           id: cardId,
-          spend: { ...authorization.json.body.spend, amount: 300, cardId },
+          spend: { ...authorization.json.body.spend, amount: 300, cardId, authorizedAt },
         },
       },
     });
@@ -2970,11 +2971,11 @@ describe("multi-chain", () => {
     expect(signIssuerOp.mock.calls.filter((parameters) => parameters[3] === remote.id)).toHaveLength(2);
   });
 
-  async function remotePurchase(cardId: string, amount: number) {
+  async function remotePurchase(cardId: string, amount: number, authorizedAt = new Date().toISOString()) {
     const body = {
       ...authorization.json.body,
       id: cardId,
-      spend: { ...authorization.json.body.spend, amount, cardId },
+      spend: { ...authorization.json.body.spend, amount, cardId, authorizedAt },
     };
     return [
       await appClient.index
