@@ -1,4 +1,4 @@
-From b5a37ed4335fc582491ae4c9e96aebcea1e06572 Mon Sep 17 00:00:00 2001
+From 89c5929658de3e638fd4a609bb919065982bd2fe Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Thu, 22 Oct 2026 23:30:06 +0000
 Subject: [PATCH] fix: run css selectors once per lookup
@@ -47,7 +47,7 @@ index f3adf5f..0c4e0f1 100644
          return { nodes ->
              val matchingNodes = runBlocking { maestro.findElementsByOnDeviceQuery(
 
-base-commit: 0df4cf3c8cad946e0494f462c6ce4987145cd36f
+base-commit: 67d8a677029261fa424a45a10d08eacd6aa0deed
 -- 
 2.43.0
 

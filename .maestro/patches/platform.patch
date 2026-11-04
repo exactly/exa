@@ -1,4 +1,4 @@
-From 87d1823372c7f7169be41674fe4b790fadee83c8 Mon Sep 17 00:00:00 2001
+From 045e9fc885da2683b0d5f19cd94c763703502c22 Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Fri, 23 Oct 2026 22:08:13 +0000
 Subject: [PATCH] fix: run flows in the browser with --platform web

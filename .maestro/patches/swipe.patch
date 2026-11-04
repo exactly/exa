@@ -1,4 +1,4 @@
-From f8698d42733adcee1fe9dcef647d7131f1aacf71 Mon Sep 17 00:00:00 2001
+From ab2175740421e7edc9cc66f1ed7ed61b4e348a15 Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Wed, 21 Oct 2026 13:35:31 +0000
 Subject: [PATCH] fix: dispatch web swipes as timed touch events
@@ -11,10 +11,10 @@ A swipe from an element, and scrollUntilVisible, scrolled the window instead, wh
  1 file changed, 37 insertions(+), 23 deletions(-)
 
 diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-index b1492ad..80a8859 100644
+index 0d8127f..5554816 100644
 --- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
 +++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-@@ -610,29 +610,36 @@ class CdpWebDriver(
+@@ -611,29 +611,36 @@ class CdpWebDriver(
      }
  
      override fun swipe(start: Point, end: Point, durationMs: Long) {
@@ -72,7 +72,7 @@ index b1492ad..80a8859 100644
      }
  
      override fun swipe(swipeDirection: SwipeDirection, durationMs: Long) {
-@@ -653,8 +660,14 @@ class CdpWebDriver(
+@@ -654,8 +661,14 @@ class CdpWebDriver(
      }
  
      override fun swipe(elementPoint: Point, direction: SwipeDirection, durationMs: Long) {
@@ -89,7 +89,7 @@ index b1492ad..80a8859 100644
      }
  
      override fun backPress() {
-@@ -985,6 +998,7 @@ class CdpWebDriver(
+@@ -987,6 +1000,7 @@ class CdpWebDriver(
          private const val RETRY_FETCHING_CONTENT_DESCRIPTION = 10
          private const val JS_EXECUTION_MAX_ATTEMPTS = 5
          private const val JS_EXECUTION_RETRY_DELAY_MS = 200L
@@ -98,7 +98,7 @@ index b1492ad..80a8859 100644
          private val LAUNCH_PAGE_LOAD_TIMEOUT: Duration = Duration.ofSeconds(30)
  
 
-base-commit: 0df4cf3c8cad946e0494f462c6ce4987145cd36f
+base-commit: 67d8a677029261fa424a45a10d08eacd6aa0deed
 -- 
 2.43.0
 

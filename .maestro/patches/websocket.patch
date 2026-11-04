@@ -1,4 +1,4 @@
-From df7ae263ea68ec27fe74cd3b4fdf16b983f062af Mon Sep 17 00:00:00 2001
+From 1f863af9d50d90e0eeab6f6f23be9cc4e54609ab Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Tue, 20 Oct 2026 00:51:30 +0000
 Subject: [PATCH] fix: reuse one CDP websocket per target
@@ -126,7 +126,7 @@ index 2f8e05f..ca78c8e 100644
      }
  
 
-base-commit: 0df4cf3c8cad946e0494f462c6ce4987145cd36f
+base-commit: 67d8a677029261fa424a45a10d08eacd6aa0deed
 -- 
 2.43.0
 
