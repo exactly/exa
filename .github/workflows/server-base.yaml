@@ -4,10 +4,12 @@ on:
 jobs:
   build:
     uses: ./.github/workflows/server-build.yaml
+    permissions: { artifact-metadata: write, contents: read, packages: write, attestations: write, id-token: write }
     with: { stack: base, chain: 8453 }
   deploy:
     needs: build
     uses: ./.github/workflows/server-deploy.yaml
+    permissions: { contents: read, id-token: write, packages: read }
     with: { stack: base }
     secrets:
       DIGITALOCEAN_TOKEN: "${{ secrets.DIGITALOCEAN_TOKEN }}"
