@@ -1,63 +1,28 @@
 import { vValidator } from "@hono/valibot-validator";
-import { SPAN_STATUS_ERROR, SPAN_STATUS_OK } from "@sentry/core";
-import {
-  captureException,
-  continueTrace,
-  getActiveSpan,
-  getTraceData,
-  SEMANTIC_ATTRIBUTE_SENTRY_OP,
-  setContext,
-  setExtra,
-  startSpan,
-  withScope,
-} from "@sentry/node";
-import { deserialize, serialize } from "@wagmi/core";
-import { Mutex } from "async-mutex";
+import { captureException, getActiveSpan, SEMANTIC_ATTRIBUTE_SENTRY_OP, setContext, setExtra } from "@sentry/node";
+import { deserialize } from "@wagmi/core";
 import createDebug from "debug";
 import { Kind, parse, visit, type StringValueNode } from "graphql";
 import { Hono } from "hono";
 import { setTimeout } from "node:timers/promises";
 import * as v from "valibot";
-import {
-  BaseError,
-  CallExecutionError,
-  ContractFunctionExecutionError,
-  decodeEventLog,
-  encodeErrorResult,
-  ExecutionRevertedError,
-  formatUnits,
-  type LocalAccount,
-} from "viem";
-import { optimismSepolia } from "viem/chains";
+import { decodeEventLog } from "viem";
 
-import chain, {
-  auditorAbi,
+import {
   exaPluginAbi,
   exaPluginAddress,
-  exaPreviewerAbi,
-  exaPreviewerAddress,
-  marketAbi,
-  marketWETHAddress,
   proposalManagerAbi,
   proposalManagerAddress,
-  upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
-import ProposalType, { decodeWithdraw } from "@exactly/common/ProposalType";
-import revertReason from "@exactly/common/revertReason";
-import shortenHex from "@exactly/common/shortenHex";
 import { Address, Hash, Hex } from "@exactly/common/validation";
 
-import t, { f } from "../i18n";
 import { headerValidator } from "../utils/alchemy";
 import appOrigin from "../utils/appOrigin";
-import ensClient from "../utils/ensClient";
-import publicClient from "../utils/publicClient";
-import revertFingerprint from "../utils/revertFingerprint";
 import validatorHook from "../utils/validatorHook";
-import createWallet from "../utils/wallet";
+import { legacyExaPluginAbi, Proposal, Withdraw } from "../workers/proposal/job";
 
 import type createAlchemy from "../utils/alchemy";
-import type createOnesignal from "../utils/onesignal";
+import type createProposal from "../workers/proposal/queue";
 import type { Redis } from "ioredis";
 
 const debug = createDebug("exa:block");
@@ -66,39 +31,19 @@ Object.assign(debug, { inspectOpts: { depth: undefined } });
 export default function hook({
   alchemy,
   blockKey,
-  executor,
-  onesignal,
+  proposal,
   redis,
 }: {
   alchemy: ReturnType<typeof createAlchemy>;
   blockKey?: string;
-  executor: LocalAccount;
-  onesignal: ReturnType<typeof createOnesignal>;
+  proposal: ReturnType<typeof createProposal>;
   redis: Redis;
 }) {
-  const wallet = createWallet(executor);
-  const mutexes = new Map<Address, Mutex>();
-  function createMutex(address: Address) {
-    const mutex = new Mutex();
-    mutexes.set(address, mutex);
-    return mutex;
-  }
-
   if (!blockKey) debug("missing alchemy block key");
   const signingKeys = new Set(blockKey && [blockKey]);
   const ready = Promise.all([
-    redis
-      .zrange("withdraw", 0, Infinity, "BYSCORE")
-      .then((messages) => {
-        for (const message of messages) scheduleWithdraw(message);
-      })
-      .catch((error: unknown) => captureException(error)),
-    redis
-      .zrange("proposals", 0, Infinity, "BYSCORE")
-      .then((messages) => {
-        for (const message of messages) scheduleMessage(message);
-      })
-      .catch((error: unknown) => captureException(error)),
+    migrate("withdraw", Withdraw), // TODO remove after migration
+    migrate("proposals", Proposal), // TODO remove after migration
     initializeAlchemy(alchemy, signingKeys).catch((error: unknown) => {
       if (signingKeys.size === 0) throw error;
       captureException(error, { level: "warning" });
@@ -177,449 +122,28 @@ export default function hook({
 
       await Promise.all([
         ...proposalsByAccount.values().map(async (ps) => {
-          for (const proposal of ps.toSorted((a, b) => Number(a.nonce - b.nonce))) await scheduleProposal(proposal);
+          for (const p of ps.toSorted((a, b) => Number(a.nonce - b.nonce))) await proposal.enqueue(p);
         }),
-        ...oldWithdraws.map(async (event) => {
-          const withdraw = v.parse(Withdraw, { ...event.args, timestamp });
-          return startSpan(
-            {
-              name: "schedule withdraw",
-              op: "queue.publish",
-              attributes: {
-                account: withdraw.account,
-                market: withdraw.market,
-                receiver: withdraw.receiver,
-                amount: String(withdraw.amount),
-                unlock: Number(withdraw.unlock),
-                "messaging.system": "redis",
-                "messaging.operation.type": "send",
-                "messaging.destination.name": "withdraw",
-                "messaging.message.id": withdraw.id,
-              },
-            },
-            async () => {
-              const { "sentry-trace": sentryTrace, baggage: sentryBaggage } = getTraceData();
-              withdraw.sentryTrace = sentryTrace;
-              withdraw.sentryBaggage = sentryBaggage;
-              const message = serialize(withdraw);
-              getActiveSpan()?.setAttribute("messaging.message.body.size", Buffer.byteLength(message));
-              const added = await redis.zadd("withdraw", Number(event.args.unlock), message);
-              if (added) scheduleWithdraw(message);
-              return added;
-            },
-          );
-        }),
+        ...oldWithdraws.map((event) => proposal.enqueue(v.parse(Withdraw, { ...event.args, timestamp }))),
       ]);
       return c.json({});
     },
   );
 
-  function scheduleProposal(proposal: v.InferOutput<typeof Proposal>) {
-    return startSpan(
-      {
-        name: "schedule proposal",
-        op: "queue.publish",
-        attributes: {
-          account: proposal.account,
-          amount: String(proposal.amount),
-          data: proposal.data,
-          market: proposal.market,
-          nonce: Number(proposal.nonce),
-          proposalType: proposal.proposalType,
-          timestamp: proposal.timestamp,
-          unlock: Number(proposal.unlock),
-          "messaging.system": "redis",
-          "messaging.operation.type": "send",
-          "messaging.destination.name": "proposals",
-          "messaging.message.id": proposal.id,
-        },
-      },
-      async () => {
-        const { "sentry-trace": sentryTrace, baggage: sentryBaggage } = getTraceData();
-        proposal.sentryTrace = sentryTrace;
-        proposal.sentryBaggage = sentryBaggage;
-        const message = serialize(proposal);
-        getActiveSpan()?.setAttribute("messaging.message.body.size", Buffer.byteLength(message));
-        const added = await redis.zadd("proposals", Number(proposal.unlock + proposal.nonce), message);
-        if (added) scheduleMessage(message);
-        return added;
-      },
-    );
-  }
-
-  function scheduleMessage(message: string) {
-    const proposal = v.parse(Proposal, deserialize(message));
-    const {
-      account,
-      amount,
-      data,
-      id,
-      market,
-      nonce,
-      proposalType,
-      retryCount,
-      sentryBaggage,
-      sentryTrace,
-      timestamp,
-      unlock,
-    } = proposal;
-    const bodySize = Buffer.byteLength(message);
-
-    const processProposal = () =>
-      withScope((scope) => {
-        scope.setUser({ id: account });
-        scope.setContext("proposal", {
-          account,
-          nonce: Number(nonce),
-          proposalType: ProposalType[proposalType],
-          retryCount,
-        });
-        const skipNonce = async () =>
-          wallet.exaSend(
-            { name: "exa.nonce", op: "exa.nonce", attributes: { account } },
-            {
-              address: account,
-              functionName: "setProposalNonce",
-              args: [nonce + 1n],
-              abi: [...exaPluginAbi, ...upgradeableModularAccountAbi, ...proposalManagerAbi],
-            },
-            { ignore: ["NonceTooLow()"] },
-          );
-        return startSpan({ name: "exa.execute", op: "exa.execute", forceTransaction: true }, (parent) =>
-          startSpan(
-            {
-              name: "execute proposal",
-              op: "queue.process",
-              attributes: {
-                account,
-                amount: String(amount),
-                data,
-                market,
-                nonce: Number(nonce),
-                proposalType,
-                timestamp,
-                unlock: Number(unlock),
-                "messaging.system": "redis",
-                "messaging.operation.type": "process",
-                "messaging.destination.name": "proposals",
-                "messaging.message.id": id,
-                "messaging.message.body.size": bodySize,
-                "messaging.message.retry.count": retryCount,
-                "messaging.message.receive.latency": Date.now() - Number(unlock) * 1000,
-              },
-            },
-            async () => {
-              await (proposalType === ProposalType.None
-                ? skipNonce()
-                : wallet.exaSend(
-                    { name: "exa.execute", op: "exa.execute", attributes: { account } },
-                    {
-                      address: account,
-                      functionName: "executeProposal",
-                      args: [nonce],
-                      abi: [
-                        ...exaPluginAbi,
-                        ...upgradeableModularAccountAbi,
-                        ...proposalManagerAbi,
-                        ...auditorAbi,
-                        ...marketAbi,
-                        { type: "error", name: "ExpiredTransaction", inputs: [] },
-                        { type: "error", name: "InsufficientAmountOut", inputs: [] },
-                        {
-                          type: "error",
-                          name: "MinimalOutputBalanceViolation",
-                          inputs: [
-                            { name: "token", type: "address" },
-                            { name: "amount", type: "uint256" },
-                          ],
-                        },
-                        {
-                          type: "error",
-                          name: "WrappedError",
-                          inputs: [
-                            { name: "target", type: "address" },
-                            { name: "selector", type: "bytes4" },
-                            { name: "reason", type: "bytes" },
-                            { name: "details", type: "bytes" },
-                          ],
-                        },
-                      ],
-                    },
-                    {
-                      level: (reason, error) =>
-                        reason === "NonceTooLow()" || reason === "NoProposal()"
-                          ? false
-                          : error instanceof ContractFunctionExecutionError
-                            ? "warning"
-                            : "error",
-                    },
-                  ));
-
-              parent.setStatus({ code: SPAN_STATUS_OK });
-              if (proposalType === ProposalType.Withdraw) {
-                if (market.toLowerCase() === marketWETHAddress.toLowerCase()) {
-                  await skipNonce().catch((nonceError: unknown) => {
-                    captureException(nonceError, {
-                      level: "error",
-                      contexts: {
-                        proposal: {
-                          account,
-                          nonce: Number(nonce),
-                          proposalType: ProposalType[proposalType],
-                          retryCount,
-                        },
-                      },
-                      fingerprint: revertFingerprint(nonceError),
-                    });
-                  });
-                }
-                const receiver = v.parse(Address, decodeWithdraw(data));
-                startSpan(
-                  { name: "send withdraw notification", op: "notification.send", attributes: { account, receiver } },
-                  () =>
-                    Promise.all([
-                      publicClient.readContract({ address: market, abi: marketAbi, functionName: "decimals" }),
-                      publicClient.readContract({ address: market, abi: marketAbi, functionName: "symbol" }),
-                      ensClient.getEnsName({ address: receiver }).catch(() => null),
-                    ]).then(([decimals, symbol, ensName]) =>
-                      onesignal.sendPushNotification({
-                        userId: account,
-                        headings: t("Withdraw completed"),
-                        contents: t("{{amount}} {{symbol}} sent to {{recipient}}", {
-                          amount: f(formatUnits(amount, decimals)),
-                          symbol: symbol.slice(3),
-                          recipient: ensName ?? shortenHex(receiver),
-                        }),
-                      }),
-                    ),
-                ).catch((error: unknown) => captureException(error));
-              }
-              return redis.zrem("proposals", message);
-            },
-          ).catch(async (error: unknown) => {
-            switch (revertReason(error)) {
-              case "NonceTooLow":
-              case "NoProposal":
-                parent.setStatus({ code: SPAN_STATUS_OK, message: "aborted" });
-                return redis.zrem("proposals", message);
-              case "NotNext": {
-                const pendingProposals = await publicClient.readContract({
-                  address: exaPreviewerAddress,
-                  functionName: "pendingProposals",
-                  abi: exaPreviewerAbi,
-                  args: [account],
-                });
-                const idleProposals = pendingProposals
-                  .filter((idle) => idle.nonce <= nonce)
-                  .map((idle) =>
-                    v.parse(Proposal, {
-                      ...idle.proposal,
-                      timestamp: Number(idle.proposal.timestamp),
-                      nonce: idle.nonce,
-                      account,
-                      unlock: idle.unlock,
-                      retryCount: retryCount + 1,
-                    }),
-                  )
-                  .toSorted((a, b) => Number(a.nonce - b.nonce));
-                setContext("exa", { idleProposals });
-                for (const p of idleProposals) await scheduleProposal(p);
-                parent.setStatus({ code: SPAN_STATUS_OK, message: "rescheduled" });
-                return redis.zrem("proposals", message);
-              }
-              case "Timelocked": {
-                const pendingProposals = await publicClient.readContract({
-                  address: exaPreviewerAddress,
-                  functionName: "pendingProposals",
-                  abi: exaPreviewerAbi,
-                  args: [account],
-                });
-                const pending = pendingProposals.find((queued) => queued.nonce === nonce);
-                let nextUnlock = pending?.unlock;
-                if (!nextUnlock) {
-                  const latest = await publicClient.getBlock();
-                  nextUnlock = latest.timestamp + 1n;
-                }
-                await scheduleProposal({ ...proposal, retryCount: retryCount + 1, unlock: nextUnlock });
-                parent.setStatus({ code: SPAN_STATUS_OK, message: "retrying" });
-                return redis.zrem("proposals", message);
-              }
-              default:
-                parent.setStatus({ code: SPAN_STATUS_ERROR, message: "proposal_failed" });
-                if (error instanceof ContractFunctionExecutionError) {
-                  const skipped = await skipNonce()
-                    .then(() => true)
-                    .catch((nonceError: unknown) => {
-                      captureException(nonceError, {
-                        level: "error",
-                        contexts: {
-                          proposal: {
-                            account,
-                            nonce: Number(nonce),
-                            proposalType: ProposalType[proposalType],
-                            retryCount,
-                          },
-                        },
-                        fingerprint: revertFingerprint(nonceError),
-                      });
-                      return false;
-                    });
-                  if (skipped) return redis.zrem("proposals", message);
-                } else {
-                  captureException(error, {
-                    level: "error",
-                    contexts: {
-                      proposal: { account, nonce: Number(nonce), proposalType: ProposalType[proposalType], retryCount },
-                    },
-                    fingerprint: revertFingerprint(error),
-                  });
-                }
-            }
-          }),
-        );
-      });
-
-    setTimeout(Math.max(0, (Number(unlock) + 10) * 1000 - Date.now()))
-      .then(() => {
-        const mutex = mutexes.get(account) ?? createMutex(account);
-        return continueTrace({ sentryTrace, baggage: sentryBaggage }, () =>
-          withScope((scope) => {
-            scope.setUser({ id: account });
-            return startSpan(
-              {
-                name: "acquire mutex",
-                op: "lock.acquire",
-                attributes: { account, "lock.name": `proposal:${account}` },
-              },
-              () =>
-                mutex.runExclusive(processProposal, -Number(nonce)).finally(() => {
-                  if (!mutex.isLocked()) mutexes.delete(account);
-                }),
-            );
-          }),
-        );
-      })
-      .catch((error: unknown) => {
-        withScope((scope) => {
-          scope.setUser({ id: account });
-          captureException(error, { level: "error", fingerprint: revertFingerprint(error) });
-        });
-      });
-  }
-
-  function scheduleWithdraw(message: string) {
-    const withdraw = v.parse(Withdraw, deserialize(message));
-    const { id, account, market, receiver, amount, unlock, retryCount, sentryTrace, sentryBaggage } = withdraw;
-    const bodySize = Buffer.byteLength(message);
-
-    const processWithdraw = () =>
-      withScope((scope) => {
-        scope.setUser({ id: account });
-        return startSpan({ name: "exa.withdraw", op: "exa.withdraw", forceTransaction: true }, (parent) =>
-          startSpan(
-            {
-              name: "process withdraw",
-              op: "queue.process",
-              attributes: {
-                account,
-                market,
-                receiver,
-                amount: String(amount),
-                unlock: Number(unlock),
-                "messaging.system": "redis",
-                "messaging.operation.type": "process",
-                "messaging.destination.name": "withdraw",
-                "messaging.message.id": id,
-                "messaging.message.body.size": bodySize,
-                "messaging.message.retry.count": retryCount,
-                "messaging.message.receive.latency": Date.now() - Number(unlock) * 1000,
-              },
-            },
-            async () => {
-              const receipt = await wallet.exaSend(
-                { name: "exa.execute", op: "exa.execute", attributes: { account } },
-                {
-                  address: account,
-                  functionName: "withdraw",
-                  abi: [...legacyExaPluginAbi, ...upgradeableModularAccountAbi, ...auditorAbi, marketAbi[6]],
-                },
-                { ignore: isTerminalWithdrawReason },
-              );
-              if (receipt?.status !== "success") {
-                parent.setStatus({ code: SPAN_STATUS_ERROR, message: "aborted" });
-                return redis.zrem("withdraw", message);
-              }
-              parent.setStatus({ code: SPAN_STATUS_OK });
-              startSpan(
-                { name: "send withdraw notification", op: "notification.send", attributes: { account, receiver } },
-                () =>
-                  Promise.all([
-                    publicClient.readContract({ address: market, abi: marketAbi, functionName: "decimals" }),
-                    publicClient.readContract({ address: market, abi: marketAbi, functionName: "symbol" }),
-                    ensClient.getEnsName({ address: receiver }).catch(() => null),
-                  ]).then(([decimals, symbol, ensName]) =>
-                    onesignal.sendPushNotification({
-                      userId: account,
-                      headings: t("Withdraw completed"),
-                      contents: t("{{amount}} {{symbol}} sent to {{recipient}}", {
-                        amount: f(formatUnits(amount, decimals)),
-                        symbol: symbol.slice(3),
-                        recipient: ensName ?? shortenHex(receiver),
-                      }),
-                    }),
-                  ),
-              ).catch((error: unknown) => captureException(error));
-              return redis.zrem("withdraw", message);
-            },
-          ).catch((error: unknown) => {
-            const reason = revertReason(error, { fallback: "unknown", withArguments: true });
-            if (isTerminalWithdrawReason(reason)) {
-              parent.setStatus({ code: SPAN_STATUS_ERROR, message: "aborted" });
-              return redis.zrem("withdraw", message);
-            }
-            parent.setStatus({ code: SPAN_STATUS_ERROR, message: "failed_precondition" });
-            captureException(error, {
-              level: "error",
-              contexts: { withdraw: { account, market, receiver, amount: String(amount), retryCount } },
-              fingerprint: revertFingerprint(error),
-            });
-            if (
-              chain.id === optimismSepolia.id &&
-              error instanceof BaseError &&
-              error.cause instanceof CallExecutionError &&
-              error.cause.cause instanceof ExecutionRevertedError
-            ) {
-              return redis.zrem("withdraw", message);
-            }
-          }),
-        );
-      });
-
-    setTimeout(Math.max(0, (Number(unlock) + 10) * 1000 - Date.now()))
-      .then(() =>
-        continueTrace({ sentryTrace, baggage: sentryBaggage }, () =>
-          withScope((scope) => {
-            scope.setUser({ id: account });
-            return processWithdraw();
-          }),
-        ),
-      )
-      .catch((error: unknown) => {
-        withScope((scope) => {
-          scope.setUser({ id: account });
-          captureException(error, { level: "error", fingerprint: revertFingerprint(error) });
-        });
-      });
+  async function migrate(key: string, schema: typeof Proposal | typeof Withdraw) {
+    for (const message of await redis.zrange(key, 0, Infinity, "BYSCORE")) {
+      const parsed = v.safeParse(schema, deserialize(message));
+      if (!parsed.success) {
+        captureException(parsed.issues, { level: "error", contexts: { migrate: { key } } });
+        continue;
+      }
+      await proposal.enqueue(parsed.output);
+      await redis.zrem(key, message);
+    }
   }
 
   return { app, ready };
 }
-
-const isTerminalWithdrawReason = (reason: string) =>
-  reason === "InsufficientAccountLiquidity()" ||
-  reason === "RuntimeValidationFunctionMissing(0x3ccfd60b)" ||
-  (reason.startsWith("PreExecHookReverted(") &&
-    reason.endsWith(`,${encodeErrorResult({ errorName: "NoProposal", abi: proposalManagerAbi })})`));
 
 const url = `${appOrigin}/hooks/block`;
 async function initializeAlchemy(alchemy: ReturnType<typeof createAlchemy>, signingKeys: Set<string>) {
@@ -709,58 +233,3 @@ async function initializeAlchemy(alchemy: ReturnType<typeof createAlchemy>, sign
     signingKeys.delete(currentHook.signing_key);
   }
 }
-
-const Proposal = v.pipe(
-  v.object({
-    account: Address,
-    amount: v.bigint(),
-    data: Hex,
-    market: Address,
-    nonce: v.bigint(),
-    proposalType: v.enum(ProposalType),
-    retryCount: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0)), 0),
-    sentryBaggage: v.optional(v.string()),
-    sentryTrace: v.optional(v.string()),
-    timestamp: v.optional(v.number()),
-    unlock: v.bigint(),
-  }),
-  v.transform((proposal) => ({
-    id: `${proposal.account}:${proposal.market}:${proposal.timestamp ?? Math.floor(Date.now() / 1000)}`,
-    ...proposal,
-  })),
-);
-
-const Withdraw = v.pipe(
-  v.object({
-    account: Address,
-    market: Address,
-    receiver: Address,
-    amount: v.bigint(),
-    unlock: v.bigint(),
-    retryCount: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0)), 0),
-    timestamp: v.optional(v.number()),
-    sentryTrace: v.optional(v.string()),
-    sentryBaggage: v.optional(v.string()),
-  }),
-  v.transform((withdraw) => ({
-    id: `${withdraw.account}:${withdraw.market}:${withdraw.timestamp ?? Math.floor(Date.now() / 1000)}`,
-    ...withdraw,
-  })),
-);
-
-const legacyExaPluginAbi = [
-  { type: "function", name: "withdraw", inputs: [], outputs: [], stateMutability: "nonpayable" },
-  {
-    type: "event",
-    name: "Proposed",
-    inputs: [
-      { name: "account", internalType: "address", type: "address", indexed: true },
-      { name: "market", internalType: "contract IMarket", type: "address", indexed: true },
-      { name: "receiver", internalType: "address", type: "address", indexed: true },
-      { name: "amount", internalType: "uint256", type: "uint256", indexed: false },
-      { name: "unlock", internalType: "uint256", type: "uint256", indexed: false },
-    ],
-    anonymous: false,
-  },
-  { type: "error", name: "NoProposal", inputs: [] },
-] as const;
