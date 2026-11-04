@@ -235,14 +235,15 @@ contract Redeployer is BaseScript {
   /// @notice Deploys ExaAccountFactory at a version-specific CREATE3 address.
   function deployExaFactory(string calldata version) external returns (ExaAccountFactory f) {
     bytes32 salt = keccak256(abi.encode("Exa Plugin", version));
-    f = ExaAccountFactory(payable(CREATE3_FACTORY.getDeployed(acct("admin"), salt)));
+    f = ExaAccountFactory(payable(create3Address(acct("admin"), salt)));
     if (address(f).code.length != 0) return f;
     if (address(ownerPlugin).code.length == 0 || address(exaPlugin).code.length == 0) revert NotPrepared();
 
     address admin = acct("admin");
     vm.startBroadcast(admin);
     f = ExaAccountFactory(
-      payable(CREATE3_FACTORY.deploy(
+      payable(create3(
+          admin,
           salt,
           abi.encodePacked(
             type(ExaAccountFactory).creationCode, abi.encode(admin, ownerPlugin, exaPlugin, ACCOUNT_IMPL, ENTRYPOINT)
@@ -288,7 +289,7 @@ contract Redeployer is BaseScript {
   function _factory() internal returns (ExaAccountFactory) {
     if (address(exaPlugin).code.length != 0) {
       PluginMetadata memory metadata = exaPlugin.pluginMetadata();
-      address f = CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode(metadata.name, metadata.version)));
+      address f = create3Address(acct("admin"), keccak256(abi.encode(metadata.name, metadata.version)));
       if (f.code.length != 0) return ExaAccountFactory(payable(f));
     }
     return
