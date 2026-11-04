@@ -8,7 +8,7 @@ tags: [broad]
 - tapOn: With connected wallet
 - tapOn: { text: "0", index: 0 }
 - inputText: "1"
-- pressKey: enter
+- runFlow: ../subflows/hideKeyboard.yaml
 - tapOn: Transfer ETH
 - runFlow: { file: ../subflows/sign.yaml, env: { transaction: true } }
 - assertVisible: Add funds request sent

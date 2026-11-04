@@ -35,7 +35,7 @@ appId: ${APP_ID ?? "app.exactly"}
     commands:
       - runFlow: { file: tapAria.yaml, env: { aria: Repay amount } }
       - inputText: ${amount}
-      - pressKey: enter
+      - runFlow: hideKeyboard.yaml
 - runFlow:
     when: { true: "${market || external}" }
     commands:

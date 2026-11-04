@@ -34,7 +34,7 @@ tags: [broad]
 - tapOn: Swap assets
 - tapOn: { text: "0", index: 0 }
 - inputText: "20000"
-- pressKey: enter
+- runFlow: ../subflows/hideKeyboard.yaml
 - assertVisible: "High price impact: you receive 2\\.2% less value than you pay\\."
 - tapOn: Swap USDT for USDC
 - assertVisible: "(Swap )?completed"
