@@ -135,33 +135,34 @@ export default defineConfig([
             .filter((address) => address.slice(0, 5).toLowerCase() === "0xb20")
             .map((address) => address.toLowerCase());
           if (stocks.length === 0) throw new Error("missing stocks");
+          const admin = getAddress(
+            (deploy.accounts.admin as Record<string, string>)[chainId] ?? deploy.accounts.admin.default,
+          );
           const factories = {
             versions: deploy.factory.versions.map((version) => {
+              const salt = keccak256(
+                encodeAbiParameters([{ type: "string" }, { type: "string" }], ["Exa Plugin", version]),
+              );
               const proxy = slice(
                 keccak256(
                   encodePacked(
                     ["uint8", "address", "bytes32", "bytes32"],
                     [
                       0xff,
-                      chainId === optimismSepolia.id
-                        ? "0xcc3f41204a1324DD91F1Dbfc46208535293A371e"
-                        : chainId === baseSepolia.id
-                          ? "0x9f275F6D25232FFf082082a53C62C6426c1cc94C"
-                          : "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
-                      keccak256(
-                        encodePacked(
-                          ["address", "bytes32"],
-                          [
-                            getAddress(
-                              (deploy.accounts.admin as Record<string, string>)[chainId] ??
-                                deploy.accounts.admin.default,
+                      testnet
+                        ? "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed"
+                        : "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+                      testnet
+                        ? keccak256(
+                            encodeAbiParameters(
+                              [{ type: "address" }, { type: "bytes32" }],
+                              [
+                                admin,
+                                encodePacked(["address", "bytes1", "bytes11"], [admin, "0x00", slice(salt, 0, 11)]),
+                              ],
                             ),
-                            keccak256(
-                              encodeAbiParameters([{ type: "string" }, { type: "string" }], ["Exa Plugin", version]),
-                            ),
-                          ],
-                        ),
-                      ),
+                          )
+                        : keccak256(encodePacked(["address", "bytes32"], [admin, salt])),
                       "0x21c35dbe1b344a2488cf3321d6ce542f8e9f305544ff09e4993a62319a497c1f",
                     ],
                   ),
@@ -226,11 +227,7 @@ export default defineConfig([
                 simple7702Account: "0x4Cd241E8d1510e30b2076397afc7508Ae59C66c9",
                 swapper:
                   (deploy.accounts.swapper as Record<string, string>)[chainId] ?? deploy.accounts.swapper.default,
-                exaAccountFactory:
-                  {
-                    [optimism.id]: "0x961EbA47650e2198A959Ef5f337E542df5E4F61b",
-                    [optimismSepolia.id]: "0x98d3E8B291d9E89C25D8371b7e8fFa8BC32E0aEC",
-                  }[chainId] ?? factory,
+                exaAccountFactory: { [optimism.id]: "0x961EbA47650e2198A959Ef5f337E542df5E4F61b" }[chainId] ?? factory,
               }).map(([key, address]) => {
                 if (!address) throw new Error(`missing ${key}`);
                 return `export const ${key}Address = "${getAddress(address)}" as const`;
