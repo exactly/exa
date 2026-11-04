@@ -17,8 +17,9 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Continue
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Amount } }
 - inputText: "100"
+- runFlow: ../subflows/hideKeyboard.yaml
 - tapOn: Review
-- tapOn: Send USDT
+- runFlow: { file: ../subflows/confirmSend.yaml, env: { asset: USDT } }
 - assertVisible: Sent to .*
 - runScript:
     file: ../dist/hookActivity.js
@@ -33,9 +34,10 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Swap assets
 - tapOn: { text: "0", index: 0 }
 - inputText: "20000"
+- runFlow: ../subflows/hideKeyboard.yaml
 - assertVisible: "High price impact: you receive 2\\.2% less value than you pay\\."
 - tapOn: Swap USDT for USDC
-- assertVisible: completed
+- assertVisible: "(Swap )?completed"
 - runScript:
     file: ../dist/hookActivity.js
     env: { account: "${output.account}" }

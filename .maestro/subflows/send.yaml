@@ -98,12 +98,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     when: { true: "${!!destination}" }
     commands: [{ runFlow: { file: scrollTo.yaml, env: { element: "~2 min" } } }]
-- runFlow:
-    when: { true: "${maestro.platform != 'web'}" }
-    commands: [{ longPressOn: "Hold to send ${asset}" }]
-- runFlow:
-    when: { platform: web }
-    commands: [{ tapOn: "Send ${asset}" }]
+- runFlow: { file: confirmSend.yaml, env: { asset: "${asset}" } }
 - runFlow: sign.yaml
 - assertVisible: (Processing send|Sent) to .*
 - runFlow: getAccount.yaml

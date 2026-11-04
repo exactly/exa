@@ -1,0 +1,8 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- runFlow:
+    when: { true: "${maestro.platform != 'web'}" }
+    commands: [{ longPressOn: "Hold to send ${asset}" }]
+- runFlow:
+    when: { platform: web }
+    commands: [{ tapOn: "Send ${asset}" }]
