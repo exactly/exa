@@ -146,6 +146,18 @@ abstract contract ForkTest is Test {
     return _broadcast(name, string.concat("node_modules/", package, "/broadcast/", script), index, block.chainid);
   }
 
+  function create3(address deployer, bytes32 salt, bytes memory initCode) internal returns (address) {
+    return isTestnet()
+      ? CREATEX.deployCreate3(_createXSalt(deployer, salt), initCode)
+      : CREATE3_FACTORY.deploy(salt, initCode);
+  }
+
+  function create3Address(address deployer, bytes32 salt) internal returns (address) {
+    return isTestnet()
+      ? CREATEX.computeCreate3Address(keccak256(abi.encode(deployer, _createXSalt(deployer, salt))))
+      : CREATE3_FACTORY.getDeployed(deployer, salt);
+  }
+
   function _broadcast(string memory name, string memory script, uint256 index, uint256 chainid)
     private
     returns (address addr)
@@ -172,6 +184,10 @@ abstract contract ForkTest is Test {
     } else if (bytes10(addr.code) == 0x363d3d373d3d3d363d73) {
       vm.label(address(uint160(uint240(bytes30(addr.code)))), string.concat(name, "_Impl"));
     }
+  }
+
+  function _createXSalt(address deployer, bytes32 salt) private pure returns (bytes32) {
+    return bytes32(abi.encodePacked(deployer, bytes1(0), bytes11(salt)));
   }
 }
 
