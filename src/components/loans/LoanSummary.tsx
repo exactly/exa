@@ -54,7 +54,7 @@ export default function LoanSummary({
     marketAddress: market,
     maturity,
   });
-  const { data: borrow, isLoading: isBorrowPending } = useReadPreviewerPreviewBorrowAtMaturity({
+  const { data: borrow, isFetching: isBorrowPending } = useReadPreviewerPreviewBorrowAtMaturity({
     address: previewerAddress,
     chainId: chain.id,
     args: market && amount ? [market, maturity ?? BigInt(firstMaturity), amount] : undefined,
