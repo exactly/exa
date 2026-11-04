@@ -18,6 +18,7 @@ tags: [broad]
 - tapOn: Continue
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Amount } }
 - inputText: "100"
+- runFlow: ../subflows/hideKeyboard.yaml
 - tapOn: Review
 - runFlow: { file: ../subflows/confirmSend.yaml, env: { asset: USDT } }
 - assertVisible: Sent to .*
