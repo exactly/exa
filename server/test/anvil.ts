@@ -329,7 +329,7 @@ export default async function setup() {
                 : []),
               ...((next) =>
                 tx.transactionType === "CALL" &&
-                tx.function === "deploy(bytes32,bytes)" &&
+                (tx.function === "deploy(bytes32,bytes)" || tx.function === "deployCreate3(bytes32,bytes)") &&
                 next?.contractName &&
                 next.contractAddress
                   ? [{ contractAddress: next.contractAddress, contractName: next.contractName }]
