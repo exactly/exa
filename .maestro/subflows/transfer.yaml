@@ -3,6 +3,8 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     file: mint.yaml
     env: { asset: USDC, to: "${output.account}", amount: "420" }
+- runScript: { file: ../dist/awaitDeployment.js, env: { account: "${output.account}" } }
+- tapOn: { text: Home, leftOf: Card }
 - runFlow:
     file: send.yaml
     env: { asset: USDC, network: Anvil, to: "0x000000000000000000000000000000000000dEaD", amount: "69" }

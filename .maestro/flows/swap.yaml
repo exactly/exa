@@ -1,4 +1,5 @@
 appId: ${APP_ID ?? "app.exactly"}
+tags: [smoke, core, broad]
 ---
 - runFlow: ../subflows/launch.yaml
 - runFlow: ../subflows/logout.yaml
@@ -18,6 +19,27 @@ appId: ${APP_ID ?? "app.exactly"}
 - assertVisible: "(Swap )?completed"
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
 - runFlow: ../subflows/assertOnboarding.yaml
+- tapOn: Swap
+- tapOn: { text: "0", index: 0 }
+- inputText: "1"
+- runFlow: ../subflows/hideKeyboard.yaml
+- tapOn: Swap USDC for EXA
+- runFlow: ../subflows/sign.yaml
+- assertVisible: "(Swap request )?sent"
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
+- tapOn: Swap
+- tapOn: { text: "0", index: 0 }
+- inputText: "1"
+- runFlow: ../subflows/hideKeyboard.yaml
+- assertVisible: You have a pending request. Wait for it to be processed before swapping again.
+- runScript:
+    file: ../dist/hookProposals.js
+    env: { account: "${output.account}" }
+- assertVisible: Swap USDC for EXA
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- runFlow:
+    file: ../subflows/tapWhileAria.yaml
+    env: { aria: Pending proposals, tap: Home }
 - runFlow:
     file: ../subflows/mint.yaml
     env: { asset: ETH, to: "${output.account}", amount: "0.1" }

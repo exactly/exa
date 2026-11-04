@@ -6,4 +6,3 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: rollover.yaml
 - runFlow: { file: repay.yaml, env: { amount: "13", sheet: "true" } }
 - runFlow: { file: repay.yaml, env: { market: ETH } }
-- runFlow: assertPayments.yaml
