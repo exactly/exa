@@ -152,6 +152,7 @@
       },
       "generate:openapi": {
         "dependsOn": [
+          "^prepare",
           "prepare:generated"
         ],
         "outputs": [
