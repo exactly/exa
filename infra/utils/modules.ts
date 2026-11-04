@@ -16,6 +16,7 @@ export default define({
     credit: { secrets: ["onesignal-api-key", "postgres-url"] },
     hook: { secrets: ["panda-api-key", "postgres-url"], shared: ["panda-api-url"] },
     poke: { secrets: ["onesignal-api-key", "segment-write-key"], signers: ["poker"] },
+    proposal: { secrets: ["onesignal-api-key"], signers: ["executor"] },
     refund: {
       secrets: ["panda-api-key", "onesignal-api-key", "postgres-url", "sardine-api-key", "segment-write-key"],
       shared: ["panda-api-url", "sardine-api-url"],
