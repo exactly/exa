@@ -13,6 +13,7 @@ import {
   BaseError,
   ContractFunctionExecutionError,
   ContractFunctionRevertedError,
+  createPublicClient,
   createWalletClient,
   decodeEventLog,
   encodeAbiParameters,
@@ -31,17 +32,20 @@ import {
   type WalletClient,
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { anvil } from "viem/chains";
+import { anvil, moonbeamDev } from "viem/chains";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import chain, {
+  alchemyChains,
   auditorAbi,
+  auditors,
   exaAccountFactoryAbi,
   exaAccountFactoryAddress,
   exaPluginAbi,
   exaPluginAddress,
   exaPreviewerAddress,
+  firewallAbi,
   issuerCheckerAbi,
   marketAbi,
   marketUSDCAddress,
@@ -1913,7 +1917,10 @@ describe("card operations", () => {
         const lookupError = new Error("transaction lookup failed");
         const track = vi.spyOn(segment, "track").mockReturnValue();
         vi.spyOn(keeper, "exaSend").mockRejectedValueOnce(collectionError);
-        vi.spyOn(database.query.transactions, "findFirst").mockRejectedValueOnce(lookupError);
+        const stored = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
+        vi.spyOn(database.query.transactions, "findFirst")
+          .mockResolvedValueOnce(stored)
+          .mockRejectedValueOnce(lookupError);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -2772,6 +2779,220 @@ describe("plugin 1.0.0", () => {
       ).toStrictEqual([[account100, exaPreviewerAddress, exaPluginAddress]]);
     });
   });
+});
+
+describe("multi-chain", () => {
+  const ownerMulti = createWalletClient({
+    chain,
+    transport: http(),
+    account: privateKeyToAccount(generatePrivateKey()),
+  });
+  const accountMulti = deriveAddress(exaAccountFactoryAddress, { x: padHex(ownerMulti.account.address), y: zeroHash });
+  const remote = alchemyChains.get(moonbeamDev.id)!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+  const remoteClient = createPublicClient({ chain: remote, transport: http() });
+
+  beforeAll(async () => {
+    const remoteKeeper = wallet(privateKeyToAccount(padHex("0x69")), remote);
+    await database.transaction(async (tx) => {
+      await tx
+        .insert(credentials)
+        .values([
+          { id: accountMulti, publicKey: new Uint8Array(), account: accountMulti, factory: exaAccountFactoryAddress },
+        ]);
+      await tx.insert(cards).values([
+        { id: `${accountMulti}-debit`, credentialId: accountMulti, lastFour: "2000", mode: 0 },
+        { id: `${accountMulti}-credit`, credentialId: accountMulti, lastFour: "2001", mode: 1 },
+        { id: `${accountMulti}-retry`, credentialId: accountMulti, lastFour: "2002", mode: 0 },
+        { id: `${accountMulti}-uncovered`, credentialId: accountMulti, lastFour: "2003", mode: 0 },
+        { id: `${accountMulti}-failure`, credentialId: accountMulti, lastFour: "2004", mode: 0 },
+        { id: `${accountMulti}-unauthorized`, credentialId: accountMulti, lastFour: "2005", mode: 0 },
+      ]);
+    });
+    const create = {
+      address: exaAccountFactoryAddress,
+      abi: exaAccountFactoryAbi,
+      functionName: "createAccount",
+      args: [0n, [{ x: hexToBigInt(ownerMulti.account.address), y: 0n }]],
+    } as const;
+    await Promise.all([
+      keeper.exaSend({ name: "create account", op: "exa.account" }, create),
+      remoteKeeper.exaSend(
+        { name: "allow", op: "exa.firewall" },
+        {
+          address: await remoteKeeper.readContract({
+            address: parse(Address, auditors.get(remote.id)),
+            abi: auditorAbi,
+            functionName: "firewall",
+          }),
+          abi: firewallAbi,
+          functionName: "allow",
+          args: [accountMulti, true],
+        },
+      ),
+    ]);
+    await Promise.all([
+      remoteKeeper.exaSend({ name: "create account", op: "exa.account" }, create),
+      remoteKeeper.exaSend(
+        { name: "mint usdc", op: "tx.mint" },
+        { address: usdcAddress, abi: mockERC20Abi, functionName: "mint", args: [accountMulti, 420_000_000n] },
+      ),
+    ]);
+    await remoteKeeper.exaSend(
+      { name: "poke", op: "exa.poke" },
+      { address: accountMulti, abi: exaPluginAbi, functionName: "poke", args: [marketUSDCAddress] },
+    );
+  });
+
+  afterEach(() => Panda.getMutex(accountMulti)?.release());
+
+  it("collects debit from the network that covers it", async () => {
+    await expect(remotePurchase(`${accountMulti}-debit`, 900)).resolves.toStrictEqual([200, 200, 9_000_000n]);
+
+    const transaction = await database.query.transactions.findFirst({
+      where: eq(transactions.id, `${accountMulti}-debit`),
+    });
+
+    expect(transaction?.payload).toMatchObject({ bodies: [{ action: "created", chainId: remote.id }] });
+    expect(segment.track).toHaveBeenCalledWith(
+      expect.objectContaining({ event: "TransactionAuthorized", userId: accountMulti }),
+    );
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("collects credit from the network that covers it", async () => {
+    await expect(remotePurchase(`${accountMulti}-credit`, 10)).resolves.toStrictEqual([200, 200, 100_000n]);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("keeps retried collection on the same network", async () => {
+    const cardId = `${accountMulti}-retry`;
+
+    await expect(remotePurchase(cardId, 300)).resolves.toStrictEqual([200, 200, 3_000_000n]);
+
+    const response = await appClient.index.$post({
+      ...authorization,
+      json: {
+        ...authorization.json,
+        action: "created",
+        body: {
+          ...authorization.json.body,
+          id: cardId,
+          spend: { ...authorization.json.body.spend, amount: 300, cardId },
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, cardId) }).then((tx) => tx?.hashes),
+    ).resolves.toHaveLength(1);
+  });
+
+  it("fails when no network covers the amount", async () => {
+    const response = await appClient.index.$post({
+      ...authorization,
+      json: {
+        ...authorization.json,
+        body: {
+          ...authorization.json.body,
+          id: `${accountMulti}-uncovered`,
+          spend: { ...authorization.json.body.spend, amount: 1_000_000, cardId: `${accountMulti}-uncovered` },
+        },
+      },
+    });
+
+    expect(response.status).toBe(550);
+    expect(segment.track).toHaveBeenCalledWith(
+      expect.objectContaining({ event: "AuthorizationRejected", userId: accountMulti }),
+    );
+  });
+
+  it("reports failures on other networks", async () => {
+    const failure = new Error("remote failure");
+    const signIssuerOp = vi.mocked(Panda.signIssuerOp);
+    const original = signIssuerOp.getMockImplementation()!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+    signIssuerOp.mockImplementation((operation, signer, verifyingContract, chainId) =>
+      chainId === remote.id ? Promise.reject(failure) : original(operation, signer, verifyingContract, chainId),
+    );
+    const body = {
+      ...authorization.json.body,
+      id: `${accountMulti}-failure`,
+      spend: { ...authorization.json.body.spend, amount: 100, cardId: `${accountMulti}-failure` },
+    };
+
+    try {
+      await expect(
+        appClient.index.$post({ ...authorization, json: { ...authorization.json, body } }).then(({ status }) => status),
+      ).resolves.toBe(550);
+      await expect(
+        appClient.index
+          .$post({ ...authorization, json: { ...authorization.json, action: "created", body } })
+          .then(({ status }) => status),
+      ).resolves.toBe(569);
+    } finally {
+      signIssuerOp.mockImplementation(original);
+    }
+
+    const warning = { level: "warning", tags: { chainId: remote.id } };
+    expect(vi.mocked(captureException).mock.calls.filter(([error]) => error === failure)).toStrictEqual([
+      [failure, warning],
+      [failure, warning],
+    ]);
+  });
+
+  it("resigns unauthorized collections on other networks", async () => {
+    const signIssuerOp = vi.mocked(Panda.signIssuerOp);
+    const original = signIssuerOp.getMockImplementation()!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+    const impostor = privateKeyToAccount(padHex("0x421"));
+    signIssuerOp.mockImplementation((operation, signer, verifyingContract, chainId) =>
+      original(operation, chainId === remote.id ? impostor : signer, verifyingContract, chainId),
+    );
+
+    try {
+      const response = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: `${accountMulti}-unauthorized`,
+            spend: { ...authorization.json.body.spend, amount: 100, cardId: `${accountMulti}-unauthorized` },
+          },
+        },
+      });
+
+      expect(response.status).toBe(569);
+    } finally {
+      signIssuerOp.mockImplementation(original);
+    }
+
+    expect(signIssuerOp.mock.calls.filter((parameters) => parameters[3] === remote.id)).toHaveLength(2);
+  });
+
+  async function remotePurchase(cardId: string, amount: number) {
+    const body = {
+      ...authorization.json.body,
+      id: cardId,
+      spend: { ...authorization.json.body.spend, amount, cardId },
+    };
+    return [
+      await appClient.index
+        .$post({ ...authorization, json: { ...authorization.json, body } })
+        .then(({ status }) => status),
+      await appClient.index
+        .$post({ ...authorization, json: { ...authorization.json, action: "created", body } })
+        .then(({ status }) => status),
+      usdcToAddress(
+        await database.query.transactions
+          .findFirst({ where: eq(transactions.id, cardId) })
+          .then((transaction) =>
+            remoteClient.waitForTransactionReceipt({ hash: transaction?.hashes[0] as Hex, confirmations: 0 }),
+          ),
+        Panda.collectors(remote.id)[0],
+      ),
+    ];
+  }
 });
 
 describe("card notification", () => {

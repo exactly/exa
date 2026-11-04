@@ -14,6 +14,7 @@ import { E_TIMEOUT } from "async-mutex";
 import createDebug from "debug";
 import { and, eq, sql } from "drizzle-orm";
 import { Hono } from "hono";
+import { setImmediate } from "node:timers/promises";
 import * as v from "valibot";
 import {
   BaseError,
@@ -35,8 +36,10 @@ import {
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 
-import {
+import chain, {
+  alchemyChains,
   auditorAbi,
+  deployments,
   exaPluginAbi,
   exaPluginAddress,
   exaPreviewerAbi,
@@ -67,7 +70,7 @@ import {
 } from "../utils/panda";
 import publicClient from "../utils/publicClient";
 import revertFingerprint from "../utils/revertFingerprint";
-import traceClient, { type CallFrame } from "../utils/traceClient";
+import traceClient, { tracer, type CallFrame } from "../utils/traceClient";
 import validatorHook from "../utils/validatorHook";
 import verifySignature from "../utils/verifySignature";
 import createWallet from "../utils/wallet";
@@ -114,6 +117,26 @@ export default function hook({
 }) {
   const keys = v.parse(v.array(v.pipe(v.string(), v.trim(), v.nonEmpty("panda webhooks"))), webhookKey.split(","));
   const wallet = createWallet(settler);
+  const home: Network = {
+    exaPlugin: exaPluginAddress,
+    exaPreviewer: exaPreviewerAddress,
+    id: chain.id,
+    issuerChecker: issuerCheckerAddress,
+    reader: publicClient,
+    tracer: traceClient,
+    usdc: usdcAddress,
+    wallet,
+  };
+  const networks = [
+    home,
+    ...[...deployments]
+      .filter(([id]) => id !== chain.id)
+      .map(([id, contracts]) => {
+        const network = alchemyChains.get(id)!; // eslint-disable-line @typescript-eslint/no-non-null-assertion -- codegen pairs every deployment with its chain
+        const client = tracer(network);
+        return { ...contracts, id, reader: client, tracer: client, wallet: createWallet(settler, network) };
+      }),
+  ];
   const app = new Hono().post(
     "/",
     vValidator("header", v.object({ signature: v.string() }), async (r, c) => {
@@ -254,13 +277,14 @@ export default function hook({
               amount,
               call: signed,
               sign,
-              transaction,
-            } = await prepareCollection(card, payload, database, issuer, panda, wallet, mockIssuer);
+            } = await prepareCollection(card, payload, issuer, panda, home, {
+              signer: mockIssuer,
+            });
             const authorize = () => {
               trackAuthorized(account, payload, card.mode, card.credential.source, segment);
               return c.json({ code: "ok" });
             };
-            if (!transaction) {
+            if (!signed) {
               startSpan({ name: "assess risk", op: "tx.risk.verification" }, async (span) => {
                 const assessment = await assess();
                 span.setAttributes({ "exa.level": assessment.level, "exa.score": assessment.score });
@@ -279,11 +303,11 @@ export default function hook({
               }
             }).catch((error: unknown) => captureException(error, { level: "error" }));
             try {
-              const simulate = (data: Hex, plugin: Hex, checker: Hex = issuerCheckerAddress) =>
-                startSpan({ name: "debug_traceCall", op: "tx.trace" }, () =>
-                  traceClient.traceCall({
+              const simulate = (network: Network, data: Hex, plugin: Hex, checker = network.issuerChecker) =>
+                startSpan({ name: "debug_traceCall", op: "tx.trace", attributes: { chainId: network.id } }, () =>
+                  network.tracer.traceCall({
                     from: account,
-                    to: exaPreviewerAddress,
+                    to: network.exaPreviewer,
                     data,
                     stateOverride: [
                       {
@@ -294,7 +318,7 @@ export default function hook({
                               encodeAbiParameters(
                                 [{ type: "address" }, { type: "bytes32" }],
                                 [
-                                  exaPreviewerAddress,
+                                  network.exaPreviewer,
                                   keccak256(
                                     encodeAbiParameters(
                                       [{ type: "bytes32" }, { type: "uint256" }],
@@ -312,25 +336,57 @@ export default function hook({
                     ],
                   }),
                 );
-              const { call, trace } = await simulate(transaction.data, exaPluginAddress).then(async (first) => {
+              const inspect = async (network: Network, collection?: Collection) => {
+                const initial = collection ?? (await sign({ network }));
+                const trace = await simulate(
+                  network,
+                  encodeFunctionData({ abi: exaPluginAbi, ...initial }),
+                  network.exaPlugin,
+                );
                 if (
-                  first.output?.startsWith(toFunctionSelector("RuntimeValidationFunctionReverted(address,uint8,bytes)"))
+                  !trace.output?.startsWith(
+                    toFunctionSelector("RuntimeValidationFunctionReverted(address,uint8,bytes)"),
+                  )
                 ) {
-                  const contracts = await collectionContracts(wallet.account.address, account, transaction.data);
-                  const resigned = await sign(contracts.checker);
-                  return {
-                    call: resigned,
-                    trace: await simulate(
-                      encodeFunctionData({ abi: exaPluginAbi, ...resigned }),
-                      contracts.plugin,
-                      contracts.checker,
-                    ),
-                  };
+                  return { call: initial, network, trace };
                 }
-                return { call: signed, trace: first };
-              });
-
-              setContext("tx", { call, trace });
+                const contracts = await collectionContracts(
+                  network,
+                  wallet.account.address,
+                  account,
+                  encodeFunctionData({ abi: exaPluginAbi, ...initial }),
+                );
+                const resigned = await sign({ checker: contracts.checker, network });
+                return {
+                  call: resigned,
+                  network,
+                  trace: await simulate(
+                    network,
+                    encodeFunctionData({ abi: exaPluginAbi, ...resigned }),
+                    contracts.plugin,
+                    contracts.checker,
+                  ),
+                };
+              };
+              const pending = inspect(home, signed);
+              const others = setImmediate().then(() =>
+                networks
+                  .filter((network) => network !== home)
+                  .map((network) =>
+                    inspect(network).catch((error: unknown) => {
+                      captureException(error, { level: "warning", tags: { chainId: network.id } });
+                      return null;
+                    }),
+                  ),
+              );
+              const covers = (result: Awaited<typeof pending>) =>
+                !result.trace.output && collected(result.network, result.trace) === amount;
+              const local = await pending;
+              const { call, network, trace } =
+                covers(local) || local.trace.output?.startsWith(toFunctionSelector("Replay()"))
+                  ? local
+                  : ((await race(await others, covers)) ?? local);
+              setContext("tx", { call, chainId: network.id, trace });
               if (trace.output) {
                 const contractError = getContractError(new RawContractError({ data: trace.output }), {
                   abi: [
@@ -372,13 +428,7 @@ export default function hook({
                 });
                 throw new PandaError("tx reverted", 550 as UnofficialStatusCode);
               }
-              if (
-                usdcTransfersToCollectors(trace).reduce(
-                  (total, { topics, data }) =>
-                    total + decodeEventLog({ abi: erc20Abi, eventName: "Transfer", topics, data }).args.value,
-                  0n,
-                ) !== amount
-              ) {
+              if (collected(network, trace) !== amount) {
                 debug(`${payload.action}:${payload.body.spend.status}`, payload.body.id, "bad collection");
                 withScope((scope) => {
                   scope.addEventProcessor((event) => {
@@ -636,7 +686,11 @@ export default function hook({
           getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "panda.tx.collect");
 
           try {
-            const { call, sign } = await prepareCollection(card, payload, database, issuer, panda, wallet);
+            const stored = await database.query.transactions.findFirst({
+              columns: { payload: true },
+              where: and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)),
+            });
+            const { amount, call, sign } = await prepareCollection(card, payload, issuer, panda, home, { stored });
             if (!call) {
               const tx = await database.query.transactions.findFirst({
                 where: and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)),
@@ -685,9 +739,13 @@ export default function hook({
               return c.json({ code: "ok" });
             }
             try {
-              const collect = (collection: NonNullable<typeof call>, ignore?: (reason: string) => Promise<boolean>) =>
-                wallet.exaSend(
-                  { name: "collect credit", op: "exa.collect", attributes: { account } },
+              const collect = (
+                network: Network,
+                collection: Collection,
+                ignore?: (reason: string) => Promise<boolean>,
+              ) =>
+                network.wallet.exaSend(
+                  { name: "collect credit", op: "exa.collect", attributes: { account, chainId: network.id } },
                   {
                     address: account,
                     abi: [
@@ -700,6 +758,7 @@ export default function hook({
                     ...collection,
                   },
                   {
+                    ...(network !== home && { fees: "auto" as const }),
                     ignore,
                     async onHash(hash) {
                       const tx = await database.query.transactions.findFirst({
@@ -708,7 +767,11 @@ export default function hook({
                           eq(transactions.cardId, payload.body.spend.cardId),
                         ),
                       });
-                      const createdAt = getCreatedAt(payload) ?? new Date().toISOString();
+                      const body = {
+                        ...(jsonBody as object),
+                        createdAt: getCreatedAt(payload) ?? new Date().toISOString(),
+                        ...(network !== home && { chainId: network.id }),
+                      };
                       await (tx
                         ? database
                             .update(transactions)
@@ -716,7 +779,7 @@ export default function hook({
                               hashes: [...tx.hashes, hash],
                               payload: {
                                 ...(tx.payload as object),
-                                bodies: [...v.parse(TransactionPayload, tx.payload).bodies, { ...jsonBody, createdAt }],
+                                bodies: [...v.parse(TransactionPayload, tx.payload).bodies, body],
                               },
                             })
                             .where(
@@ -731,7 +794,7 @@ export default function hook({
                               cardId: payload.body.spend.cardId,
                               hashes: [hash],
                               payload: {
-                                bodies: [{ ...jsonBody, createdAt }],
+                                bodies: [body],
                                 type: "panda",
                               },
                             },
@@ -759,15 +822,60 @@ export default function hook({
                             ),
                   },
                 );
-              await collect(call, async (reason) => {
-                if (reason !== "Unauthorized()") return false;
-                await collect(
-                  await collectionContracts(
-                    wallet.account.address,
-                    account,
-                    encodeFunctionData({ abi: exaPluginAbi, ...call }),
-                  ).then(({ checker }) => sign(checker)),
+              const probe = (network: Network, data: Hex) =>
+                startSpan({ name: "debug_traceCall", op: "tx.trace", attributes: { chainId: network.id } }, () =>
+                  network.tracer.traceCall({ from: wallet.account.address, to: account, data }),
                 );
+              const inspect = async (network: Network) => {
+                const initial = await sign({ network });
+                const trace = await probe(network, encodeFunctionData({ abi: exaPluginAbi, ...initial }));
+                if (!trace.output?.startsWith(toFunctionSelector("Unauthorized()"))) {
+                  return { call: initial, network, trace };
+                }
+                const resigned = await sign({ checker: issuance(trace).checker, network });
+                return {
+                  call: resigned,
+                  network,
+                  trace: await probe(network, encodeFunctionData({ abi: exaPluginAbi, ...resigned })),
+                };
+              };
+              const previous =
+                networks.find(
+                  ({ id }) =>
+                    id ===
+                    v
+                      .parse(Stored, stored?.payload ?? { bodies: [] })
+                      .bodies.findLast(({ id: event }) => event === payload.id)?.chainId,
+                ) ?? home;
+              const others = networks
+                .filter((network) => network !== previous)
+                .map((network) =>
+                  inspect(network).catch((error: unknown) => {
+                    captureException(error, { level: "warning", tags: { chainId: network.id } });
+                    return null;
+                  }),
+                );
+              const attempt = previous === home ? call : await sign({ network: previous });
+              await collect(previous, attempt, async (reason) => {
+                if (reason === "Unauthorized()") {
+                  await collect(
+                    previous,
+                    await collectionContracts(
+                      previous,
+                      wallet.account.address,
+                      account,
+                      encodeFunctionData({ abi: exaPluginAbi, ...attempt }),
+                    ).then(({ checker }) => sign({ checker, network: previous })),
+                  );
+                  return true;
+                }
+                if (reason === "Replay()") return false;
+                const alternative = await race(
+                  others,
+                  (result) => !result.trace.output && collected(result.network, result.trace) === amount,
+                );
+                if (!alternative) return false;
+                await collect(alternative.network, alternative.call);
                 return true;
               });
 
@@ -1099,25 +1207,20 @@ function getCreatedAt(payload: v.InferOutput<typeof Transaction>): string | unde
 async function prepareCollection(
   card: { credential: { account: string }; mode: number },
   payload: v.InferOutput<typeof Transaction>,
-  database: Database,
   issuer: LocalAccount,
   panda: ReturnType<typeof createPanda>,
-  wallet: ReturnType<typeof createWallet>,
-  signer = issuer,
+  network: Network,
+  { signer = issuer, stored }: { signer?: LocalAccount; stored?: { payload: unknown } } = {},
 ) {
   const account = v.parse(Address, card.credential.account);
   setTag("exa.mode", card.mode);
   const usdAmount =
-    (await (async () => {
+    (() => {
       switch (payload.action) {
         case "updated":
           return payload.body.spend.authorizationUpdateAmount;
         case "completed": {
-          const tx = await database.query.transactions.findFirst({
-            columns: { payload: true },
-            where: and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)),
-          });
-          if (!tx || !v.parse(TransactionPayload, tx.payload).bodies.some((b) => b.action === "created")) {
+          if (!stored || !v.parse(TransactionPayload, stored.payload).bodies.some((b) => b.action === "created")) {
             getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "panda.tx.capture.force");
             return payload.body.spend.amount;
           }
@@ -1132,48 +1235,53 @@ async function prepareCollection(
         default:
           throw new Error("unexpected action");
       }
-    })()) / 100;
+    })() / 100;
   const amount = BigInt(Math.round(usdAmount * 1e6));
-  if (amount === 0n) return { amount, call: null, sign: null, transaction: null };
-  const sign = async (checker?: Hex) => {
-    const authorized = Math.floor(
-      (payload.body.spend.authorizedAt ? new Date(payload.body.spend.authorizedAt) : new Date()).getTime() / 1000, // TODO remove fallback
-    );
-    const timestamp =
-      payload.action === "updated" ||
-      (payload.action === "completed" && amount !== BigInt(Math.round((payload.body.spend.amount / 100) * 1e6)))
-        ? authorized - Number(BigInt(`0x${payload.id.replaceAll(/[^0-9a-f]/g, "")}`) % 3600n)
-        : authorized;
-    const signature = await signIssuerOp({ account, amount, timestamp }, signer, checker); // TODO replace with payload signature
-    if (payload.body.spend.signature) {
-      await startSpan(
-        {
-          name: "panda.signature",
-          op: "panda.signature",
-          attributes: {
-            "signature.account": account,
-            "signature.amount": String(amount),
-            "signature.timestamp": String(payload.body.spend.timestamp ?? 0),
+  if (amount === 0n) return { amount, call: null, sign: null };
+  const authorized = Math.floor(
+    (payload.body.spend.authorizedAt ? new Date(payload.body.spend.authorizedAt) : new Date()).getTime() / 1000, // TODO remove fallback
+  );
+  const timestamp =
+    payload.action === "updated" ||
+    (payload.action === "completed" && amount !== BigInt(Math.round((payload.body.spend.amount / 100) * 1e6)))
+      ? authorized - Number(BigInt(`0x${payload.id.replaceAll(/[^0-9a-f]/g, "")}`) % 3600n)
+      : authorized;
+  if (payload.body.spend.signature) {
+    await startSpan(
+      {
+        name: "panda.signature",
+        op: "panda.signature",
+        attributes: {
+          "signature.account": account,
+          "signature.amount": String(amount),
+          "signature.timestamp": String(payload.body.spend.timestamp ?? 0),
+        },
+      },
+      async (span) => {
+        if (!payload.body.spend.signature) throw new Error("signature not found");
+        if (!payload.body.spend.timestamp) throw new Error("timestamp not found");
+        const valid = await panda.verifyPandaSignature(
+          {
+            account,
+            amount,
+            timestamp: payload.body.spend.timestamp,
+            signature: payload.body.spend.signature,
           },
-        },
-        async (span) => {
-          if (!payload.body.spend.signature) throw new Error("signature not found");
-          if (!payload.body.spend.timestamp) throw new Error("timestamp not found");
-          const valid = await panda.verifyPandaSignature(
-            {
-              account,
-              amount,
-              timestamp: payload.body.spend.timestamp,
-              signature: payload.body.spend.signature,
-            },
-            issuer,
-          );
-          span.setAttribute("signature.valid", valid);
-          if (!valid) captureException(new Error("invalid panda signature"), { level: "error" });
-        },
-      ).catch((error: unknown) => captureException(error, { level: "error" }));
-    }
+          issuer,
+        );
+        span.setAttribute("signature.valid", valid);
+        if (!valid) captureException(new Error("invalid panda signature"), { level: "error" });
+      },
+    ).catch((error: unknown) => captureException(error, { level: "error" }));
+  }
 
+  const sign = async ({ checker, network: target = network }: { checker?: Hex; network?: Network } = {}) => {
+    const signature = await signIssuerOp(
+      { account, amount, timestamp },
+      signer,
+      checker ?? target.issuerChecker,
+      target.id,
+    ); // TODO replace with payload signature
     if (card.mode === 0) {
       return { functionName: "collectDebit", args: [amount, BigInt(timestamp), signature] } as const;
     }
@@ -1193,11 +1301,7 @@ async function prepareCollection(
       } as const;
     }
     const preview = await startSpan({ name: "query onchain state", op: "exa.preview" }, () =>
-      publicClient.readContract({
-        abi: exaPreviewerAbi,
-        address: exaPreviewerAddress,
-        functionName: "utilizations",
-      }),
+      target.reader.readContract({ abi: exaPreviewerAbi, address: target.exaPreviewer, functionName: "utilizations" }),
     );
     setContext("preview", preview);
     const installments = startSpan({ name: "split installments", op: "exa.split" }, () =>
@@ -1224,48 +1328,79 @@ async function prepareCollection(
   };
   const call = await sign();
   setContext("tx", { call });
-  return {
-    amount,
-    call,
-    sign,
-    transaction: {
-      from: wallet.account.address,
-      to: account,
-      data: encodeFunctionData({ abi: exaPluginAbi, ...call }),
-    } as const,
-  };
+  return { amount, call, sign };
 }
 
-const collectorTopics = new Set(collectors.map((address) => padHex(address.toLowerCase() as Hex)));
 const [transferTopic] = encodeEventTopics({ abi: erc20Abi, eventName: "Transfer" });
-const usdcLowercase = usdcAddress.toLowerCase() as Hex;
-function usdcTransfersToCollectors({ calls, logs }: CallFrame): TransferLog[] {
-  return [
-    ...(logs?.filter(
+function collected(network: Network, frame: CallFrame) {
+  const usdc = network.usdc.toLowerCase();
+  const receivers = new Set(collectors(network.id).map((address) => padHex(address.toLowerCase() as Hex)));
+  return transfers(frame)
+    .filter(
       (log): log is TransferLog =>
-        log.address === usdcLowercase &&
+        log.address === usdc &&
         log.topics?.[0] === transferTopic &&
         log.topics[2] !== undefined &&
-        collectorTopics.has(log.topics[2]),
-    ) ?? []),
-    ...(calls?.flatMap((call) => usdcTransfersToCollectors(call)) ?? []),
-  ];
+        receivers.has(log.topics[2]),
+    )
+    .reduce(
+      (total, { topics, data }) =>
+        total + decodeEventLog({ abi: erc20Abi, eventName: "Transfer", topics, data }).args.value,
+      0n,
+    );
 }
 
-async function collectionContracts(keeper: Hex, account: Hex, data: Hex) {
-  const frame = frames(
-    await startSpan({ name: "debug_traceCall", op: "tx.trace" }, () =>
-      traceClient.traceCall({ from: keeper, to: account, data }),
+function transfers({ calls, logs }: CallFrame): NonNullable<CallFrame["logs"]> {
+  return [...(logs ?? []), ...(calls?.flatMap((call) => transfers(call)) ?? [])];
+}
+
+async function collectionContracts(network: Network, keeper: Hex, account: Hex, data: Hex) {
+  return issuance(
+    await startSpan({ name: "debug_traceCall", op: "tx.trace", attributes: { chainId: network.id } }, () =>
+      network.tracer.traceCall({ from: keeper, to: account, data }),
     ),
-  ).find(({ input }) => input.startsWith(toFunctionSelector("checkIssuer(address,uint256,uint256,bytes)")));
+  );
+}
+
+function issuance(trace: CallFrame) {
+  const frame = frames(trace).find(({ input }) =>
+    input.startsWith(toFunctionSelector("checkIssuer(address,uint256,uint256,bytes)")),
+  );
   return { checker: v.parse(Address, frame?.to), plugin: v.parse(Address, frame?.from) };
+}
+
+function race<T>(promises: Promise<null | T>[], test: (result: T) => boolean) {
+  return Promise.any(
+    promises.map(async (promise) => {
+      const result = await promise;
+      if (result === null || !test(result)) throw new Error("uncovered");
+      return result;
+    }),
+  ).catch(() => null);
 }
 
 function frames(frame: CallFrame): CallFrame[] {
   return [frame, ...(frame.calls?.flatMap((call) => frames(call)) ?? [])];
 }
 
+type Collection = NonNullable<Awaited<ReturnType<typeof prepareCollection>>["call"]>;
+
 type Database = NodePgDatabase<typeof schema>;
+
+type Network = {
+  exaPlugin: Hex;
+  exaPreviewer: Hex;
+  id: number;
+  issuerChecker: Hex;
+  reader: Pick<typeof publicClient, "readContract">;
+  tracer: Pick<typeof traceClient, "traceCall">;
+  usdc: Hex;
+  wallet: ReturnType<typeof createWallet>;
+};
+
+const Stored = v.object({
+  bodies: v.array(v.looseObject({ chainId: v.optional(v.number()), id: v.optional(v.string()) })),
+});
 
 type TransferLog = {
   address: Hex;
