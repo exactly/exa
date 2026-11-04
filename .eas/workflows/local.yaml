@@ -141,7 +141,7 @@ jobs:
             [ $i -eq 420 ] && echo "health check timed out" && cat server.log && exit 1
             sleep 1
           done
-      - run: pnpm e2e:maestro --shard-split $(wc -l < emulators.serial) --format junit --output .maestro/junit.xml
+      - run: pnpm e2e:maestro --format junit --output .maestro/junit.xml
         name: e2e
       - name: exa teardown
         if: always()
@@ -296,7 +296,7 @@ jobs:
             [ $i -eq 420 ] && echo "health check timed out" && cat server.log && exit 1
             sleep 1
           done
-      - run: pnpm e2e:maestro --shard-split $(wc -l < simulators.udid) --format junit --output .maestro/junit.xml
+      - run: pnpm e2e:maestro --format junit --output .maestro/junit.xml
         name: e2e
       - name: exa teardown
         if: always()
