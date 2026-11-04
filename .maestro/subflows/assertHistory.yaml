@@ -5,7 +5,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: See all
 - assertVisible: Payment history
 - tapOn: { text: '[A-Z][a-z]+ \d{1,2}, \d{4}', below: Payment history, index: 0 }
-- assertVisible: Due [A-Z][a-z]+ \d{1,2}, \d{4}
+- assertVisible: { text: '[A-Z][a-z]+ \d{1,2}, \d{4}', childOf: { text: 'Due\s*' } }
 - tapOn: View statement
 - assertVisible: Installment \d of 3
 - runFlow: { file: tapAria.yaml, env: { aria: Back } }

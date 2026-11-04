@@ -288,6 +288,7 @@
   "Double-check your address before sending funds to avoid losing them.": "Verifica tu dirección antes de enviar fondos para evitar perderlos.",
   "Download PDF": "Descargar PDF",
   "due {{date}}": "vence {{date}}",
+  "Due <date>{{date}}</date>": "Vence <date>{{date}}</date>",
   "Due {{date}}": "Vence {{date}}",
   "Due in {{time}}": "Vence en {{time}}",
   "Due today": "Vence hoy",

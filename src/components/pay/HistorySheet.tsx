@@ -1,10 +1,10 @@
 import React, { useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 
-import { CircleCheck } from "@tamagui/lucide-icons-2/icons/CircleCheck";
+import { Check } from "@tamagui/lucide-icons-2/icons/Check";
 import { FileText } from "@tamagui/lucide-icons-2/icons/FileText";
 import { Headset } from "@tamagui/lucide-icons-2/icons/Headset";
-import { XStack, YStack } from "tamagui";
+import { Separator, Square, XStack, YStack } from "tamagui";
 
 import Breakdown from "./Breakdown";
 import StatementActions from "./StatementActions";
@@ -52,32 +52,40 @@ export default function HistorySheet({ maturity, onClose }: { maturity: number |
         borderTopLeftRadius="$r4"
         borderTopRightRadius="$r4"
         backgroundColor="$backgroundSoft"
-        paddingHorizontal="$s5"
-        $platform-web={{ paddingVertical: "$s7" }}
         $platform-android={{ paddingBottom: "$s5" }}
       >
         {displayMaturity !== undefined && breakdownOpen ? (
-          <Breakdown
-            maturity={displayMaturity}
-            onBack={() => {
-              setBreakdownOpen(false);
-            }}
-            onClose={close}
-          />
+          <YStack paddingHorizontal="$s5" $platform-web={{ paddingVertical: "$s7" }}>
+            <Breakdown
+              maturity={displayMaturity}
+              onBack={() => {
+                setBreakdownOpen(false);
+              }}
+              onClose={close}
+            />
+          </YStack>
         ) : (
-          <YStack gap="$s5">
-            <XStack gap="$s3" alignItems="center">
-              {paidAt ? (
-                <CircleCheck size={32} color="$uiSuccessSecondary" />
-              ) : (
-                <FileText size={32} color="$uiNeutralSecondary" />
-              )}
-              <YStack flex={1} gap="$s1">
-                <Text emphasized headline>
-                  {displayMaturity !== undefined && t("Due {{date}}", { date: day(displayMaturity) })}
-                </Text>
+          <YStack>
+            <XStack gap="$s4" alignItems="center" paddingHorizontal="$s5" paddingTop="$s6" paddingBottom="$s4_5">
+              <Square size="$s8" borderRadius="$r4" backgroundColor="$backgroundStrong">
+                {paidAt ? (
+                  <Check size={32} color="$uiSuccessSecondary" />
+                ) : (
+                  <FileText size={32} color="$uiNeutralSecondary" />
+                )}
+              </Square>
+              <YStack flex={1} gap="$s3_5">
+                {displayMaturity !== undefined && (
+                  <Text body secondary>
+                    <Trans
+                      i18nKey="Due <date>{{date}}</date>"
+                      values={{ date: day(displayMaturity) }}
+                      components={{ date: <Text body emphasized /> }}
+                    />
+                  </Text>
+                )}
                 {paid && (
-                  <Text footnote color="$uiNeutralSecondary">
+                  <Text caption secondary>
                     {t("Paid on {{date}}", { date: paid })}
                   </Text>
                 )}
@@ -85,20 +93,23 @@ export default function HistorySheet({ maturity, onClose }: { maturity: number |
               <IconButton
                 icon={Headset}
                 aria-label={t("Support")}
-                color="$uiNeutralSecondary"
+                color="$interactiveBaseBrandDefault"
                 onPress={() => {
                   present().catch(reportError);
                 }}
               />
             </XStack>
+            <Separator borderColor="$borderNeutralSoft" />
             {displayMaturity !== undefined && (
-              <StatementActions
-                maturity={displayMaturity}
-                onBreakdown={() => {
-                  setBreakdownOpen(true);
-                }}
-                onClose={close}
-              />
+              <YStack paddingHorizontal="$s3" paddingBottom="$s4_5">
+                <StatementActions
+                  maturity={displayMaturity}
+                  onBreakdown={() => {
+                    setBreakdownOpen(true);
+                  }}
+                  onClose={close}
+                />
+              </YStack>
             )}
           </YStack>
         )}
