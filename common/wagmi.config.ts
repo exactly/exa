@@ -102,14 +102,35 @@ export default defineConfig([
                   .map((asset) => getAddress(loadDeployment(asset, true, id).address)),
               ]),
           );
-          const auditors = chain
+          const stack = chain
             ? [
                 ...new Set([
                   chainId,
                   ...[...networks.keys()].filter((current) => Boolean(current.testnet) === testnet).map(({ id }) => id),
                 ]),
-              ].map((id) => [id, getAddress(loadDeployment("Auditor", true, id).address)])
-            : [anvil.id, moonbeamDev.id].map((id) => [id, getAddress(loadDeployment("Auditor").address)]);
+              ]
+            : [anvil.id, moonbeamDev.id];
+          const auditors = stack.map((id) => [
+            id,
+            getAddress(loadDeployment("Auditor", true, chain ? id : chainId).address),
+          ]);
+          const deployments = stack.map((id) => {
+            const network = chain ? id : chainId;
+            return [
+              id,
+              Object.fromEntries(
+                Object.entries({
+                  exaPlugin: loadBroadcast("ExaPlugin", network).transactions[0]?.contractAddress,
+                  exaPreviewer: loadBroadcast("ExaPreviewer", network).transactions[0]?.contractAddress,
+                  issuerChecker: loadBroadcast("IssuerChecker", network).transactions[0]?.contractAddress,
+                  usdc: loadDeployment("USDC", true, network).address,
+                }).map(([key, address]) => {
+                  if (!address) throw new Error(`missing ${key} on ${id}`);
+                  return [key, getAddress(address)];
+                }),
+              ),
+            ];
+          });
           const stocks = Object.keys(deploy.proposalManager.allowlist[base.id])
             .filter((address) => address.slice(0, 5).toLowerCase() === "0xb20")
             .map((address) => address.toLowerCase());
@@ -233,6 +254,7 @@ export default defineConfig([
               )}`,
               `export const appPreviewerCode: \`0x\${string}\` = "${AppPreviewer.bytecode.object}"`,
               `export const auditors: ReadonlyMap<number, \`0x\${string}\`> = new Map(${JSON.stringify(auditors)})`,
+              `export const deployments: ReadonlyMap<number, Readonly<Record<"exaPlugin" | "exaPreviewer" | "issuerChecker" | "usdc", \`0x\${string}\`>>> = new Map(${JSON.stringify(deployments)})`,
               `export const exaPreviewerCode: \`0x\${string}\` = "${ExaPreviewer.bytecode.object}"`,
               `export const factories = ${JSON.stringify(factories)} as const`,
               `export const pricePreviewerCode: \`0x\${string}\` = "${PricePreviewer.bytecode.object}"`,
@@ -297,9 +319,9 @@ function loadDeployment<R extends boolean = true>(
   }
 }
 
-function loadBroadcast(script: string) {
+function loadBroadcast(script: string, id = chainId) {
   return JSON.parse(
-    readFileSync(`node_modules/@exactly/plugin/broadcast/${script}.s.sol/${chainId}/run-latest.json`, "utf8"),
+    readFileSync(`node_modules/@exactly/plugin/broadcast/${script}.s.sol/${id}/run-latest.json`, "utf8"),
   ) as { transactions: { contractAddress: string }[] };
 }
 
