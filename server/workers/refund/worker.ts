@@ -11,6 +11,7 @@ import {
   parseAbi,
   toFunctionSelector,
   toHex,
+  zeroHash,
   type LocalAccount,
 } from "viem";
 
@@ -20,6 +21,7 @@ import chain, {
   refunderAbi,
   refunderAddress as refunderContract,
   simple7702AccountAddress,
+  usdcAddress,
 } from "@exactly/common/generated/chain";
 import revertReason from "@exactly/common/revertReason";
 import { Address, Hex } from "@exactly/common/validation";
@@ -62,7 +64,12 @@ export default function worker({
 }) {
   const wallet = createWallet(refunder);
   const hook = createHook(bullmq);
-  const abi = [...issuerCheckerAbi, ...marketAbi, ...refunderAbi];
+  const abi = [
+    ...issuerCheckerAbi,
+    ...marketAbi,
+    ...refunderAbi,
+    ...parseAbi(["error InvalidSignature()", "error UnderAdminThreshold()"]),
+  ];
   return own(
     createWorker<Job>({
       attempts,
@@ -168,9 +175,17 @@ export default function worker({
           panda.getContracts(),
         ]);
         const target = contracts.find(
-          ({ chainId, contractVersion }) => chainId === chain.id && contractVersion === 1,
+          ({ chainId, contractVersion }) => chainId === chain.id && contractVersion === 2,
         )?.controllerAddress;
         if (!target) throw new UnrecoverableError("controller not found");
+        if (
+          parameters[1] !==
+            parse(Address, chain.testnet ? "0x29684075a3C86ea11D9964BcAf0F956e801396bD" : usdcAddress) ||
+          BigInt(parameters[2]) !== BigInt(amount) ||
+          parameters[3] !== parse(Address, refunderContract)
+        ) {
+          throw new UnrecoverableError("withdrawal mismatch");
+        }
         const receipt = await wallet
           .exaSend(
             { name: "panda.refund", op: "panda.refund", attributes: { account } },
@@ -189,7 +204,7 @@ export default function worker({
                   {
                     data: encodeFunctionData({
                       abi: parseAbi([
-                        "function withdrawAsset(address collateralProxy, address asset, uint256 amount, address recipient, uint256 expiresAt, bytes32 salt, bytes signature)",
+                        "function withdrawAsset(address collateralProxy, address asset, uint256 amount, address recipient, uint256 expiresAt, bytes32 salt, bytes signature, bytes32[] adminSalts, bytes[] adminSignatures, bool directTransfer)",
                       ]),
                       args: [
                         parameters[0],
@@ -199,6 +214,40 @@ export default function worker({
                         BigInt(parameters[4]),
                         toHex(Buffer.from(parameters[5])),
                         parameters[6],
+                        [zeroHash],
+                        [
+                          await refunder.signTypedData({
+                            domain: {
+                              chainId: chain.id,
+                              name: "Collateral",
+                              salt: zeroHash,
+                              verifyingContract: parameters[0],
+                              version: "2",
+                            },
+                            types: {
+                              Withdraw: [
+                                { name: "user", type: "address" },
+                                { name: "asset", type: "address" },
+                                { name: "amount", type: "uint256" },
+                                { name: "recipient", type: "address" },
+                                { name: "nonce", type: "uint256" },
+                              ],
+                            },
+                            primaryType: "Withdraw",
+                            message: {
+                              user: refunder.address,
+                              asset: parameters[1],
+                              amount: BigInt(parameters[2]),
+                              recipient: parameters[3],
+                              nonce: await wallet.readContract({
+                                address: parameters[0],
+                                abi: parseAbi(["function adminNonce() view returns (uint256)"]),
+                                functionName: "adminNonce",
+                              }),
+                            },
+                          }),
+                        ],
+                        true,
                       ],
                       functionName: "withdrawAsset",
                     }),
@@ -273,7 +322,7 @@ export default function worker({
               new ContractFunctionRevertedError({ abi, data: revertData, functionName }),
               { abi, args: [], functionName },
             );
-            if (!["Expired", "Unauthorized"].includes(revertReason(revert))) throw revert;
+            if (!["Expired", "Unauthorized", "UnderAdminThreshold"].includes(revertReason(revert))) throw revert;
             throw Object.assign(new UnrecoverableError(revertReason(revert)), { cause: revert });
           });
         if (!receipt) return;

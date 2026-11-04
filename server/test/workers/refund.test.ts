@@ -9,12 +9,14 @@ import { eq } from "drizzle-orm";
 import { env } from "node:process";
 import { nonEmpty, parse, pipe, string } from "valibot";
 import {
+  concat,
   ContractFunctionExecutionError,
   encodeAbiParameters,
   encodeFunctionData,
   keccak256,
   padHex,
   parseAbi,
+  parseAbiParameters,
   toFunctionSelector,
   toHex,
   zeroHash,
@@ -60,6 +62,8 @@ const salt = Array.from({ length: 32 }, (_, index) => index);
 const issuer = privateKeyToAccount(padHex("0x420"));
 const refunder = privateKeyToAccount(padHex("0xfee"));
 const pandaAddress = parse(Address, "0x54d02DcB38B76A67dC9368D8457D1F384B865c70");
+const collateral = parse(Address, padHex("0xc011a7", { size: 20 }));
+const usdc = parse(Address, "0x29684075a3C86ea11D9964BcAf0F956e801396bD");
 const panda = createPanda({ key: "panda", url: "https://panda.test" });
 const store = "0x600160005500";
 const sardineConfig = { key: "sardine", url: "https://sardine.test" };
@@ -174,6 +178,10 @@ describe("refund worker", () => {
       anvilClient.setBalance({ address: refunder.address, value: 10n ** 24n }),
       anvilClient.setCode({ address: refunder.address, bytecode: "0x" }),
       anvilClient.setCode({ address: pandaAddress, bytecode: store }),
+      anvilClient.setCode({
+        address: collateral,
+        bytecode: `0x60003560e01c63${toFunctionSelector("adminNonce()").slice(2)}14601357600080fd5b600760005260206000f3`,
+      }),
       anvilClient.setCode({ address: refunderAddress, bytecode: deployedRefunder }),
       anvilClient.setStorageAt({ address: refunderAddress, index: slot, value: padHex("0x1", { size: 32 }) }),
       database.transaction(async (tx) => {
@@ -214,13 +222,13 @@ describe("refund worker", () => {
     mocks.getWebhook.mockReset().mockImplementation((id) => Promise.resolve(webhooks.get(id)));
     mocks.getUser.mockReset().mockResolvedValue(user);
     mocks.getContracts.mockReset().mockResolvedValue([
-      { chainId: optimismSepolia.id, contractVersion: 1, controllerAddress: account, proxyAddress: account },
-      { chainId: chain.id, contractVersion: 2, controllerAddress: account, proxyAddress: account },
-      { chainId: chain.id, contractVersion: 1, controllerAddress: pandaAddress, proxyAddress: account },
+      { chainId: optimismSepolia.id, contractVersion: 2, controllerAddress: account, proxyAddress: collateral },
+      { chainId: chain.id, contractVersion: 1, controllerAddress: account, proxyAddress: collateral },
+      { chainId: chain.id, contractVersion: 2, controllerAddress: pandaAddress, proxyAddress: collateral },
     ]);
     mocks.getWithdrawal.mockReset().mockImplementation((amount) =>
       Promise.resolve({
-        parameters: [account, account, String(amount), refunderAddress, 1_700_000_000, salt, "0x1234"],
+        parameters: [collateral, usdc, String(amount * 10_000), refunderAddress, 1_700_000_000, salt, "0x1234"],
       }),
     );
     vi.clearAllMocks();
@@ -308,15 +316,7 @@ describe("refund worker", () => {
         address: refunder.address,
         args: [
           [
-            {
-              data: encodeFunctionData({
-                abi: withdrawAssetAbi,
-                args: [account, account, 1000n, refunderAddress, 1_700_000_000n, toHex(Buffer.from(salt)), "0x1234"],
-                functionName: "withdrawAsset",
-              }),
-              target: pandaAddress,
-              value: 0n,
-            },
+            { data: await withdrawal(10_000_000n), target: pandaAddress, value: 0n },
             {
               data: encodeFunctionData({
                 abi: refunderAbi,
@@ -411,13 +411,7 @@ describe("refund worker", () => {
       expect.objectContaining({
         args: [
           [
-            expect.objectContaining({
-              data: encodeFunctionData({
-                abi: withdrawAssetAbi,
-                args: [account, account, 2000n, refunderAddress, 1_700_000_000n, toHex(Buffer.from(salt)), "0x1234"],
-                functionName: "withdrawAsset",
-              }),
-            }),
+            expect.objectContaining({ data: await withdrawal(20_000_000n) }),
             expect.objectContaining({
               data: encodeFunctionData({
                 abi: refunderAbi,
@@ -653,7 +647,7 @@ describe("refund worker", () => {
 
   it("fails without retries on missing controllers", async () => {
     mocks.getContracts.mockResolvedValueOnce([
-      { chainId: chain.id, contractVersion: 2, controllerAddress: pandaAddress, proxyAddress: account },
+      { chainId: chain.id, contractVersion: 1, controllerAddress: pandaAddress, proxyAddress: collateral },
     ]);
     webhook("wh-no-controller", { amount: 500, authorizedAmount: 1500, status: "pending" });
     const track = vi.spyOn(segment, "track").mockReturnValue();
@@ -686,6 +680,51 @@ describe("refund worker", () => {
           "panda.reasonName": "UnrecoverableError",
         },
         extra: { attempts: 1, id: "wh-no-controller", recipient: refunderAddress },
+      },
+    );
+  });
+
+  it.each([
+    ["token", false, [collateral, usdc, "10000000", refunderAddress, 1_700_000_000, salt, "0x1234"]],
+    ["amount", true, [collateral, usdc, "1000", refunderAddress, 1_700_000_000, salt, "0x1234"]],
+    ["recipient", true, [collateral, usdc, "10000000", account, 1_700_000_000, salt, "0x1234"]],
+  ])("fails without retries on withdrawal %s mismatches", async (field, testnet, parameters) => {
+    chain.testnet = testnet;
+    mocks.getWithdrawal.mockResolvedValueOnce({ parameters });
+    webhook(`wh-withdrawal-${field}`, { amount: 500, authorizedAmount: 1500, status: "pending" });
+    const track = vi.spyOn(segment, "track").mockReturnValue();
+
+    const result = jobFinished(`wh-withdrawal-${field}`, { attempts: 2, backoff: { type: "fixed", delay: 1 } }).finally(
+      () => (chain.testnet = true),
+    );
+
+    await expect(result).rejects.toThrow("withdrawal mismatch");
+    await vi.waitUntil(() => track.mock.calls.length > 0);
+    expect(mocks.getWithdrawal).toHaveBeenCalledExactlyOnceWith(1000, refunderAddress, refunder.address);
+    expect(mocks.exaSend).not.toHaveBeenCalled();
+    expect(hook.enqueue).not.toHaveBeenCalled();
+    expect(sendPushNotification).not.toHaveBeenCalled();
+    expect(track).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        event: "TransactionRejected",
+        properties: expect.objectContaining({
+          declinedReason: "refund:withdrawal mismatch",
+          reasonName: "UnrecoverableError",
+        }) as unknown,
+      }),
+    );
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ message: "withdrawal mismatch" }),
+      {
+        level: "fatal",
+        fingerprint: ["{{ default }}", "refund.exhausted", "unknown"],
+        tags: {
+          queue: "refund",
+          job: "refund",
+          "panda.reason": "withdrawal mismatch",
+          "panda.reasonName": "UnrecoverableError",
+        },
+        extra: { attempts: 1, id: `wh-withdrawal-${field}`, recipient: refunderAddress },
       },
     );
   });
@@ -844,6 +883,81 @@ describe("refund worker", () => {
         fingerprint: ["{{ default }}", "refund.exhausted", selector],
         tags: { queue: "refund", job: "refund", "panda.reason": selector, "panda.reasonName": selector },
         extra: { attempts: 1, id: "wh-custody", recipient: refunderAddress },
+      },
+    );
+  });
+
+  it("retries invalid withdrawal signatures", async () => {
+    webhook("wh-invalid", { amount: 500, authorizedAmount: 1500, status: "pending" });
+    const track = vi.spyOn(segment, "track").mockReturnValue();
+    await anvilClient.setCode({
+      address: pandaAddress,
+      bytecode: `0x63${toFunctionSelector("InvalidSignature()").slice(2)}60e01b60005260046000fd`,
+    });
+
+    const result = jobFinished("wh-invalid", { attempts: 2, backoff: { type: "fixed", delay: 1 } }).finally(() =>
+      anvilClient.setCode({ address: pandaAddress, bytecode: store }),
+    );
+
+    await expect(result).rejects.toThrow("InvalidSignature");
+    await vi.waitUntil(() => track.mock.calls.length > 0);
+    expect(mocks.exaSend).toHaveBeenCalledTimes(2);
+    expect(mocks.getWithdrawal).toHaveBeenCalledTimes(2);
+    expect(hook.enqueue).not.toHaveBeenCalled();
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ functionName: "withdrawAsset" }),
+      {
+        level: "fatal",
+        fingerprint: ["{{ default }}", "refund.exhausted", "InvalidSignature"],
+        tags: {
+          queue: "refund",
+          job: "refund",
+          "panda.reason": "InvalidSignature",
+          "panda.reasonName": "InvalidSignature",
+        },
+        extra: { attempts: 2, id: "wh-invalid", recipient: refunderAddress },
+      },
+    );
+  });
+
+  it("fails without retries on admin thresholds", async () => {
+    webhook("wh-threshold", { amount: 500, authorizedAmount: 1500, status: "pending" });
+    const track = vi.spyOn(segment, "track").mockReturnValue();
+    await anvilClient.setCode({
+      address: pandaAddress,
+      bytecode: `0x63${toFunctionSelector("UnderAdminThreshold()").slice(2)}60e01b60005260046000fd`,
+    });
+
+    const result = jobFinished("wh-threshold", { attempts: 2, backoff: { type: "fixed", delay: 1 } }).finally(() =>
+      anvilClient.setCode({ address: pandaAddress, bytecode: store }),
+    );
+
+    await expect(result).rejects.toThrow("UnderAdminThreshold");
+    await vi.waitUntil(() => track.mock.calls.length > 0);
+    expect(mocks.exaSend).toHaveBeenCalledOnce();
+    expect(hook.enqueue).not.toHaveBeenCalled();
+    expect(sendPushNotification).not.toHaveBeenCalled();
+    expect(track).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        event: "TransactionRejected",
+        properties: expect.objectContaining({
+          declinedReason: "refund:UnderAdminThreshold",
+          reasonName: "UnderAdminThreshold",
+        }) as unknown,
+      }),
+    );
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ functionName: "withdrawAsset" }),
+      {
+        level: "fatal",
+        fingerprint: ["{{ default }}", "refund.exhausted", "UnderAdminThreshold"],
+        tags: {
+          queue: "refund",
+          job: "refund",
+          "panda.reason": "UnderAdminThreshold",
+          "panda.reasonName": "UnderAdminThreshold",
+        },
+        extra: { attempts: 1, id: "wh-threshold", recipient: refunderAddress },
       },
     );
   });
@@ -1065,10 +1179,6 @@ describe("refund worker", () => {
   });
 });
 
-const withdrawAssetAbi = parseAbi([
-  "function withdrawAsset(address collateralProxy, address asset, uint256 amount, address recipient, uint256 expiresAt, bytes32 salt, bytes signature)",
-]);
-
 const user = {
   id: "user",
   firstName: "First",
@@ -1169,6 +1279,61 @@ function webhook(id: string, spend: Record<string, unknown>, action = "completed
   };
   webhooks.set(id, { id, requestBody, requestSentAt: "2026-01-01T00:00:00.000Z" });
   return requestBody;
+}
+
+async function withdrawal(amount: bigint) {
+  return encodeFunctionData({
+    abi: parseAbi([
+      "function withdrawAsset(address collateralProxy, address asset, uint256 amount, address recipient, uint256 expiresAt, bytes32 salt, bytes signature, bytes32[] adminSalts, bytes[] adminSignatures, bool directTransfer)",
+    ]),
+    args: [
+      collateral,
+      usdc,
+      amount,
+      refunderAddress,
+      1_700_000_000n,
+      toHex(Buffer.from(salt)),
+      "0x1234",
+      [zeroHash],
+      [
+        await refunder.sign({
+          hash: keccak256(
+            concat([
+              "0x1901",
+              keccak256(
+                encodeAbiParameters(parseAbiParameters("bytes32, bytes32, bytes32, uint256, address, bytes32"), [
+                  keccak256(
+                    toHex(
+                      "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract,bytes32 salt)",
+                    ),
+                  ),
+                  keccak256(toHex("Collateral")),
+                  keccak256(toHex("2")),
+                  BigInt(chain.id),
+                  collateral,
+                  zeroHash,
+                ]),
+              ),
+              keccak256(
+                encodeAbiParameters(parseAbiParameters("bytes32, address, address, uint256, address, uint256"), [
+                  keccak256(
+                    toHex("Withdraw(address user,address asset,uint256 amount,address recipient,uint256 nonce)"),
+                  ),
+                  refunder.address,
+                  usdc,
+                  amount,
+                  refunderAddress,
+                  7n,
+                ]),
+              ),
+            ]),
+          ),
+        }),
+      ],
+      true,
+    ],
+    functionName: "withdrawAsset",
+  });
 }
 
 async function jobFinished(id: string, options?: JobsOptions, data?: Partial<Refund>) {
