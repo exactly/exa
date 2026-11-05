@@ -2,7 +2,7 @@ export default define({
   common: ["sentry-dsn"],
   crema: ["redis-address", "redis-password", "redis-username"],
   features: ["business"],
-  indexer: ["indexer-postgres-url", "indexer-rpc-url"],
+  indexer: ["indexer-alchemy-key", "indexer-postgres-url"],
   services: {
     api: {
       secrets: [

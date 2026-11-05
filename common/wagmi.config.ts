@@ -116,7 +116,13 @@ export default defineConfig([
           ).map((id) => {
             const exaPreviewer = loadBroadcast("ExaPreviewer", chain ? id : chainId).transactions[0]?.contractAddress;
             if (!exaPreviewer) throw new Error(`missing exaPreviewer on ${id}`);
-            return [id, { exaPreviewer: getAddress(exaPreviewer) }];
+            return [
+              id,
+              {
+                auditor: getAddress(loadDeployment("Auditor", true, chain ? id : chainId).address),
+                exaPreviewer: getAddress(exaPreviewer),
+              },
+            ];
           });
           const stocks = Object.keys(deploy.proposalManager.allowlist[base.id])
             .filter((address) => address.slice(0, 5).toLowerCase() === "0xb20")
@@ -243,7 +249,7 @@ export default defineConfig([
               `export const appPreviewerDeployedCode: \`0x\${string}\` = "${AppPreviewer.deployedBytecode.object}"`,
               `export const factories = ${JSON.stringify(factories)} as const`,
               `export const issuerCheckerPreviewerCode: \`0x\${string}\` = "${IssuerCheckerPreviewer.deployedBytecode.object}"`,
-              `export const networks: ReadonlyMap<number, Readonly<{ exaPreviewer: \`0x\${string}\` }>> = new Map(${JSON.stringify(roots)})`,
+              `export const networks: ReadonlyMap<number, Readonly<{ auditor: \`0x\${string}\`; exaPreviewer: \`0x\${string}\` }>> = new Map(${JSON.stringify(roots)})`,
               `export const pricePreviewerCode: \`0x\${string}\` = "${PricePreviewer.bytecode.object}"`,
               `export const stocks: ReadonlySet<string> = new Set(${JSON.stringify(stocks)})`,
               ...(chain
