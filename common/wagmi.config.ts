@@ -19,7 +19,6 @@ import { anvil, base, baseSepolia, moonbeamDev, optimism, optimismSepolia } from
 
 import deploy from "@exactly/plugin/deploy.json" with { type: "json" };
 import AppPreviewer from "@exactly/plugin/out/build/AppPreviewer.sol/AppPreviewer.json" with { type: "json" };
-import ExaPreviewer from "@exactly/plugin/out/build/ExaPreviewer.sol/ExaPreviewer.json" with { type: "json" };
 import IssuerCheckerPreviewer from "@exactly/plugin/out/build/IssuerCheckerPreviewer.sol/IssuerCheckerPreviewer.json" with { type: "json" };
 import PricePreviewer from "@exactly/plugin/out/build/PricePreviewer.sol/PricePreviewer.json" with { type: "json" };
 import Auditor from "@exactly/protocol/deployments/base/Auditor.json" with { type: "json" };
@@ -252,7 +251,6 @@ export default defineConfig([
               )}`,
               `export const appPreviewerCode: \`0x\${string}\` = "${AppPreviewer.bytecode.object}"`,
               `export const appPreviewerDeployedCode: \`0x\${string}\` = "${AppPreviewer.deployedBytecode.object}"`,
-              `export const exaPreviewerCode: \`0x\${string}\` = "${ExaPreviewer.bytecode.object}"`,
               `export const factories: Readonly<Record<"legacy" | "versions", readonly \`0x\${string}\`[]>> = ${JSON.stringify(factories)}`,
               `export const issuerCheckerPreviewerCode: \`0x\${string}\` = "${IssuerCheckerPreviewer.deployedBytecode.object}"`,
               `export const networks: ReadonlyMap<number, Readonly<Record<"auditor" | "exaPreviewer" | "swapper", \`0x\${string}\`>>> = new Map(${JSON.stringify(networkContracts)})`,
