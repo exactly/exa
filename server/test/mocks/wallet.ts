@@ -19,6 +19,7 @@ import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import chain from "@exactly/common/generated/chain";
 
 import publicClient from "../../utils/publicClient";
+import { trace } from "../../utils/traceClient";
 
 import type * as nonceManager from "../../utils/nonceManager";
 import type * as wallet from "../../utils/wallet";
@@ -38,7 +39,10 @@ vi.mock("../../utils/wallet", async (importOriginal) => {
       .extend(publicActions)
       .extend((wallet) => {
         walletClient = wallet;
-        return original.extender(wallet, { publicClient: network.id === chain.id ? publicClient : wallet });
+        return original.extender(
+          wallet,
+          network.id === chain.id ? { publicClient } : { publicClient: wallet, traceClient: wallet.extend(trace) },
+        );
       });
   };
   const keeper = create();
