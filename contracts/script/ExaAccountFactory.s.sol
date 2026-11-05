@@ -19,10 +19,12 @@ contract DeployExaAccountFactory is BaseScript {
 
     vm.startBroadcast(admin);
 
+    PluginMetadata memory metadata = IPlugin(exaPlugin).pluginMetadata();
     factory = ExaAccountFactory(
       payable(create3(
           admin,
-          _salt(IPlugin(exaPlugin)),
+          metadata.name,
+          metadata.version,
           abi.encodePacked(
             type(ExaAccountFactory).creationCode, abi.encode(admin, ownerPlugin, exaPlugin, ACCOUNT_IMPL, ENTRYPOINT)
           )
@@ -34,11 +36,6 @@ contract DeployExaAccountFactory is BaseScript {
     ProposalManager(broadcast("ProposalManager")).grantRole(keccak256("PROPOSER_ROLE"), exaPlugin);
 
     vm.stopBroadcast();
-  }
-
-  function _salt(IPlugin plugin) internal pure returns (bytes32) {
-    PluginMetadata memory metadata = plugin.pluginMetadata();
-    return keccak256(abi.encode(metadata.name, metadata.version));
   }
 
   function constructorArguments() external returns (bytes memory) {

@@ -59,9 +59,7 @@ contract BobScript is BaseScript {
     issuerChecker = IssuerChecker(broadcast("IssuerChecker"));
     exaPlugin = ExaPlugin(payable(broadcast("ExaPlugin")));
     factory = ExaAccountFactory(
-      payable(create3Address(
-          acct("admin"), keccak256(abi.encode(exaPlugin.pluginMetadata().name, exaPlugin.pluginMetadata().version))
-        ))
+      payable(create3Address(acct("admin"), exaPlugin.pluginMetadata().name, exaPlugin.pluginMetadata().version))
     );
     vm.label(address(exaPlugin), "ExaPlugin");
     vm.label(address(factory), "ExaAccountFactory");
@@ -182,16 +180,19 @@ contract BobScript is BaseScript {
       ProposalManager(_deploy("ProposalManager", 32 * (8 + targets.length), _arguments("ProposalManager")));
     _deploy("Refunder", abi.encode(acct("admin"), exaUSDC, checker, acct("keeper")));
     _deploy("ExaPreviewer", abi.encode(protocol("Auditor"), exaUSDC, releaseProposalManager));
-    Parameters memory parameters = abi.decode(_arguments("ExaPlugin"), (Parameters));
-    parameters.issuerChecker = checker;
-    parameters.proposalManager = releaseProposalManager;
-    release = ExaPlugin(payable(_deploy("ExaPlugin", abi.encode(parameters))));
+    {
+      Parameters memory parameters = abi.decode(_arguments("ExaPlugin"), (Parameters));
+      parameters.issuerChecker = checker;
+      parameters.proposalManager = releaseProposalManager;
+      release = ExaPlugin(payable(_deploy("ExaPlugin", abi.encode(parameters))));
+    }
 
     vm.startBroadcast(acct("admin"));
     ExaAccountFactory(
       payable(create3(
           acct("admin"),
-          keccak256(abi.encode(release.pluginMetadata().name, release.pluginMetadata().version)),
+          release.pluginMetadata().name,
+          release.pluginMetadata().version,
           abi.encodePacked(
             type(ExaAccountFactory).creationCode,
             abi.encode(acct("admin"), factory.WEBAUTHN_OWNER_PLUGIN(), release, factory.IMPL(), factory.ENTRYPOINT())
