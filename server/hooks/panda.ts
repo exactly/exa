@@ -157,6 +157,21 @@ export default function hook({
             }
           }
         }
+        if (payload.resource === "card" && payload.action === "updated" && payload.body.status === "canceled") {
+          const card = await database.query.cards.findFirst({
+            columns: { status: true },
+            where: eq(cards.id, payload.body.id),
+            with: { credential: { columns: { account: true, source: true } } },
+          });
+          if (card && card.status !== "DELETED") {
+            await database.update(cards).set({ status: "DELETED" }).where(eq(cards.id, payload.body.id));
+            segment.track({
+              userId: v.parse(Address, card.credential.account),
+              event: "CardDeleted",
+              properties: { source: card.credential.source },
+            });
+          }
+        }
         return c.json({ code: "ok" });
       }
 
