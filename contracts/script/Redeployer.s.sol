@@ -50,13 +50,12 @@ contract Redeployer is BaseScript {
 
   /// @notice Loads pre-deployed contracts and resolves protocol dependencies.
   function setUp() external {
-    address admin = acct("admin");
-    exa = EXA(CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("EXA"))));
-    dummy = Dummy(CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("Dummy"))));
-    proxyAdmin = ProxyAdmin(CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("ProxyAdmin"))));
+    exa = EXA(_create3(keccak256(abi.encode("EXA")), ""));
+    dummy = Dummy(_create3(keccak256(abi.encode("Dummy")), ""));
+    proxyAdmin = ProxyAdmin(_create3(keccak256(abi.encode("ProxyAdmin")), ""));
     ownerPlugin =
       IPlugin(_broadcastOrCreate3("node_modules/webauthn-owner-plugin/broadcast/Plugin", _ownerPluginSalt()));
-    exaPlugin = IPlugin(_broadcastOrCreate3("broadcast/ExaPlugin", keccak256(abi.encode("ExaPlugin"))));
+    exaPlugin = IPlugin(_broadcastOrCreate3("broadcast/ExaPlugin", _salt("ExaPlugin")));
     factory = _factory();
     auditor = IAuditor(_protocolOrStub("Auditor", "StubAuditor"));
     marketUSDC = IMarket(_protocolOrStub("MarketUSDC", "StubMarketUSDC"));
@@ -68,49 +67,33 @@ contract Redeployer is BaseScript {
     address admin = acct("admin");
     if (admin == acct("redeployer")) revert AdminIsDeployer();
     vm.startBroadcast(admin);
-    if (address(dummy).code.length == 0) {
-      dummy = Dummy(CREATE3_FACTORY.deploy(keccak256(abi.encode("Dummy")), type(Dummy).creationCode));
-    }
-    if (address(proxyAdmin).code.length == 0) {
-      proxyAdmin = ProxyAdmin(
-        CREATE3_FACTORY.deploy(
-          keccak256(abi.encode("ProxyAdmin")), abi.encodePacked(type(ProxyAdmin).creationCode, abi.encode(admin))
-        )
-      );
-    }
+    dummy = Dummy(_create3(keccak256(abi.encode("Dummy")), type(Dummy).creationCode));
+    proxyAdmin = ProxyAdmin(
+      _create3(keccak256(abi.encode("ProxyAdmin")), abi.encodePacked(type(ProxyAdmin).creationCode, abi.encode(admin)))
+    );
     if (address(auditor).code.length == 0) {
-      auditor = IAuditor(CREATE3_FACTORY.deploy(keccak256(abi.encode("StubAuditor")), type(StubAuditor).creationCode));
+      auditor = IAuditor(_create3(_salt("StubAuditor"), type(StubAuditor).creationCode));
     }
     if (address(marketUSDC).code.length == 0 || address(marketWETH).code.length == 0) {
-      address stubAsset = CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("StubAsset")));
-      if (stubAsset.code.length == 0) {
-        stubAsset = CREATE3_FACTORY.deploy(keccak256(abi.encode("StubAsset")), type(StubAsset).creationCode);
-      }
+      address stubAsset = _create3(_salt("StubAsset"), type(StubAsset).creationCode);
       if (address(marketUSDC).code.length == 0) {
         marketUSDC = IMarket(
-          CREATE3_FACTORY.deploy(
-            keccak256(abi.encode("StubMarketUSDC")),
-            abi.encodePacked(type(StubMarket).creationCode, abi.encode(stubAsset))
-          )
+          _create3(_salt("StubMarketUSDC"), abi.encodePacked(type(StubMarket).creationCode, abi.encode(stubAsset)))
         );
       }
       if (address(marketWETH).code.length == 0) {
         marketWETH = IMarket(
-          CREATE3_FACTORY.deploy(
-            keccak256(abi.encode("StubMarketWETH")),
-            abi.encodePacked(type(StubMarket).creationCode, abi.encode(stubAsset))
-          )
+          _create3(_salt("StubMarketWETH"), abi.encodePacked(type(StubMarket).creationCode, abi.encode(stubAsset)))
         );
       }
     }
     if (address(ownerPlugin).code.length == 0) {
-      ownerPlugin = IPlugin(CREATE3_FACTORY.deploy(_ownerPluginSalt(), type(WebauthnOwnerPlugin).creationCode));
+      ownerPlugin = IPlugin(_create3(_ownerPluginSalt(), type(WebauthnOwnerPlugin).creationCode));
     }
-    address proposalManagerAddr =
-      _broadcastOrCreate3("broadcast/ProposalManager", keccak256(abi.encode("ProposalManager")));
+    address proposalManagerAddr = _broadcastOrCreate3("broadcast/ProposalManager", _salt("ProposalManager"));
     if (proposalManagerAddr.code.length == 0) {
-      proposalManagerAddr = CREATE3_FACTORY.deploy(
-        keccak256(abi.encode("ProposalManager")),
+      proposalManagerAddr = _create3(
+        _salt("ProposalManager"),
         abi.encodePacked(
           type(ProposalManager).creationCode,
           abi.encode(admin, auditor, IDebtManager(address(1)), IInstallmentsRouter(address(1)), admin, _allowlist(), 1)
@@ -119,8 +102,8 @@ contract Redeployer is BaseScript {
     }
     if (address(exaPlugin).code.length == 0) {
       exaPlugin = IPlugin(
-        CREATE3_FACTORY.deploy(
-          keccak256(abi.encode("ExaPlugin")),
+        _create3(
+          _salt("ExaPlugin"),
           abi.encodePacked(
             type(ExaPlugin).creationCode,
             abi.encode(
@@ -148,7 +131,7 @@ contract Redeployer is BaseScript {
     }
     if (address(factory).code.length == 0) {
       factory = ExaAccountFactory(
-        payable(CREATE3_FACTORY.deploy(
+        payable(_create3(
             keccak256(abi.encode("ExaAccountFactory")),
             abi.encodePacked(
               type(ExaAccountFactory).creationCode, abi.encode(admin, ownerPlugin, exaPlugin, ACCOUNT_IMPL, ENTRYPOINT)
@@ -234,8 +217,7 @@ contract Redeployer is BaseScript {
 
   /// @notice Deploys ExaAccountFactory at a version-specific CREATE3 address.
   function deployExaFactory(string calldata version) external returns (ExaAccountFactory f) {
-    bytes32 salt = keccak256(abi.encode("Exa Plugin", version));
-    f = ExaAccountFactory(payable(create3Address(acct("admin"), salt)));
+    f = ExaAccountFactory(payable(create3Address(acct("admin"), "Exa Plugin", version)));
     if (address(f).code.length != 0) return f;
     if (address(ownerPlugin).code.length == 0 || address(exaPlugin).code.length == 0) revert NotPrepared();
 
@@ -244,7 +226,8 @@ contract Redeployer is BaseScript {
     f = ExaAccountFactory(
       payable(create3(
           admin,
-          salt,
+          "Exa Plugin",
+          version,
           abi.encodePacked(
             type(ExaAccountFactory).creationCode, abi.encode(admin, ownerPlugin, exaPlugin, ACCOUNT_IMPL, ENTRYPOINT)
           )
@@ -283,17 +266,38 @@ contract Redeployer is BaseScript {
         addr = a;
       } catch { } // solhint-disable-line no-empty-blocks
     } catch { } // solhint-disable-line no-empty-blocks
-    if (addr == address(0)) addr = CREATE3_FACTORY.getDeployed(acct("admin"), salt);
+    if (addr == address(0)) addr = _create3(salt, "");
   }
 
   function _factory() internal returns (ExaAccountFactory) {
     if (address(exaPlugin).code.length != 0) {
       PluginMetadata memory metadata = exaPlugin.pluginMetadata();
-      address f = create3Address(acct("admin"), keccak256(abi.encode(metadata.name, metadata.version)));
+      address f = create3Address(acct("admin"), metadata.name, metadata.version);
       if (f.code.length != 0) return ExaAccountFactory(payable(f));
     }
-    return
-      ExaAccountFactory(payable(CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode("ExaAccountFactory")))));
+    return ExaAccountFactory(payable(_create3(keccak256(abi.encode("ExaAccountFactory")), "")));
+  }
+
+  function _salt(string memory name) internal returns (bytes32) {
+    string memory version = _version();
+    return isCreateXVersion(version) ? keccak256(abi.encode(name, version)) : keccak256(abi.encode(name));
+  }
+
+  function _create3(bytes32 salt, bytes memory initCode) internal returns (address addr) {
+    address admin = acct("admin");
+    if (address(CREATE3_FACTORY).code.length != 0) {
+      addr = CREATE3_FACTORY.getDeployed(admin, salt);
+      if (addr.code.length != 0) return addr;
+    }
+    addr = createXAddress(admin, salt);
+    if (addr.code.length != 0 || initCode.length == 0) return addr;
+    return createX(admin, salt, initCode);
+  }
+
+  function _version() internal virtual returns (string memory) {
+    // forge-lint: disable-next-line(unsafe-cheatcode)
+    string[] memory versions = vm.parseJsonStringArray(vm.readFile("deploy.json"), ".factory.versions");
+    return versions[versions.length - 1];
   }
 
   function _ownerPluginSalt() internal view returns (bytes32) {
@@ -308,7 +312,7 @@ contract Redeployer is BaseScript {
 
   function _protocolOrStub(string memory name, string memory stub) internal returns (address addr) {
     addr = protocol(name, false);
-    if (addr == address(0)) addr = CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode(stub)));
+    if (addr == address(0)) addr = _create3(_salt(stub), "");
   }
 
   function _allowlist() internal returns (address[] memory targets) {

@@ -138,16 +138,17 @@ export default defineConfig([
               const salt = keccak256(
                 encodeAbiParameters([{ type: "string" }, { type: "string" }], ["Exa Plugin", version]),
               );
+              const createX = testnet || !["1.0.0", "1.1.0"].includes(version);
               const proxy = slice(
                 keccak256(
                   encodePacked(
                     ["uint8", "address", "bytes32", "bytes32"],
                     [
                       0xff,
-                      testnet
+                      createX
                         ? "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed"
                         : "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
-                      testnet
+                      createX
                         ? keccak256(
                             encodeAbiParameters(
                               [{ type: "address" }, { type: "bytes32" }],

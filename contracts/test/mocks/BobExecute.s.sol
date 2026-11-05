@@ -28,9 +28,7 @@ contract BobExecuteScript is BaseScript {
     skip(10 minutes);
     exaPlugin = ExaPlugin(payable(broadcast("ExaPlugin")));
     factory = ExaAccountFactory(
-      payable(create3Address(
-          acct("admin"), keccak256(abi.encode(exaPlugin.pluginMetadata().name, exaPlugin.pluginMetadata().version))
-        ))
+      payable(create3Address(acct("admin"), exaPlugin.pluginMetadata().name, exaPlugin.pluginMetadata().version))
     );
     address[] memory owners = new address[](1);
     owners[0] = vm.addr(0xb0b);
