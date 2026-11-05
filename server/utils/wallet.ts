@@ -1,6 +1,5 @@
 import { SPAN_STATUS_ERROR, SPAN_STATUS_OK } from "@sentry/core";
 import { captureException, startSpan, withScope } from "@sentry/node";
-import { gcpHsmToAccount } from "@valora/viem-account-hsm-gcp";
 import { env } from "node:process";
 import { setTimeout } from "node:timers/promises";
 import { nonEmpty, parse, pipe, rawTransform, regex, safeParse, string } from "valibot";
@@ -242,6 +241,7 @@ export function extender(
 }
 
 export async function signer(name: string, kms: KeyManagementServiceClient) {
+  const { gcpHsmToAccount } = await import("@valora/viem-account-hsm-gcp");
   const account = await withRetry(
     async () =>
       gcpHsmToAccount({
