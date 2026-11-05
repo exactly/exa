@@ -53,7 +53,7 @@ describe("hook queue", () => {
     await hook.enqueue(
       {
         account: parse(Address, padHex("0xfab1", { size: 20 })),
-        receipt: { blockNumber: 7, transactionHash: "0x1234" },
+        receipt: { blockNumber: 7, chainId: 10, transactionHash: "0x1234" },
       },
       "wk-queue",
     );
@@ -65,7 +65,7 @@ describe("hook queue", () => {
     expect(job.name).toBe("hook");
     expect(job.data).toStrictEqual({
       account: parse(Address, padHex("0xfab1", { size: 20 })),
-      receipt: { blockNumber: 7, transactionHash: "0x1234" },
+      receipt: { blockNumber: 7, chainId: 10, transactionHash: "0x1234" },
       sentryBaggage: expect.any(String) as string,
       sentryTrace: expect.any(String) as string,
     });
@@ -277,7 +277,9 @@ describe("hook worker", () => {
     transaction("wk-completed", { exchangeRate: 1.17, status: "completed" }, "completed");
     const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(new Response("OK")));
 
-    await jobFinished("wk-completed", undefined, { receipt: { blockNumber: 7, transactionHash: "0x1234" } });
+    await jobFinished("wk-completed", undefined, {
+      receipt: { blockNumber: 7, chainId: 10, transactionHash: "0x1234" },
+    });
 
     const body = parse(string(), mockFetch.mock.calls[0]?.[1]?.body);
     expect(JSON.parse(body)).toStrictEqual({
@@ -285,7 +287,7 @@ describe("hook worker", () => {
       timestamp: expect.any(String) as string,
       resource: "transaction",
       action: "completed",
-      receipt: { blockNumber: 7, transactionHash: "0x1234" },
+      receipt: { blockNumber: 7, chainId: 10, transactionHash: "0x1234" },
       body: { id: "tx-wk-completed", type: "spend", spend: { ...spend, status: "completed", exchangeRate: 1.17 } },
     });
   });
