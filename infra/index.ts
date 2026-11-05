@@ -233,7 +233,10 @@ const indexerTemplate = {
 const indexerContainer = {
   image,
   workingDir: "/prod/indexer",
-  envs: Object.entries({ POSTGRES_URL: "indexer-postgres-url", RPC_URL: "indexer-rpc-url" }).map(([name, secret]) => ({
+  envs: Object.entries({
+    ALCHEMY_KEY: "indexer-alchemy-key",
+    POSTGRES_URL: "indexer-postgres-url",
+  }).map(([name, secret]) => ({
     name,
     valueSource: { secretKeyRef: { secret: `${stack}-${secret}`, version: "latest" } },
   })),

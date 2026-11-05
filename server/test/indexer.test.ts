@@ -1,7 +1,8 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import assert from "node:assert";
 import { padHex, zeroHash, type Hex } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
+import { anvil } from "viem/chains";
 import { describe, expect, it } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
@@ -40,9 +41,10 @@ describe("indexer", () => {
       database
         .select()
         .from(accounts)
-        .where(eq(accounts.address, account.toLowerCase() as Hex)),
+        .where(and(eq(accounts.chainId, anvil.id), eq(accounts.address, account.toLowerCase() as Hex))),
     ).resolves.toStrictEqual([
       {
+        chainId: anvil.id,
         address: account.toLowerCase(),
         factory: exaAccountFactoryAddress.toLowerCase(),
         owner: owner.toLowerCase(),
@@ -54,9 +56,10 @@ describe("indexer", () => {
       database
         .select()
         .from(plugins)
-        .where(eq(plugins.account, account.toLowerCase() as Hex)),
+        .where(and(eq(plugins.chainId, anvil.id), eq(plugins.account, account.toLowerCase() as Hex))),
     ).resolves.toStrictEqual([
       {
+        chainId: anvil.id,
         account: account.toLowerCase(),
         address: exaPluginAddress.toLowerCase(),
         block: initialized.blockNumber,

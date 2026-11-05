@@ -113,11 +113,11 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
               database
                 .select({ plugin: indexer.accounts.owner })
                 .from(indexer.accounts)
-                .where(eq(indexer.accounts.address, owner)),
+                .where(and(eq(indexer.accounts.chainId, chain.id), eq(indexer.accounts.address, owner))),
               database
                 .select({ plugin: indexer.plugins.address })
                 .from(indexer.plugins)
-                .where(eq(indexer.plugins.account, owner)),
+                .where(and(eq(indexer.plugins.chainId, chain.id), eq(indexer.plugins.account, owner))),
             ]).then(([owners, installed]) => new Set([...owners, ...installed].flatMap(({ plugin }) => plugin ?? [])))
           : Promise.resolve(forbid(new Set<Hex>())),
       ]);
@@ -135,6 +135,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
               .from(indexer.repays)
               .where(
                 and(
+                  eq(indexer.repays.chainId, chain.id),
                   eq(indexer.repays.account, owner),
                   inArray(indexer.repays.caller, [...plugins, debtManagerAddress.toLowerCase() as Hex]),
                   inArray(indexer.repays.market, [...markets.keys()]),
@@ -152,6 +153,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                 .from(indexer.deposits)
                 .where(
                   and(
+                    eq(indexer.deposits.chainId, chain.id),
                     eq(indexer.deposits.account, owner),
                     eq(indexer.deposits.caller, owner),
                     inArray(indexer.deposits.market, [...markets.keys()]),
@@ -179,6 +181,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                 .from(indexer.withdraws)
                 .where(
                   and(
+                    eq(indexer.withdraws.chainId, chain.id),
                     eq(indexer.withdraws.account, owner),
                     eq(indexer.withdraws.caller, owner),
                     inArray(indexer.withdraws.market, [...markets.keys()]),
@@ -190,6 +193,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                 .from(indexer.proposals)
                 .where(
                   and(
+                    eq(indexer.proposals.chainId, chain.id),
                     eq(indexer.proposals.account, owner),
                     eq(indexer.proposals.market, marketWETHAddress.toLowerCase() as Hex),
                   ),
@@ -218,6 +222,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
               .from(indexer.borrows)
               .where(
                 and(
+                  eq(indexer.borrows.chainId, chain.id),
                   eq(indexer.borrows.account, owner),
                   eq(indexer.borrows.market, marketUSDCAddress.toLowerCase() as Hex),
                 ),
