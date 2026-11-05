@@ -1,0 +1,97 @@
+name: infra/preview
+on:
+  pull_request: { paths: [.github/workflows/infra-preview.yaml, infra/**] }
+jobs:
+  preview:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions: { contents: read, id-token: write }
+    strategy:
+      fail-fast: false
+      matrix: { stack: [production, base, base-sepolia, sandbox] }
+    env:
+      PULUMI_BACKEND_URL: gs://exa-pulumi-state/${{ matrix.stack }}
+      PULUMI_CONFIG_PASSPHRASE: ""
+      STACK: ${{ matrix.stack }}
+      TARGET: ${{ github.base_ref == 'main' && 'production' || github.base_ref }}
+    steps:
+      - uses: actions/checkout@v7
+        with: { fetch-depth: 0, fetch-tags: true, persist-credentials: false }
+      - uses: actions/setup-node@v7
+        with: { node-version: 24, check-latest: true, package-manager-cache: false }
+      - uses: foundry-rs/foundry-toolchain@v1
+        with: { version: v1.7.1, cache: false }
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+        env: { REDISMS_DISABLE_POSTINSTALL: "true" }
+      - uses: pulumi/actions@v7
+      - id: account
+        run: echo "email=preview-$STACK@$(yq -er '.config."gcp:project"' "infra/Pulumi.$STACK.yaml").iam.gserviceaccount.com" >> "$GITHUB_OUTPUT"
+      - uses: google-github-actions/auth@v3
+        continue-on-error: ${{ matrix.stack != env.TARGET }}
+        with:
+          workload_identity_provider: ${{ vars.GCP_PREVIEW_IDENTITY_PROVIDER }}
+          service_account: ${{ steps.account.outputs.email }}
+      - id: stack
+        run: pulumi preview --stack "$STACK" --cwd infra --json --config "exa:rollout=$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --config "exa:serverImage=sha-$GITHUB_SHA" > "$RUNNER_TEMP/$STACK.json" 2> >(tee "$RUNNER_TEMP/$STACK.err" >&2) || [[ $STACK != "$TARGET" ]]
+        env: { PULUMI_ENABLE_STREAMING_JSON_PREVIEW: "true" }
+      - if: ${{ !cancelled() && steps.stack.outcome != 'skipped' }}
+        run: node infra/meta.ts preview "$STACK" --json > "$RUNNER_TEMP/meta.json" 2> >(tee "$RUNNER_TEMP/meta.err" >&2) || [[ $STACK != "$TARGET" ]]
+      - if: ${{ !cancelled() }}
+        run: |
+          for program in meta "$STACK"; do
+            [[ ! -e $RUNNER_TEMP/$program.json ]] || jq -rs --arg program "$program" --rawfile errors "$RUNNER_TEMP/$program.err" ' # cspell:ignore rawfile
+              if any(.[]; .summaryEvent.result == "succeeded") then
+                "### \($program)", "",
+                (map(.summaryEvent // empty | .resourceChanges | to_entries | map("\(.value) \(.key)") | join(", ")) | .[]), "",
+                (map(.resourcePreEvent.metadata // empty | select(.op | IN("create", "update", "delete", "replace", "import")))
+                  | select(length > 0)
+                  | "```diff",
+                    (.[] | "@@ \(.op) \(.type | split(":") | last) \(.urn | split("::") | last) @@",
+                      (. as $step
+                        | ((.detailedDiff // {} | keys | select(length > 0)) // .diffs // ([.old.inputs, .new.inputs] | map(. // {} | keys) | add | unique)) - ["__defaults"]
+                        | .[]
+                        | ([scan("[^.\\[\\]\"]+|\\[[0-9]+\\]|\\[\"[^\"]*\"\\]")] | map(if startswith("[\"") then .[2:-2] elif startswith("[") then .[1:-1] | tonumber end)) as $path # cspell:ignore elif startswith tonumber
+                        | ([$step.old.inputs, $step.new.inputs]
+                          | map(try getpath($path) catch null | walk(if type == "object" and has("4dabf18193072939515e22adb298388d") then "[secret]" elif type == "object" then del(.__defaults) elif type == "string" then gsub("04da6b54-80e4-46f7-96ec-b56ff0331ba9"; "[unknown]") end) | if . != null then @json end) # cspell:ignore getpath gsub
+                          | if all(. != null) and .[0] != .[1] then
+                              map(explode) as [$x, $y]
+                              | ([$x, $y] | map(length) | min) as $length
+                              | (first(range($length) | select($x[.] != $y[.])) // $length) as $prefix
+                              | (first(range($length - $prefix) | select($x[-1 - .] != $y[-1 - .])) // $length - $prefix) as $suffix
+                              | (.[0][:[$prefix - 12, 0] | max] | [match("[^0-9A-Za-z]"; "g").offset + 1] | last // 0) as $from
+                              | map(length as $end | ((.[$end - $suffix + 12:] | match("[^0-9A-Za-z]").offset + $end - $suffix + 12) // $end) as $to
+                                | (if $from > 0 then "…" else "" end) + .[$from:$to] + (if $to < $end then "…" else "" end))
+                            end) as [$before, $after]
+                        | (select($before != null) | "- \(.): \($before)"), (select($after != null) | "+ \(.): \($after)"))),
+                    "```", "")
+              else
+                (if $ENV.STACK == $ENV.TARGET then ["error", "❌"] else ["warning", "⚠️"] end) as [$level, $icon]
+                | "### \($icon) \($program)", "",
+                  (([.[] | .diagnosticEvent // empty | select(.severity == "error")] | if . == [] then [{ message: $errors }] end)
+                    | .[]
+                    | (.urn // "" | split("::") | if length == 4 and .[2] != "pulumi:pulumi:Stack" then "\(.[3]) (\(.[2] | split(":") | last)): " else "" end) as $resource
+                    | .message
+                    | (capture("(?sm)^error: (?<message>.*?)(?=\n err\\?: |\\z)").message // .)
+                    | sub("^Running program [^\n]* failed with an unhandled exception:\n(<ref \\*\\d+> )?(Error: )?"; "")
+                    | gsub("\n\\s+at [^\n]*"; "") | sub("\n\\s+promise: [^\n]*\n}"; "")
+                    | gsub("(?s)(?<body>\\{\\s*\".*\\})"; (.body | fromjson? | .error.message? | strings) // .body) # cspell:ignore fromjson
+                    | gsub("(error serializing property \"[^\"]*\": )+|\\S+ resource \\x27[^\\x27]+\\x27 has a problem: |blob \\(key \"[^\"]*\"\\) \\(code=\\w+\\): |oauth2/google: status code \\d+: "; "")
+                    | gsub("invocation of (?<token>\\S+) returned an error: invoking \\S+: "; "\(.token | split(":") | last): ")
+                    | gsub("(?<token>\\S+) resource failed: "; "\(.token | split(":") | last): ")
+                    | gsub("read \"[^\"]*\": Get \"https://storage.googleapis.com/(?<object>[^\"]*)\""; "reading gs://\(.object | gsub("%2F"; "/"))")
+                    | sub("\\d+ errors? occurred:\n\t\\* "; "")
+                    | splits("\n\t\\* ")
+                    | sub("googleapi: Error \\d+: (?<message>.*?)(, \\w+)?$"; .message) # cspell:ignore googleapi
+                    | gsub("Not found; Gaia id not found for email (?<email>\\S+)"; "\(.email) not found")
+                    | gsub("projects/-/serviceAccounts/(?<email>\\S+) not found"; "\(.email) not found")
+                    | sub("(?s)^Preview failed: resource \"[^\"]*\" cannot be deleted\\s+because it is protected\\..*"; "cannot delete a protected resource")
+                    | sub("\\s+$"; "") | gsub("\n\\s*"; "\n")
+                    | select(. != "" and . != "preview failed")
+                    | $resource + .
+                    | "- \(gsub("\n"; "<br>"))", "::\($level) title=\($program)::\(gsub("%"; "%25") | gsub("\r"; "%0D") | gsub("\n"; "%0A"))"),
+                  ""
+              end
+            ' "$RUNNER_TEMP/$program.json"
+          done | tee /dev/stderr | sed "/^::/d" >> "$GITHUB_STEP_SUMMARY"
+        shell: bash
