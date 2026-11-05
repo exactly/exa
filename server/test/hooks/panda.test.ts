@@ -5,7 +5,7 @@ import * as segment from "../mocks/segment";
 import "../mocks/sentry";
 import "../mocks/wallet";
 
-import { captureException, captureMessage, setUser } from "@sentry/node";
+import { captureException, captureMessage, setTag, setUser } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { parse } from "valibot";
@@ -32,7 +32,7 @@ import {
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { anvil } from "viem/chains";
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import chain, {
@@ -41,7 +41,9 @@ import chain, {
   exaAccountFactoryAddress,
   exaPluginAbi,
   exaPluginAddress,
+  factories,
   issuerCheckerAbi,
+  issuerCheckerPreviewerCode,
   marketAbi,
   marketUSDCAddress,
   refunderAddress,
@@ -503,7 +505,12 @@ describe("card operations", () => {
       });
 
       it("fails with unexpected outer-catch error", async () => {
-        vi.spyOn(Panda, "signIssuerOp").mockRejectedValueOnce(new Error("sign failed"));
+        onTestFinished(() => {
+          vi.mocked(setTag).mockReset();
+        });
+        vi.mocked(setTag).mockImplementation((key) => {
+          if (key === "exa.mode") throw new Error("unexpected");
+        });
         const cardId = "rc-ouch";
         await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "0005", mode: 0 }]);
 
@@ -2625,6 +2632,8 @@ describe("plugin 1.0.0", () => {
       .then(([plugin]) => parse(Address, plugin));
   });
 
+  afterEach(() => Panda.getMutex(account100)?.release());
+
   it("collects debit", async () => {
     const traceCall = vi.spyOn(traceClient, "traceCall");
 
@@ -2640,6 +2649,79 @@ describe("plugin 1.0.0", () => {
     await expect(collectSpend(`${account100}-credit`, 10)).resolves.toStrictEqual([200, 100_000n]);
 
     expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["debit", 901],
+    ["credit", 11],
+  ] as const)("authorizes %s with one trace", async (mode, amount) => {
+    const checker = await publicClient.readContract({
+      address: release,
+      abi: exaPluginAbi,
+      functionName: "ISSUER_CHECKER",
+    });
+    const traceCall = vi.spyOn(traceClient, "traceCall");
+
+    await expect(authorize(`${account100}-${mode}`, amount)).resolves.toBe(200);
+
+    expect(captureException).not.toHaveBeenCalled();
+    expect(traceCall.mock.calls.map(([{ stateOverride }]) => stateOverride)).toStrictEqual([
+      expect.arrayContaining([
+        { address: release, stateDiff: [expect.any(Object)] },
+        { address: checker, code: issuerCheckerPreviewerCode },
+      ]),
+    ]);
+  });
+
+  it("authorizes when factories share a plugin", async () => {
+    const { readContract } = publicClient;
+    vi.spyOn(publicClient, "readContract").mockImplementationOnce((parameters) =>
+      readContract({ ...parameters, args: [[...factories.versions, ...factories.versions]] }),
+    );
+    const hook = createPandaHook(dependencies);
+    await hook.ready;
+
+    const { status } = await testClient(hook.app).index.$post({
+      ...authorization,
+      json: {
+        ...authorization.json,
+        body: {
+          ...authorization.json.body,
+          id: `${account100}-shared-authorization`,
+          spend: { ...authorization.json.body.spend, amount: 903, cardId: `${account100}-debit` },
+        },
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("declines replayed authorization", async () => {
+    const id = `${account100}-replay`;
+    const spend = {
+      ...authorization.json.body.spend,
+      amount: 902,
+      cardId: `${account100}-debit`,
+      authorizedAt: new Date().toISOString(),
+    };
+    const created = await appClient.index.$post({
+      ...authorization,
+      json: { ...authorization.json, action: "created", body: { ...authorization.json.body, id, spend } },
+    });
+    await publicClient.waitForTransactionReceipt({
+      hash: await database.query.transactions
+        .findFirst({ where: eq(transactions.id, id) })
+        .then((transaction) => transaction?.hashes[0] as Hex),
+      confirmations: 0,
+    });
+
+    const replayed = await appClient.index.$post({
+      ...authorization,
+      json: { ...authorization.json, body: { ...authorization.json.body, id: `${id}-authorization`, spend } },
+    });
+
+    expect([created.status, replayed.status]).toStrictEqual([200, 558]);
   });
 
   describe("after upgrade", () => {
@@ -2711,6 +2793,15 @@ describe("plugin 1.0.0", () => {
 
       expect(captureException).not.toHaveBeenCalled();
       expect(traceCall).not.toHaveBeenCalled();
+    });
+
+    it("authorizes with one trace", async () => {
+      const traceCall = vi.spyOn(traceClient, "traceCall");
+
+      await expect(authorize(`${account100}-upgraded`, 901)).resolves.toBe(200);
+
+      expect(captureException).not.toHaveBeenCalled();
+      expect(traceCall).toHaveBeenCalledOnce();
     });
   });
 });
@@ -3735,7 +3826,12 @@ describe("concurrency", () => {
 
     it("stores unexpected error when a non-panda error escapes authorization", async () => {
       const txId = crypto.randomUUID();
-      vi.spyOn(Panda, "signIssuerOp").mockRejectedValueOnce(new Error("sign failed"));
+      onTestFinished(() => {
+        vi.mocked(setTag).mockReset();
+      });
+      vi.mocked(setTag).mockImplementation((key) => {
+        if (key === "exa.mode") throw new Error("unexpected");
+      });
 
       const response = await appClient.index.$post({
         ...authorization,
@@ -4327,6 +4423,21 @@ async function collectSpend(cardId: string, amount: number) {
         ),
     ),
   ];
+}
+
+async function authorize(cardId: string, amount: number) {
+  const { status } = await appClient.index.$post({
+    ...authorization,
+    json: {
+      ...authorization.json,
+      body: {
+        ...authorization.json.body,
+        id: `${cardId}-authorization`,
+        spend: { ...authorization.json.body.spend, amount, cardId },
+      },
+    },
+  });
+  return status;
 }
 
 async function execute(calldata: Hex) {
