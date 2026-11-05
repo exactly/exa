@@ -12,7 +12,7 @@ import {
 } from "@sentry/node";
 import { E_TIMEOUT } from "async-mutex";
 import createDebug from "debug";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import * as v from "valibot";
 import {
@@ -155,6 +155,23 @@ export default function hook({
                 569 as UnofficialStatusCode,
               );
             }
+          }
+        }
+        if (payload.resource === "card" && payload.action === "updated" && payload.body.status === "canceled") {
+          const [deleted] = await database
+            .update(cards)
+            .set({ status: "DELETED" })
+            .where(
+              and(eq(cards.id, payload.body.id), ne(cards.status, "DELETED"), eq(cards.credentialId, credentials.id)),
+            )
+            .from(credentials)
+            .returning({ account: credentials.account, source: credentials.source });
+          if (deleted) {
+            segment.track({
+              userId: v.parse(Address, deleted.account),
+              event: "CardDeleted",
+              properties: { source: deleted.source },
+            });
           }
         }
         return c.json({ code: "ok" });
