@@ -9,7 +9,15 @@ import { LibBytes } from "solady/utils/LibBytes.sol";
 import { LibCall } from "solady/utils/LibCall.sol";
 
 import { ExaPlugin } from "./ExaPlugin.sol";
-import { IAuditor, IExaAccount, IMarket, IProposalManager } from "./IExaAccount.sol";
+import {
+  IAuditor,
+  IExaAccount,
+  IMarket,
+  IProposalManager,
+  PendingProposal,
+  Proposal,
+  ProposalType
+} from "./IExaAccount.sol";
 
 contract AppPreviewer {
   // slither-disable-start cyclomatic-complexity
@@ -55,6 +63,20 @@ contract AppPreviewer {
           ++j;
         }
       }
+      preview_.wallet.proposals =
+        new PendingProposal[](preview_.wallet.proposalManager.queueNonce - preview_.wallet.proposalManager.nonce);
+      for (uint256 i = preview_.wallet.proposalManager.nonce; i < preview_.wallet.proposalManager.queueNonce; ++i) {
+        // slither-disable-next-line calls-loop
+        (uint256 amount, IMarket market, uint256 timestamp, ProposalType proposalType, bytes memory data) =
+          proposalManager.proposals(account, i); // forge-lint: disable-line(calls-loop)
+        preview_.wallet.proposals[i - preview_.wallet.proposalManager.nonce] = PendingProposal({
+          nonce: i,
+          unlock: timestamp + preview_.wallet.proposalManager.delay,
+          proposal: Proposal({
+            amount: amount, market: market, timestamp: timestamp, proposalType: proposalType, data: data
+          })
+        });
+      }
     }
     if (address(protocol.auditor).code.length == 0 || address(protocol.previewer).code.length == 0) return preview_;
     Previewer.MarketAccount[] memory markets = protocol.previewer.exactly(account);
@@ -98,6 +120,7 @@ struct WalletPreview {
   uint256 timestamp;
   uint256 balance;
   ProposalManagerPreview proposalManager;
+  PendingProposal[] proposals;
   address[] allowed;
 }
 

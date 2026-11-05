@@ -6,9 +6,23 @@ import { Previewer } from "@exactly/protocol/periphery/Previewer.sol";
 import { RatePreviewer } from "@exactly/protocol/periphery/RatePreviewer.sol";
 import { IAccountLoupe } from "modular-account-libs/interfaces/IAccountLoupe.sol";
 
-import { AccountPreview, AppPreviewer, MarketPreview, ProposalManagerPreview, Protocol } from "../src/AppPreviewer.sol";
+import {
+  AccountPreview,
+  AppPreviewer,
+  MarketPreview,
+  ProposalManagerPreview,
+  Protocol,
+  WalletPreview
+} from "../src/AppPreviewer.sol";
 import { ExaPlugin } from "../src/ExaPlugin.sol";
-import { IAuditor, IExaAccount, IMarket, IProposalManager } from "../src/IExaAccount.sol";
+import {
+  IAuditor,
+  IExaAccount,
+  IMarket,
+  IProposalManager,
+  PendingProposal,
+  ProposalType
+} from "../src/IExaAccount.sol";
 import { DeployProtocol } from "./mocks/Protocol.s.sol";
 
 contract AppPreviewerTest is ForkTest {
@@ -95,6 +109,26 @@ contract AppPreviewerProposalManagerTest is ForkTest {
 
   // solhint-disable func-name-mixedcase
 
+  function test_proposals_returnsQueuedProposals() external {
+    PendingProposal[] memory proposals = _wallet(_mockAccount()).proposals;
+    assertEq(proposals.length, 1);
+    assertEq(proposals[0].nonce, 1);
+    assertEq(proposals[0].unlock, 1 hours + 1 minutes);
+    assertEq(proposals[0].proposal.amount, 100e6);
+    assertEq(address(proposals[0].proposal.market), makeAddr("market"));
+    assertEq(proposals[0].proposal.timestamp, 1 hours);
+    assertTrue(proposals[0].proposal.proposalType == ProposalType.WITHDRAW);
+    assertEq(abi.decode(proposals[0].proposal.data, (address)), address(0x1));
+  }
+
+  function test_proposals_returnsEmpty_whenAccountIsNotDeployed() external view {
+    assertEq(_wallet(address(0xdead)).proposals.length, 0);
+  }
+
+  function test_proposals_returnsEmpty_whenAddressIsNotAccount() external view {
+    assertEq(_wallet(address(auditor)).proposals.length, 0);
+  }
+
   function test_proposalManager_returnsPreview() external {
     address account = _mockAccount();
     ProposalManagerPreview memory preview = _proposalManager(account);
@@ -133,11 +167,14 @@ contract AppPreviewerProposalManagerTest is ForkTest {
   // solhint-enable func-name-mixedcase
 
   function _proposalManager(address account) internal view returns (ProposalManagerPreview memory) {
+    return _wallet(account).proposalManager;
+  }
+
+  function _wallet(address account) internal view returns (WalletPreview memory) {
     return previewer.preview(
-        account, new address[](0), Protocol(IAuditor(address(0)), Previewer(address(0)), RatePreviewer(address(0)))
-      )
-      .wallet
-      .proposalManager;
+      account, new address[](0), Protocol(IAuditor(address(0)), Previewer(address(0)), RatePreviewer(address(0)))
+    )
+    .wallet;
   }
 
   function _mockAccount() internal returns (address account) {
@@ -156,6 +193,11 @@ contract AppPreviewerProposalManagerTest is ForkTest {
     vm.mockCall(proposalManager, abi.encodeCall(IProposalManager.delay, ()), abi.encode(1 minutes));
     vm.mockCall(proposalManager, abi.encodeCall(IProposalManager.queueNonces, (account)), abi.encode(2));
     vm.mockCall(proposalManager, abi.encodeCall(IProposalManager.nonces, (account)), abi.encode(1));
+    vm.mockCall(
+      proposalManager,
+      abi.encodeCall(IProposalManager.proposals, (account, 1)),
+      abi.encode(100e6, makeAddr("market"), 1 hours, ProposalType.WITHDRAW, abi.encode(address(0x1)))
+    );
   }
 
   function _assertEmpty(ProposalManagerPreview memory preview) internal pure {
@@ -206,6 +248,11 @@ contract AppPreviewerPreviewTest is ForkTest {
     vm.mockCall(proposalManager, abi.encodeCall(IProposalManager.delay, ()), abi.encode(1 minutes));
     vm.mockCall(proposalManager, abi.encodeCall(IProposalManager.queueNonces, (account)), abi.encode(2));
     vm.mockCall(proposalManager, abi.encodeCall(IProposalManager.nonces, (account)), abi.encode(1));
+    vm.mockCall(
+      proposalManager,
+      abi.encodeCall(IProposalManager.proposals, (account, 1)),
+      abi.encode(100e6, makeAddr("market"), 1 hours, ProposalType.WITHDRAW, abi.encode(address(0x1)))
+    );
   }
 
   // solhint-disable func-name-mixedcase
