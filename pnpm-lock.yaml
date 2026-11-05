@@ -338,6 +338,7 @@ patchedDependencies:
   '@tamagui/slider': f38866487df195abff821b17cfaa71e7213d90da6b8a07b0dd742d04b4d3f570
   embedded-postgres: cb5e37525b1810f2af136570b38d5e0cec4cc2455408896ed1943d27f3f61b38
   eslint-config-universe: cfe35ddf48bd80b3df25a30d7d8878394712a39321d2855dcb90a64df2ccc280
+  expo-router: c1107fcf6771975184198daa5277925959d8d0ea794c81669572afe4386b11a8
   prool@0.2.17: c8576988b7c6649c8f0fa61ec9eef3064a03c2697e3c4ce9f214f76aa8fb565f
   react-native-wagmi-charts: ee91092da416d3fb1dc2ab2310f93cc8dea186ac233a9b08fac5dec211024d3a
 
@@ -509,7 +510,7 @@ importers:
         version: 55.0.9(expo@55.0.9)(react@19.2.0)
       expo-router:
         specifier: ~55.0.5
-        version: 55.0.8(e648b7c2d7f97def12d5a5dbfb5d4641)
+        version: 55.0.8(patch_hash=c1107fcf6771975184198daa5277925959d8d0ea794c81669572afe4386b11a8)(e648b7c2d7f97def12d5a5dbfb5d4641)
       expo-status-bar:
         specifier: ~55.0.4
         version: 55.0.4(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)
@@ -19015,7 +19016,7 @@ snapshots:
       ws: 8.22.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       zod: 3.25.76
     optionalDependencies:
-      expo-router: 55.0.8(e648b7c2d7f97def12d5a5dbfb5d4641)
+      expo-router: 55.0.8(patch_hash=c1107fcf6771975184198daa5277925959d8d0ea794c81669572afe4386b11a8)(e648b7c2d7f97def12d5a5dbfb5d4641)
       react-native: 0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10)
     transitivePeerDependencies:
       - '@expo/metro-runtime'
@@ -19249,7 +19250,7 @@ snapshots:
       react: 19.2.0
     optionalDependencies:
       '@expo/metro-runtime': 55.0.7(expo@55.0.9)(react-dom@19.2.0(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)
-      expo-router: 55.0.8(e648b7c2d7f97def12d5a5dbfb5d4641)
+      expo-router: 55.0.8(patch_hash=c1107fcf6771975184198daa5277925959d8d0ea794c81669572afe4386b11a8)(e648b7c2d7f97def12d5a5dbfb5d4641)
       react-dom: 19.2.0(react@19.2.0)
 
   '@expo/schema-utils@55.0.2': {}
@@ -27414,7 +27415,7 @@ snapshots:
       react: 19.2.0
       react-native: 0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10)
 
-  expo-router@55.0.8(e648b7c2d7f97def12d5a5dbfb5d4641):
+  expo-router@55.0.8(patch_hash=c1107fcf6771975184198daa5277925959d8d0ea794c81669572afe4386b11a8)(e648b7c2d7f97def12d5a5dbfb5d4641):
     dependencies:
       '@expo/log-box': 55.0.8(expo@55.0.9)(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)
       '@expo/metro-runtime': 55.0.7(expo@55.0.9)(react-dom@19.2.0(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)
