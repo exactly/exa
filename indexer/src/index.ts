@@ -1,5 +1,16 @@
 import { ponder } from "ponder:registry";
-import { accounts, borrows, deposits, plugins, proposalManagers, proposals, repays, withdraws } from "ponder:schema";
+import {
+  accounts,
+  borrows,
+  collectors,
+  delays,
+  deposits,
+  plugins,
+  proposalManagers,
+  proposals,
+  repays,
+  withdraws,
+} from "ponder:schema";
 import { getAbiItem, toFunctionSelector, type Hex } from "viem";
 
 import { exaPluginAbi } from "@exactly/common/generated/chain";
@@ -40,6 +51,21 @@ ponder.on("ExaPlugin:ProposalManagerSet", async ({ event, context }) => {
     .insert(proposalManagers)
     .values({ chainId: context.chain.id, plugin: event.log.address, address: event.args.proposalManager })
     .onConflictDoUpdate({ address: event.args.proposalManager });
+});
+
+ponder.on("ExaPlugin:CollectorSet", async ({ event, context }) => {
+  const position = { block: event.block.number, logIndex: event.log.logIndex };
+  await context.db
+    .insert(collectors)
+    .values({ chainId: context.chain.id, plugin: event.log.address, address: event.args.collector, ...position })
+    .onConflictDoUpdate(position);
+});
+
+ponder.on("ProposalManager:DelaySet", async ({ event, context }) => {
+  await context.db
+    .insert(delays)
+    .values({ chainId: context.chain.id, proposalManager: event.log.address, delay: event.args.delay })
+    .onConflictDoUpdate({ delay: event.args.delay });
 });
 
 ponder.on("Market:Deposit", async ({ event, context }) => {
