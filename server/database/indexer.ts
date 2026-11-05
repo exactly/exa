@@ -6,6 +6,7 @@ const indexer = pgSchema("indexer");
 
 export const accounts = indexer
   .view("accounts", {
+    chainId: integer("chain_id").notNull(),
     address: text("address").$type<Hex>().notNull(),
     factory: text("factory").$type<Hex>().notNull(),
     owner: text("owner").$type<Hex>(),
@@ -16,6 +17,7 @@ export const accounts = indexer
 
 export const plugins = indexer
   .view("plugins", {
+    chainId: integer("chain_id").notNull(),
     account: text("account").$type<Hex>().notNull(),
     address: text("address").$type<Hex>().notNull(),
     block: numeric("block", { mode: "bigint" }).notNull(),
@@ -88,6 +90,7 @@ export const proposals = indexer
 function log() {
   return {
     id: text("id").notNull(),
+    chainId: integer("chain_id").notNull(),
     hash: text("hash").$type<Hex>().notNull(),
     block: numeric("block", { mode: "bigint" }).notNull(),
     timestamp: numeric("timestamp", { mode: "bigint" }).notNull(),

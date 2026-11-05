@@ -1,28 +1,35 @@
 import { index, onchainTable, primaryKey, type PgColumnsBuilders } from "ponder";
 
-export const accounts = onchainTable("accounts", (t) => ({
-  address: t.hex().primaryKey(),
-  factory: t.hex().notNull(),
-  owner: t.hex(),
-  block: t.bigint().notNull(),
-  timestamp: t.bigint().notNull(),
-}));
+export const accounts = onchainTable(
+  "accounts",
+  (t) => ({
+    chainId: t.integer().notNull(),
+    address: t.hex().notNull(),
+    factory: t.hex().notNull(),
+    owner: t.hex(),
+    block: t.bigint().notNull(),
+    timestamp: t.bigint().notNull(),
+  }),
+  (table) => ({ pk: primaryKey({ columns: [table.chainId, table.address] }) }),
+);
 
 export const plugins = onchainTable(
   "plugins",
   (t) => ({
+    chainId: t.integer().notNull(),
     account: t.hex().notNull(),
     address: t.hex().notNull(),
     block: t.bigint().notNull(),
     timestamp: t.bigint().notNull(),
   }),
-  (table) => ({ pk: primaryKey({ columns: [table.account, table.address] }) }),
+  (table) => ({ pk: primaryKey({ columns: [table.chainId, table.account, table.address] }) }),
 );
 
-export const proposalManagers = onchainTable("proposal_managers", (t) => ({
-  plugin: t.hex().primaryKey(),
-  address: t.hex().notNull(),
-}));
+export const proposalManagers = onchainTable(
+  "proposal_managers",
+  (t) => ({ chainId: t.integer().notNull(), plugin: t.hex().notNull(), address: t.hex().notNull() }),
+  (table) => ({ pk: primaryKey({ columns: [table.chainId, table.plugin] }) }),
+);
 
 export const deposits = onchainTable(
   "deposits",
@@ -33,7 +40,7 @@ export const deposits = onchainTable(
     market: t.hex().notNull(),
     assets: t.bigint().notNull(),
   }),
-  (table) => ({ account: index().on(table.account) }),
+  (table) => ({ account: index().on(table.chainId, table.account) }),
 );
 
 export const withdraws = onchainTable(
@@ -48,7 +55,7 @@ export const withdraws = onchainTable(
     input: t.hex(),
     proposalManager: t.hex(),
   }),
-  (table) => ({ account: index().on(table.account) }),
+  (table) => ({ account: index().on(table.chainId, table.account) }),
 );
 
 export const borrows = onchainTable(
@@ -63,7 +70,7 @@ export const borrows = onchainTable(
     assets: t.bigint().notNull(),
     fee: t.bigint().notNull(),
   }),
-  (table) => ({ account: index().on(table.account) }),
+  (table) => ({ account: index().on(table.chainId, table.account) }),
 );
 
 export const repays = onchainTable(
@@ -77,7 +84,7 @@ export const repays = onchainTable(
     assets: t.bigint().notNull(),
     positionAssets: t.bigint().notNull(),
   }),
-  (table) => ({ account: index().on(table.account) }),
+  (table) => ({ account: index().on(table.chainId, table.account) }),
 );
 
 export const proposals = onchainTable(
@@ -93,12 +100,13 @@ export const proposals = onchainTable(
     data: t.hex().notNull(),
     unlock: t.bigint().notNull(),
   }),
-  (table) => ({ account: index().on(table.account) }),
+  (table) => ({ account: index().on(table.chainId, table.account) }),
 );
 
 function log(t: PgColumnsBuilders) {
   return {
     id: t.text().primaryKey(),
+    chainId: t.integer().notNull(),
     hash: t.hex().notNull(),
     block: t.bigint().notNull(),
     timestamp: t.bigint().notNull(),
