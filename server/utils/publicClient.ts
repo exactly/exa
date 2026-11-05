@@ -1,12 +1,17 @@
 import { getActiveSpan } from "@sentry/node";
 import { inspect } from "node:util";
 import { array, object, optional, parse, string, unknown, type InferOutput } from "valibot";
-import { createPublicClient, http, type Chain } from "viem";
+import { createPublicClient, http, type Chain, type PublicClient } from "viem";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import chain from "@exactly/common/generated/chain";
+import chain, { alchemyChains, chains } from "@exactly/common/generated/chain";
 
-export default alchemyClient(chain);
+const publicClient = alchemyClient(chain);
+export default publicClient;
+
+export const clients: ReadonlyMap<number, PublicClient> = new Map(
+  [...chains.keys()].map((id) => [id, id === chain.id ? publicClient : alchemyClient(alchemyChains.get(id) as Chain)]),
+);
 
 export function alchemyClient<C extends Chain>(network: C) {
   const url = network.rpcUrls.alchemy?.http[0];
