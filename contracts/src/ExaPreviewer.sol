@@ -14,6 +14,7 @@ import {
   IMarket,
   IProposalManager,
   MarketData,
+  PendingProposal,
   Proposal,
   ProposalType
 } from "./IExaAccount.sol";
@@ -257,10 +258,4 @@ struct IRMParameters {
   int256 timePreference;
   uint256 fixedAllocation;
   uint256 maxRate;
-}
-
-struct PendingProposal {
-  uint256 nonce;
-  uint256 unlock;
-  Proposal proposal;
 }
