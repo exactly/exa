@@ -1,9 +1,10 @@
 /// <reference types="vite/client" />
+import "../instrument.cjs";
+
 import "./mocks/alchemy";
 import "./mocks/onesignal";
 import "./mocks/pax";
 import "./mocks/sardine";
-import "./mocks/sentry";
 import "./mocks/wallet";
 
 import { serve } from "@hono/node-server";
