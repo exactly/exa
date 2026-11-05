@@ -58,7 +58,7 @@ import { effectiveRate, WAD } from "@exactly/lib";
 import { cards, credentials, transactions } from "../database/schema";
 import { collectors as cryptomateCollectors } from "../utils/cryptomate";
 import { declineMessage, collectors as pandaCollectors } from "../utils/panda";
-import publicClient from "../utils/publicClient";
+import publicClient, { clients } from "../utils/publicClient";
 import Statement from "../utils/Statement";
 import validatorHook from "../utils/validatorHook";
 
@@ -68,7 +68,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 const ActivityTypes = picklist(["card", "received", "repay", "sent"]);
 
-const collectors = new Set([...cryptomateCollectors, ...pandaCollectors].map((a) => a.toLowerCase() as Hex));
+const collectors = new Set([...cryptomateCollectors, ...pandaCollectors()].map((a) => a.toLowerCase() as Hex));
 
 export default function route({ auth, database }: { auth: Auth; database: NodePgDatabase<typeof schema> }) {
   return new Hono().get(
@@ -293,18 +293,18 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
         maturity === undefined
           ? await Promise.all(
               [
-                ...new Set(
+                ...new Map(
                   purchases.flatMap(({ transactions: txs }) =>
                     txs.flatMap(({ hashes, payload }) => retried(hashes, payload)),
                   ),
                 ),
               ]
-                .filter((hash) => hash !== zeroHash && !borrows?.has(hash))
-                .map((hash) =>
+                .filter(([hash]) => hash !== zeroHash && !borrows?.has(hash))
+                .map(([hash, client]) =>
                   receipts.runExclusive(() =>
                     failed
                       ? undefined
-                      : publicClient.getTransactionReceipt({ hash }).then(
+                      : client.getTransactionReceipt({ hash }).then(
                           ({ status }) => (status === "success" ? hash : undefined),
                           (error: unknown) => {
                             if (error instanceof TransactionReceiptNotFoundError) return;
@@ -535,17 +535,19 @@ const Attempts = object({ bodies: array(looseObject({ chainId: optional(number()
 function retried(hashes: string[], payload: unknown) {
   const parsed = safeParse(Attempts, payload);
   if (!parsed.success) return [];
-  const keys = parsed.output.bodies.map((body) => attempt(body));
-  return hashes
-    .filter((_, index) => {
-      const key = keys[index];
-      return key !== undefined && keys.indexOf(key) !== keys.lastIndexOf(key);
-    })
-    .map((hash) => hash as Hash);
+  const { bodies } = parsed.output;
+  const keys = bodies.map((body) => attempt(body));
+  return hashes.flatMap((hash, index) => {
+    const key = keys[index];
+    const client = clients.get(bodies[index]?.chainId ?? chain.id);
+    return key !== undefined && client && keys.indexOf(key) !== keys.lastIndexOf(key)
+      ? [[hash as Hash, client] as const]
+      : [];
+  });
 }
 
-function attempt(body?: { chainId?: number; id?: string }) {
-  return body?.id === undefined ? undefined : `${body.id}:${body.chainId}`;
+function attempt(body?: { id?: string }) {
+  return body?.id;
 }
 
 export const PandaActivity = pipe(
