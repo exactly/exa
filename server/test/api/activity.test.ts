@@ -12,6 +12,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { parse, safeParse, type InferOutput } from "valibot";
 import {
+  createTestClient,
   createWalletClient,
   encodeAbiParameters,
   encodeFunctionData,
@@ -20,16 +21,20 @@ import {
   http,
   padHex,
   parseEventLogs,
+  publicActions,
   toHex,
+  walletActions,
   zeroHash,
+  type Chain,
   type Hash,
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
-import { anvil } from "viem/chains";
+import { anvil, moonbeamDev } from "viem/chains";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import chain, {
+  alchemyChains,
   auditorAbi,
   auditorAddress,
   exaAccountFactoryAbi,
@@ -371,6 +376,157 @@ describe.concurrent("authenticated", () => {
         );
       } finally {
         await database.delete(transactions).where(eq(transactions.id, "retried"));
+      }
+    });
+
+    it("keeps the landed retry of a legacy attempt", async () => {
+      const [landed] = await anvilClient.getContractEvents({
+        abi: marketAbi,
+        eventName: "Withdraw",
+        address: marketUSDCAddress,
+        args: { caller: account, owner: account },
+        toBlock: "latest",
+        fromBlock: 0n,
+        strict: true,
+      });
+      assert.ok(landed, "expected a usdc withdraw");
+      const bodies = [{ ...retried(0), chainId: undefined }, retried(1)];
+      await database.insert(transactions).values([
+        {
+          id: "retried",
+          cardId: "first-activity-card",
+          hashes: [padHex("0x1", { size: 32 }), landed.transactionHash],
+          payload: { type: "panda", bodies },
+        },
+      ]);
+      try {
+        const response = await appClient.index.$get(
+          { query: { include: "card" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(response.status).toBe(200);
+        const json = (await response.json()) as { id: string }[];
+        expect(json.find(({ id }) => id === "retried")).toStrictEqual(
+          httpSerialize({
+            ...parse(PandaActivity, {
+              type: "panda",
+              hashes: [landed.transactionHash],
+              borrows: [null],
+              bodies: [bodies[1]],
+            }),
+            cardId: "first-activity-card",
+            lastFour: "1234",
+          }),
+        );
+      } finally {
+        await database.delete(transactions).where(eq(transactions.id, "retried"));
+      }
+    });
+
+    it("reads retries on their own network", async () => {
+      const remote = createTestClient({
+        chain: alchemyChains.get(moonbeamDev.id) as Chain,
+        mode: "anvil",
+        transport: http(),
+      })
+        .extend(publicActions)
+        .extend(walletActions);
+      const sender = privateKeyToAccount(generatePrivateKey());
+      await remote.setBalance({ address: sender.address, value: 10n ** 18n });
+      const landed = await remote.waitForTransactionReceipt({
+        hash: await remote.sendTransaction({ account: sender, to: account, value: 1n }),
+      });
+      expect(landed.status).toBe("success");
+      const hashes = [padHex("0x1", { size: 32 }), landed.transactionHash];
+      const bodies = [retried(0), retried(1)].map((body) => ({ ...body, chainId: moonbeamDev.id }));
+      await database
+        .insert(transactions)
+        .values([{ id: "remote", cardId: "first-activity-card", hashes, payload: { type: "panda", bodies } }]);
+      try {
+        const response = await appClient.index.$get(
+          { query: { include: "card" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(response.status).toBe(200);
+        const json = (await response.json()) as { id: string }[];
+        expect(json.find(({ id }) => id === "retried")).toStrictEqual(
+          httpSerialize({
+            ...parse(PandaActivity, { type: "panda", hashes: [hashes[1]], borrows: [null], bodies: [bodies[1]] }),
+            cardId: "first-activity-card",
+            lastFour: "1234",
+          }),
+        );
+      } finally {
+        await database.delete(transactions).where(eq(transactions.id, "remote"));
+      }
+    });
+
+    it("keeps the landed retry on another network", async () => {
+      const remote = createTestClient({
+        chain: alchemyChains.get(moonbeamDev.id) as Chain,
+        mode: "anvil",
+        transport: http(),
+      })
+        .extend(publicActions)
+        .extend(walletActions);
+      const sender = privateKeyToAccount(generatePrivateKey());
+      await remote.setBalance({ address: sender.address, value: 10n ** 18n });
+      const landed = await remote.waitForTransactionReceipt({
+        hash: await remote.sendTransaction({ account: sender, to: account, value: 1n }),
+      });
+      expect(landed.status).toBe("success");
+      const hashes = [padHex("0x1", { size: 32 }), landed.transactionHash];
+      const bodies = [retried(0), { ...retried(1), chainId: moonbeamDev.id }];
+      await database
+        .insert(transactions)
+        .values([{ id: "switched", cardId: "first-activity-card", hashes, payload: { type: "panda", bodies } }]);
+      try {
+        const response = await appClient.index.$get(
+          { query: { include: "card" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(response.status).toBe(200);
+        const json = (await response.json()) as { id: string }[];
+        expect(json.find(({ id }) => id === "retried")).toStrictEqual(
+          httpSerialize({
+            ...parse(PandaActivity, { type: "panda", hashes: [hashes[1]], borrows: [null], bodies: [bodies[1]] }),
+            cardId: "first-activity-card",
+            lastFour: "1234",
+          }),
+        );
+      } finally {
+        await database.delete(transactions).where(eq(transactions.id, "switched"));
+      }
+    });
+
+    it("skips receipts of retries on unknown networks", async () => {
+      const receipt = vi.spyOn(publicClient, "getTransactionReceipt");
+      const hashes = [padHex("0x1", { size: 32 }), padHex("0x2", { size: 32 })];
+      const bodies = [retried(0), retried(1)].map((body) => ({ ...body, chainId: 1 }));
+      await database
+        .insert(transactions)
+        .values([{ id: "unknown", cardId: "first-activity-card", hashes, payload: { type: "panda", bodies } }]);
+      try {
+        const response = await appClient.index.$get(
+          { query: { include: "card" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(response.status).toBe(200);
+        const json = (await response.json()) as { id: string }[];
+        expect(json.find(({ id }) => id === "retried")).toStrictEqual(
+          httpSerialize({
+            ...parse(PandaActivity, { type: "panda", hashes: [hashes[0]], borrows: [null], bodies: [bodies[0]] }),
+            cardId: "first-activity-card",
+            lastFour: "1234",
+          }),
+        );
+        expect(receipt).not.toHaveBeenCalled();
+      } finally {
+        await database.delete(transactions).where(eq(transactions.id, "unknown"));
       }
     });
 
@@ -1818,7 +1974,7 @@ const spendTemplate = {
 function retried(createdAt: number) {
   return {
     id: "retried-event",
-    chainId: 10,
+    chainId: chain.id,
     action: "created",
     resource: "transaction",
     createdAt: new Date(createdAt).toISOString(),
