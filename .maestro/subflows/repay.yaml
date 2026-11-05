@@ -1,9 +1,9 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
-- tapOn: { text: Payments, index: -1 }
 - runFlow:
     when: { true: "${sheet}" }
     commands:
+      - tapOn: { text: Payments, index: -1 }
       - runFlow: { file: scrollTo.yaml, env: { element: "Upcoming payments", center: true } }
       - copyTextFrom:
           text: "[A-Z].+"
@@ -19,16 +19,23 @@ appId: ${APP_ID ?? "app.exactly"}
       - waitForAnimationToEnd
       - tapOn: { text: Pay, index: -1 }
 - runFlow:
-    when: { true: "${!sheet}" }
+    when: { true: "${overdue}" }
     commands:
+      - tapOn: Home
+      - tapOn: Pay now
       - copyTextFrom:
           text: "[A-Z][a-z]+ \\d+, \\d{4} - .+"
-          below: Due in .+
+          below: .+ past due
       - evalScript: ${output.maturity = maestro.copiedText}
-      - runFlow:
-          when: { true: "${external}" }
-          file: scrollTo.yaml
-          env: { element: Rollover, center: true }
+      - tapOn: { text: Pay, index: -1 }
+- runFlow:
+    when: { true: "${!sheet && !overdue}" }
+    commands:
+      - tapOn: { text: Payments, index: -1 }
+      - copyTextFrom:
+          text: "[A-Z][a-z]+ \\d+, \\d{4} - .+"
+          below: Due in .+|.+ past due
+      - evalScript: ${output.maturity = maestro.copiedText}
       - tapOn: { text: Pay, leftOf: Rollover }
 - runFlow:
     when: { true: "${amount}" }
