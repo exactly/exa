@@ -31,6 +31,24 @@ export const proposalManagers = onchainTable(
   (table) => ({ pk: primaryKey({ columns: [table.chainId, table.plugin] }) }),
 );
 
+export const collectors = onchainTable(
+  "collectors",
+  (t) => ({
+    chainId: t.integer().notNull(),
+    plugin: t.hex().notNull(),
+    address: t.hex().notNull(),
+    block: t.bigint().notNull(),
+    logIndex: t.integer().notNull(),
+  }),
+  (table) => ({ pk: primaryKey({ columns: [table.chainId, table.plugin, table.address] }) }),
+);
+
+export const delays = onchainTable(
+  "delays",
+  (t) => ({ chainId: t.integer().notNull(), proposalManager: t.hex().notNull(), delay: t.bigint().notNull() }),
+  (table) => ({ pk: primaryKey({ columns: [table.chainId, table.proposalManager] }) }),
+);
+
 export const deposits = onchainTable(
   "deposits",
   (t) => ({
