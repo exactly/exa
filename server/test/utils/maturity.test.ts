@@ -13,7 +13,7 @@ import { Address } from "@exactly/common/validation";
 import { MATURITY_INTERVAL } from "@exactly/lib";
 
 import database, { credentials } from "../../database";
-import { closeQueue, reminders, setup } from "../../utils/maturity";
+import createMaturity, { closeQueue, reminders, setup } from "../../utils/maturity";
 import createOnesignal from "../../utils/onesignal";
 import { bullmq, close as closeRedis } from "../../utils/redis";
 
@@ -289,6 +289,34 @@ describe("worker", () => {
     vi.clearAllMocks();
     sendPushNotification.mockReset();
     sendPushNotification.mockResolvedValue({});
+  });
+
+  it("schedules checks on start after one failure", async () => {
+    const setGlobalConcurrency = vi
+      .spyOn(Queue.prototype, "setGlobalConcurrency")
+      .mockRejectedValueOnce(new Error("redis error"));
+    try {
+      await createMaturity(createOnesignal("onesignal")).ready;
+    } finally {
+      setGlobalConcurrency.mockRestore();
+    }
+
+    const schedulers = await queue.getJobSchedulers();
+    expect(schedulers.map(({ key }) => key).toSorted()).toStrictEqual(["check-debts-1h", "check-debts-24h"]);
+  });
+
+  it("fails start after two failures", async () => {
+    const setGlobalConcurrency = vi
+      .spyOn(Queue.prototype, "setGlobalConcurrency")
+      .mockRejectedValueOnce(new Error("redis error"))
+      .mockRejectedValueOnce(new Error("redis down"));
+    try {
+      await expect(createMaturity(createOnesignal("onesignal")).ready).rejects.toThrow("redis down");
+    } finally {
+      setGlobalConcurrency.mockRestore();
+    }
+
+    expect(await queue.getJobSchedulers()).toHaveLength(0);
   });
 
   it("schedules maturity checks", async () => {
