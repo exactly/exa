@@ -1,5 +1,4 @@
 import {
-  encodeDeployData,
   encodeEventTopics,
   erc20Abi,
   erc4626Abi,
@@ -13,10 +12,9 @@ import {
 import { getAbiItem, isAddress, isHex, toEventSelector } from "viem/utils";
 
 import {
-  auditorAddress,
+  appPreviewerAbi,
+  appPreviewerCode,
   exaPluginAbi,
-  exaPreviewerAbi,
-  exaPreviewerCode,
   marketUSDCAddress,
   proposalManagerAbi,
   upgradeableModularAccountAbi,
@@ -113,13 +111,9 @@ if (to) {
 
 function pending(address: Address) {
   return readContract({
-    code: encodeDeployData({
-      abi: exaPreviewerAbi,
-      bytecode: exaPreviewerCode,
-      args: [auditorAddress, marketUSDCAddress],
-    }),
+    code: appPreviewerCode,
     functionName: "pendingProposals",
     args: [address],
-    abi: exaPreviewerAbi,
+    abi: appPreviewerAbi,
   }).map(({ nonce, proposal }) => ({ ...proposal, nonce, unlock: 0n }));
 }
