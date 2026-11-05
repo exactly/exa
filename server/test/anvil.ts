@@ -170,7 +170,6 @@ export default async function setup() {
     JSON.parse(await readFile("node_modules/@exactly/plugin/broadcast/Account.s.sol/31337/run-latest.json", "utf8")),
   ).transactions;
   shell.env.BROADCAST_WEBAUTHNOWNERPLUGIN_ADDRESS = plugin.contractAddress;
-  const started = Promise.all(rpcs.map((rpc) => rpc.start(paymaster.contractAddress)));
 
   await forge("test/mocks/ExaBusinessTenant.s.sol");
   await forge("script/IssuerChecker.s.sol");
@@ -265,7 +264,7 @@ export default async function setup() {
     }),
   );
 
-  await started;
+  await Promise.all(rpcs.map((rpc) => rpc.start(paymaster.contractAddress)));
 
   if (docker) {
     const entries = await readdir("node_modules/@exactly/plugin/broadcast", { withFileTypes: true });
