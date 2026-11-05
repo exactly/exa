@@ -92,6 +92,7 @@ export function extender(
       call: Prettify<Pick<WriteContractParameters, "abi" | "address" | "args" | "functionName">>,
       options?: {
         fees?: "auto";
+        gas?: bigint;
         ignore?: ((reason: string) => MaybePromise<boolean | TransactionReceipt | undefined>) | string[];
         level?: "error" | "warning" | ((reason: string, error: unknown) => "error" | "warning" | false) | false;
         onHash?: (hash: Hash) => MaybePromise<unknown>;
@@ -132,7 +133,7 @@ export function extender(
           const fees =
             options?.fees === "auto"
               ? await Promise.all([
-                  estimateGas(keeper, { account: keeper.account.address, to: call.address, data }),
+                  options.gas ?? estimateGas(keeper, { account: keeper.account.address, to: call.address, data }),
                   estimateFeesPerGas(keeper),
                 ]).then(([gas, estimated]) => ({ gas, ...estimated }))
               : {};
