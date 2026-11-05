@@ -7,14 +7,14 @@ import { createWriteStream, type WriteStream } from "node:fs";
 import { mkdir, readFile, rm } from "node:fs/promises";
 import { setTimeout } from "node:timers/promises";
 import { literal, number, object, parse, record, string, tuple } from "valibot";
-import { hexToBytes, padHex, zeroHash } from "viem";
+import { createPublicClient, hexToBytes, http, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import waitOn from "wait-on";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import { Address } from "@exactly/common/validation";
 
-import anvilClient from "./anvilClient";
+import { chains } from "./anvil";
 import * as schema from "../database/schema";
 
 export default async function setup() {
@@ -81,14 +81,19 @@ export default async function setup() {
   let indexerExited: Promise<void> = Promise.resolve();
   let indexerOutputFlushed: Promise<void> = Promise.resolve();
   try {
-    const head = Number(await anvilClient.getBlockNumber());
+    const heads = await Promise.all(
+      chains.map(
+        async (chain) =>
+          [chain.name, Number(await createPublicClient({ chain, transport: http() }).getBlockNumber())] as const,
+      ),
+    );
     const indexerLog = `${startupLogs}/indexer.log`;
     const indexerOutput = createWriteStream(indexerLog);
     const indexer = $({
       cancelSignal: controller.signal,
       forceKillAfterDelay: 33_333,
       cwd: "node_modules/@exactly/indexer",
-      env: { POSTGRES_URL: postgresURL, PORT: "42069", RPC_URL: anvilClient.chain.rpcUrls.default.http[0] },
+      env: { POSTGRES_URL: postgresURL, PORT: "42069" },
       preferLocal: true,
     })`ponder start --schema test --views-schema indexer`;
     const indexerLogWatcher = watchProcessOutput(indexer, indexerOutput, controller);
@@ -98,22 +103,20 @@ export default async function setup() {
       await Promise.race([
         waitOn({ resources: ["http-get://localhost:42069/ready"], timeout: 120_000 }).then(async () => {
           const signal = AbortSignal.timeout(120_000);
-          while (
-            Object.values(
-              parse(
-                record(string(), object({ block: object({ number: number() }) })),
-                await fetch("http://localhost:42069/status", { signal }).then((response) => response.json()),
-              ),
-            ).every(({ block }) => block.number < head)
-          ) {
-            await setTimeout(100, undefined, { signal });
-          }
+          const indexed = async () => {
+            const status = parse(
+              record(string(), object({ block: object({ number: number() }) })),
+              await fetch("http://localhost:42069/status", { signal }).then((response) => response.json()),
+            );
+            return heads.every(([name, head]) => (status[name]?.block.number ?? -1) >= head);
+          };
+          while (!(await indexed())) await setTimeout(100, undefined, { signal });
         }),
         postgresExited.then(() => {
           throw new Error("postgres exited waiting indexer");
         }),
         indexerExited.then(() => {
-          throw new Error(`indexer exited before block ${head}`);
+          throw new Error("indexer exited before head");
         }),
         indexerLogWatcher.outputError,
       ]);
