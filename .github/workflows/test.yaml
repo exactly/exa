@@ -24,8 +24,31 @@ jobs:
         with: { fetch-depth: 0, fetch-tags: true, filter: blob:none }
       - uses: actions/setup-node@v7
         with: { node-version: "^24.14.1" }
-      - uses: foundry-rs/foundry-toolchain@v1
-        with: { version: v1.7.1 }
+      - uses: actions/cache/restore@v6
+        id: foundry
+        with:
+          path: |
+            ~/.foundry/bin
+            ~/.foundry/versions
+          key: foundry-${{ runner.os }}-v1.7.1
+      - if: steps.foundry.outputs.cache-hit != 'true'
+        uses: foundry-rs/foundry-toolchain@v1
+        with: { version: v1.7.1, cache: false }
+      - if: steps.foundry.outputs.cache-hit == 'true'
+        name: foundry
+        run: echo "$HOME/.foundry/bin" >> "$GITHUB_PATH"
+      - if: github.ref_name == 'main' && steps.foundry.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/.foundry/bin
+            ~/.foundry/versions
+          key: ${{ steps.foundry.outputs.cache-primary-key }}
+      - uses: actions/cache@v6
+        with:
+          path: ~/.foundry/cache
+          key: foundry-fork-${{ runner.os }}-${{ github.job }}-${{ github.sha }}
+          restore-keys: foundry-fork-${{ runner.os }}-${{ github.job }}-
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
@@ -166,8 +189,19 @@ jobs:
         with: { fetch-depth: 0, fetch-tags: true, filter: blob:none }
       - uses: actions/setup-node@v7
         with: { node-version: "^24.14.1" }
-      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: actions/cache/restore@v6
+        id: foundry
+        with:
+          path: |
+            ~/.foundry/bin
+            ~/.foundry/versions
+          key: foundry-${{ runner.os }}-v1.7.1
+      - if: steps.foundry.outputs.cache-hit != 'true'
+        uses: foundry-rs/foundry-toolchain@v1
         with: { version: v1.7.1, cache: false }
+      - if: steps.foundry.outputs.cache-hit == 'true'
+        name: foundry
+        run: echo "$HOME/.foundry/bin" >> "$GITHUB_PATH"
       - id: script
         name: hash
         run: echo "hash=$(node -p 'require("./.maestro/package.json").scripts.maestro' | cat - .maestro/patches/*.patch | git hash-object --stdin)" >> "$GITHUB_OUTPUT"
