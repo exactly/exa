@@ -8,7 +8,6 @@ import { readContract, waitForCallsStatus } from "@wagmi/core/actions";
 import {
   decodeErrorResult,
   encodeAbiParameters,
-  encodeDeployData,
   encodeErrorResult,
   encodeFunctionData,
   getAbiItem,
@@ -22,15 +21,9 @@ import { useBytecode, useSendCalls } from "wagmi";
 import accountInit from "@exactly/common/accountInit";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
-import chain, {
-  auditorAddress,
-  exaPluginAddress,
-  exaPreviewerCode,
-  marketUSDCAddress,
-} from "@exactly/common/generated/chain";
+import chain, { appPreviewerAbi, appPreviewerCode, exaPluginAddress } from "@exactly/common/generated/chain";
 import {
   exaPluginAbi,
-  exaPreviewerAbi,
   upgradeableModularAccountAbi,
   useReadExaPluginPluginManifest,
   useReadUpgradeableModularAccountGetInstalledPlugins,
@@ -120,12 +113,8 @@ export default function PluginUpgrade() {
       const simulation = await simulate(address, [batch]);
       if (simulation && pending(simulation.calls[0])) {
         const proposals = await readContract(exa, {
-          abi: exaPreviewerAbi,
-          code: encodeDeployData({
-            abi: exaPreviewerAbi,
-            bytecode: exaPreviewerCode,
-            args: [auditorAddress, marketUSDCAddress],
-          }),
+          abi: appPreviewerAbi,
+          code: appPreviewerCode,
           functionName: "pendingProposals",
           args: [address],
         });
