@@ -1,22 +1,10 @@
-import {
-  encodeDeployData,
-  encodeEventTopics,
-  erc20Abi,
-  formatUnits,
-  keccak256,
-  pad,
-  slice,
-  toBytes,
-  type Address,
-} from "viem";
+import { encodeEventTopics, erc20Abi, formatUnits, keccak256, pad, slice, toBytes, type Address } from "viem";
 import { getAbiItem, isAddress, isHex, toEventSelector } from "viem/utils";
 
 import {
-  auditorAddress,
+  appPreviewerAbi,
+  appPreviewerCode,
   exaPluginAbi,
-  exaPreviewerAbi,
-  exaPreviewerCode,
-  marketUSDCAddress,
   proposalManagerAbi,
   upgradeableModularAccountAbi,
   usdcAddress,
@@ -94,13 +82,9 @@ if (to) {
 
 function pending(address: Address) {
   return readContract({
-    code: encodeDeployData({
-      abi: exaPreviewerAbi,
-      bytecode: exaPreviewerCode,
-      args: [auditorAddress, marketUSDCAddress],
-    }),
+    code: appPreviewerCode,
     functionName: "pendingProposals",
     args: [address],
-    abi: exaPreviewerAbi,
+    abi: appPreviewerAbi,
   }).map(({ nonce, proposal }) => ({ ...proposal, nonce, unlock: 0n }));
 }
