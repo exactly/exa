@@ -25,7 +25,7 @@ jobs:
       - uses: actions/setup-node@v7
         with: { node-version: "^24.14.1" }
       - uses: foundry-rs/foundry-toolchain@v1
-        with: { version: v1.7.1 }
+        with: { version: v1.9.0 }
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
@@ -167,7 +167,7 @@ jobs:
       - uses: actions/setup-node@v7
         with: { node-version: "^24.14.1" }
       - uses: foundry-rs/foundry-toolchain@v1
-        with: { version: v1.7.1, cache: false }
+        with: { version: v1.9.0, cache: false }
       - id: script
         name: hash
         run: echo "hash=$(node -p 'require("./.maestro/package.json").scripts.maestro' | cat - .maestro/patches/*.patch | git hash-object --stdin)" >> "$GITHUB_OUTPUT"
