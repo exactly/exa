@@ -1,12 +1,13 @@
 import { vValidator } from "@hono/valibot-validator";
 import { captureEvent, captureException, setUser } from "@sentry/core";
 import createDebug from "debug";
-import { and, DrizzleQueryError, eq, isNull } from "drizzle-orm";
+import { and, DrizzleQueryError, eq, isNull, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { validator } from "hono/validator";
 import { createHash, createVerify } from "node:crypto";
 import { literal, nullish, object, optional, parse, picklist, string, unknown, variant } from "valibot";
 
+import { business } from "@exactly/common/tenants";
 import { Address } from "@exactly/common/validation";
 
 import { credentials } from "../database/schema";
@@ -49,7 +50,9 @@ export default function hook({
         object({
           event_type: literal("customer.updated.status_transitioned"),
           event_object: object({
+            client_reference_id: nullish(string()),
             id: string(),
+            type: optional(string()),
             status: picklist([
               "active",
               "awaiting_questionnaire",
@@ -163,51 +166,61 @@ export default function hook({
         where: eq(credentials.bridgeId, bridgeId),
       });
       if (!credential && payload.event_type === "customer.updated.status_transitioned") {
-        credential = await bridge
-          .getCustomer(bridgeId)
-          .then((customer) => (customer ? persona.searchAccounts(customer.email) : undefined))
-          .then((accounts) => {
-            if (accounts && accounts.length > 1)
-              captureException(new Error("multiple persona accounts found"), {
-                level: "fatal",
-                contexts: { details: { bridgeId, matches: accounts.length } },
-              });
-            return accounts?.length === 1 ? accounts[0]?.attributes["reference-id"] : undefined;
-          })
-          .then((referenceId) =>
-            referenceId
-              ? database
-                  .update(credentials)
-                  .set({ bridgeId })
-                  .where(and(eq(credentials.id, referenceId), isNull(credentials.bridgeId)))
-                  .returning({ account: credentials.account, source: credentials.source })
-                  .then(([updated]) => {
-                    if (!updated) throw new Error("no match found when pairing bridge id");
-                    captureEvent({
-                      message: "bridge credential paired",
-                      level: "warning",
-                      contexts: { details: { bridgeId, referenceId } },
+        const isBusiness = payload.event_object.type === "business";
+        credential = await (
+          isBusiness
+            ? Promise.resolve(payload.event_object.client_reference_id ?? undefined)
+            : bridge
+                .getCustomer(bridgeId)
+                .then((customer) => (customer ? persona.searchAccounts(customer.email) : undefined))
+                .then((accounts) => {
+                  if (accounts && accounts.length > 1)
+                    captureException(new Error("multiple persona accounts found"), {
+                      level: "fatal",
+                      contexts: { details: { bridgeId, matches: accounts.length } },
                     });
-                    return updated;
-                  })
-                  .catch((error: unknown): undefined => {
-                    if (
-                      error instanceof DrizzleQueryError &&
-                      error.cause &&
-                      "code" in error.cause &&
-                      error.cause.code === "23505"
-                    ) {
-                      captureEvent({
-                        message: "bridge credential already paired",
-                        level: "fatal",
-                        contexts: { details: { bridgeId } },
-                      });
-                      return;
-                    }
-                    throw error;
-                  })
-              : undefined,
-          );
+                  return accounts?.length === 1 ? accounts[0]?.attributes["reference-id"] : undefined;
+                })
+        ).then((referenceId) =>
+          referenceId
+            ? database
+                .update(credentials)
+                .set({ bridgeId })
+                .where(
+                  and(
+                    eq(credentials.id, referenceId),
+                    isNull(credentials.bridgeId),
+                    isBusiness ? sql`lower(${credentials.salt}) = ${business.toLowerCase()}` : undefined,
+                  ),
+                )
+                .returning({ account: credentials.account, source: credentials.source })
+                .then(([updated]) => {
+                  if (!updated) throw new Error("no match found when pairing bridge id");
+                  captureEvent({
+                    message: "bridge credential paired",
+                    level: "warning",
+                    contexts: { details: { bridgeId, referenceId } },
+                  });
+                  return updated;
+                })
+                .catch((error: unknown): undefined => {
+                  if (
+                    error instanceof DrizzleQueryError &&
+                    error.cause &&
+                    "code" in error.cause &&
+                    error.cause.code === "23505"
+                  ) {
+                    captureEvent({
+                      message: "bridge credential already paired",
+                      level: "fatal",
+                      contexts: { details: { bridgeId } },
+                    });
+                    return;
+                  }
+                  throw error;
+                })
+            : undefined,
+        );
       }
       if (!credential) {
         captureException(new Error("credential not found"), {
