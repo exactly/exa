@@ -346,22 +346,24 @@ describe.concurrent("authenticated", () => {
     });
 
     it("keeps the landed retry of a debit", async () => {
-      const [landed] = await anvilClient.getContractEvents({
-        abi: marketAbi,
-        eventName: "Withdraw",
-        address: marketUSDCAddress,
-        args: { caller: account, owner: account },
-        toBlock: "latest",
-        fromBlock: 0n,
-        strict: true,
-      });
+      const [landed] = await database
+        .select({ hash: indexer.withdraws.hash })
+        .from(indexer.withdraws)
+        .where(
+          and(
+            eq(indexer.withdraws.chainId, chain.id),
+            eq(indexer.withdraws.account, account.toLowerCase() as Hex),
+            eq(indexer.withdraws.market, marketUSDCAddress.toLowerCase() as Hex),
+          ),
+        )
+        .limit(1);
       assert.ok(landed, "expected a usdc withdraw");
       const bodies = [retried(0), retried(1)];
       await database.insert(transactions).values([
         {
           id: "retried",
           cardId: "first-activity-card",
-          hashes: [padHex("0x1", { size: 32 }), landed.transactionHash],
+          hashes: [padHex("0x1", { size: 32 }), landed.hash],
           payload: { type: "panda", bodies },
         },
       ]);
@@ -375,12 +377,7 @@ describe.concurrent("authenticated", () => {
         const json = (await response.json()) as { id: string }[];
         expect(json.find(({ id }) => id === "retried")).toStrictEqual(
           httpSerialize({
-            ...parse(PandaActivity, {
-              type: "panda",
-              hashes: [landed.transactionHash],
-              borrows: [null],
-              bodies: [bodies[1]],
-            }),
+            ...parse(PandaActivity, { type: "panda", hashes: [landed.hash], borrows: [null], bodies: [bodies[1]] }),
             cardId: "first-activity-card",
             lastFour: "1234",
           }),

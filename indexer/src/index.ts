@@ -20,6 +20,7 @@ const legacyWithdraw = toFunctionSelector("withdraw()");
 
 ponder.on("ExaAccountFactory:ExaAccountInitialized", async ({ event, context }) => {
   await context.db.insert(accounts).values({
+    chainId: context.chain.id,
     address: event.args.account,
     factory: event.log.address,
     block: event.block.number,
@@ -28,14 +29,16 @@ ponder.on("ExaAccountFactory:ExaAccountInitialized", async ({ event, context }) 
 });
 
 ponder.on("ExaAccount:PluginInstalled", async ({ event, context }) => {
-  const account = await context.db.find(accounts, { address: event.log.address }); // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
+  const key = { chainId: context.chain.id, address: event.log.address };
+  const account = await context.db.find(accounts, key); // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
   if (account?.block === event.block.number && !account.owner) {
-    await context.db.update(accounts, { address: event.log.address }).set({ owner: event.args.plugin });
+    await context.db.update(accounts, key).set({ owner: event.args.plugin });
     return;
   }
   await context.db
     .insert(plugins)
     .values({
+      chainId: context.chain.id,
       account: event.log.address,
       address: event.args.plugin,
       block: event.block.number,
@@ -47,14 +50,14 @@ ponder.on("ExaAccount:PluginInstalled", async ({ event, context }) => {
 ponder.on("ExaPlugin:ProposalManagerSet", async ({ event, context }) => {
   await context.db
     .insert(proposalManagers)
-    .values({ plugin: event.log.address, address: event.args.proposalManager })
+    .values({ chainId: context.chain.id, plugin: event.log.address, address: event.args.proposalManager })
     .onConflictDoUpdate({ address: event.args.proposalManager });
 });
 
 ponder.on("Market:Deposit", async ({ event, context }) => {
-  if (!(await context.db.find(accounts, { address: event.args.owner }))) return; // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
+  if (!(await context.db.find(accounts, { chainId: context.chain.id, address: event.args.owner }))) return; // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
   await context.db.insert(deposits).values({
-    ...log(event),
+    ...log(event, context),
     account: event.args.owner,
     caller: event.args.caller,
     market: event.log.address,
@@ -63,9 +66,10 @@ ponder.on("Market:Deposit", async ({ event, context }) => {
 });
 
 ponder.on("Market:Withdraw", async ({ event, context }) => {
-  if (!(await context.db.find(accounts, { address: event.args.owner }))) return; // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
-  const manager = await context.db.find(proposalManagers, { plugin: event.args.receiver }); // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
-  const executed = manager && (await context.db.find(executions, { account: event.args.owner })); // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
+  const chainId = context.chain.id;
+  if (!(await context.db.find(accounts, { chainId, address: event.args.owner }))) return; // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
+  const manager = await context.db.find(proposalManagers, { chainId, plugin: event.args.receiver }); // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
+  const executed = manager && (await context.db.find(executions, { chainId, account: event.args.owner })); // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
   const { hash, input } = event.transaction;
   const proposal =
     manager && executed?.hash === hash && executed.proposalManager === manager.address
@@ -77,7 +81,7 @@ ponder.on("Market:Withdraw", async ({ event, context }) => {
           }
         : null;
   await context.db.insert(withdraws).values({
-    ...log(event),
+    ...log(event, context),
     account: event.args.owner,
     caller: event.args.caller,
     receiver: event.args.receiver,
@@ -89,9 +93,9 @@ ponder.on("Market:Withdraw", async ({ event, context }) => {
 });
 
 ponder.on("Market:BorrowAtMaturity", async ({ event, context }) => {
-  if (!(await context.db.find(accounts, { address: event.args.borrower }))) return; // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
+  if (!(await context.db.find(accounts, { chainId: context.chain.id, address: event.args.borrower }))) return; // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
   await context.db.insert(borrows).values({
-    ...log(event),
+    ...log(event, context),
     account: event.args.borrower,
     caller: event.args.caller,
     receiver: event.args.receiver,
@@ -103,9 +107,9 @@ ponder.on("Market:BorrowAtMaturity", async ({ event, context }) => {
 });
 
 ponder.on("Market:RepayAtMaturity", async ({ event, context }) => {
-  if (!(await context.db.find(accounts, { address: event.args.borrower }))) return; // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
+  if (!(await context.db.find(accounts, { chainId: context.chain.id, address: event.args.borrower }))) return; // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
   await context.db.insert(repays).values({
-    ...log(event),
+    ...log(event, context),
     account: event.args.borrower,
     caller: event.args.caller,
     market: event.log.address,
@@ -116,9 +120,9 @@ ponder.on("Market:RepayAtMaturity", async ({ event, context }) => {
 });
 
 ponder.on("ProposalManager:Proposed", async ({ event, context }) => {
-  if (!(await context.db.find(accounts, { address: event.args.account }))) return; // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
+  if (!(await context.db.find(accounts, { chainId: context.chain.id, address: event.args.account }))) return; // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
   await context.db.insert(proposals).values({
-    ...log(event),
+    ...log(event, context),
     account: event.args.account,
     proposalManager: event.log.address,
     nonce: event.args.nonce,
@@ -132,27 +136,32 @@ ponder.on("ProposalManager:Proposed", async ({ event, context }) => {
 
 ponder.on("ProposalManager:ProposalNonceSet", async ({ event, context }) => {
   if (!event.args.executed) return;
-  if (!(await context.db.find(accounts, { address: event.args.account }))) return; // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
+  const key = { chainId: context.chain.id, account: event.args.account };
+  if (!(await context.db.find(accounts, { chainId: key.chainId, address: key.account }))) return; // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
   const execution = { proposalManager: event.log.address, nonce: event.args.nonce - 1n, hash: event.transaction.hash };
   await context.db
     .insert(executions)
-    .values({ account: event.args.account, ...execution })
+    .values({ ...key, ...execution })
     .onConflictDoUpdate(execution);
 });
 
-function log({
-  id,
-  block,
-  transaction,
-  log: { logIndex },
-}: {
-  block: { number: bigint; timestamp: bigint };
-  id: string;
-  log: { logIndex: number };
-  transaction: { hash: Hex; transactionIndex: number };
-}) {
+function log(
+  {
+    id,
+    block,
+    transaction,
+    log: { logIndex },
+  }: {
+    block: { number: bigint; timestamp: bigint };
+    id: string;
+    log: { logIndex: number };
+    transaction: { hash: Hex; transactionIndex: number };
+  },
+  { chain }: { chain: { id: number } },
+) {
   return {
     id,
+    chainId: chain.id,
     hash: transaction.hash,
     block: block.number,
     timestamp: block.timestamp,
