@@ -37,10 +37,11 @@ import {
 import {
   auditorAbi,
   exaPluginAbi,
-  exaPluginAddress,
   exaPreviewerAbi,
   exaPreviewerAddress,
+  factories,
   issuerCheckerAbi,
+  issuerCheckerPreviewerCode,
   marketAbi,
   proposalManagerAbi,
   upgradeableModularAccountAbi,
@@ -110,6 +111,14 @@ export default function hook({
 }) {
   const keys = v.parse(v.array(v.pipe(v.string(), v.trim(), v.nonEmpty("panda webhooks"))), webhookKey.split(","));
   const wallet = createWallet(settler);
+  const overrides = publicClient
+    .readContract({
+      address: exaPreviewerAddress,
+      functionName: "discover",
+      args: [factories.versions],
+      abi: exaPreviewerAbi,
+    })
+    .then((discovery) => authorizationOverrides(exaPreviewerAddress, discovery));
   const app = new Hono().post(
     "/",
     vValidator("header", v.object({ signature: v.string() }), async (r, c) => {
@@ -254,6 +263,7 @@ export default function hook({
               issuer,
               panda,
               wallet,
+              true,
             );
             const authorize = () => {
               trackAuthorized(account, payload, card.mode, card.credential.source, segment);
@@ -278,35 +288,13 @@ export default function hook({
               }
             }).catch((error: unknown) => captureException(error, { level: "error" }));
             try {
+              const stateOverride = await overrides;
               const trace = await startSpan({ name: "debug_traceCall", op: "tx.trace" }, () =>
                 traceClient.traceCall({
                   from: account,
                   to: exaPreviewerAddress,
                   data: transaction.data,
-                  stateOverride: [
-                    {
-                      address: exaPluginAddress,
-                      stateDiff: [
-                        {
-                          slot: keccak256(
-                            encodeAbiParameters(
-                              [{ type: "address" }, { type: "bytes32" }],
-                              [
-                                exaPreviewerAddress,
-                                keccak256(
-                                  encodeAbiParameters(
-                                    [{ type: "bytes32" }, { type: "uint256" }],
-                                    [keccak256(toBytes("KEEPER_ROLE")), 0n],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          value: encodeAbiParameters([{ type: "uint256" }], [1n]),
-                        },
-                      ],
-                    },
-                  ],
+                  stateOverride,
                 }),
               );
 
@@ -977,7 +965,7 @@ export default function hook({
         captureException(error, { level: "error" });
       });
   }
-  return { app, ready: Promise.resolve() };
+  return { app, ready: overrides.then(() => undefined) };
 }
 
 function trackAuthorized(
@@ -1084,6 +1072,7 @@ async function prepareCollection(
   issuer: LocalAccount,
   panda: ReturnType<typeof createPanda>,
   wallet: ReturnType<typeof createWallet>,
+  unsigned = false,
 ) {
   const account = v.parse(Address, card.credential.account);
   setTag("exa.mode", card.mode);
@@ -1124,7 +1113,7 @@ async function prepareCollection(
       (payload.action === "completed" && amount !== BigInt(Math.round((payload.body.spend.amount / 100) * 1e6)))
         ? authorized - Number(BigInt(`0x${payload.id.replaceAll(/[^0-9a-f]/g, "")}`) % 3600n)
         : authorized;
-    const signature = await signIssuerOp({ account, amount, timestamp }, issuer, checker); // TODO replace with payload signature
+    const signature = unsigned ? "0x" : await signIssuerOp({ account, amount, timestamp }, issuer, checker); // TODO replace with payload signature
     if (payload.body.spend.signature) {
       await startSpan(
         {
@@ -1239,6 +1228,28 @@ async function collectionContracts(keeper: Hex, account: Hex, data: Hex) {
     ),
   ).find(({ input }) => input.startsWith(toFunctionSelector("checkIssuer(address,uint256,uint256,bytes)")));
   return { checker: v.parse(Address, frame?.to), plugin: v.parse(Address, frame?.from) };
+}
+
+function authorizationOverrides(
+  previewer: Hex,
+  { issuerCheckers, plugins }: { issuerCheckers: readonly Hex[]; plugins: readonly Hex[] },
+) {
+  const slot = keccak256(
+    encodeAbiParameters(
+      [{ type: "address" }, { type: "bytes32" }],
+      [
+        previewer,
+        keccak256(
+          encodeAbiParameters([{ type: "bytes32" }, { type: "uint256" }], [keccak256(toBytes("KEEPER_ROLE")), 0n]),
+        ),
+      ],
+    ),
+  );
+  const value = encodeAbiParameters([{ type: "uint256" }], [1n]);
+  return [
+    ...[...new Set(plugins)].map((address) => ({ address, stateDiff: [{ slot, value }] })),
+    ...[...new Set(issuerCheckers)].map((address) => ({ address, code: issuerCheckerPreviewerCode })),
+  ];
 }
 
 function frames(frame: CallFrame): CallFrame[] {
