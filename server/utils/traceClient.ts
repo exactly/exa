@@ -33,8 +33,6 @@ import chain from "@exactly/common/generated/chain";
 
 import { captureRequests, Request } from "./publicClient";
 
-if (!chain.rpcUrls.alchemy.http[0]) throw new Error("missing alchemy rpc url");
-
 export const trace = (client: Pick<Client<Transport, Chain | undefined, undefined, RpcSchema>, "request">) => ({
   traceCall: async ({
     blockNumber,
@@ -60,15 +58,21 @@ export const trace = (client: Pick<Client<Transport, Chain | undefined, undefine
     }),
 });
 
-export default createPublicClient({
-  chain,
-  rpcSchema: rpcSchema<RpcSchema>(),
-  transport: http(`${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`, {
-    async onFetchRequest(request) {
-      captureRequests([parse(Request, await request.json())]);
-    },
-  }),
-}).extend(trace);
+export default tracer(chain);
+
+export function tracer(network: Chain) {
+  const url = network.rpcUrls.alchemy?.http[0];
+  if (!url) throw new Error("missing alchemy rpc url");
+  return createPublicClient({
+    chain: network,
+    rpcSchema: rpcSchema<RpcSchema>(),
+    transport: http(`${url}/${alchemyAPIKey}`, {
+      async onFetchRequest(request) {
+        captureRequests([parse(Request, await request.json())]);
+      },
+    }),
+  }).extend(trace);
+}
 
 export type CallFrame = {
   calls?: CallFrame[];
