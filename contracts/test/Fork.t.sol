@@ -146,16 +146,33 @@ abstract contract ForkTest is Test {
     return _broadcast(name, string.concat("node_modules/", package, "/broadcast/", script), index, block.chainid);
   }
 
-  function create3(address deployer, bytes32 salt, bytes memory initCode) internal returns (address) {
-    return isTestnet()
-      ? CREATEX.deployCreate3(_createXSalt(deployer, salt), initCode)
+  function createX(address deployer, bytes32 salt, bytes memory initCode) internal returns (address) {
+    return CREATEX.deployCreate3(_createXSalt(deployer, salt), initCode);
+  }
+
+  function create3(address deployer, string memory name, string memory version, bytes memory initCode)
+    internal
+    returns (address)
+  {
+    bytes32 salt = keccak256(abi.encode(name, version));
+    return isTestnet() || isCreateXVersion(version)
+      ? createX(deployer, salt, initCode)
       : CREATE3_FACTORY.deploy(salt, initCode);
   }
 
-  function create3Address(address deployer, bytes32 salt) internal returns (address) {
-    return isTestnet()
-      ? CREATEX.computeCreate3Address(keccak256(abi.encode(deployer, _createXSalt(deployer, salt))))
+  function createXAddress(address deployer, bytes32 salt) internal view returns (address) {
+    return CREATEX.computeCreate3Address(keccak256(abi.encode(deployer, _createXSalt(deployer, salt))));
+  }
+
+  function create3Address(address deployer, string memory name, string memory version) internal returns (address) {
+    bytes32 salt = keccak256(abi.encode(name, version));
+    return isTestnet() || isCreateXVersion(version)
+      ? createXAddress(deployer, salt)
       : CREATE3_FACTORY.getDeployed(deployer, salt);
+  }
+
+  function isCreateXVersion(string memory version) internal pure returns (bool) {
+    return !version.eq("1.0.0") && !version.eq("1.1.0");
   }
 
   function _broadcast(string memory name, string memory script, uint256 index, uint256 chainid)
