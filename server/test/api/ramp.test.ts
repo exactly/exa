@@ -753,6 +753,33 @@ describe("ramp api", () => {
         });
       });
 
+      it("returns 400 when bridge crypto onramp rail is not available", async () => {
+        vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+        vi.spyOn(bridge, "getCryptoDepositDetails").mockRejectedValue(
+          new Error(bridge.ErrorCodes.NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL),
+        );
+
+        const response = await appClient.quote.$get(
+          { query: { provider: "bridge", currency: "USDC", network: "BASE" } },
+          { headers: { "test-credential-id": "ramp-bridge" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code: "not supported" });
+      });
+
+      it("returns 500 when bridge crypto onramp util throws an unexpected error", async () => {
+        vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+        vi.spyOn(bridge, "getCryptoDepositDetails").mockRejectedValue(new Error("unexpected"));
+
+        const response = await appClient.quote.$get(
+          { query: { provider: "bridge", currency: "USDC", network: "BASE" } },
+          { headers: { "test-credential-id": "ramp-bridge" } },
+        );
+
+        expect(response.status).toBe(500);
+      });
+
       describe("offramp", () => {
         it("returns 400 when bridgeId is missing", async () => {
           const response = await appClient.quote.$get(
@@ -927,6 +954,29 @@ describe("ramp api", () => {
 
           expect(response.status).toBe(400);
           await expect(response.json()).resolves.toStrictEqual({ code: "invalid deposit address" });
+        });
+
+        it("returns 400 when crypto offramp rail is not available", async () => {
+          vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+          vi.spyOn(bridge, "getCryptoOfframpDepositDetails").mockRejectedValue(
+            new Error(bridge.ErrorCodes.NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL),
+          );
+
+          const response = await appClient.quote.$get(
+            {
+              query: {
+                provider: "bridge",
+                currency: "USDC",
+                direction: "offramp",
+                network: "BASE",
+                address: deposit,
+              },
+            },
+            { headers: { "test-credential-id": "ramp-bridge" } },
+          );
+
+          expect(response.status).toBe(400);
+          await expect(response.json()).resolves.toStrictEqual({ code: "not supported" });
         });
 
         it("returns 500 when crypto offramp util throws an unexpected error", async () => {

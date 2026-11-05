@@ -36,7 +36,7 @@ import {
   type InferOutput,
 } from "valibot";
 import { withRetry } from "viem";
-import { optimism, optimismSepolia } from "viem/chains";
+import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
@@ -492,14 +492,16 @@ export default function bridge(key: string, url: string) {
     if (customer.status !== "active") throw new Error(ErrorCodes.NOT_ACTIVE_CUSTOMER);
 
     const paymentRail = NetworkToCryptoPaymentRail[network];
-    if (!CurrencyByPaymentRail[paymentRail].includes(currency)) {
+    if (network === nativeNetwork[supportedChainId].network || !CurrencyByPaymentRail[paymentRail].includes(currency)) {
       throw new Error(ErrorCodes.NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL);
     }
 
     const liquidationAddresses = await getLiquidationAddresses(customer.id);
     let liquidationAddress = liquidationAddresses.find(
-      ({ chain: bridgeChain, currency: bridgeCurrency }) =>
-        bridgeChain === paymentRail && CurrencyToBridge[currency] === bridgeCurrency,
+      ({ chain: bridgeChain, currency: bridgeCurrency, destination_payment_rail }) =>
+        bridgeChain === paymentRail &&
+        CurrencyToBridge[currency] === bridgeCurrency &&
+        destination_payment_rail === supportedChainId,
     );
 
     liquidationAddress ??= await createLiquidationAddress(
@@ -535,7 +537,7 @@ export default function bridge(key: string, url: string) {
     }
 
     const paymentRail = parse(picklist(["solana", "stellar", "tron", "base"]), NetworkToOfframpRail[network]);
-    if (!CurrencyByPaymentRail[paymentRail].includes(currency)) {
+    if (network === nativeNetwork[supportedChain].network || !CurrencyByPaymentRail[paymentRail].includes(currency)) {
       throw new Error(ErrorCodes.NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL);
     }
 
@@ -567,8 +569,8 @@ export default function bridge(key: string, url: string) {
 
     return [
       {
-        network: "OPTIMISM" as const,
-        displayName: "Optimism" as const,
+        network: nativeNetwork[supportedChain].network,
+        displayName: nativeNetwork[supportedChain].displayName,
         address: parse(Address, transfer.source_deposit_instructions.to_address),
         fee: "0.0",
         estimatedProcessingTime: "300",
@@ -607,8 +609,10 @@ export default function bridge(key: string, url: string) {
     if (!available) throw new Error(ErrorCodes.NOT_AVAILABLE_CURRENCY);
     const virtualAccounts = await getVirtualAccounts(customer.id);
     let virtualAccount = virtualAccounts.find(
-      ({ source_deposit_instructions, status }) =>
-        source_deposit_instructions.currency === CurrencyToBridge[currency] && status === "activated",
+      ({ destination, source_deposit_instructions, status }) =>
+        source_deposit_instructions.currency === CurrencyToBridge[currency] &&
+        destination.payment_rail === supportedChainId &&
+        status === "activated",
     );
 
     virtualAccount ??= await createVirtualAccount(customer.id, {
@@ -861,8 +865,8 @@ export default function bridge(key: string, url: string) {
 
     return [
       {
-        network: "OPTIMISM" as const,
-        displayName: "Optimism" as const,
+        network: nativeNetwork[supportedChain].network,
+        displayName: nativeNetwork[supportedChain].displayName,
         address: parse(Address, transfer.source_deposit_instructions.to_address),
         fee: "0.0",
         estimatedProcessingTime: "300",
@@ -890,7 +894,8 @@ export default function bridge(key: string, url: string) {
     },
     persona: PersonaService,
   ) {
-    if (!Supported[chain.id]) {
+    const supportedChain = Supported[chain.id];
+    if (!supportedChain) {
       captureException(new Error("bridge not supported chain id"), { contexts: { chain }, level: "error" });
       return { onramp: { currencies: [] }, offramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
     }
@@ -901,13 +906,13 @@ export default function bridge(key: string, url: string) {
         { currency: "USDC" as const, network: "SOLANA" as const },
         { currency: "USDC" as const, network: "STELLAR" as const },
         { currency: "USDT" as const, network: "TRON" as const },
-      ],
+      ].filter(({ network }) => network !== nativeNetwork[supportedChain].network),
       offramp: [
         { currency: "USDC" as const, network: "BASE" as const },
         { currency: "USDC" as const, network: "SOLANA" as const },
         { currency: "USDC" as const, network: "STELLAR" as const },
         { currency: "USDT" as const, network: "TRON" as const },
-      ],
+      ].filter(({ network }) => network !== nativeNetwork[supportedChain].network),
     };
 
     if (params.customerId) {
@@ -1198,7 +1203,10 @@ export default function bridge(key: string, url: string) {
   }
   async function listExternalAccounts(customerId: string) {
     const path = `/customers/${customerId}/external_accounts` as const;
-    const first = await request(ExternalAccounts, `${path}?limit=20`, {}, undefined, "GET", 10_000);
+    const [first, templates] = await Promise.all([
+      request(ExternalAccounts, `${path}?limit=20`, {}, undefined, "GET", 10_000),
+      getStaticTemplates(customerId),
+    ]);
     const accounts = [...first.data];
     if (first.data.length < first.count)
       captureException(new Error("bridge external accounts pagination"), {
@@ -1229,6 +1237,17 @@ export default function bridge(key: string, url: string) {
       const currency = FiatByBridgeCurrency[account.currency];
       if (!currency) return [];
       if (!account.active) return [];
+      if (
+        !templates.some(
+          ({ destination, source, state }) =>
+            destination.external_account_id === account.id &&
+            source.payment_rail === Supported[chain.id] &&
+            source.currency === "usdc" &&
+            state !== "canceled",
+        )
+      ) {
+        return [];
+      }
       return [
         {
           addressValid: account.beneficiary_address_valid ?? undefined,
@@ -1642,7 +1661,7 @@ function fiat(endorsement: (typeof Endorsements)[number], ramp: "offramp" | "onr
 }
 
 export const CryptoPaymentRail = ["evm", "solana", "stellar", "tron", "base"] as const;
-export const BridgeChain = ["optimism"] as const;
+export const BridgeChain = ["base", "optimism"] as const;
 
 const CurrencyByPaymentRail: Record<(typeof CryptoPaymentRail)[number], (typeof CryptoCurrency)[number][]> = {
   base: ["USDC"],
@@ -1667,9 +1686,16 @@ const NetworkToOfframpRail: Record<(typeof OfframpNetwork)[number], (typeof Cryp
 } as const;
 
 const Supported: Record<number, (typeof BridgeChain)[number]> = {
+  [base.id]: "base",
+  [baseSepolia.id]: "base",
   [optimism.id]: "optimism",
   [optimismSepolia.id]: "optimism",
 } as const;
+
+const nativeNetwork = {
+  base: { network: "BASE", displayName: "Base" },
+  optimism: { network: "OPTIMISM", displayName: "Optimism" },
+} as const satisfies Record<(typeof BridgeChain)[number], { displayName: string; network: string }>;
 
 export const TINType = [
   "drivers_license",
@@ -2019,6 +2045,7 @@ const VirtualAccount = object({
   ]),
   destination: object({
     address: Address,
+    payment_rail: string(),
   }),
 });
 const VirtualAccounts = object({ count: number(), data: array(VirtualAccount) });
@@ -2037,6 +2064,7 @@ const LiquidationAddress = object({
   chain: picklist([...CryptoPaymentRail]),
   address: string(),
   destination_address: Address,
+  destination_payment_rail: string(),
   blockchain_memo: optional(string()),
 });
 

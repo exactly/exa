@@ -144,7 +144,7 @@ export default function AddFunds() {
                     }}
                   />
                 )}
-                {(!business || transfers === "completed") && hasFiat !== false && chain.id !== base.id && (
+                {(business ? transfers === "completed" : chain.id !== base.id) && hasFiat !== false && (
                   <AddFundsOption
                     icon={<Banknote size={24} color="$iconBrandDefault" />}
                     title={t("Bank transfers")}
