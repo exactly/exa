@@ -3,9 +3,9 @@
   "version": "0.0.24",
   "private": true,
   "scripts": {
-    "prepare:git": "git config blame.ignoreRevsFile .git-blame-ignore-revs || true",
+    "prepare:git": "nx prepare:git common",
     "generate:wagmi": "wagmi generate",
-    "git:unshallow": "git fetch --unshallow --filter=blob:none || true",
+    "git:unshallow": "nx git:unshallow common",
     "test": "nx test common",
     "test:ts": "tsc --pretty ${GITHUB_ACTIONS:+false}"
   },
@@ -70,7 +70,14 @@
         ],
         "executor": "nx:noop"
       },
+      "prepare:git": {
+        "command": "git config blame.ignoreRevsFile .git-blame-ignore-revs || true",
+        "options": {
+          "cwd": "{projectRoot}"
+        }
+      },
       "generate:wagmi": {
+        "command": "pnpm run generate:wagmi",
         "inputs": [
           "^production",
           "{projectRoot}/wagmi.config.ts",
@@ -96,10 +103,17 @@
         ],
         "outputs": [
           "{projectRoot}/generated"
-        ]
+        ],
+        "options": {
+          "cwd": "{projectRoot}"
+        }
       },
       "git:unshallow": {
-        "cache": false
+        "command": "git fetch --unshallow --filter=blob:none || true",
+        "cache": false,
+        "options": {
+          "cwd": "{projectRoot}"
+        }
       },
       "test": {
         "dependsOn": [
