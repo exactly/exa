@@ -6,7 +6,14 @@ import { IAccountLoupe } from "modular-account-libs/interfaces/IAccountLoupe.sol
 
 import { AppPreviewer, MarketPreview, ProposalManagerPreview } from "../src/AppPreviewer.sol";
 import { ExaPlugin } from "../src/ExaPlugin.sol";
-import { IAuditor, IExaAccount, IMarket, IProposalManager } from "../src/IExaAccount.sol";
+import {
+  IAuditor,
+  IExaAccount,
+  IMarket,
+  IProposalManager,
+  PendingProposal,
+  ProposalType
+} from "../src/IExaAccount.sol";
 import { DeployProtocol } from "./mocks/Protocol.s.sol";
 
 contract AppPreviewerTest is ForkTest {
@@ -66,6 +73,32 @@ contract AppPreviewerTest is ForkTest {
     assertTrue(markets[1].nonCollateral);
     assertFalse(markets[2].nonCollateral);
     assertEq(markets[1].usdPrice, 1e18);
+  }
+
+  function test_pendingProposals_returnsQueuedProposals() external {
+    address account = _mockAccount();
+    vm.mockCall(
+      makeAddr("proposalManager"),
+      abi.encodeCall(IProposalManager.proposals, (account, 1)),
+      abi.encode(100e6, makeAddr("market"), 1 hours, ProposalType.WITHDRAW, abi.encode(address(0x1)))
+    );
+    PendingProposal[] memory proposals = previewer.pendingProposals(account);
+    assertEq(proposals.length, 1);
+    assertEq(proposals[0].nonce, 1);
+    assertEq(proposals[0].unlock, 1 hours + 1 minutes);
+    assertEq(proposals[0].proposal.amount, 100e6);
+    assertEq(address(proposals[0].proposal.market), makeAddr("market"));
+    assertEq(proposals[0].proposal.timestamp, 1 hours);
+    assertTrue(proposals[0].proposal.proposalType == ProposalType.WITHDRAW);
+    assertEq(abi.decode(proposals[0].proposal.data, (address)), address(0x1));
+  }
+
+  function test_pendingProposals_returnsEmpty_whenAccountIsNotDeployed() external view {
+    assertEq(previewer.pendingProposals(address(0xdead)).length, 0);
+  }
+
+  function test_pendingProposals_returnsEmpty_whenAddressIsNotAccount() external view {
+    assertEq(previewer.pendingProposals(address(auditor)).length, 0);
   }
 
   function test_proposalManager_returnsPreview() external {
