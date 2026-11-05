@@ -123,6 +123,11 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: { file: tapAria.yaml, env: { aria: Close } }
 - tapOn: Home
 - runFlow:
+    when: { true: "${!!destination && to === output.account}" }
+    commands:
+      - assertVisible: Received ${asset} on ${destination}
+      - runFlow: { file: tapAria.yaml, env: { aria: Close } }
+- runFlow:
     file: ../subflows/tapWhileAria.yaml
     env: { aria: Pending proposals, tap: Home }
 - runFlow: ../subflows/readPortfolio.yaml
