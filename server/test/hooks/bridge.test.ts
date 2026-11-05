@@ -16,6 +16,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
+import { business } from "@exactly/common/tenants";
 
 import database, { credentials } from "../../database";
 import createBridgeHook from "../../hooks/bridge";
@@ -44,9 +45,12 @@ describe("bridge hook", () => {
   const owner = privateKeyToAddress(padHex("0xb1e"));
   const fallbackOwner = privateKeyToAddress(padHex("0xfa11"));
   const conflictOwner = privateKeyToAddress(padHex("0xc0f1"));
+  const businessOwner = privateKeyToAddress(padHex("0xb12"));
+  const consumerOwner = privateKeyToAddress(padHex("0xc12"));
   const factory = exaAccountFactoryAddress;
   const account = deriveAddress(factory, { x: padHex(owner), y: zeroHash });
   const fallbackAccount = deriveAddress(factory, { x: padHex(fallbackOwner), y: zeroHash });
+  const businessAccount = deriveAddress(factory, { x: padHex(businessOwner), y: zeroHash, salt: business });
 
   beforeAll(async () => {
     await database.insert(credentials).values([
@@ -70,6 +74,19 @@ describe("bridge hook", () => {
         account: deriveAddress(factory, { x: padHex(conflictOwner), y: zeroHash }),
         factory,
         bridgeId: "conflict-bridge-id",
+      },
+      {
+        id: "business-test",
+        publicKey: new Uint8Array(hexToBytes(businessOwner)),
+        account: businessAccount,
+        factory,
+        salt: business,
+      },
+      {
+        id: "consumer-test",
+        publicKey: new Uint8Array(hexToBytes(consumerOwner)),
+        account: deriveAddress(factory, { x: padHex(consumerOwner), y: zeroHash }),
+        factory,
       },
     ]);
   });
@@ -318,6 +335,95 @@ describe("bridge hook", () => {
       headings: t("Fiat onramp activated"),
       contents: t("Your fiat onramp account has been activated"),
     });
+  });
+
+  it("pairs business customer by client reference id on status_transitioned", async () => {
+    vi.spyOn(segment, "track").mockReturnValue();
+    const getCustomer = vi.spyOn(bridge, "getCustomer");
+    const searchAccounts = vi.spyOn(persona, "searchAccounts");
+    const payload = {
+      ...statusTransitioned,
+      event_object: {
+        ...statusTransitioned.event_object,
+        id: "business-bridge-id",
+        type: "business",
+        client_reference_id: "business-test",
+      },
+    };
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(payload) },
+      json: payload as never,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(getCustomer).not.toHaveBeenCalled();
+    expect(searchAccounts).not.toHaveBeenCalled();
+    expect(captureEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "bridge credential paired",
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        contexts: expect.objectContaining({
+          details: { bridgeId: "business-bridge-id", referenceId: "business-test" },
+        }),
+      }),
+    );
+    const updated = await database.query.credentials.findFirst({
+      columns: { bridgeId: true },
+      where: eq(credentials.id, "business-test"),
+    });
+    expect(updated?.bridgeId).toBe("business-bridge-id");
+    expect(segment.track).toHaveBeenCalledWith({
+      userId: businessAccount,
+      event: "RampAccount",
+      properties: { provider: "bridge", source: null },
+    });
+  });
+
+  it("does not pair business customer with a consumer credential", async () => {
+    const searchAccounts = vi.spyOn(persona, "searchAccounts");
+    const payload = {
+      ...statusTransitioned,
+      event_object: {
+        ...statusTransitioned.event_object,
+        id: "business-consumer-bridge-id",
+        type: "business",
+        client_reference_id: "consumer-test",
+      },
+    };
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(payload) },
+      json: payload as never,
+    });
+
+    expect(response.status).toBe(500);
+    expect(searchAccounts).not.toHaveBeenCalled();
+    expect(captureEvent).not.toHaveBeenCalled();
+    const consumer = await database.query.credentials.findFirst({
+      columns: { bridgeId: true },
+      where: eq(credentials.id, "consumer-test"),
+    });
+    expect(consumer?.bridgeId).toBeNull();
+  });
+
+  it("returns credential not found for business customer without client reference id", async () => {
+    const searchAccounts = vi.spyOn(persona, "searchAccounts");
+    const payload = {
+      ...statusTransitioned,
+      event_object: { ...statusTransitioned.event_object, id: "business-orphan-bridge-id", type: "business" },
+    };
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(payload) },
+      json: payload as never,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "credential not found" });
+    expect(searchAccounts).not.toHaveBeenCalled();
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ message: "credential not found" }),
+      { level: "error", contexts: { details: { bridgeId: "business-orphan-bridge-id" } } },
+    );
   });
 
   it("returns 500 when fallback credential already paired", async () => {

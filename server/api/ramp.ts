@@ -258,6 +258,9 @@ export default function route({
                   if (error instanceof Error && error.message === Bridge.ErrorCodes.INVALID_DEPOSIT_ADDRESS) {
                     return c.json({ code: ErrorCodes.INVALID_DEPOSIT_ADDRESS }, 400);
                   }
+                  if (error instanceof Error && error.message === Bridge.ErrorCodes.NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL) {
+                    return c.json({ code: ErrorCodes.NOT_SUPPORTED }, 400);
+                  }
                   throw error;
                 }
               }
@@ -295,18 +298,25 @@ export default function route({
             }
 
             if ("network" in query) {
-              return c.json(
-                {
-                  quote,
-                  depositInfo: await bridge.getCryptoDepositDetails(
-                    query.currency,
-                    query.network,
-                    credential.account,
-                    bridgeUser,
-                  ),
-                } satisfies InferOutput<typeof RampResponse>,
-                200,
-              );
+              try {
+                return c.json(
+                  {
+                    quote,
+                    depositInfo: await bridge.getCryptoDepositDetails(
+                      query.currency,
+                      query.network,
+                      credential.account,
+                      bridgeUser,
+                    ),
+                  } satisfies InferOutput<typeof RampResponse>,
+                  200,
+                );
+              } catch (error) {
+                if (error instanceof Error && error.message === Bridge.ErrorCodes.NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL) {
+                  return c.json({ code: ErrorCodes.NOT_SUPPORTED }, 400);
+                }
+                throw error;
+              }
             }
 
             return c.json(
@@ -390,6 +400,7 @@ export default function route({
                   case Bridge.ErrorCodes.DENYLISTED_COUNTRY:
                   case Bridge.ErrorCodes.EMAIL_ALREADY_EXISTS:
                   case Bridge.ErrorCodes.NOT_ENABLED:
+                  case Bridge.ErrorCodes.NOT_SUPPORTED_ACCOUNT_TYPE:
                   case Bridge.ErrorCodes.NOT_SUPPORTED_CHAIN_ID:
                     return c.json({ code: error.message }, 400);
                   case Bridge.ErrorCodes.INVALID_ADDRESS: {
@@ -628,8 +639,8 @@ const RampResponse = object({
         }),
       ),
       object({
-        network: literal("OPTIMISM"),
-        displayName: literal("Optimism"),
+        network: picklist(["BASE", "OPTIMISM"]),
+        displayName: picklist(["Base", "Optimism"]),
         address: Address,
         fee: string(),
         estimatedProcessingTime: string(),
