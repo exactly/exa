@@ -752,6 +752,33 @@ describe("ramp api", () => {
         });
       });
 
+      it("returns 400 when bridge crypto onramp rail is not available", async () => {
+        vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+        vi.spyOn(bridge, "getCryptoDepositDetails").mockRejectedValue(
+          new Error(bridge.ErrorCodes.NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL),
+        );
+
+        const response = await appClient.quote.$get(
+          { query: { provider: "bridge", currency: "USDC", network: "BASE" } },
+          { headers: { "test-credential-id": "ramp-bridge" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code: "not supported" });
+      });
+
+      it("returns 500 when bridge crypto onramp util throws an unexpected error", async () => {
+        vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+        vi.spyOn(bridge, "getCryptoDepositDetails").mockRejectedValue(new Error("unexpected"));
+
+        const response = await appClient.quote.$get(
+          { query: { provider: "bridge", currency: "USDC", network: "BASE" } },
+          { headers: { "test-credential-id": "ramp-bridge" } },
+        );
+
+        expect(response.status).toBe(500);
+      });
+
       describe("offramp", () => {
         it("returns 400 when bridgeId is missing", async () => {
           const response = await appClient.quote.$get(
@@ -926,6 +953,29 @@ describe("ramp api", () => {
 
           expect(response.status).toBe(400);
           await expect(response.json()).resolves.toStrictEqual({ code: "invalid deposit address" });
+        });
+
+        it("returns 400 when crypto offramp rail is not available", async () => {
+          vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+          vi.spyOn(bridge, "getCryptoOfframpDepositDetails").mockRejectedValue(
+            new Error(bridge.ErrorCodes.NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL),
+          );
+
+          const response = await appClient.quote.$get(
+            {
+              query: {
+                provider: "bridge",
+                currency: "USDC",
+                direction: "offramp",
+                network: "BASE",
+                address: deposit,
+              },
+            },
+            { headers: { "test-credential-id": "ramp-bridge" } },
+          );
+
+          expect(response.status).toBe(400);
+          await expect(response.json()).resolves.toStrictEqual({ code: "not supported" });
         });
 
         it("returns 500 when crypto offramp util throws an unexpected error", async () => {
@@ -1176,25 +1226,26 @@ describe("ramp api", () => {
         expect(captureException).not.toHaveBeenCalled();
       });
 
-      it.each([bridge.ErrorCodes.EMAIL_ALREADY_EXISTS, bridge.ErrorCodes.NOT_SUPPORTED_CHAIN_ID])(
-        "returns 400 for %s",
-        async (code) => {
-          await setBridgeCredential({ bridgeId: null, salt: business });
-          vi.spyOn(bridge, "onboarding").mockRejectedValue(new Error(code));
+      it.each([
+        bridge.ErrorCodes.EMAIL_ALREADY_EXISTS,
+        bridge.ErrorCodes.NOT_SUPPORTED_ACCOUNT_TYPE,
+        bridge.ErrorCodes.NOT_SUPPORTED_CHAIN_ID,
+      ])("returns 400 for %s", async (code) => {
+        await setBridgeCredential({ bridgeId: null, salt: business });
+        vi.spyOn(bridge, "onboarding").mockRejectedValue(new Error(code));
 
-          const response = await appClient.index.$post(
-            { json: { provider: "bridge", acceptedTermsId: "terms_789" } },
-            { headers: { "test-credential-id": "ramp-bridge" } },
-          );
+        const response = await appClient.index.$post(
+          { json: { provider: "bridge", acceptedTermsId: "terms_789" } },
+          { headers: { "test-credential-id": "ramp-bridge" } },
+        );
 
-          expect(response.status).toBe(400);
-          await expect(response.json()).resolves.toStrictEqual({ code });
-          expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error(code), {
-            level: "error",
-            contexts: { credential: expect.objectContaining({ bridgeId: null, salt: business }) as unknown },
-          });
-        },
-      );
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code });
+        expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error(code), {
+          level: "error",
+          contexts: { credential: expect.objectContaining({ bridgeId: null, salt: business }) as unknown },
+        });
+      });
 
       it("returns 400 when bridge rejects the business payload as unprocessable", async () => {
         await setBridgeCredential({ bridgeId: null, salt: business });
