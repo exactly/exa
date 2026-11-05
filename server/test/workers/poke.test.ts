@@ -48,6 +48,7 @@ const token = parse(Address, wethAddress);
 const token2 = parse(Address, usdcAddress);
 const unknownAsset = parse(Address, "0x3333333333333333333333333333333333333333");
 const weth = parse(Address, wethAddress);
+const salt = parse(Address, padHex("0x0", { size: 20 }));
 const poker = privateKeyToAccount(padHex("0xb0b"));
 const poke = createPoke(bullmq);
 const mocks = vi.hoisted(() => ({
@@ -694,6 +695,7 @@ function createRequest() {
       factory: parse(Address, exaAccountFactoryAddress),
       origin: "allow",
       publicKey: owner.address,
+      salt,
       source: null,
     } satisfies Parameters<ReturnType<typeof createPoke>["enqueue"]>[0],
   };
