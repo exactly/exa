@@ -1,5 +1,4 @@
 import {
-  encodeDeployData,
   encodeEventTopics,
   erc20Abi,
   erc4626Abi,
@@ -8,15 +7,15 @@ import {
   pad,
   slice,
   toBytes,
+  zeroAddress,
   type Address,
 } from "viem";
 import { getAbiItem, isAddress, isHex, toEventSelector } from "viem/utils";
 
 import {
-  auditorAddress,
+  appPreviewerAbi,
+  appPreviewerCode,
   exaPluginAbi,
-  exaPreviewerAbi,
-  exaPreviewerCode,
   marketUSDCAddress,
   proposalManagerAbi,
   upgradeableModularAccountAbi,
@@ -113,13 +112,9 @@ if (to) {
 
 function pending(address: Address) {
   return readContract({
-    code: encodeDeployData({
-      abi: exaPreviewerAbi,
-      bytecode: exaPreviewerCode,
-      args: [auditorAddress, marketUSDCAddress],
-    }),
-    functionName: "pendingProposals",
-    args: [address],
-    abi: exaPreviewerAbi,
-  }).map(({ nonce, proposal }) => ({ ...proposal, nonce, unlock: 0n }));
+    code: appPreviewerCode,
+    functionName: "preview",
+    args: [address, [], { auditor: zeroAddress, previewer: zeroAddress, ratePreviewer: zeroAddress }],
+    abi: appPreviewerAbi,
+  }).wallet.proposals.map(({ nonce, proposal }) => ({ ...proposal, nonce, unlock: 0n }));
 }

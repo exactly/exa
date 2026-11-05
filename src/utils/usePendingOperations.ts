@@ -1,15 +1,10 @@
 import { useCallback, useMemo } from "react";
 
 import { useMutationState } from "@tanstack/react-query";
-import { encodeDeployData } from "viem";
+import { zeroAddress } from "viem";
 import { useBytecode, useReadContract } from "wagmi";
 
-import chain, {
-  auditorAddress,
-  exaPreviewerAbi,
-  exaPreviewerCode,
-  marketUSDCAddress,
-} from "@exactly/common/generated/chain";
+import chain, { appPreviewerAbi, appPreviewerCode } from "@exactly/common/generated/chain";
 import ProposalType, {
   decodeCrossRepayAtMaturity,
   decodeRepayAtMaturity,
@@ -27,16 +22,19 @@ export default function usePendingOperations() {
   const { data: bytecode } = useBytecode({ address: exaAccount, chainId: chain.id, query: { enabled: !!exaAccount } });
 
   const proposals = useReadContract({
-    abi: exaPreviewerAbi,
-    functionName: "pendingProposals",
-    code: encodeDeployData({
-      abi: exaPreviewerAbi,
-      bytecode: exaPreviewerCode,
-      args: [auditorAddress, marketUSDCAddress],
-    }),
+    abi: appPreviewerAbi,
+    functionName: "preview",
+    code: appPreviewerCode,
     chainId: chain.id,
-    args: exaAccount ? [exaAccount] : undefined,
-    query: { enabled: !!exaAccount && !!bytecode, gcTime: 0, refetchInterval: 30_000 },
+    args: exaAccount
+      ? [exaAccount, [], { auditor: zeroAddress, previewer: zeroAddress, ratePreviewer: zeroAddress }]
+      : undefined,
+    query: {
+      enabled: !!exaAccount && !!bytecode,
+      gcTime: 0,
+      refetchInterval: 30_000,
+      select: ({ wallet }) => wallet.proposals,
+    },
   });
 
   const [bridgeMutation] = useMutationState<MutationState<unknown, Error, RouteFrom> & { id: number }>({
