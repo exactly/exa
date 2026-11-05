@@ -28,7 +28,12 @@ const stacks = await Promise.all(
       const settings = await workspace.stackSettings(name);
       const disabledModules = parse(
         optional(
-          array(picklist(Object.keys({ ...modules.services, ...modules.workers }), `unknown module in ${name}`)),
+          array(
+            picklist(
+              [...Object.keys({ ...modules.services, ...modules.workers }), ...modules.features],
+              `unknown module in ${name}`,
+            ),
+          ),
           [],
         ),
         settings.config?.["exa:disabled"],

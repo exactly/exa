@@ -65,6 +65,7 @@ describe("server", () => {
     const handle = await created;
 
     await expect(handle.ready).resolves.toHaveLength(1 + enabled.length);
+    expect(mocks.api).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ business: true }));
     for (const [name, create] of Object.entries({ ...hooks, ...workers })) {
       expect(create).toHaveBeenCalledTimes(enabled.includes(name) ? 1 : 0);
     }
@@ -83,6 +84,15 @@ describe("server", () => {
     for (const [name, close] of Object.entries(closers)) {
       expect(close).toHaveBeenCalledTimes(enabled.includes(name) ? 1 : 0);
     }
+  });
+
+  it("disables business", async () => {
+    vi.stubEnv("DISABLED_MODULES", "business");
+
+    await import("../index");
+
+    expect(mocks.api).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ business: false }));
+    for (const create of Object.values({ ...hooks, ...workers })) expect(create).toHaveBeenCalledOnce();
   });
 
   it("rejects unknown modules before starting any", async () => {
