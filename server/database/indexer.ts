@@ -25,6 +25,24 @@ export const plugins = indexer
   })
   .existing();
 
+export const collectors = indexer
+  .view("collectors", {
+    chainId: integer("chain_id").notNull(),
+    plugin: text("plugin").$type<Hex>().notNull(),
+    address: text("address").$type<Hex>().notNull(),
+    block: numeric("block", { mode: "bigint" }).notNull(),
+    logIndex: integer("log_index").notNull(),
+  })
+  .existing();
+
+export const delays = indexer
+  .view("delays", {
+    chainId: integer("chain_id").notNull(),
+    proposalManager: text("proposal_manager").$type<Hex>().notNull(),
+    delay: numeric("delay", { mode: "bigint" }).notNull(),
+  })
+  .existing();
+
 export const deposits = indexer
   .view("deposits", {
     ...log(),
