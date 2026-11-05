@@ -1,7 +1,9 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
 - tapOn: Manage portfolio
-- assertVisible: Collateral assets
+- tapOn: Collateral assets
+- assertVisible: Assets you can use as backing to .+
+- tapOn: Got it!
 - tapOn: Collateral
 - assertVisible: USDC
 - assertNotVisible: Collateral assets

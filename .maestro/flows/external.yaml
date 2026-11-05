@@ -6,6 +6,9 @@ appId: ${APP_ID ?? "app.exactly"}
     env: { asset: USDT, to: "${output.account}", amount: "20500" }
 - tapOn: Manage portfolio
 - runFlow: { file: ../subflows/scrollTo.yaml, env: { element: USDT } }
+- tapOn: Other assets
+- assertVisible: Assets you can hold, but .+
+- tapOn: Got it!
 - tapOn: USDT
 - runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Send } }
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Send } }
@@ -28,7 +31,6 @@ appId: ${APP_ID ?? "app.exactly"}
       amount: "100"
       asset: USDT
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
-- tapOn: Home
 - runFlow: ../subflows/verifyIdentity.yaml
 - tapOn: Swap assets
 - tapOn: { text: "0", index: 0 }

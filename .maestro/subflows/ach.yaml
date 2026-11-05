@@ -11,6 +11,9 @@ appId: ${APP_ID ?? "app.exactly"}
       - tapOn: Continue
       - tapOn: Accept and continue
 - tapOn: Transfer to a new beneficiary
+- runFlow: { file: tapAria.yaml, env: { aria: More info } }
+- assertVisible: How your money is sent\. .+
+- tapOn: Got it!
 - tapOn: ACH
 - tapOn: Continue
 - tapOn: Enter beneficiary's full name

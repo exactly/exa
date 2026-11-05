@@ -10,8 +10,17 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: ../subflows/portfolio.yaml
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Deposit } }
 - tapOn: Digital assets
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Supported assets } }
+- assertVisible: Only .+ serve as collateral, .+
+- tapOn: Got it!
 - runFlow: { file: ../subflows/scrollTo.yaml, env: { element: USDT } }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Other assets } }
+- assertVisible: You can hold these assets, .+
+- tapOn: Got it!
 - tapOn: USDT
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Native network } }
+- assertVisible: .+ is Exa App's native network\. .+
+- tapOn: Got it!
 - tapOn: Recommended
 - runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Continue } }
 - tapOn: Continue
