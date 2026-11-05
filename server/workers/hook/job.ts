@@ -8,7 +8,7 @@ export const attempts = chain.testnet ? 3 : 20;
 export type Job = {
   account: Address;
   delivered?: string[];
-  receipt?: { blockNumber: number; transactionHash: string };
+  receipt?: { blockNumber: number; chainId?: number; transactionHash: string };
   sentryBaggage?: string;
   sentryTrace?: string;
 };
