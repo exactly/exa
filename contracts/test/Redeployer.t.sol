@@ -319,6 +319,55 @@ contract RedeployerTest is ForkTest {
     assertEq(account, accountBase, "account != expected");
   }
 
+  function test_prepare_deploysNewPluginVersionViaCreateX_onPolygon() external {
+    vm.createSelectFork("polygon", 95_000_000);
+
+    address admin = acct("admin");
+    address oldPlugin = CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("ExaPlugin")));
+    address oldProposalManager = CREATE3_FACTORY.getDeployed(admin, keccak256(abi.encode("ProposalManager")));
+    assertGt(oldPlugin.code.length, 0, "old plugin not deployed");
+    assertGt(oldProposalManager.code.length, 0, "old proposal manager not deployed");
+
+    redeployer = new NextVersionRedeployer();
+    redeployer.setUp();
+    redeployer.prepare();
+    ExaAccountFactory factory = redeployer.deployExaFactory("1.2.0");
+
+    address plugin = address(redeployer.exaPlugin());
+    assertEq(plugin, createXAddress(admin, keccak256(abi.encode("ExaPlugin", "1.2.0"))), "plugin != expected");
+    assertEq(
+      address(ExaPlugin(payable(plugin)).proposalManager()),
+      createXAddress(admin, keccak256(abi.encode("ProposalManager", "1.2.0"))),
+      "proposal manager != expected"
+    );
+    assertEq(address(factory), create3Address(admin, "Exa Plugin", "1.2.0"), "factory != expected");
+    assertEq(address(factory.EXA_PLUGIN()), plugin, "factory plugin != expected");
+    assertNotEq(plugin, oldPlugin, "old plugin reused");
+    assertGt(oldPlugin.code.length, 0, "old plugin removed");
+    assertGt(oldProposalManager.code.length, 0, "old proposal manager removed");
+  }
+
+  function test_prepare_deploysNewPluginVersion_withoutCreate3Factory() external {
+    vm.createSelectFork("polygon", 82_000_000);
+    vm.etch(address(CREATE3_FACTORY), "");
+
+    redeployer = new NextVersionRedeployer();
+    redeployer.setUp();
+    redeployer.prepare();
+    ExaAccountFactory factory = redeployer.deployExaFactory("1.2.0");
+
+    address admin = acct("admin");
+    assertEq(
+      address(redeployer.exaPlugin()),
+      createXAddress(admin, keccak256(abi.encode("ExaPlugin", "1.2.0"))),
+      "plugin != expected"
+    );
+    assertEq(address(factory), create3Address(admin, "Exa Plugin", "1.2.0"), "factory != expected");
+    assertEq(address(factory.EXA_PLUGIN()), address(redeployer.exaPlugin()), "factory plugin != expected");
+    assertGt(address(redeployer.dummy()).code.length, 0, "dummy not deployed");
+    assertGt(address(redeployer.proxyAdmin()).code.length, 0, "proxyAdmin not deployed");
+  }
+
   function test_deployExaFactory_replacesOutdatedOwnerPlugin_onPolygon() external {
     vm.createSelectFork("polygon", 95_000_000);
 
@@ -477,4 +526,10 @@ contract RedeployerTest is ForkTest {
   }
 
   // solhint-enable func-name-mixedcase
+}
+
+contract NextVersionRedeployer is Redeployer {
+  function _version() internal pure override returns (string memory) {
+    return "1.2.0";
+  }
 }
