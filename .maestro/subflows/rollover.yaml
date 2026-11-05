@@ -10,9 +10,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: { text: "${output.maturity}", below: Upcoming payments }
 - waitForAnimationToEnd
 - tapOn: Rollover
-- runFlow:
-    when: { visible: Review refinance details }
-    commands: [{ tapOn: Review refinance details }]
+- tapOn: Review refinance details
 - tapOn: Confirm rollover
 - runFlow: sign.yaml
 - tapOn: Payments

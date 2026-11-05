@@ -1,6 +1,5 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
-- tapOn: { text: Payments, index: -1 }
 - runFlow:
     when: { true: "${sheet}" }
     commands:
