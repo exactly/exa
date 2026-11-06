@@ -1,0 +1,38 @@
+From 04886daeddbe1e9c842133936603e5e5b30d01b8 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Fri, 6 Nov 2026 21:01:27 +0000
+Subject: [PATCH] feat: add media to file inputs on web
+
+addMedia does nothing on web, so a flow can't give a page a file, such as an identity document photo for an upload field, and headless Chrome opens no file chooser to pick one from. Set the media on the page's first file input, looking inside iframes when the page itself has none, which fires the same change event a picked file does.
+---
+ .../src/main/java/maestro/drivers/CdpWebDriver.kt  | 14 +++++++++++++-
+ 1 file changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+index e11998f..6f55f31 100644
+--- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+@@ -847,7 +847,19 @@ class CdpWebDriver(
+     }
+ 
+     override fun addMedia(mediaFiles: List<File>) {
+-        // noop for web
++        val driver = ensureOpen()
++        val paths = mediaFiles.joinToString("\n") { it.absolutePath }
++        fun fileInput() = driver.findElements(By.cssSelector("input[type=file]")).firstOrNull()
++        fileInput()?.let { return it.sendKeys(paths) }
++        for (iframe in driver.findElements(By.tagName("iframe"))) {
++            driver.switchTo().frame(iframe)
++            try {
++                fileInput()?.let { return it.sendKeys(paths) }
++            } finally {
++                driver.switchTo().defaultContent()
++            }
++        }
++        error("No file input to add media to")
+     }
+ 
+     override fun isAirplaneModeEnabled(): Boolean {
+-- 
+2.43.0
+
