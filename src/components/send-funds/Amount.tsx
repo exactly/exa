@@ -327,8 +327,8 @@ export default function Amount() {
                 placeholder="0"
                 fontSize={size}
                 width={(digits * size) / probe}
-                height={64}
-                padding={0}
+                height="s9"
+                padding="s0"
                 borderWidth={0}
                 backgroundColor="transparent"
                 textAlign="center"
@@ -408,7 +408,7 @@ export default function Amount() {
                     </>
                   ) : (
                     <>
-                      <View width={32} height={32} borderRadius="r_0" backgroundColor="interactiveDisabled" />
+                      <View width="s6" height="s6" borderRadius="r_0" backgroundColor="interactiveDisabled" />
                       <Text flex={1} callout primary>
                         {t("Select an asset")}
                       </Text>

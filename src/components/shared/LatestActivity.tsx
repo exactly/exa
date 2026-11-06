@@ -49,7 +49,7 @@ export default function LatestActivity({
       <YStack>
         {!activity?.length &&
           (emptyComponent ?? (
-            <YStack alignItems="center" justifyContent="center" gap="s4_5" padding="s4" paddingTop={0}>
+            <YStack alignItems="center" justifyContent="center" gap="s4_5" padding="s4" paddingTop="s0">
               <Text textAlign="center" color="uiNeutralSecondary" emphasized title>
                 📋
               </Text>

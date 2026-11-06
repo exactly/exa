@@ -129,7 +129,7 @@ export default function PriceChart({
           setWidth(nativeEvent.layout.width);
         }}
       >
-        <YStack height={16}>
+        <YStack height="s4">
           {x !== undefined && point && (
             <Text
               caption2

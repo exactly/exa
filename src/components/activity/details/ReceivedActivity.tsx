@@ -20,7 +20,7 @@ export default function ReceivedActivity({ item }: { item: Extract<ActivityItem,
     <>
       <YStack gap="s7" paddingBottom="s9">
         <XStack justifyContent="center" alignItems="center">
-          <Square borderRadius="r4" backgroundColor="backgroundStrong" size={80}>
+          <Square borderRadius="r4" backgroundColor="backgroundStrong" size="s10">
             <ArrowDownToLine size={48} color="interactiveOnBaseSuccessSoft" strokeWidth={2} />
           </Square>
         </XStack>

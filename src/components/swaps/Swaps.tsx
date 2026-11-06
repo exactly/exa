@@ -1093,8 +1093,8 @@ export default function Swaps() {
                             <XStack paddingTop="s3_5" justifyContent="center" alignItems="center" zIndex={1}>
                               <XStack
                                 position="absolute"
-                                width={48}
-                                height={48}
+                                width="s8"
+                                height="s8"
                                 borderRadius="r_0"
                                 borderWidth={4}
                                 borderColor="backgroundSoft"

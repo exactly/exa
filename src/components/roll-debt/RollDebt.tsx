@@ -103,10 +103,10 @@ export default function Pay() {
     ? (borrowPreview.assets * exaUSDC.usdPrice) / 10n ** BigInt(exaUSDC.decimals)
     : 0n;
   return (
-    <SafeView fullScreen backgroundColor="backgroundMild" paddingBottom={0}>
+    <SafeView fullScreen backgroundColor="backgroundMild" paddingBottom="s0">
       <View fullScreen gap="s5" paddingTop="s4_5">
         <View flexDirection="row" gap="s3_5" justifyContent="space-around" alignItems="center">
-          <View padded position="absolute" left={0}>
+          <View padded position="absolute" left="s0">
             <IconButton
               icon={ArrowLeft}
               aria-label={t("Back")}

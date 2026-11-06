@@ -37,7 +37,7 @@ export default function Settings() {
     <SafeView fullScreen tab>
       <View fullScreen padded gap="s5">
         <View flexDirection="row" gap="s3" justifyContent="space-around" alignItems="center">
-          <View position="absolute" left={0}>
+          <View position="absolute" left="s0">
             <IconButton
               icon={ArrowLeft}
               aria-label={t("Back")}

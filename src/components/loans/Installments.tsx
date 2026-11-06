@@ -32,7 +32,7 @@ export default function Installments() {
 
   if (!market || !amount || (markets && !asset)) return <Redirect href="/loan" />;
   return (
-    <SafeView fullScreen paddingBottom={0}>
+    <SafeView fullScreen paddingBottom="s0">
       <View padded flexDirection="row" gap="s3_5" paddingBottom="s4" justifyContent="space-between" alignItems="center">
         <IconButton
           icon={ArrowLeft}

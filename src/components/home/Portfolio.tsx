@@ -48,7 +48,7 @@ export default function Portfolio() {
   const stocks = allAssets.filter((asset): asset is ExternalAsset => asset.type === "external" && isStock(asset));
 
   return (
-    <SafeView fullScreen backgroundColor="backgroundSoft" paddingBottom={0}>
+    <SafeView fullScreen backgroundColor="backgroundSoft" paddingBottom="s0">
       <View padded flexDirection="row" gap="s3_5" paddingBottom="s4" alignItems="center">
         <IconButton
           icon={ArrowLeft}

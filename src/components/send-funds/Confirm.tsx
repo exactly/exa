@@ -1015,10 +1015,10 @@ export default function Confirm() {
                 <YStack
                   key={failure}
                   position="absolute"
-                  top={0}
-                  left={0}
-                  right={0}
-                  bottom={0}
+                  top="s0"
+                  left="s0"
+                  right="s0"
+                  bottom="s0"
                   backgroundColor="backgroundMild"
                   transition={{ preset: "default", properties: "opacity" }}
                   opacity="1 enter:0 exit:0"
@@ -1114,7 +1114,7 @@ export default function Confirm() {
           />
           <XStack justifyContent="center" alignItems="center">
             <Square
-              size={80}
+              size="s10"
               borderRadius="r4"
               backgroundColor={
                 failed

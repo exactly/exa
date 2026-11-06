@@ -41,7 +41,7 @@ export default function PromoSheet({
   const { promoEnd, refund } = getPromoMonths(language);
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
-      <SafeView paddingTop={0} borderTopLeftRadius="r4" borderTopRightRadius="r4" backgroundColor="backgroundSoft">
+      <SafeView paddingTop="s0" borderTopLeftRadius="r4" borderTopRightRadius="r4" backgroundColor="backgroundSoft">
         <YStack>
           <View
             borderRadius="r5"
@@ -61,7 +61,7 @@ export default function PromoSheet({
             <XStack
               alignSelf="center"
               backgroundColor="interactiveBaseSuccessDefault"
-              minHeight={20}
+              minHeight="s4_5"
               borderRadius="r2"
               alignItems="center"
               justifyContent="center"

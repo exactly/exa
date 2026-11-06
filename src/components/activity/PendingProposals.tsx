@@ -246,8 +246,8 @@ function ProposalItem({ proposal }: { proposal: Proposal }) {
   return (
     <XStack gap="s4" paddingVertical="s3">
       <View
-        width={40}
-        height={40}
+        width="s7"
+        height="s7"
         borderRadius="r3"
         backgroundColor="interactiveBaseInformationSoftDefault"
         justifyContent="center"
@@ -300,8 +300,8 @@ function MutationItem({ mutation }: { mutation: MutationState<unknown, Error, Ro
   return (
     <XStack gap="s4" paddingVertical="s3">
       <View
-        width={40}
-        height={40}
+        width="s7"
+        height="s7"
         borderRadius="r3"
         backgroundColor="interactiveBaseInformationSoftDefault"
         justifyContent="center"

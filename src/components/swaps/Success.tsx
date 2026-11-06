@@ -61,9 +61,9 @@ export default function Success({
       <StyledGradient
         locations={[0.5, 1]}
         position="absolute"
-        top={0}
-        left={0}
-        right={0}
+        top="s0"
+        left="s0"
+        right="s0"
         height={220}
         opacity={0.2}
         colors={[completed ? theme.uiSuccessSecondary.val : theme.uiInfoSecondary.val, theme.backgroundSoft.val]}
@@ -86,7 +86,7 @@ export default function Success({
                 backgroundColor={
                   completed ? "interactiveBaseSuccessSoftDefault" : "interactiveBaseInformationSoftDefault"
                 }
-                size={80}
+                size="s10"
               >
                 {completed ? (
                   <Check size={48} color="uiSuccessSecondary" strokeWidth={2} />

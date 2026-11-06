@@ -105,7 +105,15 @@ export default function CardContents({
           )}
         </AnimatePresence>
       </YStack>
-      <XStack transition="default" position="absolute" right={0} left={0} top={0} bottom={0} justifyContent="flex-end">
+      <XStack
+        transition="default"
+        position="absolute"
+        right="s0"
+        left="s0"
+        top="s0"
+        bottom="s0"
+        justifyContent="flex-end"
+      >
         {productId === PLATINUM_PRODUCT_ID ? (
           <Card
             width="100%"
@@ -134,10 +142,10 @@ export default function CardContents({
           <View
             key="frozen"
             position="absolute"
-            top={0}
-            left={0}
-            right={0}
-            bottom={0}
+            top="s0"
+            left="s0"
+            right="s0"
+            bottom="s0"
             backgroundColor="rgba(0,0,0,0.4)"
             zIndex={2}
             pointerEvents="none"

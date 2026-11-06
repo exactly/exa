@@ -121,8 +121,8 @@ export default function RepayAmountSelector({
               aria-label={t("Repay amount")}
               alignSelf="center"
               backgroundColor="backgroundSoft"
-              borderBottomLeftRadius={0}
-              borderBottomRightRadius={0}
+              borderBottomLeftRadius="r0"
+              borderBottomRightRadius="r0"
               borderWidth={0}
               color="uiNeutralPrimary"
               cursor="pointer"

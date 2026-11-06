@@ -38,8 +38,8 @@ export default function AddFundsOption({
       <XStack alignItems="center" gap="s3_5" justifyContent="space-between">
         <XStack gap="s3_5" alignItems="center" flex={1}>
           <View
-            width={40}
-            height={40}
+            width="s7"
+            height="s7"
             backgroundColor="interactiveBaseBrandSoftDefault"
             borderRadius="r3"
             padding="s3"

@@ -22,7 +22,7 @@ export default function SentActivity({ item }: { item: Extract<ActivityItem, { t
     <>
       <YStack gap="s7" paddingBottom="s9">
         <XStack justifyContent="center" alignItems="center">
-          <Square borderRadius="r4" backgroundColor="backgroundStrong" size={80}>
+          <Square borderRadius="r4" backgroundColor="backgroundStrong" size="s10">
             <ArrowUpFromLine size={48} color="interactiveOnBaseErrorSoft" strokeWidth={2} />
           </Square>
         </XStack>
