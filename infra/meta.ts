@@ -6,6 +6,11 @@ import process, { argv, stdout } from "node:process";
 import modules from "./utils/modules.ts";
 import rejectSecrets from "./utils/rejectSecrets.ts";
 
+process.on("uncaughtException", (error) => {
+  console.error(error.message); // eslint-disable-line no-console
+  process.exitCode = 1;
+});
+
 if (argv[2] !== "preview" && argv[2] !== "up") throw new Error("expected preview or up");
 if (argv[3] === undefined) throw new Error("expected stack");
 
@@ -79,6 +84,27 @@ const selected = await automation.LocalWorkspace.selectStack(
           attributeMapping: { "attribute.environment": "assertion.environment", "google.subject": "assertion.sub" },
           oidc: { issuerUri: "https://token.actions.githubusercontent.com" },
           workloadIdentityPoolId: pool.workloadIdentityPoolId,
+          workloadIdentityPoolProviderId: "github",
+        },
+        { dependsOn: stateServices, provider: stateProvider },
+      );
+      const read = new projects.IAMCustomRole(
+        "state-read",
+        { permissions: ["storage.objects.get"], roleId: "pulumiStateRead", title: "pulumi state read" },
+        { dependsOn: stateServices, provider: stateProvider },
+      );
+      const previewPool = new iam.WorkloadIdentityPool(
+        "github-preview",
+        { workloadIdentityPoolId: "github-preview" },
+        { dependsOn: stateServices, provider: stateProvider },
+      );
+      const previewFederation = new iam.WorkloadIdentityPoolProvider(
+        "github-preview",
+        {
+          attributeCondition: `assertion.workflow_ref.startsWith('exactly/exa/.github/workflows/infra-preview.yaml@refs/pull/') && assertion.event_name == 'pull_request' && assertion.repository_id == '715321557' && assertion.repository_owner_id == '83888950'`,
+          attributeMapping: { "google.subject": "assertion.sub" },
+          oidc: { issuerUri: "https://token.actions.githubusercontent.com" },
+          workloadIdentityPoolId: previewPool.workloadIdentityPoolId,
           workloadIdentityPoolProviderId: "github",
         },
         { dependsOn: stateServices, provider: stateProvider },
@@ -178,6 +204,11 @@ const selected = await automation.LocalWorkspace.selectStack(
             roleId: "pulumiServices",
             title: "pulumi services",
           },
+          { dependsOn: service, provider },
+        );
+        const preview = new projects.IAMCustomRole(
+          `${project}-preview`,
+          { permissions: ["iam.serviceAccounts.get"], roleId: "pulumiPreview", title: "pulumi preview" },
           { dependsOn: service, provider },
         );
         for (const stack of projectStacks) {
@@ -353,9 +384,47 @@ const selected = await automation.LocalWorkspace.selectStack(
             { bucket: stateBucket.name, member, role: list.name },
             { provider: stateProvider },
           );
+          const previewer = new serviceaccount.Account(
+            `${stack.name}-preview`,
+            { accountId: `preview-${stack.name}` },
+            { dependsOn: service, provider },
+          );
+          const previewMember = interpolate`serviceAccount:${previewer.email}`;
+          new serviceaccount.IAMMember(
+            `${stack.name}-preview`,
+            {
+              member: interpolate`principalSet://iam.googleapis.com/${previewPool.name}/*`,
+              role: "roles/iam.workloadIdentityUser",
+              serviceAccountId: previewer.name,
+            },
+            { provider },
+          );
+          new projects.IAMMember(
+            `${stack.name}-preview`,
+            { member: previewMember, project, role: preview.name },
+            { provider },
+          );
+          new storage.BucketIAMMember(
+            `${stack.name}-preview-state`,
+            {
+              bucket: stateBucket.name,
+              condition: {
+                expression: `resource.name.startsWith("projects/_/buckets/exa-pulumi-state/objects/${stack.name}/") || resource.name.startsWith("projects/_/buckets/exa-pulumi-state/objects/meta/")`,
+                title: `${stack.name} preview state`,
+              },
+              member: previewMember,
+              role: read.name,
+            },
+            { provider: stateProvider },
+          );
+          new storage.BucketIAMMember(
+            `${stack.name}-preview-list`,
+            { bucket: stateBucket.name, member: previewMember, role: list.name },
+            { provider: stateProvider },
+          );
         }
       }
-      return Promise.resolve({ provider: federation.name });
+      return Promise.resolve({ preview: previewFederation.name, provider: federation.name });
     },
   },
   {
@@ -363,14 +432,11 @@ const selected = await automation.LocalWorkspace.selectStack(
     workDir: import.meta.dirname,
   },
 );
-try {
-  await selected[argv[2]]({
-    exclude: stacks
-      .filter(({ name }) => name !== argv[3])
-      .flatMap(({ name }) => [`urn:pulumi:meta::exa::**::${name}`, `urn:pulumi:meta::exa::**::${name}-*`]),
-    onOutput: (output) => stdout.write(output),
-  });
-} catch (error: unknown) {
-  console.error(error instanceof Error ? error.message : error); // eslint-disable-line no-console
-  process.exitCode = 1;
-}
+await selected[argv[2]]({
+  exclude: stacks
+    .filter(({ name }) => name !== argv[3])
+    .flatMap(({ name }) => [`urn:pulumi:meta::exa::**::${name}`, `urn:pulumi:meta::exa::**::${name}-*`]),
+  ...(argv[4] === "--json"
+    ? { onEvent: (event: automation.EngineEvent) => stdout.write(`${JSON.stringify(event)}\n`) }
+    : { onOutput: (output: string) => stdout.write(output) }),
+});
