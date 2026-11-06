@@ -1,0 +1,24 @@
+From ca39ba49e812e9cf65a68ffa0b70f09a36efd6ad Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Fri, 6 Nov 2026 21:00:53 +0000
+Subject: [PATCH] fix: keep the web script's global on pages that scuttle
+ theirs
+
+Pages that lock down their global object after load, such as extension pages under LavaMoat, replace every configurable global they find with a getter that throws. When Maestro's script runs on such a page before its lockdown, window.maestro is one of them, and every later read fails ("property \"maestro\" of globalThis is inaccessible under scuttling mode"), so no element on the page can be read. Define window.maestro as a read-only, non-configurable property instead: LavaMoat leaves those alone, and the script still reuses the object it finds.
+---
+ maestro-client/src/main/resources/maestro-web.js | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/maestro-client/src/main/resources/maestro-web.js b/maestro-client/src/main/resources/maestro-web.js
+index 16ff662..701f3ad 100644
+--- a/maestro-client/src/main/resources/maestro-web.js
++++ b/maestro-client/src/main/resources/maestro-web.js
+@@ -405,4 +405,4 @@
+         
+         return maestro.smoothScrollFlutterByDelta(totalX, totalY, durationMs);
+     };
+-}( window.maestro = window.maestro || {} ));
++}( window.maestro || Object.defineProperty(window, "maestro", { value: {} }).maestro ));
+-- 
+2.43.0
+
