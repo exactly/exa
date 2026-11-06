@@ -422,7 +422,7 @@ export default function route({
             source: headers?.["client-fid"],
             ip: headers?.["do-connecting-ip"],
           });
-          const account = deriveAddress(result.factory, { x: result.x, y: result.y });
+          const account = deriveAddress(result.factory, { x: result.x, y: result.y, salt: result.salt });
           const intercomToken = await intercom(account, new Date(Date.now() + AUTH_EXPIRY));
           return c.json(
             {
