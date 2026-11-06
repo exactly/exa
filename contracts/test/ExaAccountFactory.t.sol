@@ -113,8 +113,7 @@ contract ExaAccountFactoryTest is ForkTest {
     assertEq(
       address(factory),
       create3Address(
-        address(this),
-        keccak256(abi.encode(IPlugin(exaPlugin).pluginMetadata().name, IPlugin(exaPlugin).pluginMetadata().version))
+        address(this), IPlugin(exaPlugin).pluginMetadata().name, IPlugin(exaPlugin).pluginMetadata().version
       ),
       "factory not at create3 address"
     );
