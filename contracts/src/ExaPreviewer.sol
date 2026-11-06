@@ -40,6 +40,35 @@ contract ExaPreviewer {
     }
   }
 
+  function discover(IDiscoverableFactory[] calldata factories) external view returns (Discovery memory discovery) {
+    uint256 deployed = 0;
+    for (uint256 i = 0; i < factories.length; ++i) {
+      if (address(factories[i]).code.length != 0) ++deployed;
+    }
+    address[] memory plugins = new address[](deployed);
+    address[] memory issuerCheckers = new address[](deployed);
+    uint256 found = 0;
+    for (uint256 i = 0; i < factories.length; ++i) {
+      if (address(factories[i]).code.length == 0) continue;
+      // slither-disable-next-line calls-loop
+      IDiscoverablePlugin plugin = factories[i].EXA_PLUGIN();
+      plugins[found] = address(plugin);
+      // slither-disable-next-line calls-loop
+      issuerCheckers[found] = plugin.ISSUER_CHECKER();
+      ++found;
+    }
+    // slither-disable-next-line low-level-calls
+    (bool success, bytes memory data) = address(AUDITOR).staticcall(abi.encodeWithSignature("firewall()"));
+    discovery = Discovery({
+      plugins: plugins,
+      issuerCheckers: issuerCheckers,
+      auditor: address(AUDITOR),
+      exaUSDC: address(EXA_USDC),
+      usdc: EXA_USDC.asset(),
+      firewall: success && data.length == 32 ? abi.decode(data, (address)) : address(0)
+    });
+  }
+
   function markets() external view returns (MarketPreview[] memory markets_) {
     IMarket[] memory allMarkets = AUDITOR.allMarkets();
     markets_ = new MarketPreview[](allMarkets.length);
@@ -154,6 +183,14 @@ interface ICollectableMarket is IMarket {
   function maxFuturePools() external view returns (uint256);
 }
 
+interface IDiscoverableFactory {
+  function EXA_PLUGIN() external view returns (IDiscoverablePlugin);
+}
+
+interface IDiscoverablePlugin {
+  function ISSUER_CHECKER() external view returns (address);
+}
+
 interface IInterestRateModel {
   function parameters() external view returns (IRMParameters memory);
 }
@@ -161,6 +198,15 @@ interface IInterestRateModel {
 struct Asset {
   address market;
   address asset;
+}
+
+struct Discovery {
+  address[] plugins;
+  address[] issuerCheckers;
+  address auditor;
+  address exaUSDC;
+  address usdc;
+  address firewall;
 }
 
 struct MarketPreview {
