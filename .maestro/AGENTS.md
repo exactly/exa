@@ -56,6 +56,7 @@
 - **aria labels**: on web, an aria label becomes the element's resource id instead of its text ([maestro#2914](https://github.com/mobile-dev-inc/Maestro/issues/2914)). tap, copy and dismiss labeled elements through `tapAria.yaml`, `copyAria.yaml` and `tapWhileAria.yaml`. the resource id comes from the first of the id, aria label, name, title, for and test id attributes.
 - **disambiguate**: use `below:` when a text appears twice. typed text matches tap selectors too, so type a part of the name you tap next (`eth`, then tap `WETH`).
 - **offscreen elements**: maestro web drops elements outside the viewport or entirely hidden by a scroll container, and trims partly hidden ones to their visible part (`bounds.patch`), so taps land on what users see. scroll before asserting them.
+- **disabled elements**: maestro web reports an element as disabled while it or an ancestor matches `:disabled` (`enabled.patch`), so `enabled: true` waits for a control that turns on later.
 - **yaml**: quote yaml 1.1 booleans like `"On"` and regexes with `?`. `${}` ends at the first `}`, so an expression can't hold a regex quantifier like `{40}`: use string methods. check edited flows with `.maestro/build/bin/maestro check-syntax <file>`.
 
 ## platforms
