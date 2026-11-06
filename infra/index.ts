@@ -23,10 +23,16 @@ await rejectSecrets(stack, await automation.LocalWorkspace.create({ workDir: imp
 const config = new Config();
 const disabled = new Set(
   parse(
-    optional(array(picklist(Object.keys({ ...modules.services, ...modules.workers }), "unknown module")), []),
+    optional(
+      array(
+        picklist([...Object.keys({ ...modules.services, ...modules.workers }), ...modules.features], "unknown module"),
+      ),
+      [],
+    ),
     config.getObject("disabled"),
   ),
 );
+const features = modules.features.filter((feature) => disabled.has(feature));
 const enabled = <Spec>(specs: Readonly<Record<string, Spec>>) =>
   Object.entries(specs).filter(([name]) => !disabled.has(name));
 const project = new Config("gcp").require("project");
@@ -111,6 +117,7 @@ function module(
           envs: [
             { name: "APP_DOMAIN", value: config.get("domain") ?? `${stack}.exactly.app` },
             { name: "DEBUG", value: "exa:*" },
+            ...(features.length > 0 ? [{ name: "DISABLED_MODULES", value: features.join(",") }] : []),
             { name: "NODE_ENV", value: "production" },
             { name: "SENTRY_DSN", valueSource: { secretKeyRef: { secret: `${stack}-sentry-dsn`, version: "latest" } } },
             ...(signers.length > 0
