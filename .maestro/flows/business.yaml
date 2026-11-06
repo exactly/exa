@@ -34,6 +34,10 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: { text: Done, below: Congratulations.* }
 - assertTrue: '${http.post("http://localhost:3000/e2e/review", { body: "persona" }).ok}'
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- runFlow: ../subflows/storeCoverage.yaml
+- launchApp: { clearState: true }
+- tapOn: I already have an account
+- tapOn: { id: Close, above: Invest in companies you know }
 - tapOn: Get a business Exa Card
 - tapOn: { text: Add card user, below: Get an Exa Card for your business }
 - tapOn: { id: Close }
