@@ -1,11 +1,22 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.0;
 
+import { IAccountLoupe } from "modular-account-libs/interfaces/IAccountLoupe.sol";
 import { LibBytes } from "solady/utils/LibBytes.sol";
 import { LibCall } from "solady/utils/LibCall.sol";
 import { LibString } from "solady/utils/LibString.sol";
 
-import { IAuditor, IMarket, MarketData } from "./IExaAccount.sol";
+import { ExaPlugin } from "./ExaPlugin.sol";
+import {
+  IAuditor,
+  IExaAccount,
+  IMarket,
+  IProposalManager,
+  MarketData,
+  PendingProposal,
+  Proposal,
+  ProposalType
+} from "./IExaAccount.sol";
 
 contract AppPreviewer {
   using LibString for string;
@@ -29,6 +40,50 @@ contract AppPreviewer {
       });
     }
   }
+
+  function pendingProposals(address account) external view returns (PendingProposal[] memory proposals) {
+    IProposalManager proposalManager_ = _proposalManager(account);
+    if (address(proposalManager_) == address(0)) return proposals;
+    uint256 queueNonce = proposalManager_.queueNonces(account);
+    uint256 nonce = proposalManager_.nonces(account);
+    uint256 delay = proposalManager_.delay();
+    proposals = new PendingProposal[](queueNonce - nonce);
+    for (uint256 i = nonce; i < queueNonce; ++i) {
+      // slither-disable-next-line calls-loop
+      (uint256 amount, IMarket market, uint256 timestamp, ProposalType proposalType, bytes memory data) =
+        proposalManager_.proposals(account, i);
+      proposals[i - nonce] = PendingProposal({
+        nonce: i,
+        unlock: timestamp + delay,
+        proposal: Proposal({
+          amount: amount, market: market, timestamp: timestamp, proposalType: proposalType, data: data
+        })
+      });
+    }
+  }
+
+  function proposalManager(address account) external view returns (ProposalManagerPreview memory preview) {
+    IProposalManager proposalManager_ = _proposalManager(account);
+    if (address(proposalManager_) == address(0)) return preview;
+    return ProposalManagerPreview({
+      proposalManager: address(proposalManager_),
+      delay: proposalManager_.delay(),
+      queueNonce: proposalManager_.queueNonces(account),
+      nonce: proposalManager_.nonces(account)
+    });
+  }
+
+  function _proposalManager(address account) internal view returns (IProposalManager proposalManager_) {
+    if (account.code.length == 0) return proposalManager_;
+    try IAccountLoupe(account).getExecutionFunctionConfig(IExaAccount.propose.selector) returns (
+      IAccountLoupe.ExecutionFunctionConfig memory config
+    ) {
+      if (config.plugin.code.length == 0) return proposalManager_;
+      try ExaPlugin(payable(config.plugin)).proposalManager() returns (IProposalManager result) {
+        return result;
+      } catch { } // solhint-disable-line no-empty-blocks
+    } catch { } // solhint-disable-line no-empty-blocks
+  }
 }
 
 struct MarketPreview {
@@ -39,4 +94,11 @@ struct MarketPreview {
   bool isFrozen;
   uint256 usdPrice;
   string symbol;
+}
+
+struct ProposalManagerPreview {
+  address proposalManager;
+  uint256 delay;
+  uint256 queueNonce;
+  uint256 nonce;
 }
