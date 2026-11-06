@@ -6,6 +6,7 @@ import {
   array,
   boolean,
   check,
+  email,
   flatten,
   length,
   literal,
@@ -23,6 +24,7 @@ import {
   safeParse,
   string,
   transform,
+  trim,
   union,
   unknown,
   url as urlValidator,
@@ -34,13 +36,14 @@ import {
   type InferOutput,
 } from "valibot";
 import { withRetry } from "viem";
-import { optimism, optimismSepolia } from "viem/chains";
+import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import { credentials } from "../../database/schema";
+import { BusinessApplicationError } from "../panda";
 import * as Persona from "../persona";
 import ServiceError from "../ServiceError";
 
@@ -84,7 +87,15 @@ export default function bridge(key: string, url: string) {
   };
 
   async function agreementLink(redirectUri?: string) {
-    const response = await request(AgreementLinkResponse, `/customers/tos_links`, {}, undefined, "POST", 10_000);
+    const response = await request(
+      AgreementLinkResponse,
+      `/customers/tos_links`,
+      {},
+      undefined,
+      "POST",
+      10_000,
+      crypto.randomUUID(),
+    );
     const link = new URL(response.url);
     if (redirectUri) link.searchParams.set("redirect_uri", redirectUri);
     return String(link);
@@ -92,16 +103,24 @@ export default function bridge(key: string, url: string) {
   // eslint-disable-next-line unicorn/consistent-function-scoping
   function containsRequirement(node: unknown, targets: Set<string>): boolean {
     if (typeof node === "string") return targets.has(node);
+    if (safeParse(object({ object_type: literal("associated_person") }), node).success) return false;
     const allOf = safeParse(object({ all_of: array(unknown()) }), node);
     if (allOf.success) return allOf.output.all_of.some((child) => containsRequirement(child, targets));
     const anyOf = safeParse(object({ any_of: array(unknown()) }), node);
     if (anyOf.success) return anyOf.output.any_of.some((child) => containsRequirement(child, targets));
     return false;
   }
-  async function createCustomer(user: InferInput<typeof CreateCustomer>, idempotencyKey?: string) {
-    try {
-      return await request(NewCustomer, "/customers", {}, user, "POST", 15_000, idempotencyKey);
-    } catch (error) {
+  async function createCustomer(customer: InferInput<typeof CreateCustomer>, idempotencyKey: string) {
+    return await withRetry(() => request(NewCustomer, "/customers", {}, customer, "POST", 15_000, idempotencyKey), {
+      retryCount: 2,
+      shouldRetry: ({ error }) => {
+        const retryable =
+          (error instanceof Error && error.name === "TimeoutError") ||
+          (error instanceof ServiceError && error.status >= 500);
+        if (retryable) captureException(error, { level: "warning" });
+        return retryable;
+      },
+    }).catch((error: unknown) => {
       if (error instanceof ServiceError && typeof error.cause === "string") {
         if (error.cause.includes(BridgeApiErrorCodes.EMAIL_ALREADY_EXISTS)) {
           withScope((scope) => {
@@ -134,7 +153,7 @@ export default function bridge(key: string, url: string) {
         }
       }
       throw error;
-    }
+    });
   }
   async function createExternalAccount(
     customer: InferOutput<typeof CustomerResponse>,
@@ -344,6 +363,7 @@ export default function bridge(key: string, url: string) {
       })(),
       "POST",
       10_000,
+      crypto.randomUUID(),
     )
       .catch((error: unknown) => {
         if (error instanceof ServiceError && typeof error.cause === "string") {
@@ -376,6 +396,7 @@ export default function bridge(key: string, url: string) {
       data,
       "POST",
       10_000,
+      crypto.randomUUID(),
     );
   }
   async function createOfframpTransfer(
@@ -393,28 +414,39 @@ export default function bridge(key: string, url: string) {
     }
     const paymentRail = rail ?? PaymentRailByBridgeCurrency[CurrencyToBridge[currency]];
     if (!paymentRail) throw new Error(ErrorCodes.NOT_AVAILABLE_CURRENCY);
-    return await createTransfer({
-      on_behalf_of: customerId,
-      client_reference_id: account,
-      source: { currency: "usdc", payment_rail: supportedChain },
-      destination: {
-        currency: CurrencyToBridge[currency],
-        payment_rail: paymentRail,
-        external_account_id: externalAccountId,
-        ach_reference: paymentRail === "ach" ? reference : undefined,
-        wire_message: paymentRail === "wire" ? reference : undefined,
-        sepa_reference: paymentRail === "sepa" ? reference : undefined,
-        spei_reference: paymentRail === "spei" ? reference : undefined,
-        reference: paymentRail === "pix" || paymentRail === "faster_payments" ? reference : undefined,
+    return await createTransfer(
+      {
+        on_behalf_of: customerId,
+        client_reference_id: account,
+        source: { currency: "usdc", payment_rail: supportedChain },
+        destination: {
+          currency: CurrencyToBridge[currency],
+          payment_rail: paymentRail,
+          external_account_id: externalAccountId,
+          ach_reference: paymentRail === "ach" ? reference : undefined,
+          wire_message: paymentRail === "wire" ? reference : undefined,
+          sepa_reference: paymentRail === "sepa" ? reference : undefined,
+          spei_reference: paymentRail === "spei" ? reference : undefined,
+          reference: paymentRail === "pix" || paymentRail === "faster_payments" ? reference : undefined,
+        },
+        features: { flexible_amount: true, static_template: true, allow_any_from_address: true },
       },
-      features: { flexible_amount: true, static_template: true, allow_any_from_address: true },
-    });
+      crypto.randomUUID(),
+    );
   }
-  async function createTransfer(data: InferInput<typeof CreateTransfer>, idempotencyKey?: string) {
+  async function createTransfer(data: InferInput<typeof CreateTransfer>, idempotencyKey: string) {
     return await request(Transfer, "/transfers", {}, data, "POST", 15_000, idempotencyKey);
   }
   async function createVirtualAccount(customerId: string, data: InferInput<typeof CreateVirtualAccount>) {
-    return await request(VirtualAccount, `/customers/${customerId}/virtual_accounts`, {}, data, "POST", 10_000);
+    return await request(
+      VirtualAccount,
+      `/customers/${customerId}/virtual_accounts`,
+      {},
+      data,
+      "POST",
+      10_000,
+      crypto.randomUUID(),
+    );
   }
   // eslint-disable-next-line unicorn/consistent-function-scoping
   async function encodeFile(file: File) {
@@ -460,14 +492,16 @@ export default function bridge(key: string, url: string) {
     if (customer.status !== "active") throw new Error(ErrorCodes.NOT_ACTIVE_CUSTOMER);
 
     const paymentRail = NetworkToCryptoPaymentRail[network];
-    if (!CurrencyByPaymentRail[paymentRail].includes(currency)) {
+    if (network === nativeNetwork[supportedChainId].network || !CurrencyByPaymentRail[paymentRail].includes(currency)) {
       throw new Error(ErrorCodes.NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL);
     }
 
     const liquidationAddresses = await getLiquidationAddresses(customer.id);
     let liquidationAddress = liquidationAddresses.find(
-      ({ chain: bridgeChain, currency: bridgeCurrency }) =>
-        bridgeChain === paymentRail && CurrencyToBridge[currency] === bridgeCurrency,
+      ({ chain: bridgeChain, currency: bridgeCurrency, destination_payment_rail }) =>
+        bridgeChain === paymentRail &&
+        CurrencyToBridge[currency] === bridgeCurrency &&
+        destination_payment_rail === supportedChainId,
     );
 
     liquidationAddress ??= await createLiquidationAddress(
@@ -503,22 +537,25 @@ export default function bridge(key: string, url: string) {
     }
 
     const paymentRail = parse(picklist(["solana", "stellar", "tron", "base"]), NetworkToOfframpRail[network]);
-    if (!CurrencyByPaymentRail[paymentRail].includes(currency)) {
+    if (network === nativeNetwork[supportedChain].network || !CurrencyByPaymentRail[paymentRail].includes(currency)) {
       throw new Error(ErrorCodes.NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL);
     }
 
-    const transfer = await createTransfer({
-      on_behalf_of: customer.id,
-      client_reference_id: account,
-      source: { currency: "usdc", payment_rail: supportedChain },
-      destination: {
-        currency: CurrencyToBridge[currency],
-        payment_rail: paymentRail,
-        to_address: toAddress,
-        blockchain_memo: memo,
+    const transfer = await createTransfer(
+      {
+        on_behalf_of: customer.id,
+        client_reference_id: account,
+        source: { currency: "usdc", payment_rail: supportedChain },
+        destination: {
+          currency: CurrencyToBridge[currency],
+          payment_rail: paymentRail,
+          to_address: toAddress,
+          blockchain_memo: memo,
+        },
+        features: { flexible_amount: true, allow_any_from_address: true },
       },
-      features: { flexible_amount: true, allow_any_from_address: true },
-    }).catch((error: unknown) => {
+      crypto.randomUUID(),
+    ).catch((error: unknown) => {
       if (
         error instanceof ServiceError &&
         typeof error.cause === "string" &&
@@ -532,8 +569,8 @@ export default function bridge(key: string, url: string) {
 
     return [
       {
-        network: "OPTIMISM" as const,
-        displayName: "Optimism" as const,
+        network: nativeNetwork[supportedChain].network,
+        displayName: nativeNetwork[supportedChain].displayName,
         address: parse(Address, transfer.source_deposit_instructions.to_address),
         fee: "0.0",
         estimatedProcessingTime: "300",
@@ -572,8 +609,10 @@ export default function bridge(key: string, url: string) {
     if (!available) throw new Error(ErrorCodes.NOT_AVAILABLE_CURRENCY);
     const virtualAccounts = await getVirtualAccounts(customer.id);
     let virtualAccount = virtualAccounts.find(
-      ({ source_deposit_instructions, status }) =>
-        source_deposit_instructions.currency === CurrencyToBridge[currency] && status === "activated",
+      ({ destination, source_deposit_instructions, status }) =>
+        source_deposit_instructions.currency === CurrencyToBridge[currency] &&
+        destination.payment_rail === supportedChainId &&
+        status === "activated",
     );
 
     virtualAccount ??= await createVirtualAccount(customer.id, {
@@ -750,12 +789,12 @@ export default function bridge(key: string, url: string) {
     });
   }
   async function getKYCLink(customerId: string, redirectUri?: string, endorsement?: (typeof Endorsements)[number]) {
-    const params = new URLSearchParams();
-    if (endorsement) params.set("endorsement", endorsement);
-    if (redirectUri) params.set("redirect_uri", redirectUri);
+    const query = new URLSearchParams();
+    if (endorsement) query.set("endorsement", endorsement);
+    if (redirectUri) query.set("redirect_uri", redirectUri);
     const result = await request(
       object({ url: pipe(string(), urlValidator()) }),
-      `/customers/${customerId}/kyc_link${String(params) ? `?${String(params)}` : ""}`,
+      `/customers/${customerId}/kyc_link${String(query) ? `?${String(query)}` : ""}`,
       {},
       undefined,
       "GET",
@@ -826,8 +865,8 @@ export default function bridge(key: string, url: string) {
 
     return [
       {
-        network: "OPTIMISM" as const,
-        displayName: "Optimism" as const,
+        network: nativeNetwork[supportedChain].network,
+        displayName: nativeNetwork[supportedChain].displayName,
         address: parse(Address, transfer.source_deposit_instructions.to_address),
         fee: "0.0",
         estimatedProcessingTime: "300",
@@ -847,6 +886,7 @@ export default function bridge(key: string, url: string) {
   }
   async function getProvider(
     params: {
+      accountType: "business" | "consumer";
       countryCode?: string;
       credentialId: string;
       customerId?: null | string;
@@ -854,7 +894,8 @@ export default function bridge(key: string, url: string) {
     },
     persona: PersonaService,
   ) {
-    if (!Supported[chain.id]) {
+    const supportedChain = Supported[chain.id];
+    if (!supportedChain) {
       captureException(new Error("bridge not supported chain id"), { contexts: { chain }, level: "error" });
       return { onramp: { currencies: [] }, offramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
     }
@@ -865,13 +906,13 @@ export default function bridge(key: string, url: string) {
         { currency: "USDC" as const, network: "SOLANA" as const },
         { currency: "USDC" as const, network: "STELLAR" as const },
         { currency: "USDT" as const, network: "TRON" as const },
-      ],
+      ].filter(({ network }) => network !== nativeNetwork[supportedChain].network),
       offramp: [
         { currency: "USDC" as const, network: "BASE" as const },
         { currency: "USDC" as const, network: "SOLANA" as const },
         { currency: "USDC" as const, network: "STELLAR" as const },
         { currency: "USDT" as const, network: "TRON" as const },
-      ],
+      ].filter(({ network }) => network !== nativeNetwork[supportedChain].network),
     };
 
     if (params.customerId) {
@@ -905,6 +946,7 @@ export default function bridge(key: string, url: string) {
                 redirect.searchParams.set("provider", "bridge");
                 return String(redirect);
               })(),
+              params.accountType,
             ),
           };
         case "active":
@@ -924,6 +966,7 @@ export default function bridge(key: string, url: string) {
                   redirect.searchParams.set("provider", "bridge");
                   return String(redirect);
                 })(),
+                params.accountType,
               ),
             };
           }
@@ -981,6 +1024,32 @@ export default function bridge(key: string, url: string) {
             return String(redirect);
           })(),
         ),
+      };
+    }
+
+    if (params.accountType === "business") {
+      return {
+        status: "NOT_STARTED" as const,
+        tosLink: await agreementLink(
+          (() => {
+            if (!params.redirectURL) return;
+            const redirect = new URL(params.redirectURL);
+            redirect.searchParams.set("provider", "bridge");
+            return String(redirect);
+          })(),
+        ),
+        onramp: {
+          currencies: [
+            ...currencies.onramp,
+            ...BusinessEndorsements.flatMap((endorsement) => CurrencyByEndorsement[endorsement].currencies),
+          ],
+        },
+        offramp: {
+          currencies: [
+            ...currencies.offramp,
+            ...BusinessEndorsements.flatMap((endorsement) => CurrencyByEndorsement[endorsement].currencies),
+          ],
+        },
       };
     }
 
@@ -1134,7 +1203,10 @@ export default function bridge(key: string, url: string) {
   }
   async function listExternalAccounts(customerId: string) {
     const path = `/customers/${customerId}/external_accounts` as const;
-    const first = await request(ExternalAccounts, `${path}?limit=20`, {}, undefined, "GET", 10_000);
+    const [first, templates] = await Promise.all([
+      request(ExternalAccounts, `${path}?limit=20`, {}, undefined, "GET", 10_000),
+      getStaticTemplates(customerId),
+    ]);
     const accounts = [...first.data];
     if (first.data.length < first.count)
       captureException(new Error("bridge external accounts pagination"), {
@@ -1165,6 +1237,17 @@ export default function bridge(key: string, url: string) {
       const currency = FiatByBridgeCurrency[account.currency];
       if (!currency) return [];
       if (!account.active) return [];
+      if (
+        !templates.some(
+          ({ destination, source, state }) =>
+            destination.external_account_id === account.id &&
+            source.payment_rail === Supported[chain.id] &&
+            source.currency === "usdc" &&
+            state !== "canceled",
+        )
+      ) {
+        return [];
+      }
       return [
         {
           addressValid: account.beneficiary_address_valid ?? undefined,
@@ -1176,7 +1259,11 @@ export default function bridge(key: string, url: string) {
       ];
     });
   }
-  function maybeKYCLink(bridgeUser: InferOutput<typeof CustomerResponse>, redirectUri: string | undefined) {
+  function maybeKYCLink(
+    bridgeUser: InferOutput<typeof CustomerResponse>,
+    redirectUri: string | undefined,
+    accountType: "business" | "consumer",
+  ) {
     if (bridgeUser.status === "offboarded") return;
     if (
       bridgeUser.endorsements.some((endorsement) =>
@@ -1193,8 +1280,41 @@ export default function bridge(key: string, url: string) {
     if (
       bridgeUser.endorsements.some(
         (endorsement) =>
-          containsRequirement(endorsement.requirements.missing, missing) ||
-          endorsement.requirements.issues.some((issue) => hasIssue(issue)),
+          containsRequirement(
+            endorsement.requirements.missing,
+            new Set(
+              (() => {
+                switch (accountType) {
+                  case "business":
+                    return [
+                      "address_of_incorporation",
+                      "address_of_operation",
+                      "associated_persons",
+                      "business_description",
+                      "business_formation_document",
+                      "business_ownership_documents",
+                      "business_type",
+                      "business_website",
+                      "control_person_ownership_attestation",
+                      "proof_of_address",
+                      "proof_of_nature_of_business_document",
+                      "source_of_funds_questionnaire",
+                      "tax_identification_number",
+                    ];
+                  case "consumer":
+                    return [
+                      "gov_id_address_to_residential_address_match",
+                      "proof_of_address_document",
+                      "selfie_document_in_persona",
+                      "selfie_verification",
+                      "sof_individual_primary_purpose",
+                      "source_of_funds_questionnaire",
+                      "tax_identification_number",
+                    ];
+                }
+              })(),
+            ),
+          ) || endorsement.requirements.issues.some((issue) => hasIssue(issue)),
       )
     ) {
       return getKYCLink(bridgeUser.id, redirectUri).catch((error: unknown): undefined => {
@@ -1203,7 +1323,12 @@ export default function bridge(key: string, url: string) {
     }
   }
   async function onboarding(
-    params: { acceptedTermsId: string; credentialId: string; customerId: null | string },
+    params: {
+      acceptedTermsId: string;
+      accountType: "business" | "consumer";
+      credentialId: string;
+      customerId: null | string;
+    },
     database: NodePgDatabase<typeof schema>,
     persona: PersonaService,
   ) {
@@ -1214,77 +1339,120 @@ export default function bridge(key: string, url: string) {
       throw new Error(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
     }
 
-    const personaAccount = await persona.getAccount(params.credentialId, "bridge");
-    if (!personaAccount) throw new Error(ErrorCodes.NO_PERSONA_ACCOUNT);
+    switch (params.accountType) {
+      case "business": {
+        const inquiry = await persona.getInquiry(params.credentialId, Persona.BUSINESS_TEMPLATE);
+        if (!inquiry) throw new BusinessApplicationError("business inquiry not started", "not started");
+        if (inquiry.attributes["reference-id"] !== params.credentialId)
+          throw new BusinessApplicationError("business inquiry does not match credential", "bad request");
+        switch (inquiry.attributes.status) {
+          case "created":
+          case "expired":
+          case "pending":
+            throw new BusinessApplicationError("business inquiry is not started", "not started");
+          case "failed":
+          case "declined":
+            throw new BusinessApplicationError("business inquiry failed", "bad kyb");
+          case "completed":
+          case "needs_review":
+            throw new BusinessApplicationError("business inquiry is not complete", "processing");
+          case "approved":
+            break;
+        }
+        const profile = parse(
+          object({
+            "business-name": pipe(string(), trim(), minLength(1)),
+            "primary-contact-email": pipe(string(), trim(), email()),
+          }),
+          inquiry.attributes.fields,
+        );
+        const customer = await createCustomer(
+          {
+            business_legal_name: profile["business-name"],
+            client_reference_id: params.credentialId,
+            email: profile["primary-contact-email"],
+            endorsements: [...BusinessEndorsements],
+            signed_agreement_id: params.acceptedTermsId,
+            type: "business",
+          },
+          crypto.randomUUID(),
+        );
+        await database
+          .update(credentials)
+          .set({ bridgeId: customer.id })
+          .where(eq(credentials.id, params.credentialId));
+        break;
+      }
+      case "consumer": {
+        const personaAccount = await persona.getAccount(params.credentialId, "bridge");
+        if (!personaAccount) throw new Error(ErrorCodes.NO_PERSONA_ACCOUNT);
 
-    const countryCode = personaAccount.attributes["country-code"];
-    if (Denylist.has(countryCode)) {
-      captureException(new Error("bridge denylisted country"), {
-        contexts: { bridge: { credentialId: params.credentialId, countryCode } },
-        level: "warning",
-      });
-      throw new Error(ErrorCodes.DENYLISTED_COUNTRY);
-    }
+        const countryCode = personaAccount.attributes["country-code"];
+        if (Denylist.has(countryCode)) {
+          captureException(new Error("bridge denylisted country"), {
+            contexts: { bridge: { credentialId: params.credentialId, countryCode } },
+            level: "warning",
+          });
+          throw new Error(ErrorCodes.DENYLISTED_COUNTRY);
+        }
 
-    if (personaAccount.attributes.fields.bridge_enable?.value !== true) {
-      captureException(new Error("bridge not enabled"), {
-        contexts: { bridge: { credentialId: params.credentialId } },
-        level: "warning",
-      });
-      throw new Error(ErrorCodes.NOT_ENABLED);
-    }
+        if (personaAccount.attributes.fields.bridge_enable?.value !== true) {
+          captureException(new Error("bridge not enabled"), {
+            contexts: { bridge: { credentialId: params.credentialId } },
+            level: "warning",
+          });
+          throw new Error(ErrorCodes.NOT_ENABLED);
+        }
 
-    const validDocument = persona.getDocumentForBridge(personaAccount.attributes.fields.documents.value);
-    if (!validDocument) throw new Error(ErrorCodes.NO_DOCUMENT);
+        const validDocument = persona.getDocumentForBridge(personaAccount.attributes.fields.documents.value);
+        if (!validDocument) throw new Error(ErrorCodes.NO_DOCUMENT);
 
-    const endorsements: (typeof Endorsements)[number][] = ["base", "sepa"];
-    if (countryCode === "MX") endorsements.push("spei");
-    if (countryCode === "BR") endorsements.push("pix_offramp", "pix_onramp");
-    if (countryCode === "GB") endorsements.push("faster_payments");
+        const endorsements: (typeof Endorsements)[number][] = ["base", "sepa"];
+        if (countryCode === "MX") endorsements.push("spei");
+        if (countryCode === "BR") endorsements.push("pix_offramp", "pix_onramp");
+        if (countryCode === "GB") endorsements.push("faster_payments");
 
-    const identityDocument = await persona.getDocument(validDocument.id_document_id.value);
-    const frontDocumentURL = identityDocument.attributes["front-photo"]?.url;
-    if (!frontDocumentURL) throw new Error(ErrorCodes.NO_DOCUMENT_FILE);
-    const backDocumentURL = identityDocument.attributes["back-photo"]?.url;
-
-    const [frontFileEncoded, backFileEncoded] = await Promise.all([
-      fetchAndEncodeFile(frontDocumentURL, identityDocument.attributes["front-photo"]?.filename ?? "front-photo.jpg"),
-      backDocumentURL
-        ? fetchAndEncodeFile(backDocumentURL, identityDocument.attributes["back-photo"]?.filename ?? "back-photo.jpg")
-        : undefined,
-    ]);
-
-    const idClass = safeParse(picklist(Persona.IdentificationClasses), validDocument.id_class.value);
-    const bridgeIdType = idClass.success && Persona.IdClassToBridge[idClass.output];
-    if (!bridgeIdType) throw new Error(ErrorCodes.NOT_FOUND_IDENTIFICATION_CLASS);
-    const country = alpha2ToAlpha3(countryCode);
-    if (!country) throw new Error(ErrorCodes.NO_COUNTRY_ALPHA3);
-
-    const identifyingInformation: (InferInput<typeof IdentityDocument> | InferInput<typeof TIN>)[] = [
-      {
-        type: bridgeIdType,
-        issuing_country: validDocument.id_issuing_country.value,
-        number: validDocument.id_number.value,
-        image_front: frontFileEncoded,
-        image_back: backFileEncoded,
-      },
-    ];
-
-    if (countryCode === "US") {
-      const ssn = personaAccount.attributes["social-security-number"];
-      if (!ssn) throw new Error(ErrorCodes.NO_SOCIAL_SECURITY_NUMBER);
-
-      identifyingInformation.push({
-        type: "ssn",
-        number: ssn,
-        issuing_country: "USA",
-      });
-    }
-
-    const idempotencyKey = crypto.randomUUID();
-    const customer = await withRetry(
-      () =>
-        createCustomer(
+        const identityDocument = await persona.getDocument(validDocument.id_document_id.value);
+        const frontDocumentURL = identityDocument.attributes["front-photo"]?.url;
+        if (!frontDocumentURL) throw new Error(ErrorCodes.NO_DOCUMENT_FILE);
+        const backDocumentURL = identityDocument.attributes["back-photo"]?.url;
+        const [frontFileEncoded, backFileEncoded] = await Promise.all([
+          fetchAndEncodeFile(
+            frontDocumentURL,
+            identityDocument.attributes["front-photo"]?.filename ?? "front-photo.jpg",
+          ),
+          backDocumentURL
+            ? fetchAndEncodeFile(
+                backDocumentURL,
+                identityDocument.attributes["back-photo"]?.filename ?? "back-photo.jpg",
+              )
+            : undefined,
+        ]);
+        const idClass = safeParse(picklist(Persona.IdentificationClasses), validDocument.id_class.value);
+        const bridgeIdType = idClass.success && Persona.IdClassToBridge[idClass.output];
+        if (!bridgeIdType) throw new Error(ErrorCodes.NOT_FOUND_IDENTIFICATION_CLASS);
+        const country = alpha2ToAlpha3(countryCode);
+        if (!country) throw new Error(ErrorCodes.NO_COUNTRY_ALPHA3);
+        const identifyingInformation: (InferInput<typeof IdentityDocument> | InferInput<typeof TIN>)[] = [
+          {
+            type: bridgeIdType,
+            issuing_country: validDocument.id_issuing_country.value,
+            number: validDocument.id_number.value,
+            image_front: frontFileEncoded,
+            image_back: backFileEncoded,
+          },
+        ];
+        if (countryCode === "US") {
+          const ssn = personaAccount.attributes["social-security-number"];
+          if (!ssn) throw new Error(ErrorCodes.NO_SOCIAL_SECURITY_NUMBER);
+          identifyingInformation.push({
+            type: "ssn",
+            number: ssn,
+            issuing_country: "USA",
+          });
+        }
+        const idempotencyKey = crypto.randomUUID();
+        const customer = await createCustomer(
           {
             type: "individual",
             first_name: personaAccount.attributes.fields.name.value.first.value,
@@ -1306,19 +1474,14 @@ export default function bridge(key: string, url: string) {
             identifying_information: identifyingInformation,
           },
           idempotencyKey,
-        ),
-      {
-        retryCount: 2,
-        shouldRetry: ({ error }) => {
-          const retryable =
-            (error instanceof Error && error.name === "TimeoutError") ||
-            (error instanceof ServiceError && error.status >= 500);
-          if (retryable) captureException(error, { level: "warning" });
-          return retryable;
-        },
-      },
-    );
-    await database.update(credentials).set({ bridgeId: customer.id }).where(eq(credentials.id, params.credentialId));
+        );
+        await database
+          .update(credentials)
+          .set({ bridgeId: customer.id })
+          .where(eq(credentials.id, params.credentialId));
+        break;
+      }
+    }
   }
   async function removeExternalAccount(customer: InferOutput<typeof CustomerResponse>, externalAccountId: string) {
     const [externalAccount, templates] = await Promise.all([
@@ -1342,21 +1505,26 @@ export default function bridge(key: string, url: string) {
       10_000,
     );
   }
-  async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
+  async function request<
+    TInput,
+    TOutput,
+    TIssue extends BaseIssue<unknown>,
+    TMethod extends "DELETE" | "GET" | "PATCH" | "POST" | "PUT" = "GET",
+  >(
     schema: BaseSchema<TInput, TOutput, TIssue>,
     path: `/${string}`,
     headers = {},
     body?: unknown,
-    method: "DELETE" | "GET" | "PATCH" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
+    method?: TMethod,
     timeout = 10_000,
-    idempotencyKey?: string,
+    ...[idempotencyKey]: TMethod extends "POST" ? [idempotencyKey: string] : []
   ) {
     const response = await fetch(`${url}${path}`, {
-      method,
+      method: method ?? "GET",
       headers: {
         ...headers,
         "api-key": key,
-        ...(method === "POST" && { "Idempotency-Key": idempotencyKey ?? crypto.randomUUID() }),
+        ...(idempotencyKey && { "Idempotency-Key": idempotencyKey }),
         accept: "application/json",
         "content-type": "application/json",
       },
@@ -1434,15 +1602,6 @@ const PaymentRailByBridgeCurrency: Partial<
   gbp: "faster_payments",
 };
 
-const missing = new Set([
-  "gov_id_address_to_residential_address_match",
-  "proof_of_address_document",
-  "selfie_document_in_persona",
-  "selfie_verification",
-  "sof_individual_primary_purpose",
-  "source_of_funds_questionnaire",
-  "tax_identification_number",
-]);
 const issues = new Set([
   "database_check_failed_on_address",
   "database_check_failed_on_birth_date",
@@ -1452,6 +1611,9 @@ const issues = new Set([
 
 const Denylist = new Set(["ID"]);
 const Endorsements = ["base", "faster_payments", "pix", "pix_offramp", "pix_onramp", "sepa", "spei"] as const; // cspell:ignore spei, sepa
+
+const BusinessEndorsements = ["base", "sepa"] as const;
+
 export const BridgeCurrency = ["brl", "eur", "gbp", "mxn", "usd", "usdc", "usdt"] as const;
 
 const VirtualAccountStatus = ["activated", "deactivated"] as const;
@@ -1499,7 +1661,7 @@ function fiat(endorsement: (typeof Endorsements)[number], ramp: "offramp" | "onr
 }
 
 export const CryptoPaymentRail = ["evm", "solana", "stellar", "tron", "base"] as const;
-export const BridgeChain = ["optimism"] as const;
+export const BridgeChain = ["base", "optimism"] as const;
 
 const CurrencyByPaymentRail: Record<(typeof CryptoPaymentRail)[number], (typeof CryptoCurrency)[number][]> = {
   base: ["USDC"],
@@ -1524,9 +1686,16 @@ const NetworkToOfframpRail: Record<(typeof OfframpNetwork)[number], (typeof Cryp
 } as const;
 
 const Supported: Record<number, (typeof BridgeChain)[number]> = {
+  [base.id]: "base",
+  [baseSepolia.id]: "base",
   [optimism.id]: "optimism",
   [optimismSepolia.id]: "optimism",
 } as const;
+
+const nativeNetwork = {
+  base: { network: "BASE", displayName: "Base" },
+  optimism: { network: "OPTIMISM", displayName: "Optimism" },
+} as const satisfies Record<(typeof BridgeChain)[number], { displayName: string; network: string }>;
 
 export const TINType = [
   "drivers_license",
@@ -1712,8 +1881,8 @@ const CustomerResponse = object({
         status: picklist(EndorsementStatus),
         additional_requirements: optional(array(picklist(AdditionalRequirements))),
         requirements: object({
-          complete: array(string()),
-          pending: array(string()),
+          complete: array(union([string(), unknown()])),
+          pending: array(union([string(), unknown()])),
           missing: nullish(unknown()),
           issues: array(union([string(), unknown()])),
         }),
@@ -1766,41 +1935,50 @@ const TIN = object({
 });
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const CreateCustomer = object({
-  type: literal("individual"),
-  first_name: string(),
-  middle_name: optional(string()),
-  last_name: string(),
-  transliterated_first_name: optional(string()),
-  transliterated_middle_name: optional(string()),
-  transliterated_last_name: optional(string()),
-  email: string(),
-  phone: string(),
-  residential_address: object({
-    street_line_1: string(),
-    street_line_2: optional(string()),
-    city: string(),
-    subdivision: optional(string()),
-    postal_code: optional(string()),
-    country: string(),
-  }),
-  transliterated_residential_address: optional(
-    object({
-      street_line_1: optional(string()),
+const CreateCustomer = variant("type", [
+  object({
+    type: literal("individual"),
+    first_name: string(),
+    middle_name: optional(string()),
+    last_name: string(),
+    transliterated_first_name: optional(string()),
+    transliterated_middle_name: optional(string()),
+    transliterated_last_name: optional(string()),
+    email: string(),
+    phone: string(),
+    residential_address: object({
+      street_line_1: string(),
       street_line_2: optional(string()),
-      city: optional(string()),
+      city: string(),
       subdivision: optional(string()),
       postal_code: optional(string()),
-      country: optional(string()),
+      country: string(),
     }),
-  ),
-  birth_date: string(),
-  signed_agreement_id: string(),
-  nationality: string(),
-
-  identifying_information: array(union([IdentityDocument, TIN])),
-  endorsements: optional(array(picklist(Endorsements))),
-});
+    transliterated_residential_address: optional(
+      object({
+        street_line_1: optional(string()),
+        street_line_2: optional(string()),
+        city: optional(string()),
+        subdivision: optional(string()),
+        postal_code: optional(string()),
+        country: optional(string()),
+      }),
+    ),
+    birth_date: string(),
+    signed_agreement_id: string(),
+    nationality: string(),
+    identifying_information: array(union([IdentityDocument, TIN])),
+    endorsements: optional(array(picklist(Endorsements))),
+  }),
+  object({
+    type: literal("business"),
+    business_legal_name: string(),
+    client_reference_id: string(),
+    email: string(),
+    endorsements: array(picklist(Endorsements)),
+    signed_agreement_id: string(),
+  }),
+]);
 
 const NewCustomer = object({ status: picklist(CustomerStatus), id: string() });
 
@@ -1867,6 +2045,7 @@ const VirtualAccount = object({
   ]),
   destination: object({
     address: Address,
+    payment_rail: string(),
   }),
 });
 const VirtualAccounts = object({ count: number(), data: array(VirtualAccount) });
@@ -1885,6 +2064,7 @@ const LiquidationAddress = object({
   chain: picklist([...CryptoPaymentRail]),
   address: string(),
   destination_address: Address,
+  destination_payment_rail: string(),
   blockchain_memo: optional(string()),
 });
 
@@ -2464,4 +2644,7 @@ dwIDAQAB
 -----END PUBLIC KEY-----`;
 /* eslint-enable @typescript-eslint/prefer-nullish-coalescing */
 
-type PersonaService = Pick<ReturnType<typeof createPersona>, "getAccount" | "getDocument" | "getDocumentForBridge">;
+type PersonaService = Pick<
+  ReturnType<typeof createPersona>,
+  "getAccount" | "getDocument" | "getDocumentForBridge" | "getInquiry"
+>;
