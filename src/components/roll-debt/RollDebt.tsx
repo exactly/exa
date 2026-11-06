@@ -12,8 +12,6 @@ import { digits, nonEmpty, pipe, safeParse, string, transform } from "valibot";
 import { encodeDeployData, encodeFunctionData } from "viem";
 import { useReadContract, useSendCalls } from "wagmi";
 
-import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
 import chain, {
   auditorAddress,
   exaPreviewerAbi,
@@ -290,12 +288,6 @@ function RolloverButton({
       const { id } = await mutateSendCalls({
         chainId: chain.id,
         calls: [{ to, data: encodeFunctionData({ abi, functionName, args }) }],
-        capabilities: {
-          paymasterService: {
-            url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-            context: { policyId: alchemyGasPolicyId },
-          },
-        },
       });
       const { status } = await waitForCallsStatus(exa, { id });
       if (status === "failure") throw new Error("failed to propose rollover");

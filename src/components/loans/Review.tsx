@@ -12,8 +12,6 @@ import { encodeAbiParameters, encodeFunctionData, maxUint256, type Address, type
 import { useBytecode, useSendCalls } from "wagmi";
 
 import accountInit from "@exactly/common/accountInit";
-import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
 import chain, { exaPluginAddress, previewerAddress } from "@exactly/common/generated/chain";
 import {
   exaPluginAbi,
@@ -143,12 +141,6 @@ export default function Review() {
       const { id } = await mutateSendCalls({
         chainId: chain.id,
         calls,
-        capabilities: {
-          paymasterService: {
-            context: { policyId: alchemyGasPolicyId },
-            url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-          },
-        },
       });
       const { status } = await waitForCallsStatus(exa, { id });
       if (status === "failure") throw new Error("failed to submit borrow proposal");

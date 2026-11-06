@@ -11,8 +11,6 @@ import { digits, nonEmpty, parse, pipe, safeParse, string, transform } from "val
 import { ContractFunctionExecutionError, ContractFunctionRevertedError, encodeFunctionData, erc20Abi } from "viem";
 import { useBytecode, useReadContract, useSendCalls } from "wagmi";
 
-import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
 import chain, {
   balancerVaultAddress,
   integrationPreviewerAddress,
@@ -320,12 +318,6 @@ export default function Repay() {
       const { id } = await mutateSendCalls({
         chainId: chain.id,
         calls: [call],
-        capabilities: {
-          paymasterService: {
-            url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-            context: { policyId: alchemyGasPolicyId },
-          },
-        },
       });
       const { status } = await waitForCallsStatus(exa, { id });
       if (status === "failure") throw new Error("failed to repay");
@@ -395,12 +387,6 @@ export default function Repay() {
             args: [maturity, positionAssets, maxRepay, account],
           },
         ],
-        capabilities: {
-          paymasterService: {
-            url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-            context: { policyId: alchemyGasPolicyId },
-          },
-        },
       });
       const { status } = await waitForCallsStatus(exa, { id });
       if (status === "failure") throw new Error("failed to repay with external asset");

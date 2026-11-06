@@ -13,8 +13,6 @@ import { safeParse } from "valibot";
 import { encodeFunctionData, formatUnits } from "viem";
 import { useSendCalls } from "wagmi";
 
-import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
 import chain, { marketUSDCAddress } from "@exactly/common/generated/chain";
 import ProposalType from "@exactly/common/ProposalType";
 import { Address } from "@exactly/common/validation";
@@ -111,12 +109,6 @@ export default function Review() {
       const { id } = await mutateSendCalls({
         chainId: chain.id,
         calls: [{ to, data: encodeFunctionData({ abi, functionName, args }) }],
-        capabilities: {
-          paymasterService: {
-            url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-            context: { policyId: alchemyGasPolicyId },
-          },
-        },
       });
       const result = await waitForCallsStatus(exa, { id });
       if (result.status === "failure") throw new Error("transaction failed");

@@ -20,8 +20,6 @@ import { simulateBlocks } from "viem/actions";
 import { useBytecode, useSendCalls } from "wagmi";
 
 import accountInit from "@exactly/common/accountInit";
-import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
 import chain, {
   auditorAddress,
   exaPluginAddress,
@@ -161,12 +159,6 @@ export default function PluginUpgrade() {
       const { id } = await mutateSendCalls({
         chainId: chain.id,
         calls: calls.map(({ target, data }) => ({ to: target, data })),
-        capabilities: {
-          paymasterService: {
-            url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-            context: { policyId: alchemyGasPolicyId },
-          },
-        },
       });
       const { status } = await waitForCallsStatus(exa, { id });
       if (status === "failure") throw new Error("failed to upgrade plugin");

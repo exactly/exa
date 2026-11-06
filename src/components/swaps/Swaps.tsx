@@ -8,11 +8,20 @@ import { toast } from "@tamagui/toast";
 import { ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
 
 import { useMutation, useQueries, useQuery, type UseQueryResult } from "@tanstack/react-query";
-import { readContract } from "@wagmi/core/actions";
+import { readContract, waitForCallsStatus } from "@wagmi/core/actions";
 import { parse, safeParse } from "valibot";
-import { BaseError, encodeEventTopics, encodeFunctionData, erc20Abi, formatUnits, getAddress, zeroAddress } from "viem";
+import {
+  BaseError,
+  encodeEventTopics,
+  encodeFunctionData,
+  erc20Abi,
+  formatUnits,
+  getAddress,
+  maxUint256,
+  zeroAddress,
+} from "viem";
 import { base } from "viem/chains";
-import { useReadContract, useSimulateContract } from "wagmi";
+import { useReadContract, useSendCalls, useSimulateContract } from "wagmi";
 
 import chain, { alchemyChains, allowlists } from "@exactly/common/generated/chain";
 import {
@@ -62,6 +71,7 @@ import {
   marketOpen,
   quoteValidity,
   restrictedCountries,
+  routeCalls,
   statusOptions,
 } from "../../utils/lifi";
 import openBrowser from "../../utils/openBrowser";
@@ -71,7 +81,6 @@ import queryClient, { APIError } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useBeginKYC from "../../utils/useBeginKYC";
-import useCrossChainGas from "../../utils/useCrossChainGas";
 import useKYC from "../../utils/useKYC";
 import useMarkets from "../../utils/useMarkets";
 import usePortfolio from "../../utils/usePortfolio";
@@ -574,28 +583,19 @@ export default function Swaps() {
     queryKey: ["lifi", "route", "calls", account, fromChain, fromToken, route],
     queryFn: async () => {
       if (!account || !fromToken || !route?.to) throw new Error("implementation error");
-      const call = { to: route.to, data: route.data, value: route.value };
-      const calls: { data: `0x${string}`; to: `0x${string}`; value?: bigint }[] = await (async () => {
-        if (fromToken.token.address === zeroAddress) return [call];
-        const spender = getAddress(route.estimate.approvalAddress);
-        const required = BigInt(route.estimate.fromAmount);
-        const token = getAddress(fromToken.token.address);
-        const allowance = await readContract(exaConfig, {
-          address: token,
-          chainId: fromChain,
-          abi: erc20Abi,
-          functionName: "allowance",
-          args: [account, spender],
-        });
-        return [
-          ...(allowance >= required ? [] : allowance > 0n ? [0n, required] : [required]).map((value) => ({
-            to: token,
-            data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [spender, value] }),
-          })),
-          call,
-        ];
-      })();
-      return { calls, gas: await estimateCalls(exaConfig, fromChain, calls) };
+      const calls = routeCalls(
+        route,
+        route.spend.token === zeroAddress
+          ? maxUint256
+          : await readContract(exaConfig, {
+              address: route.spend.token,
+              chainId: fromChain,
+              abi: erc20Abi,
+              functionName: "allowance",
+              args: [account, getAddress(route.estimate.approvalAddress)],
+            }),
+      );
+      return { calls, spend: route.spend, ...(await estimateCalls(exaConfig, fromChain, calls, route.spend)) };
     },
     enabled: enableSimulations && routed && !!account && !!route && !isInsufficientBalance,
     retry: false,
@@ -686,33 +686,15 @@ export default function Swaps() {
   const fromNetworkName = lifiChains?.find((item) => item.id === fromChain)?.name;
   const networkName = lifiChains?.find((item) => item.id === toChain)?.name;
   const sponsored = fromChain === chain.id;
-  const networkCost = sponsored ? 0n : nativeToken ? routedSwap?.gas : undefined;
+  const networkCost = sponsored ? 0n : nativeToken ? routedSwap?.cost : undefined;
   const networkFeeUSD = sponsored
     ? 0
     : networkCost !== undefined && nativeToken
       ? Number(formatUnits(networkCost, nativeToken.decimals)) * Number(nativeToken.priceUSD)
       : undefined;
-  const gasSource = useMemo(
-    () => (fromToken?.external ? { ...fromToken.token, amount: getBalance(fromToken) } : null),
-    [fromToken, getBalance],
-  );
-  const {
-    erc20GasReserve,
-    feeIsSource,
-    gasToken,
-    insufficientGas,
-    nativeBalance,
-    nativeGasReserve,
-    paymasterAddress,
-    sendCalls,
-  } = useCrossChainGas({
-    account,
-    amount: fromAmount,
-    chainId: fromChain,
-    networkCost,
-    token: gasSource,
-    value: routed ? (route?.value ?? 0n) : undefined,
-  });
+  const deficit = routed ? routedSwap?.shortfall : undefined;
+  const insufficientGas = !!deficit;
+  const { mutateAsync: mutateSendCalls, data: submitted, reset: resetSendCalls } = useSendCalls();
 
   const duration =
     route &&
@@ -739,23 +721,28 @@ export default function Swaps() {
     error: writeContractError,
     reset: resetSwap,
   } = useMutation({
-    mutationFn() {
+    async mutationFn() {
       if (!route) throw new Error("no route");
-      const calls = (() => {
+      const { calls, spend } = (() => {
         if (!fromToken?.external) {
           if (!swapPropose) throw new Error("no swap proposal simulation");
           const { address, abi, functionName, args } = swapPropose;
-          return [{ to: address, data: encodeFunctionData({ abi, functionName, args }) }];
+          return { calls: [{ to: address, data: encodeFunctionData({ abi, functionName, args }) }], spend: undefined };
         }
         if (!routed) {
           if (!externalSwap) throw new Error("no external swap simulation");
           const { address, abi, functionName, args } = externalSwap.request;
-          return [{ to: address, data: encodeFunctionData({ abi, functionName, args }) }];
+          return { calls: [{ to: address, data: encodeFunctionData({ abi, functionName, args }) }], spend: undefined };
         }
         if (!routedSwap) throw new Error("no routed swap simulation");
-        return routedSwap.calls;
+        return routedSwap;
       })();
-      return sendCalls(calls);
+      const { id } =
+        submitted ?? (await mutateSendCalls({ chainId: fromChain, calls, capabilities: spend && { spend } }));
+      const result = await waitForCallsStatus(exaConfig, { id });
+      resetSendCalls();
+      if (result.status !== "success") throw new Error("failed to send");
+      return result.receipts?.[0];
     },
     onMutate() {
       resultRef.current = {
@@ -826,30 +813,19 @@ export default function Swaps() {
   const caution = projectedHealth !== undefined && projectedHealth < liquidationCaution;
   const danger = projectedHealth !== undefined && projectedHealth < liquidationRisk;
 
-  const routeValue = routed ? (route?.value ?? 0n) : 0n;
-  const shortfallFee =
-    insufficientGas && nativeToken
-      ? routeValue <= (nativeBalance ?? 0n) && gasToken && feeIsSource && paymasterAddress && erc20GasReserve > 0n
-        ? { reserve: erc20GasReserve, token: gasToken, network: undefined }
-        : {
-            reserve: routeValue + nativeGasReserve,
-            token: nativeToken,
-            network: fromNetworkName ?? String(fromChain),
-          }
-      : undefined;
-  const shortfall = shortfallFee
+  const shortfall = deficit
     ? t(
-        shortfallFee.network
+        deficit.native
           ? "You need ~{{amount}} {{symbol}} on {{network}} for network fees."
           : "Keep ~{{amount}} {{symbol}} for network fees.",
         {
-          amount: Number(formatUnits(shortfallFee.reserve, shortfallFee.token.decimals)).toLocaleString(language, {
+          amount: Number(formatUnits(deficit.amount, deficit.token.decimals)).toLocaleString(language, {
             minimumFractionDigits: 0,
-            maximumFractionDigits: shortfallFee.token.decimals,
+            maximumFractionDigits: deficit.token.decimals,
             useGrouping: false,
           }),
-          symbol: shortfallFee.token.symbol,
-          network: shortfallFee.network,
+          symbol: deficit.token.symbol,
+          network: fromNetworkName ?? String(fromChain),
         },
       )
     : undefined;

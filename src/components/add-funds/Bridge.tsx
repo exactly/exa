@@ -7,7 +7,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { toast } from "@tamagui/toast";
 import { ScrollView, Spinner, Square, XStack, YStack } from "tamagui";
 
-import { getAlchemyPaymasterAddress } from "@account-kit/infra";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { switchChain } from "@wagmi/core";
 import { is, literal, object } from "valibot";
@@ -17,7 +16,6 @@ import {
   formatUnits,
   getAddress,
   isAddress,
-  maxUint256,
   parseAbi,
   zeroAddress,
   type Hex,
@@ -25,9 +23,7 @@ import {
 import { mainnet } from "viem/chains";
 import { useCapabilities, useEnsName, useReadContract, useSendCalls, useSimulateContract } from "wagmi";
 
-import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
-import chain, { alchemyChains } from "@exactly/common/generated/chain";
+import chain from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 import { WAD } from "@exactly/lib";
 
@@ -41,11 +37,9 @@ import { Clock } from "../../generated/icons/Clock";
 import { Repeat } from "../../generated/icons/Repeat";
 import { Wallet } from "../../generated/icons/Wallet";
 import { X } from "../../generated/icons/X";
-import { callsStatus, sendOwnerCalls } from "../../utils/accountClient";
+import { callsStatus, estimateCalls, sendOwnerCalls } from "../../utils/accountClient";
 import {
   balancesOptions,
-  bridgePolicyId,
-  bridgePolicyTokens,
   bridgeSlippage,
   gasReserveBuffer,
   getBridgeSources,
@@ -60,7 +54,7 @@ import {
 import openBrowser from "../../utils/openBrowser";
 import parseAmount from "../../utils/parseAmount";
 import queryClient from "../../utils/queryClient";
-import reportError, { classifyError } from "../../utils/reportError";
+import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import usePortfolio from "../../utils/usePortfolio";
 import exaConfig from "../../utils/wagmi/exa";
@@ -390,87 +384,78 @@ export default function Bridge() {
     upfront > nativeBalance &&
     is(object({ alternateGasFees: object({ supported: literal(true) }) }), sourceCapabilities);
 
-  const gasToken = useMemo<undefined | { balance: bigint; token: Token }>(() => {
-    if ((!isExaSender && !relayed) || isNativeSource || !source || !sourceToken) return;
-    if (relayed || bridgePolicyTokens[source.chain]?.includes(sourceToken.address.toLowerCase())) {
-      return { balance: sourceBalance, token: sourceToken };
-    }
-    return bridge?.balancesByChain[source.chain]?.find(
-      (item) =>
-        item.token.address.toLowerCase() !== nativeAddress &&
-        bridgePolicyTokens[source.chain]?.includes(item.token.address.toLowerCase()) &&
-        item.balance > 0n,
-    );
-  }, [
-    bridge?.balancesByChain,
-    isExaSender,
-    relayed,
-    source,
-    sourceToken,
-    sourceBalance,
-    isNativeSource,
-    nativeAddress,
-  ]);
-
-  const feeIsSource = !!gasToken && !!source && gasToken.token.address.toLowerCase() === source.address.toLowerCase();
-  const paymasterChain = source ? alchemyChains.get(source.chain) : undefined;
-  const paymasterAddress = paymasterChain ? getAlchemyPaymasterAddress(paymasterChain, "0.6.0") : undefined;
-
   const erc20GasReserve = useMemo(() => {
-    if (nativeGasReserve === 0n || !sourceChain || !gasToken) return 0n;
+    if (!relayed || nativeGasReserve === 0n || !sourceChain || !sourceToken) return 0n;
     const nativeUsd = parseAmount(sourceChain.nativeToken.priceUSD, 18);
-    const tokenUsd = parseAmount(gasToken.token.priceUSD, 18);
+    const tokenUsd = parseAmount(sourceToken.priceUSD, 18);
     if (nativeUsd <= 0n || tokenUsd <= 0n) return 0n;
     return (
-      (nativeGasReserve * nativeUsd * 10n ** BigInt(gasToken.token.decimals)) /
+      (nativeGasReserve * nativeUsd * 10n ** BigInt(sourceToken.decimals)) /
       (tokenUsd * 10n ** BigInt(sourceChain.nativeToken.decimals))
     );
-  }, [nativeGasReserve, sourceChain, gasToken]);
+  }, [relayed, nativeGasReserve, sourceChain, sourceToken]);
 
-  const paymasterFee =
-    isExaSender && source && gasToken && paymasterAddress && erc20GasReserve > 0n && gasToken.balance > erc20GasReserve
-      ? gasToken
+  const reserveInSource = !!sourceToken && erc20GasReserve > 0n;
+  const spend = isExaSender ? quote?.spend : undefined;
+  const batch =
+    isExaSender && quote && source
+      ? [
+          ...(approvalRequired && isAddress(quote.estimate.approvalAddress)
+            ? [
+                {
+                  to: quote.spend.token,
+                  data: encodeFunctionData({
+                    abi: erc20Abi,
+                    functionName: "approve",
+                    args: [quote.estimate.approvalAddress, quote.spend.amount],
+                  }),
+                },
+              ]
+            : []),
+          { to: quote.to, data: quote.data, value: quote.value },
+        ]
       : undefined;
-  const paymasterTokenAddress =
-    paymasterFee?.token.address && isAddress(paymasterFee.token.address)
-      ? getAddress(paymasterFee.token.address)
-      : undefined;
-  const canReadPaymasterAllowance = !!senderAddress && !!paymasterTokenAddress && !!paymasterAddress;
-
-  const { data: paymasterAllowanceData, refetch: refetchPaymasterAllowance } = useReadContract({
-    config: senderConfig,
-    abi: erc20Abi,
-    address: canReadPaymasterAllowance ? paymasterTokenAddress : undefined,
-    chainId: canReadPaymasterAllowance ? source?.chain : undefined,
-    functionName: "allowance",
-    args: canReadPaymasterAllowance ? ([senderAddress, paymasterAddress] as const) : undefined,
-    query: { enabled: canReadPaymasterAllowance, staleTime: 0 },
+  const { data: exaEstimate, isPending: estimating } = useQuery({
+    queryKey: ["bridge", "estimate", source, batch, spend],
+    queryFn: () => {
+      if (!source || !batch) throw new Error("missing bridge context");
+      return estimateCalls(exaConfig, source.chain, batch, spend);
+    },
+    enabled: !!batch,
+    retry: false,
   });
-
-  const reserveInSource = (!!paymasterFee || relayed) && feeIsSource && erc20GasReserve > 0n;
+  const deficit = isExaSender ? exaEstimate?.shortfall : undefined;
   const shortfall = relayed ? (quote?.value ?? 0n) - nativeBalance : 0n;
   let insufficientBalance: boolean;
-  if (isNativeSource) {
+  if (isExaSender) {
+    insufficientBalance = sourceAmount > sourceBalance || !!deficit;
+  } else if (isNativeSource) {
     insufficientBalance = sourceAmount + nativeGasReserve > sourceBalance || upfront > nativeBalance;
-  } else if (isExaSender || reserveInSource) {
-    insufficientBalance = sourceAmount + (reserveInSource ? erc20GasReserve : 0n) > sourceBalance || shortfall > 0n;
+  } else if (reserveInSource) {
+    insufficientBalance = sourceAmount + erc20GasReserve > sourceBalance || shortfall > 0n;
   } else {
     insufficientBalance = sourceAmount > sourceBalance || upfront > nativeBalance;
   }
 
   const withinBalance = sourceAmount <= sourceBalance;
   const fee =
-    shortfall > 0n && sourceChain
-      ? { reserve: shortfall, token: sourceChain.nativeToken, chain: sourceChain.name }
-      : reserveInSource && withinBalance
-        ? { reserve: erc20GasReserve, token: gasToken.token, chain: undefined }
-        : (isNativeSource || !isExaSender) && sourceChain && withinBalance
-          ? {
-              reserve: upfront - (isNativeSource && quote ? sourceAmount : 0n),
-              token: sourceChain.nativeToken,
-              chain: isNativeSource ? undefined : sourceChain.name,
-            }
-          : undefined;
+    deficit && withinBalance
+      ? {
+          reserve: deficit.amount - (deficit.native && isNativeSource ? sourceAmount : 0n),
+          token: deficit.token,
+          chain: deficit.native && !isNativeSource ? sourceChain?.name : undefined,
+        }
+      : shortfall > 0n && sourceChain
+        ? { reserve: shortfall, token: sourceChain.nativeToken, chain: sourceChain.name }
+        : reserveInSource && withinBalance
+          ? { reserve: erc20GasReserve, token: sourceToken, chain: undefined }
+          : !isExaSender && sourceChain && withinBalance
+            ? {
+                reserve: upfront - (isNativeSource && quote ? sourceAmount : 0n),
+                token: sourceChain.nativeToken,
+                chain: isNativeSource ? undefined : sourceChain.name,
+              }
+            : undefined;
 
   const feeMessage = fee
     ? t(
@@ -554,7 +539,7 @@ export default function Bridge() {
           reportError(error);
           currentAllowance = 0n;
         }
-        const requiredAllowance = BigInt(from.estimate.fromAmount);
+        const requiredAllowance = from.spend.amount;
         const allowance = currentAllowance ?? 0n;
 
         if (allowance < requiredAllowance) {
@@ -573,114 +558,23 @@ export default function Bridge() {
       }
       setBridgeStatus(t("Submitting bridge transaction..."));
       try {
-        let id: string | undefined;
-        let paymasterApproval: Hex | undefined;
-        try {
-          if (paymasterFee && paymasterAddress) {
-            setBridgeStatus(t("Checking allowance..."));
-            let paymasterAllowance = paymasterAllowanceData;
-            try {
-              const result = await refetchPaymasterAllowance();
-              if (result.data !== undefined) {
-                paymasterAllowance = result.data;
-              }
-            } catch (error) {
-              reportError(error);
-              paymasterAllowance = 0n;
-            }
-            if ((paymasterAllowance ?? 0n) < erc20GasReserve) {
-              paymasterApproval = encodeFunctionData({
-                abi: erc20Abi,
-                functionName: "approve",
-                args: [paymasterAddress, maxUint256],
-              });
-            }
-            setBridgeStatus(t("Submitting bridge transaction..."));
-          }
-          const calls = [
-            ...(paymasterFee && paymasterApproval
-              ? [{ to: getAddress(paymasterFee.token.address), data: paymasterApproval }]
-              : []),
-            ...(approval ? [{ to: getAddress(source.address), data: approval }] : []),
-            { to: from.to, data: from.data, value: from.value },
-          ];
-          const forceAtomic = is(object({ atomic: object({ status: literal("supported") }) }), sourceCapabilities);
-          ({ id } = isExaSender
-            ? await sendCallsTx({
-                chainId: source.chain,
-                forceAtomic,
-                calls,
-                ...(isNativeSource
-                  ? {}
-                  : {
-                      capabilities: {
-                        paymasterService: {
-                          optional: true,
-                          url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-                          context: {
-                            policyId: paymasterFee ? bridgePolicyId : alchemyGasPolicyId,
-                            ...(paymasterFee
-                              ? {
-                                  erc20Context: {
-                                    tokenAddress: getAddress(paymasterFee.token.address),
-                                    maxTokenAmount: erc20GasReserve,
-                                  },
-                                }
-                              : {}),
-                          },
-                        },
-                      },
-                    }),
-              })
-            : await sendOwnerCalls({ chainId: source.chain, forceAtomic, experimental_fallback: true, calls }));
-        } catch (error) {
-          if (classifyError(error).authKnown) throw error;
-          if (!isExaSender || !paymasterFee) throw error;
-          reportError(error, {
-            level: "warning",
-            extra: error instanceof Error ? { cause: error.cause } : undefined,
-          });
-          setBridgeStatus(t("Retrying bridge transaction..."));
-          const retry = await sendCallsTx({
-            chainId: source.chain,
-            calls: [
-              ...(approval ? [{ to: getAddress(source.address), data: approval }] : []),
-              { to: from.to, data: from.data, value: from.value },
-            ],
-            capabilities: {
-              paymasterService: {
-                optional: true,
-                url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-                context: { policyId: alchemyGasPolicyId },
+        const calls = [
+          ...(approval ? [{ to: from.spend.token, data: approval }] : []),
+          { to: from.to, data: from.data, value: from.value },
+        ];
+        const forceAtomic = is(object({ atomic: object({ status: literal("supported") }) }), sourceCapabilities);
+        const sent = isExaSender
+          ? await sendCallsTx({
+              chainId: source.chain,
+              forceAtomic,
+              calls,
+              capabilities: {
+                spend: from.spend,
+                retry: () => setBridgeStatus(t("Retrying bridge transaction...")),
               },
-            },
-          });
-          if ((await callsStatus(senderConfig, retry.id)) === "failure") {
-            throw new Error("failed to submit bridge transaction", { cause: error });
-          }
-          setBridgeStatus(t("Bridge transaction submitted"));
-          return;
-        }
-        if (!id) throw new Error("missing sendCalls id");
-        let status = await callsStatus(senderConfig, id);
-        if (status === "failure" && paymasterFee) {
-          setBridgeStatus(t("Retrying bridge transaction..."));
-          const retry = await sendCallsTx({
-            chainId: source.chain,
-            calls: [
-              ...(approval ? [{ to: getAddress(source.address), data: approval }] : []),
-              { to: from.to, data: from.data, value: from.value },
-            ],
-            capabilities: {
-              paymasterService: {
-                optional: true,
-                url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-                context: { policyId: alchemyGasPolicyId },
-              },
-            },
-          });
-          status = await callsStatus(senderConfig, retry.id);
-        }
+            })
+          : await sendOwnerCalls({ chainId: source.chain, forceAtomic, experimental_fallback: true, calls });
+        const status = await callsStatus(senderConfig, sent.id);
         if (status === "failure") throw new Error("failed to submit bridge transaction");
         setBridgeStatus(t("Bridge transaction submitted"));
       } finally {
@@ -800,6 +694,7 @@ export default function Bridge() {
     !sourceToken ||
     sourceAmount === 0n ||
     insufficientBalance ||
+    (!!batch && estimating) ||
     (!isTransfer && !bridgeQuoteReady);
 
   const statusMessage =
