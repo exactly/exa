@@ -3,12 +3,13 @@ import sendPushNotificationMock from "../mocks/onesignal";
 import "../mocks/sentry";
 
 import { captureException, setUser } from "@sentry/node";
+import { Queue } from "bullmq";
 import { testClient } from "hono/testing";
 import { Redis } from "ioredis";
 import { createHmac } from "node:crypto";
 import { hexToBytes, padHex, zeroHash, type Address, type PrivateKeyAccount } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import { exaAccountFactoryAddress, lifiURL, marketWETHAddress, wethAddress } from "@exactly/common/generated/chain";
@@ -19,16 +20,13 @@ import t, { f } from "../../i18n";
 import createAlchemy, { activityUrl, NETWORKS, type Webhook } from "../../utils/alchemy";
 import createOnesignal from "../../utils/onesignal";
 import redis from "../../utils/redis";
+import createPoke from "../../workers/poke/queue";
 
-import type createPoke from "../../workers/poke/queue";
 import type * as C from "@exactly/common/generated/chain";
 
 const alchemy = createAlchemy("webhooks");
 const onesignal = createOnesignal("onesignal");
-const poke = {
-  close: vi.fn<ReturnType<typeof createPoke>["close"]>().mockResolvedValue(),
-  enqueue: vi.fn<ReturnType<typeof createPoke>["enqueue"]>().mockResolvedValue(),
-};
+const poke = createPoke(redis);
 
 const activityHook = createHook();
 const client = testClient(activityHook.app);
@@ -48,13 +46,15 @@ const appClient = {
 };
 
 beforeAll(() => activityHook.ready);
+afterAll(() => poke.close());
 
 describe("address activity", () => {
   let owner: PrivateKeyAccount;
   let account: Address;
+  let add: MockInstance<Queue["add"]>;
 
   beforeEach(async () => {
-    poke.enqueue.mockReset().mockResolvedValue();
+    add = vi.spyOn(Queue.prototype, "add");
     owner = privateKeyToAccount(generatePrivateKey());
     account = deriveAddress(exaAccountFactoryAddress, { x: padHex(owner.address), y: zeroHash });
 
@@ -87,7 +87,7 @@ describe("address activity", () => {
 
     expect(response.status).toBe(500);
     expect(errorConsole).toHaveBeenCalledWith(expect.objectContaining({ message: "unsupported activity network" }));
-    expect(poke.enqueue).not.toHaveBeenCalled();
+    expect(add).not.toHaveBeenCalled();
   });
 
   it("ignores transfers to unknown accounts", async () => {
@@ -102,7 +102,7 @@ describe("address activity", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(poke.enqueue).not.toHaveBeenCalled();
+    expect(add).not.toHaveBeenCalled();
     expect(sendPushNotification).not.toHaveBeenCalled();
   });
 
@@ -132,15 +132,17 @@ describe("address activity", () => {
       },
     });
 
-    expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
-      account,
-      assets: [wethAddress],
-      chainId: chain.id,
-      factory: exaAccountFactoryAddress,
-      origin: "activity",
-      publicKey: owner.address.toLowerCase(),
-      source: null,
-    });
+    expect(add).toHaveBeenCalledExactlyOnceWith(
+      ...poked({
+        account,
+        assets: [wethAddress],
+        chainId: chain.id,
+        factory: exaAccountFactoryAddress,
+        origin: "activity",
+        publicKey: owner.address.toLowerCase(),
+        source: null,
+      }),
+    );
     await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0, 5000);
     expect(sendPushNotification).toHaveBeenCalledWith({
       userId: account,
@@ -162,15 +164,17 @@ describe("address activity", () => {
       },
     });
 
-    expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
-      account,
-      assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
-      chainId: 31_337,
-      factory: exaAccountFactoryAddress,
-      origin: "activity",
-      publicKey: owner.address.toLowerCase(),
-      source: null,
-    });
+    expect(add).toHaveBeenCalledExactlyOnceWith(
+      ...poked({
+        account,
+        assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
+        chainId: 31_337,
+        factory: exaAccountFactoryAddress,
+        origin: "activity",
+        publicKey: owner.address.toLowerCase(),
+        source: null,
+      }),
+    );
     expect(response.status).toBe(200);
   });
 
@@ -188,15 +192,17 @@ describe("address activity", () => {
       },
     });
 
-    expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
-      account,
-      assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
-      chainId: 31_337,
-      factory: exaAccountFactoryAddress,
-      origin: "activity",
-      publicKey: owner.address.toLowerCase(),
-      source: null,
-    });
+    expect(add).toHaveBeenCalledExactlyOnceWith(
+      ...poked({
+        account,
+        assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
+        chainId: 31_337,
+        factory: exaAccountFactoryAddress,
+        origin: "activity",
+        publicKey: owner.address.toLowerCase(),
+        source: null,
+      }),
+    );
     expect(response.status).toBe(200);
   });
 
@@ -210,15 +216,17 @@ describe("address activity", () => {
       },
     });
 
-    expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
-      account,
-      assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
-      chainId: 31_337,
-      factory: exaAccountFactoryAddress,
-      origin: "activity",
-      publicKey: owner.address.toLowerCase(),
-      source: null,
-    });
+    expect(add).toHaveBeenCalledExactlyOnceWith(
+      ...poked({
+        account,
+        assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
+        chainId: 31_337,
+        factory: exaAccountFactoryAddress,
+        origin: "activity",
+        publicKey: owner.address.toLowerCase(),
+        source: null,
+      }),
+    );
     expect(response.status).toBe(200);
   });
 
@@ -241,15 +249,17 @@ describe("address activity", () => {
       },
     });
 
-    expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
-      account,
-      assets: [wethAddress],
-      chainId: 31_337,
-      factory: exaAccountFactoryAddress,
-      origin: "activity",
-      publicKey: owner.address.toLowerCase(),
-      source: null,
-    });
+    expect(add).toHaveBeenCalledExactlyOnceWith(
+      ...poked({
+        account,
+        assets: [wethAddress],
+        chainId: 31_337,
+        factory: exaAccountFactoryAddress,
+        origin: "activity",
+        publicKey: owner.address.toLowerCase(),
+        source: null,
+      }),
+    );
     expect(response.status).toBe(200);
   });
 
@@ -266,7 +276,7 @@ describe("address activity", () => {
       },
     });
 
-    expect(poke.enqueue).not.toHaveBeenCalled();
+    expect(add).not.toHaveBeenCalled();
     expect(response.status).toBe(200);
   });
 
@@ -304,25 +314,31 @@ describe("address activity", () => {
       },
     });
 
-    expect(poke.enqueue).toHaveBeenCalledTimes(2);
-    expect(poke.enqueue).toHaveBeenNthCalledWith(1, {
-      account,
-      assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", wethAddress],
-      chainId: 31_337,
-      factory: exaAccountFactoryAddress,
-      origin: "activity",
-      publicKey: owner.address.toLowerCase(),
-      source: null,
-    });
-    expect(poke.enqueue).toHaveBeenNthCalledWith(2, {
-      account: secondAccount,
-      assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
-      chainId: 31_337,
-      factory: exaAccountFactoryAddress,
-      origin: "activity",
-      publicKey: secondOwner.address.toLowerCase(),
-      source: null,
-    });
+    expect(add).toHaveBeenCalledTimes(2);
+    expect(add).toHaveBeenNthCalledWith(
+      1,
+      ...poked({
+        account,
+        assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", wethAddress],
+        chainId: 31_337,
+        factory: exaAccountFactoryAddress,
+        origin: "activity",
+        publicKey: owner.address.toLowerCase(),
+        source: null,
+      }),
+    );
+    expect(add).toHaveBeenNthCalledWith(
+      2,
+      ...poked({
+        account: secondAccount,
+        assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
+        chainId: 31_337,
+        factory: exaAccountFactoryAddress,
+        origin: "activity",
+        publicKey: secondOwner.address.toLowerCase(),
+        source: null,
+      }),
+    );
     expect(setUser).not.toHaveBeenCalled();
     expect(response.status).toBe(200);
   });
@@ -330,7 +346,7 @@ describe("address activity", () => {
   it("fails the webhook when poke cannot be queued", async () => {
     const error = new Error("redis unavailable");
     const errorConsole = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    poke.enqueue.mockRejectedValueOnce(error);
+    add.mockRejectedValueOnce(error);
 
     const response = await appClient.index.$post({
       ...activityPayload,
@@ -345,7 +361,7 @@ describe("address activity", () => {
 
     expect(response.status).toBe(500);
     expect(errorConsole).toHaveBeenCalledWith(error);
-    expect(poke.enqueue).toHaveBeenCalledOnce();
+    expect(add).toHaveBeenCalledOnce();
   });
 
   it("sends translated notification without symbol when asset is missing", async () => {
@@ -849,6 +865,14 @@ afterEach(() => {
   vi.clearAllMocks();
   vi.restoreAllMocks();
 });
+
+function poked<T extends { account: string; assets?: string[]; chainId: number }>(data: T) {
+  return [
+    "poke",
+    { ...data, sentryBaggage: expect.any(String) as string, sentryTrace: expect.any(String) as string },
+    { jobId: [data.chainId, data.account, ...(data.assets ?? [])].join("-") },
+  ] as const;
+}
 
 function createHook(current = alchemy) {
   return activity({

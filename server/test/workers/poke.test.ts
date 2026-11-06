@@ -15,7 +15,7 @@ import {
   zeroHash,
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, type Mock, type MockInstance } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import chain, {
@@ -110,11 +110,12 @@ async function spyScopeSetUser() {
   return setUser;
 }
 
-async function spySpanSetAttribute() {
+async function spySpanSetAttribute(id: string) {
   const { startSpan: realStartSpan } = await vi.importActual<typeof sentry>("@sentry/node");
   const setAttribute = vi.fn();
   vi.mocked(startSpan).mockImplementation(((options, callback) =>
     realStartSpan(options, (span) => {
+      if (options.attributes?.["messaging.message.id"] !== id) return callback(span);
       const originalSetAttribute = span.setAttribute.bind(span);
       span.setAttribute = (...args: Parameters<typeof span.setAttribute>) => {
         setAttribute(...args);
@@ -243,10 +244,10 @@ describe("poke worker", () => {
 
     await expect(jobFinished({ ...request, chainId: 0 })).rejects.toThrow("unsupported chain 0");
 
-    expect(wallet).not.toHaveBeenCalled();
-    expect(readContract).not.toHaveBeenCalled();
-    expect(sendPushNotificationMock).not.toHaveBeenCalled();
-    expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
+    expect(await publicClient.getCode({ address: account })).toBeUndefined();
+    expect(reads(readContract)).toStrictEqual([]);
+    expect(pushes()).toStrictEqual([]);
+    expect(users(setUser)).toStrictEqual([[{ id: account }]]);
     expect(captureException).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ message: "unsupported chain 0" }),
       {
@@ -260,7 +261,7 @@ describe("poke worker", () => {
 
   it("deploys and pokes funded accounts after allow", async () => {
     const deposit = parseEther("5");
-    const setAttribute = await spySpanSetAttribute();
+    const setAttribute = await spySpanSetAttribute(`${request.chainId}-${account}`);
     await anvilClient.setBalance({ address: account, value: deposit });
     const add = vi.spyOn(Queue.prototype, "add");
 
@@ -271,13 +272,11 @@ describe("poke worker", () => {
     expect(credits(add)).toStrictEqual([
       ["credit", expect.objectContaining({ account }), { jobId: `poke-${job.id}-1` }],
     ]);
-    expect(wallet).toHaveBeenCalledExactlyOnceWith(poker, NETWORKS.get("ANVIL"));
+    expect(wallet).toHaveBeenCalledWith(poker, NETWORKS.get("ANVIL"));
     expect(mocks.track).toHaveBeenCalledWith({ event: "AccountFunded", userId: account, properties: { source: null } });
-    expect(sendPushNotificationMock).toHaveBeenCalledExactlyOnceWith({
-      userId: account,
-      headings: t("Account assets updated"),
-      contents: t("Your funds are ready to use"),
-    });
+    expect(pushes()).toStrictEqual([
+      [{ userId: account, headings: t("Account assets updated"), contents: t("Your funds are ready to use") }],
+    ]);
     expect(setAttribute.mock.calls.filter(([attribute]) => attribute === "exa.new")).toStrictEqual([["exa.new", true]]);
     expect(startSpan).toHaveBeenCalledWith(
       expect.objectContaining({ forceTransaction: true, name: "poke worker" }),
@@ -307,19 +306,15 @@ describe("poke worker", () => {
 
   it("captures account funding tracking errors", async () => {
     const error = new Error("tracking error");
-    mocks.track.mockImplementationOnce(() => {
-      throw error;
+    mocks.track.mockImplementation(({ userId }: { userId: string }) => {
+      if (userId === account) throw error;
     });
 
     await jobFinished({ ...request, assets: [unknownAsset] });
 
     expect(await publicClient.getCode({ address: account })).toBeDefined();
-    expect(mocks.track).toHaveBeenCalledExactlyOnceWith({
-      event: "AccountFunded",
-      userId: account,
-      properties: { source: null },
-    });
-    expect(sendPushNotificationMock).not.toHaveBeenCalled();
+    expect(tracks()).toStrictEqual([[{ event: "AccountFunded", userId: account, properties: { source: null } }]]);
+    expect(pushes()).toStrictEqual([]);
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, { level: "error" });
   });
 
@@ -353,7 +348,9 @@ describe("poke worker", () => {
 
     await jobFinished({ ...request, assets: [eth, weth], origin: "activity" });
 
-    expect(updateData).toHaveBeenCalledExactlyOnceWith({ ...request, assets: [], origin: "activity" });
+    expect(updateData.mock.calls.filter(([data]) => (data as Poke).account === account)).toStrictEqual([
+      [{ ...request, assets: [], origin: "activity" }],
+    ]);
     expect(await getWETHMarket(account)).toMatchObject({
       floatingDepositAssets: ethDeposit + wethDeposit,
       isCollateral: true,
@@ -367,18 +364,16 @@ describe("poke worker", () => {
   it("treats ignored no balance receipts as idempotent success", async () => {
     const readContract = publicClient.readContract;
     vi.spyOn(publicClient, "readContract").mockImplementation((parameters) =>
-      parameters.functionName === "balanceOf" ? Promise.resolve(2n) : readContract(parameters as never),
+      parameters.functionName === "balanceOf" && parameters.args?.[0] === account
+        ? Promise.resolve(2n)
+        : readContract(parameters as never),
     );
 
     await jobFinished({ ...request, assets: [token] });
 
     expect(await getWETHMarket(account)).toMatchObject({ floatingDepositAssets: 0n, isCollateral: false });
-    expect(mocks.track).toHaveBeenCalledExactlyOnceWith({
-      event: "AccountFunded",
-      userId: account,
-      properties: { source: null },
-    });
-    expect(sendPushNotificationMock).not.toHaveBeenCalled();
+    expect(tracks()).toStrictEqual([[{ event: "AccountFunded", userId: account, properties: { source: null } }]]);
+    expect(pushes()).toStrictEqual([]);
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -386,12 +381,14 @@ describe("poke worker", () => {
     const error = new Error("notification error");
     const deposit = parseEther("2");
     await mint(token, account, deposit);
-    sendPushNotificationMock.mockRejectedValueOnce(error);
+    sendPushNotificationMock.mockImplementation(({ userId }) =>
+      userId === account ? Promise.reject(error) : Promise.resolve({}),
+    );
 
     await jobFinished({ ...request, assets: [token] });
 
     expect(await getWETHMarket(account)).toMatchObject({ floatingDepositAssets: deposit, isCollateral: true });
-    expect(sendPushNotificationMock).toHaveBeenCalledOnce();
+    expect(pushes()).toHaveLength(1);
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, { level: "error" });
   });
 
@@ -439,18 +436,19 @@ describe("poke worker", () => {
 
     expect(await publicClient.getCode({ address: account })).toBeDefined();
     expect(await getWETHMarket(account)).toMatchObject({ floatingDepositAssets: 0n, isCollateral: false });
-    expect(sendPushNotificationMock).not.toHaveBeenCalled();
+    expect(pushes()).toStrictEqual([]);
   });
 
   it("retries activity until its balance is visible", async () => {
     const deposit = parseEther("5");
     const getBalance = publicClient.getBalance;
-    vi.spyOn(publicClient, "getBalance")
-      .mockImplementationOnce(async () => {
-        await anvilClient.setBalance({ address: account, value: deposit });
-        return 0n;
-      })
-      .mockImplementation((parameters) => getBalance(parameters));
+    let hidden = true;
+    vi.spyOn(publicClient, "getBalance").mockImplementation(async (parameters) => {
+      if (!hidden || parameters.address !== account) return getBalance(parameters);
+      hidden = false;
+      await anvilClient.setBalance({ address: account, value: deposit });
+      return 0n;
+    });
 
     await jobFinished(
       { ...request, assets: [eth], origin: "activity" },
@@ -468,7 +466,12 @@ describe("poke worker", () => {
     let hidden = true;
     await mint(token, account, wethDeposit);
     vi.spyOn(publicClient, "readContract").mockImplementation(async (parameters) => {
-      if (hidden && parameters.functionName === "balanceOf" && parameters.address === token2) {
+      if (
+        hidden &&
+        parameters.functionName === "balanceOf" &&
+        parameters.address === token2 &&
+        parameters.args?.[0] === account
+      ) {
         hidden = false;
         await mint(token2, account, usdcDeposit);
         return 0n as never;
@@ -494,7 +497,12 @@ describe("poke worker", () => {
     let hidden = true;
     await mint(token, account, parseEther("2"));
     vi.spyOn(publicClient, "readContract").mockImplementation(async (parameters) => {
-      if (hidden && parameters.functionName === "balanceOf" && parameters.address === token2) {
+      if (
+        hidden &&
+        parameters.functionName === "balanceOf" &&
+        parameters.address === token2 &&
+        parameters.args?.[0] === account
+      ) {
         hidden = false;
         await mint(token2, account, 2_000_000n);
         return 0n as never;
@@ -524,15 +532,14 @@ describe("poke worker", () => {
       jobFinished({ ...request, assets: [token], origin: "activity" }, { removeOnFail: false }),
     ).rejects.toThrow("NoBalance()");
 
-    await expect(queue.getFailedCount()).resolves.toBe(1);
     await expect(queue.getJobState(id)).resolves.toBe("failed");
-    const [job] = await queue.getFailed();
+    const job = await queue.getJob(id);
     if (!job) throw new Error("job not found");
     expect(job.id).toBe(id);
     expect(job.failedReason).toBe("NoBalance()");
     expect(job.attemptsMade).toBe(1);
     expect(job.stacktrace).toHaveLength(1);
-    expect(setUser.mock.calls).toStrictEqual([[{ id: account }], [{ id: account }]]);
+    expect(users(setUser)).toStrictEqual([[{ id: account }], [{ id: account }]]);
     expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ message: "NoBalance()" }), {
       extra: { account, attempts: 1, id },
       fingerprint: ["{{ default }}", "NoBalance"],
@@ -556,8 +563,8 @@ describe("poke worker", () => {
     }
 
     expect(await publicClient.getCode({ address: account })).toBeDefined();
-    expect(wallet).toHaveBeenCalledExactlyOnceWith(poker, network);
-    expect(readContract).not.toHaveBeenCalled();
+    expect(wallet).toHaveBeenCalledWith(poker, network);
+    expect(reads(readContract)).toStrictEqual([]);
   });
 
   it("deploys activity accounts funded with unsupported assets without queuing credit", async () => {
@@ -572,9 +579,12 @@ describe("poke worker", () => {
 
   it("retries rpc failures", async () => {
     const readContract = publicClient.readContract;
-    vi.spyOn(publicClient, "readContract")
-      .mockRejectedValueOnce(new Error("rpc unavailable"))
-      .mockImplementation((parameters) => readContract(parameters as never));
+    let failures = 1;
+    vi.spyOn(publicClient, "readContract").mockImplementation((parameters) =>
+      parameters.args?.[0] === account && failures-- > 0
+        ? Promise.reject(new Error("rpc unavailable"))
+        : readContract(parameters as never),
+    );
 
     await jobFinished({ ...request, assets: [token] }, { attempts: 2, backoff: { type: "fixed", delay: 1 } });
 
@@ -586,7 +596,10 @@ describe("poke worker", () => {
     const error = new Error("poke failed");
     const setUser = await spyScopeSetUser();
     const id = `${request.chainId}-${account}-${token}`;
-    vi.spyOn(publicClient, "readContract").mockRejectedValue(error);
+    const readContract = publicClient.readContract;
+    vi.spyOn(publicClient, "readContract").mockImplementation((parameters) =>
+      parameters.args?.[0] === account ? Promise.reject(error) : readContract(parameters as never),
+    );
 
     await expect(
       jobFinished(
@@ -595,15 +608,14 @@ describe("poke worker", () => {
       ),
     ).rejects.toThrow("poke failed");
 
-    await expect(queue.getFailedCount()).resolves.toBe(1);
     await expect(queue.getJobState(id)).resolves.toBe("failed");
-    const [job] = await queue.getFailed();
+    const job = await queue.getJob(id);
     if (!job) throw new Error("job not found");
     expect(job.id).toBe(id);
     expect(job.failedReason).toBe("poke failed");
     expect(job.attemptsMade).toBe(2);
     expect(job.stacktrace).toHaveLength(2);
-    expect(setUser.mock.calls).toStrictEqual([[{ id: account }], [{ id: account }]]);
+    expect(users(setUser)).toStrictEqual([[{ id: account }], [{ id: account }]]);
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       extra: { account, attempts: 2, id },
       fingerprint: ["{{ default }}", "unknown"],
@@ -622,13 +634,16 @@ describe("poke worker", () => {
         functionName: "poke",
       }),
     });
-    vi.spyOn(publicClient, "readContract").mockRejectedValueOnce(error);
+    const readContract = publicClient.readContract;
+    vi.spyOn(publicClient, "readContract").mockImplementation((parameters) =>
+      parameters.args?.[0] === account ? Promise.reject(error) : readContract(parameters as never),
+    );
 
     const setUser = await spyScopeSetUser();
 
     await expect(jobFinished({ ...request, assets: [token] })).rejects.toThrow("test");
 
-    expect(setUser.mock.calls).toStrictEqual([[{ id: account }], [{ id: account }]]);
+    expect(users(setUser)).toStrictEqual([[{ id: account }], [{ id: account }]]);
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       extra: { account, attempts: 1, id: `${request.chainId}-${account}-${token}` },
       fingerprint: ["{{ default }}", "Unauthorized"],
@@ -657,6 +672,7 @@ describe("poke worker", () => {
   it("captures failed events without a job", async () => {
     const error = new Error("failed event error");
     const setUser = await spyScopeSetUser();
+    setUser.mockClear();
 
     worker.queue.emit("failed", undefined, error, "active");
 
@@ -728,5 +744,21 @@ async function mint(asset: Address, address: Address, amount: bigint) {
 }
 
 function credits(add: MockInstance<Queue["add"]>) {
-  return add.mock.calls.filter(([name]) => name === "credit");
+  return add.mock.calls.filter(([name, data]) => name === "credit" && (data as Poke).account === account);
+}
+
+function pushes() {
+  return sendPushNotificationMock.mock.calls.filter(([{ userId }]) => userId === account);
+}
+
+function tracks() {
+  return mocks.track.mock.calls.filter(([event]) => (event as { userId: string }).userId === account);
+}
+
+function reads(spy: MockInstance<typeof publicClient.readContract>) {
+  return spy.mock.calls.filter(([{ args }]) => args?.[0] === account);
+}
+
+function users(setUser: Mock) {
+  return setUser.mock.calls.filter(([user]) => (user as undefined | { id?: string })?.id === account);
 }
