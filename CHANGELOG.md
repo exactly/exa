@@ -1,5 +1,11 @@
 # @exactly/mobile
 
+## 1.2.42
+
+### Patch Changes
+
+- [#1725](https://github.com/exactly/exa/pull/1725) [`1c33e3c`](https://github.com/exactly/exa/commit/1c33e3cb58d313e4fb2a0f8b89ade4a4031a13d2) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ⬆️ upgrade tamagui to v3
+
 ## 1.2.41
 
 ### Patch Changes
