@@ -6,6 +6,7 @@ import "../mocks/sentry";
 import "../mocks/wallet";
 
 import { captureException, captureMessage, setUser } from "@sentry/node";
+import { Queue } from "bullmq";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { parse } from "valibot";
@@ -30,7 +31,7 @@ import {
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { anvil } from "viem/chains";
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import chain, {
@@ -55,24 +56,19 @@ import t, { f } from "../../i18n";
 import createOnesignal from "../../utils/onesignal";
 import createPanda, * as Panda from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
+import redis from "../../utils/redis";
 import createSardine from "../../utils/sardine";
 import createSegment from "../../utils/segment";
 import traceClient from "../../utils/traceClient";
 import wallet from "../../utils/wallet";
+import createHookQueue from "../../workers/hook/queue";
+import createRefund from "../../workers/refund/queue";
 import anvilClient from "../anvilClient";
 
-import type createHookQueue from "../../workers/hook/queue";
-import type createRefund from "../../workers/refund/queue";
 import type { drizzle as Drizzle } from "drizzle-orm/node-postgres";
 
-const refund = vi.hoisted(() => ({
-  close: vi.fn<ReturnType<typeof createRefund>["close"]>().mockResolvedValue(),
-  enqueue: vi.fn<ReturnType<typeof createRefund>["enqueue"]>(),
-}));
-const hookQueue = vi.hoisted(() => ({
-  close: vi.fn<ReturnType<typeof createHookQueue>["close"]>().mockResolvedValue(),
-  enqueue: vi.fn<ReturnType<typeof createHookQueue>["enqueue"]>().mockResolvedValue(),
-}));
+const refund = createRefund(redis);
+const hookQueue = createHookQueue(redis);
 const pandaConfig = { key: "panda", url: "https://panda.test" };
 const panda = createPanda(pandaConfig);
 const sardineConfig = { key: "sardine", url: "https://api.sardine.ai" };
@@ -104,6 +100,7 @@ vi.mock("drizzle-orm/node-postgres", async (importOriginal) => {
 });
 
 let keeper: ReturnType<typeof wallet>;
+let add: MockInstance<Queue["add"]>;
 
 const appClient = testClient(app);
 const account = deriveAddress(exaAccountFactoryAddress, { x: padHex(owner.account.address), y: zeroHash });
@@ -121,6 +118,12 @@ beforeAll(async () => {
     anvilClient.setBalance({ address: owner.account.address, value: 10n ** 24n }),
   ]);
 });
+
+beforeEach(() => {
+  add = vi.spyOn(Queue.prototype, "add");
+});
+
+afterAll(() => Promise.all([refund.close(), hookQueue.close()]));
 
 describe("validation", () => {
   it("fails with bad key", async () => {
@@ -673,16 +676,19 @@ describe("card operations", () => {
 
         expect(usdcToCollector(purchaseReceipt)).toBe(BigInt(authorization.json.body.spend.amount * 1e4));
         expect(response.status).toBe(200);
-        await vi.waitUntil(() => hookQueue.enqueue.mock.calls.length > 0);
-        expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith(
-          {
-            receipt: {
-              blockNumber: Number(purchaseReceipt.blockNumber),
-              transactionHash: purchaseReceipt.transactionHash,
+        await vi.waitUntil(() => jobs("hook").length > 0);
+        expect(jobs("hook")).toStrictEqual([
+          published(
+            "hook",
+            {
+              receipt: {
+                blockNumber: Number(purchaseReceipt.blockNumber),
+                transactionHash: purchaseReceipt.transactionHash,
+              },
             },
-          },
-          authorization.json.id,
-        );
+            authorization.json.id,
+          ),
+        ]);
       });
 
       it("clears credit", async () => {
@@ -1148,7 +1154,7 @@ describe("card operations", () => {
         );
         expect(transaction).toBeDefined();
         expect(response.status).toBe(569);
-        expect(hookQueue.enqueue).not.toHaveBeenCalled();
+        expect(jobs("hook")).toStrictEqual([]);
       });
 
       it("returns ok on replay", async () => {
@@ -1246,10 +1252,6 @@ describe("card operations", () => {
   });
 
   describe("refund and reversal", () => {
-    beforeEach(() => {
-      refund.enqueue.mockClear().mockResolvedValue();
-    });
-
     it("enqueues reversals", async () => {
       const amount = 2073;
       const id = "reversal-enqueued";
@@ -1280,15 +1282,18 @@ describe("card operations", () => {
       const timestamp =
         Math.floor(new Date(updatedAt).getTime() / 1000) -
         Number(BigInt(`0x${authorization.json.id.replaceAll(/[^0-9a-f]/g, "")}`) % 3600n);
-      expect(refund.enqueue).toHaveBeenCalledExactlyOnceWith(
-        {
-          account,
-          amount: amount * 10_000,
-          signature: await Panda.signIssuerOp({ account, amount: BigInt(amount) * -10_000n, timestamp }, issuer),
-          timestamp,
-        },
-        "abcdef-123456",
-      );
+      expect(jobs("refund")).toStrictEqual([
+        published(
+          "refund",
+          {
+            account,
+            amount: amount * 10_000,
+            signature: await Panda.signIssuerOp({ account, amount: BigInt(amount) * -10_000n, timestamp }, issuer),
+            timestamp,
+          },
+          "abcdef-123456",
+        ),
+      ]);
       expect(response.status).toBe(200);
     });
 
@@ -1322,15 +1327,18 @@ describe("card operations", () => {
       const timestamp =
         Math.floor(new Date(createdAt).getTime() / 1000) -
         Number(BigInt(`0x${authorization.json.id.replaceAll(/[^0-9a-f]/g, "")}`) % 3600n);
-      expect(refund.enqueue).toHaveBeenCalledExactlyOnceWith(
-        {
-          account,
-          amount: amount * 10_000,
-          signature: await Panda.signIssuerOp({ account, amount: BigInt(amount) * -10_000n, timestamp }, issuer),
-          timestamp,
-        },
-        "abcdef-123456",
-      );
+      expect(jobs("refund")).toStrictEqual([
+        published(
+          "refund",
+          {
+            account,
+            amount: amount * 10_000,
+            signature: await Panda.signIssuerOp({ account, amount: BigInt(amount) * -10_000n, timestamp }, issuer),
+            timestamp,
+          },
+          "abcdef-123456",
+        ),
+      ]);
       expect(response.status).toBe(200);
     });
 
@@ -1365,7 +1373,7 @@ describe("card operations", () => {
         },
       });
 
-      expect(refund.enqueue).toHaveBeenCalledOnce();
+      expect(jobs("refund")).toHaveLength(1);
       expect(captureException).not.toHaveBeenCalled();
       expect(response.status).toBe(200);
     });
@@ -1401,7 +1409,7 @@ describe("card operations", () => {
         },
       });
 
-      expect(refund.enqueue).toHaveBeenCalledOnce();
+      expect(jobs("refund")).toHaveLength(1);
       expect(captureException).toHaveBeenCalledExactlyOnceWith(
         expect.objectContaining({ message: "invalid panda signature" }),
         { level: "error" },
@@ -1436,7 +1444,7 @@ describe("card operations", () => {
         },
       });
 
-      expect(refund.enqueue).toHaveBeenCalledOnce();
+      expect(jobs("refund")).toHaveLength(1);
       expect(captureException).toHaveBeenCalledExactlyOnceWith(
         expect.objectContaining({ message: "timestamp not found" }),
         { level: "error" },
@@ -1472,7 +1480,7 @@ describe("card operations", () => {
         },
       });
 
-      expect(refund.enqueue).toHaveBeenCalledOnce();
+      expect(jobs("refund")).toHaveLength(1);
       expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(Error), { level: "error" });
       expect(response.status).toBe(200);
     });
@@ -1503,10 +1511,9 @@ describe("card operations", () => {
         },
       });
 
-      expect(refund.enqueue).toHaveBeenCalledExactlyOnceWith(
-        expect.objectContaining({ account, amount: 50_000 }),
-        "abcdef-123456",
-      );
+      expect(jobs("refund")).toStrictEqual([
+        ["refund", expect.objectContaining({ account, amount: 50_000 }), { jobId: "abcdef-123456" }],
+      ]);
       expect(response.status).toBe(200);
     });
 
@@ -1532,7 +1539,7 @@ describe("card operations", () => {
 
       await expect(response.json()).resolves.toStrictEqual({ code: "transaction not found" });
       expect(response.status).toBe(553);
-      expect(refund.enqueue).not.toHaveBeenCalled();
+      expect(jobs("refund")).toStrictEqual([]);
     });
 
     it("fails with unknown card", async () => {
@@ -1559,12 +1566,12 @@ describe("card operations", () => {
       });
 
       expect(response.status).toBe(500);
-      expect(refund.enqueue).not.toHaveBeenCalled();
+      expect(jobs("refund")).toStrictEqual([]);
     });
 
     it("retries refunds that cannot be queued", async () => {
       const error = new Error("queue error");
-      refund.enqueue.mockRejectedValueOnce(error);
+      vi.spyOn(refund, "enqueue").mockRejectedValueOnce(error);
       const exaSend = vi.spyOn(keeper, "exaSend");
       const track = vi.spyOn(segment, "track");
 
@@ -1602,7 +1609,7 @@ describe("card operations", () => {
     });
 
     it("retries refunds that cannot be queued with non-error failures", async () => {
-      refund.enqueue.mockRejectedValueOnce("queue unavailable");
+      vi.spyOn(refund, "enqueue").mockRejectedValueOnce("queue unavailable");
 
       const response = await appClient.index.$post({
         ...authorization,
@@ -2366,10 +2373,11 @@ describe("card operations", () => {
 
         expect(createResponse.status).toBe(200);
         expect(completeResponse.status).toBe(200);
-        expect(refund.enqueue).toHaveBeenCalledWith(
+        expect(jobs("refund")).toContainEqual([
+          "refund",
           expect.objectContaining({ account, amount: (hold - capture) * 10_000 }),
-          "abcdef-123456",
-        );
+          { jobId: "abcdef-123456" },
+        ]);
 
         const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
 
@@ -3695,7 +3703,7 @@ describe("webhooks", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, authorization.json.id);
+    expect(jobs("hook")).toStrictEqual([published("hook", {}, authorization.json.id)]);
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -3714,7 +3722,7 @@ describe("webhooks", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, authorization.json.id);
+    expect(jobs("hook")).toStrictEqual([published("hook", {}, authorization.json.id)]);
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -3725,7 +3733,7 @@ describe("webhooks", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, cardUpdated.json.id);
+    expect(jobs("hook")).toStrictEqual([published("hook", {}, cardUpdated.json.id)]);
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -3733,7 +3741,7 @@ describe("webhooks", () => {
     const response = await appClient.index.$post(cardNotification);
 
     expect(response.status).toBe(200);
-    expect(hookQueue.enqueue).not.toHaveBeenCalled();
+    expect(jobs("hook")).toStrictEqual([]);
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -3741,7 +3749,7 @@ describe("webhooks", () => {
     const response = await appClient.index.$post(userUpdated);
 
     expect(response.status).toBe(200);
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, userUpdated.json.id);
+    expect(jobs("hook")).toStrictEqual([published("hook", {}, userUpdated.json.id)]);
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -3749,13 +3757,13 @@ describe("webhooks", () => {
     const response = await appClient.index.$post(dispute);
 
     expect(response.status).toBe(200);
-    expect(hookQueue.enqueue).not.toHaveBeenCalled();
+    expect(jobs("hook")).toStrictEqual([]);
     expect(captureException).not.toHaveBeenCalled();
   });
 
   it("retries card updated webhooks that cannot be queued", async () => {
     const error = new Error("queue down");
-    hookQueue.enqueue.mockRejectedValueOnce(error);
+    const enqueue = vi.spyOn(hookQueue, "enqueue").mockRejectedValueOnce(error);
 
     const response = await appClient.index.$post({
       ...cardUpdated,
@@ -3764,7 +3772,7 @@ describe("webhooks", () => {
 
     expect(response.status).toBe(569);
     await expect(response.json()).resolves.toStrictEqual({ code: "queue down" });
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, cardUpdated.json.id);
+    expect(enqueue).toHaveBeenCalledExactlyOnceWith({}, cardUpdated.json.id);
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       level: "error",
       tags: { queue: "hook", job: "hook" },
@@ -3773,7 +3781,7 @@ describe("webhooks", () => {
   });
 
   it("retries card updated webhooks that cannot be queued with non-error failures", async () => {
-    hookQueue.enqueue.mockRejectedValueOnce("queue unavailable");
+    const enqueue = vi.spyOn(hookQueue, "enqueue").mockRejectedValueOnce("queue unavailable");
 
     const response = await appClient.index.$post({
       ...cardUpdated,
@@ -3782,7 +3790,7 @@ describe("webhooks", () => {
 
     expect(response.status).toBe(569);
     await expect(response.json()).resolves.toStrictEqual({ code: "queue unavailable" });
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, cardUpdated.json.id);
+    expect(enqueue).toHaveBeenCalledExactlyOnceWith({}, cardUpdated.json.id);
     expect(captureException).toHaveBeenCalledExactlyOnceWith("queue unavailable", {
       level: "error",
       tags: { queue: "hook", job: "hook" },
@@ -3792,7 +3800,7 @@ describe("webhooks", () => {
 
   it("retries declined transaction webhooks that cannot be queued", async () => {
     const error = new Error("queue down");
-    hookQueue.enqueue.mockRejectedValueOnce(error);
+    const enqueue = vi.spyOn(hookQueue, "enqueue").mockRejectedValueOnce(error);
 
     const response = await appClient.index.$post({
       ...authorization,
@@ -3814,7 +3822,7 @@ describe("webhooks", () => {
 
     expect(response.status).toBe(569);
     await expect(response.json()).resolves.toStrictEqual({ code: "queue down" });
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, authorization.json.id);
+    expect(enqueue).toHaveBeenCalledExactlyOnceWith({}, authorization.json.id);
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       level: "error",
       tags: { queue: "hook", job: "hook" },
@@ -3823,7 +3831,7 @@ describe("webhooks", () => {
   });
 
   it("retries declined transaction webhooks that cannot be queued with non-error failures", async () => {
-    hookQueue.enqueue.mockRejectedValueOnce("queue unavailable");
+    const enqueue = vi.spyOn(hookQueue, "enqueue").mockRejectedValueOnce("queue unavailable");
 
     const response = await appClient.index.$post({
       ...authorization,
@@ -3845,7 +3853,7 @@ describe("webhooks", () => {
 
     expect(response.status).toBe(569);
     await expect(response.json()).resolves.toStrictEqual({ code: "queue unavailable" });
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, authorization.json.id);
+    expect(enqueue).toHaveBeenCalledExactlyOnceWith({}, authorization.json.id);
     expect(captureException).toHaveBeenCalledExactlyOnceWith("queue unavailable", {
       level: "error",
       tags: { queue: "hook", job: "hook" },
@@ -3855,7 +3863,7 @@ describe("webhooks", () => {
 
   it("retries negative amount transaction webhooks that cannot be queued", async () => {
     const error = new Error("queue down");
-    hookQueue.enqueue.mockRejectedValueOnce(error);
+    const enqueue = vi.spyOn(hookQueue, "enqueue").mockRejectedValueOnce(error);
 
     const response = await appClient.index.$post({
       ...authorization,
@@ -3872,7 +3880,7 @@ describe("webhooks", () => {
 
     expect(response.status).toBe(569);
     await expect(response.json()).resolves.toStrictEqual({ code: "queue down" });
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, authorization.json.id);
+    expect(enqueue).toHaveBeenCalledExactlyOnceWith({}, authorization.json.id);
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       level: "error",
       tags: { queue: "hook", job: "hook" },
@@ -3881,7 +3889,7 @@ describe("webhooks", () => {
   });
 
   it("retries negative amount transaction webhooks that cannot be queued with non-error failures", async () => {
-    hookQueue.enqueue.mockRejectedValueOnce("queue unavailable");
+    const enqueue = vi.spyOn(hookQueue, "enqueue").mockRejectedValueOnce("queue unavailable");
 
     const response = await appClient.index.$post({
       ...authorization,
@@ -3898,7 +3906,7 @@ describe("webhooks", () => {
 
     expect(response.status).toBe(569);
     await expect(response.json()).resolves.toStrictEqual({ code: "queue unavailable" });
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, authorization.json.id);
+    expect(enqueue).toHaveBeenCalledExactlyOnceWith({}, authorization.json.id);
     expect(captureException).toHaveBeenCalledExactlyOnceWith("queue unavailable", {
       level: "error",
       tags: { queue: "hook", job: "hook" },
@@ -3908,7 +3916,7 @@ describe("webhooks", () => {
 
   it("retries zero collection webhooks that cannot be queued", async () => {
     const error = new Error("queue down");
-    hookQueue.enqueue.mockRejectedValueOnce(error);
+    const enqueue = vi.spyOn(hookQueue, "enqueue").mockRejectedValueOnce(error);
     const id = "zero-collection-enqueue-failure";
     await database
       .insert(transactions)
@@ -3934,7 +3942,7 @@ describe("webhooks", () => {
 
     expect(response.status).toBe(569);
     await expect(response.json()).resolves.toStrictEqual({ code: "queue down" });
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, authorization.json.id);
+    expect(enqueue).toHaveBeenCalledExactlyOnceWith({}, authorization.json.id);
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       level: "error",
       tags: { queue: "hook", job: "hook" },
@@ -3943,7 +3951,7 @@ describe("webhooks", () => {
   });
 
   it("retries zero collection webhooks that cannot be queued with non-error failures", async () => {
-    hookQueue.enqueue.mockRejectedValueOnce("queue unavailable");
+    const enqueue = vi.spyOn(hookQueue, "enqueue").mockRejectedValueOnce("queue unavailable");
     const id = "zero-collection-enqueue-non-error";
     await database
       .insert(transactions)
@@ -3969,7 +3977,7 @@ describe("webhooks", () => {
 
     expect(response.status).toBe(569);
     await expect(response.json()).resolves.toStrictEqual({ code: "queue unavailable" });
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, authorization.json.id);
+    expect(enqueue).toHaveBeenCalledExactlyOnceWith({}, authorization.json.id);
     expect(captureException).toHaveBeenCalledExactlyOnceWith("queue unavailable", {
       level: "error",
       tags: { queue: "hook", job: "hook" },
@@ -3979,7 +3987,7 @@ describe("webhooks", () => {
 
   it("captures receipt enqueue failures", async () => {
     const error = new Error("queue down");
-    hookQueue.enqueue.mockRejectedValueOnce(error);
+    const enqueue = vi.spyOn(hookQueue, "enqueue").mockRejectedValueOnce(error);
     // @ts-expect-error mock implementation
     vi.spyOn(keeper, "exaSend").mockImplementation(async (...args) => {
       await args[2]?.onReceipt?.({
@@ -4002,7 +4010,7 @@ describe("webhooks", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith(
+    expect(enqueue).toHaveBeenCalledExactlyOnceWith(
       { receipt: { blockNumber: 69, transactionHash: zeroHash } },
       authorization.json.id,
     );
@@ -4237,3 +4245,15 @@ afterEach(() => {
   vi.clearAllMocks();
   vi.restoreAllMocks();
 });
+
+function jobs(name: string) {
+  return add.mock.calls.filter(([jobName]) => jobName === name);
+}
+
+function published(name: string, data: object, jobId: string) {
+  return [
+    name,
+    { ...data, sentryBaggage: expect.any(String) as string, sentryTrace: expect.any(String) as string },
+    { jobId },
+  ] as const;
+}

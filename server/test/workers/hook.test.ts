@@ -30,6 +30,7 @@ const hook = createHook(redis);
 const queue = new Queue<Hook, void, "hook">("hook", { connection: bullmq });
 const events = new QueueEvents("hook", { connection: bullmq, lastEventId: await tip(bullmq, queue) });
 const webhooks = new Map<string, unknown>();
+const own = new Set<string>();
 
 let worker: ReturnType<typeof hookWorker>;
 let connection: ReturnType<typeof connect>;
@@ -105,7 +106,6 @@ describe("hook queue", () => {
 
 describe("hook worker", () => {
   beforeAll(async () => {
-    await queue.drain(true);
     await database.transaction(async (tx) => {
       await tx.insert(sources).values([
         {
@@ -179,14 +179,11 @@ describe("hook worker", () => {
     await connection.quit();
   });
 
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.restoreAllMocks();
     webhooks.clear();
     mocks.getWebhook.mockReset().mockImplementation((id) => Promise.resolve(webhooks.get(id)));
     vi.clearAllMocks();
-    await queue.drain(true);
-    await queue.clean(0, 1000, "completed");
-    await queue.clean(0, 1000, "failed");
   });
 
   it("delivers transaction created webhooks", async () => {
@@ -212,8 +209,7 @@ describe("hook worker", () => {
     });
     expect(webhookLogger).toHaveBeenCalledExactlyOnceWith("%j", expect.objectContaining({ code: 200, response: "OK" }));
     expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: parse(Address, padHex("0xfab1", { size: 20 })) });
-    expect(continueTrace).not.toHaveBeenCalled();
-    expect(captureException).not.toHaveBeenCalled();
+    expect(captured()).toStrictEqual([]);
   });
 
   it("delivers without exchange rate on matching currencies", async () => {
@@ -450,7 +446,7 @@ describe("hook worker", () => {
 
     expect(mockFetch).not.toHaveBeenCalled();
     expect(setUser).not.toHaveBeenCalled();
-    expect(captureException).not.toHaveBeenCalled();
+    expect(captured()).toStrictEqual([]);
   });
 
   it("skips disputes", async () => {
@@ -465,7 +461,7 @@ describe("hook worker", () => {
 
     expect(mockFetch).not.toHaveBeenCalled();
     expect(setUser).not.toHaveBeenCalled();
-    expect(captureException).not.toHaveBeenCalled();
+    expect(captured()).toStrictEqual([]);
   });
 
   it("skips card notifications", async () => {
@@ -490,7 +486,7 @@ describe("hook worker", () => {
 
     expect(mockFetch).not.toHaveBeenCalled();
     expect(setUser).not.toHaveBeenCalled();
-    expect(captureException).not.toHaveBeenCalled();
+    expect(captured()).toStrictEqual([]);
   });
 
   it("skips unknown users", async () => {
@@ -501,7 +497,7 @@ describe("hook worker", () => {
 
     expect(mockFetch).not.toHaveBeenCalled();
     expect(setUser).not.toHaveBeenCalled();
-    expect(captureException).not.toHaveBeenCalled();
+    expect(captured()).toStrictEqual([]);
   });
 
   it("skips sourceless users", async () => {
@@ -512,7 +508,7 @@ describe("hook worker", () => {
 
     expect(mockFetch).not.toHaveBeenCalled();
     expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: parse(Address, padHex("0xfab4", { size: 20 })) });
-    expect(captureException).not.toHaveBeenCalled();
+    expect(captured()).toStrictEqual([]);
   });
 
   it("fails without retries on invalid job data", async () => {
@@ -521,14 +517,16 @@ describe("hook worker", () => {
     } as unknown as Hook);
 
     await expect(result).rejects.toBeDefined();
-    expect(mocks.getWebhook).not.toHaveBeenCalled();
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({
-        name: "UnrecoverableError",
-        cause: expect.objectContaining({ name: "ValiError" }) as unknown,
-      }),
-      expect.objectContaining({ level: "fatal", fingerprint: ["{{ default }}", "hook.exhausted"] }),
-    );
+    expect(mocks.getWebhook).not.toHaveBeenCalledWith("wk-bad-data");
+    expect(captured()).toStrictEqual([
+      [
+        expect.objectContaining({
+          name: "UnrecoverableError",
+          cause: expect.objectContaining({ name: "ValiError" }) as unknown,
+        }),
+        expect.objectContaining({ level: "fatal", fingerprint: ["{{ default }}", "hook.exhausted"] }),
+      ],
+    ]);
   });
 
   it("fails without retries on invalid configs", async () => {
@@ -540,13 +538,15 @@ describe("hook worker", () => {
     await expect(result).rejects.toBeDefined();
     expect(mockFetch).not.toHaveBeenCalled();
     expect(setUser).toHaveBeenCalledWith({ id: parse(Address, padHex("0xfab3", { size: 20 })) });
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({
-        name: "UnrecoverableError",
-        cause: expect.objectContaining({ name: "ValiError" }) as unknown,
-      }),
-      expect.objectContaining({ level: "fatal", fingerprint: ["{{ default }}", "hook.exhausted"] }),
-    );
+    expect(captured()).toStrictEqual([
+      [
+        expect.objectContaining({
+          name: "UnrecoverableError",
+          cause: expect.objectContaining({ name: "ValiError" }) as unknown,
+        }),
+        expect.objectContaining({ level: "fatal", fingerprint: ["{{ default }}", "hook.exhausted"] }),
+      ],
+    ]);
   });
 
   it("fails without retries on invalid webhook bodies", async () => {
@@ -571,13 +571,15 @@ describe("hook worker", () => {
 
     await expect(result).rejects.toBeDefined();
     expect(mockFetch).not.toHaveBeenCalled();
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({
-        name: "UnrecoverableError",
-        cause: expect.objectContaining({ name: "ValiError" }) as unknown,
-      }),
-      expect.objectContaining({ level: "fatal", fingerprint: ["{{ default }}", "hook.exhausted"] }),
-    );
+    expect(captured()).toStrictEqual([
+      [
+        expect.objectContaining({
+          name: "UnrecoverableError",
+          cause: expect.objectContaining({ name: "ValiError" }) as unknown,
+        }),
+        expect.objectContaining({ level: "fatal", fingerprint: ["{{ default }}", "hook.exhausted"] }),
+      ],
+    ]);
   });
 
   it("retries failed deliveries", async () => {
@@ -591,7 +593,7 @@ describe("hook worker", () => {
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
     expect(webhookLogger).toHaveBeenCalledWith("%j", expect.objectContaining({ code: 500, response: "oops" }));
-    expect(captureException).not.toHaveBeenCalled();
+    expect(captured()).toStrictEqual([]);
   });
 
   it("captures terminal delivery failures", async () => {
@@ -604,19 +606,24 @@ describe("hook worker", () => {
 
     await expect(result).rejects.toThrow("webhook failed");
     await expect(queue.getJobState("wk-terminal")).resolves.toBe("failed");
-    const [job] = await queue.getFailed();
+    const job = await queue.getJob("wk-terminal");
     if (!job) throw new Error("job not found");
     expect(job.failedReason).toBe("webhook failed");
     expect(webhookLogger).toHaveBeenCalledExactlyOnceWith(
       "%j",
       expect.objectContaining({ code: 500, response: { code: "err" } }),
     );
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ message: "webhook failed" }), {
-      level: "fatal",
-      fingerprint: ["{{ default }}", "hook.exhausted"],
-      tags: { queue: "hook", job: "hook" },
-      extra: { attempts: 1, id: "wk-terminal" },
-    });
+    expect(captured()).toStrictEqual([
+      [
+        expect.objectContaining({ message: "webhook failed" }),
+        {
+          level: "fatal",
+          fingerprint: ["{{ default }}", "hook.exhausted"],
+          tags: { queue: "hook", job: "hook" },
+          extra: { attempts: 1, id: "wk-terminal" },
+        },
+      ],
+    ]);
     await job.remove();
   });
 
@@ -638,7 +645,7 @@ describe("hook worker", () => {
       "https://routed.test/tx",
     ]);
     expect(webhookLogger).toHaveBeenCalledWith("%j", expect.objectContaining({ code: 500, response: "oops" }));
-    expect(captureException).not.toHaveBeenCalled();
+    expect(captured()).toStrictEqual([]);
   });
 
   it("logs delivery errors", async () => {
@@ -768,6 +775,7 @@ function user(id: string, pandaId: string) {
 }
 
 async function jobFinished(id: string, options?: JobsOptions, data: Hook = {}) {
+  own.add(id);
   const result = finished(events, id);
   await queue.add("hook", data, {
     attempts: 1,
@@ -777,7 +785,14 @@ async function jobFinished(id: string, options?: JobsOptions, data: Hook = {}) {
     ...options,
   });
   await result.catch(async (error: unknown) => {
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0);
+    await vi.waitUntil(() => captured().length > 0);
     throw error;
+  });
+}
+
+function captured() {
+  return vi.mocked(captureException).mock.calls.filter(([, context]) => {
+    const id = (context as undefined | { extra?: { id?: string } })?.extra?.id;
+    return id === undefined || own.has(id);
   });
 }
