@@ -5,11 +5,12 @@ import * as sardine from "../mocks/sardine";
 import "../mocks/sentry";
 
 import { captureException } from "@sentry/node";
+import { Queue } from "bullmq";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import chain, { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
@@ -19,15 +20,13 @@ import createPersonaHook from "../../hooks/persona";
 import createPanda from "../../utils/panda";
 import createPax from "../../utils/pax";
 import createPersona, * as Persona from "../../utils/persona";
+import redis from "../../utils/redis";
 import createSardine from "../../utils/sardine";
+import createAllow from "../../workers/allow/queue";
 
-import type createAllow from "../../workers/allow/queue";
 import type * as C from "@exactly/common/generated/chain";
 
-const allow = {
-  close: vi.fn<ReturnType<typeof createAllow>["close"]>(),
-  enqueue: vi.fn<ReturnType<typeof createAllow>["enqueue"]>(),
-};
+const allow = createAllow(redis);
 const pandaConfig = { key: "panda", url: "https://panda.test" };
 const paxConfig = { associateKey: "pax", key: "pax", url: "https://pax.test" };
 const personaConfig = { key: "persona", url: "https://persona.test" };
@@ -46,6 +45,7 @@ const personaHook = createPersonaHook({
 const app = personaHook.app;
 const appClient = testClient(app);
 const mocks = vi.hoisted(() => ({ firewall: vi.fn<(address: string | undefined) => string | undefined>() }));
+let add: MockInstance<Queue["add"]>;
 
 vi.mock("@sentry/node", { spy: true });
 vi.mock("@exactly/common/generated/chain", async (importOriginal) => {
@@ -60,9 +60,11 @@ vi.mock("@exactly/common/generated/chain", async (importOriginal) => {
 
 beforeEach(() => {
   mocks.firewall.mockReset().mockImplementation((address) => address);
-  allow.close.mockReset().mockResolvedValue();
-  allow.enqueue.mockReset().mockResolvedValue();
+  add = vi.spyOn(Queue.prototype, "add");
+  add.mockClear();
 });
+
+afterAll(() => allow.close());
 describe("with reference", () => {
   const referenceId = "hook-persona";
   const owner = privateKeyToAddress(padHex("0x123"));
@@ -115,13 +117,15 @@ describe("with reference", () => {
 
     expect(p?.pandaId).toBe("pandaId");
 
-    expect(allow.enqueue).toHaveBeenCalledExactlyOnceWith({
-      account,
-      chainId: chain.id,
-      factory,
-      publicKey: owner.toLowerCase(),
-      source: null,
-    });
+    expect(add).toHaveBeenCalledExactlyOnceWith(
+      ...allowed({
+        account,
+        chainId: chain.id,
+        factory,
+        publicKey: owner.toLowerCase(),
+        source: null,
+      }),
+    );
     expect(response.status).toBe(200);
   });
 
@@ -248,13 +252,15 @@ describe("with reference", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(allow.enqueue).toHaveBeenCalledExactlyOnceWith({
-      account,
-      chainId: chain.id,
-      factory,
-      publicKey: owner.toLowerCase(),
-      source: null,
-    });
+    expect(add).toHaveBeenCalledExactlyOnceWith(
+      ...allowed({
+        account,
+        chainId: chain.id,
+        factory,
+        publicKey: owner.toLowerCase(),
+        source: null,
+      }),
+    );
     expect(panda.createUser).not.toHaveBeenCalled();
   });
 
@@ -491,13 +497,15 @@ describe("persona hook", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(allow.enqueue).toHaveBeenCalledExactlyOnceWith({
-      account,
-      chainId: chain.id,
-      factory: exaAccountFactoryAddress,
-      publicKey: "0x",
-      source: null,
-    });
+    expect(add).toHaveBeenCalledExactlyOnceWith(
+      ...allowed({
+        account,
+        chainId: chain.id,
+        factory: exaAccountFactoryAddress,
+        publicKey: "0x",
+        source: null,
+      }),
+    );
     expect(panda.createUser).toHaveBeenCalledWith({
       accountPurpose: "business",
       annualSalary: "100000",
@@ -549,7 +557,7 @@ describe("persona hook", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "very high risk" });
-    expect(allow.enqueue).not.toHaveBeenCalled();
+    expect(add).not.toHaveBeenCalled();
     expect(panda.createUser).not.toHaveBeenCalled();
   });
 
@@ -559,7 +567,7 @@ describe("persona hook", () => {
     const response = await postInquiry();
 
     expect(response.status).toBe(200);
-    expect(allow.enqueue).not.toHaveBeenCalled();
+    expect(add).not.toHaveBeenCalled();
     expect(panda.createUser).toHaveBeenCalledOnce();
   });
 
@@ -569,14 +577,14 @@ describe("persona hook", () => {
     const response = await postInquiry();
 
     expect(response.status).toBe(200);
-    expect(allow.enqueue).not.toHaveBeenCalled();
+    expect(add).not.toHaveBeenCalled();
     expect(panda.createUser).toHaveBeenCalledOnce();
   });
 
   it("fails before panda creation when allow cannot be queued", async () => {
     const error = new Error("redis unavailable");
     const errorConsole = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    allow.enqueue.mockRejectedValueOnce(error);
+    add.mockRejectedValueOnce(error);
 
     const response = await appClient.index.$post({
       header: {
@@ -599,7 +607,7 @@ describe("persona hook", () => {
 
     expect(response.status).toBe(500);
     expect(errorConsole).toHaveBeenCalledWith(error);
-    expect(allow.enqueue).toHaveBeenCalledOnce();
+    expect(add).toHaveBeenCalledOnce();
     expect(panda.createUser).not.toHaveBeenCalled();
   });
 
@@ -2002,4 +2010,8 @@ function postInquiry() {
       },
     },
   });
+}
+
+function allowed(data: Record<string, unknown> & { account: string }) {
+  return ["allow", expect.objectContaining(data), { jobId: data.account }] as const;
 }
