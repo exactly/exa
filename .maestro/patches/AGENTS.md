@@ -1,6 +1,6 @@
 # maestro patches (`e2e`)
 
-- **build**: the `maestro` script in `../package.json` fetches maestro at the tag it pins, applies `*.patch` in name order and installs the cli into `../build/`. a patch may build on one before it (`windows.patch` and `world.patch` do). the ios driver ships prebuilt and the build skips it, so a patch to its sources has no effect.
+- **build**: the `maestro` script in `../package.json` fetches maestro at the tag it pins, applies `*.patch` in name order and installs the cli into `../build/`. a patch may build on one before it (`windows.patch` does). the ios driver ships prebuilt and the build skips it, so a patch to its sources has no effect.
 - **maestro gaps only**: patch maestro for a maestro bug or a missing capability, never to work around the app or a flow.
 - **fit for upstream**: each patch could land upstream as a pr: no app-specific code, no code comments, nothing that drifts further from upstream.
 - **wait for the real signal**: patched commands wait for the event they depend on. no retries, no sleeps.
