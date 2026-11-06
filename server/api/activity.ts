@@ -66,7 +66,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 const ActivityTypes = picklist(["card", "received", "repay", "sent"]);
 
-const collectors = new Set([...cryptomateCollectors, ...pandaCollectors].map((a) => a.toLowerCase() as Hex));
+const collectors = new Set([...cryptomateCollectors, ...pandaCollectors()].map((a) => a.toLowerCase() as Hex));
 
 export default function route({ auth, database }: { auth: Auth; database: NodePgDatabase<typeof schema> }) {
   return new Hono().get(

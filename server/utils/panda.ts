@@ -40,12 +40,12 @@ import {
   type InferInput,
 } from "valibot";
 import { recoverTypedDataAddress, type LocalAccount } from "viem";
-import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
+import { baseSepolia, optimismSepolia } from "viem/chains";
 
 import chain, { issuerCheckerAddress, usdcAddress } from "@exactly/common/generated/chain";
 import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address, Hex } from "@exactly/common/validation";
-import { proposalManager } from "@exactly/plugin/deploy.json";
+import { accounts, proposalManager } from "@exactly/plugin/deploy.json";
 
 import ServiceError from "./ServiceError";
 
@@ -712,12 +712,9 @@ const UserResponse = object({
   applicationReason: string(),
 });
 
-export const collectors: Address[] = (
-  {
-    [optimism.id]: ["0x3a73880ff21ABf9cA9F80B293570a3cBD846eFc5"],
-    [base.id]: ["0xaFFAc76bafE73d6F4e7f73E6d43b7CccC94d1813"],
-  }[chain.id] ?? ["0xDb90CDB64CfF03f254e4015C4F705C3F3C834400"]
-).map((address) => parse(Address, address));
+export function collectors(id: number = chain.id): [Address] {
+  return [parse(Address, (accounts.collector as Partial<Record<number, string>>)[id] ?? accounts.collector.default)];
+}
 
 export function declineMessage(reason?: null | string) {
   return reason
@@ -759,9 +756,10 @@ export function signIssuerOp(
   { account, amount, timestamp }: { account: Address; amount: bigint; timestamp: number },
   issuer: LocalAccount,
   verifyingContract: Hex = issuerCheckerAddress,
+  chainId: number = chain.id,
 ) {
   return issuer.signTypedData({
-    domain: { chainId: chain.id, name: "IssuerChecker", version: "1", verifyingContract },
+    domain: { chainId, name: "IssuerChecker", version: "1", verifyingContract },
     types: {
       Collection: [
         { name: "account", type: "address" },
