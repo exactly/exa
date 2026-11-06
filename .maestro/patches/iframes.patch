@@ -1,0 +1,26 @@
+From 4ce880e1507c0cc3052f1b524eaf44b4eef73e09 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Fri, 6 Nov 2026 21:01:20 +0000
+Subject: [PATCH] fix: skip cross-origin iframes removed while reading them
+
+Reading a cross-origin iframe finds it by its src, then reads its viewport with a second script. A page can remove the iframe in between, such as MetaMask's phishing warning frame, which it drops once loaded or after a second. The second script then returns null, and casting that to a map throws, failing the whole hierarchy read and the command with it. Skip the iframe instead, as when the first lookup misses.
+---
+ maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+index 6ab6e92..e11998f 100644
+--- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+@@ -975,7 +975,7 @@ class CdpWebDriver(
+             return null
+         } ?: return null
+ 
+-        val params = jacksonObjectMapper().readValue(paramsJson, Map::class.java) as Map<String, Any>
++        val params = jacksonObjectMapper().readValue(paramsJson, Map::class.java) as? Map<String, Any> ?: return null
+         val iframeX = (params["viewportX"]      as? Number)?.toDouble() ?: 0.0
+         val iframeY = (params["viewportY"]      as? Number)?.toDouble() ?: 0.0
+         val iframeW = (params["viewportWidth"]  as? Number)?.toDouble() ?: 0.0
+-- 
+2.43.0
+
