@@ -188,6 +188,7 @@
   "Turn on <strong>Advanced mode</strong> at any time": "Activá el <strong>modo avanzado</strong> cuando quieras",
   "Turn on Advanced mode at any time": "Activá el modo avanzado cuando quieras",
   "Unable to fetch a bridge quote right now. Please adjust the amount or try again later.": "No es posible obtener una cotización de bridge en este momento. Ajustá el monto o intentalo más tarde.",
+  "We couldn’t estimate the network fee. Please adjust the amount or try again later.": "No pudimos calcular la comisión de red. Ajustá el monto o intentalo más tarde.",
   "Unable to simulate a transfer right now. Please adjust the amount or try again later.": "No es posible simular una transferencia en este momento. Ajustá el monto o intentalo más tarde.",
   "Update the account details and/or the address. At least one is required.": "Actualizá los datos de la cuenta y/o la dirección. Al menos uno es obligatorio.",
   "Upgrade account to rollover": "Actualizá la cuenta para refinanciar",

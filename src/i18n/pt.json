@@ -885,6 +885,7 @@
   "Transferring...": "Transferindo...",
   "Turn {{currency}} transfers to onchain USDC": "Converta transferências de {{currency}} em USDC onchain",
   "Unable to fetch a bridge quote right now. Please adjust the amount or try again later.": "Não é possível obter uma cotação de bridge no momento. Ajuste o valor ou tente novamente mais tarde.",
+  "We couldn’t estimate the network fee. Please adjust the amount or try again later.": "Não foi possível calcular a taxa de rede. Ajuste o valor ou tente novamente mais tarde.",
   "Unable to simulate a transfer right now. Please adjust the amount or try again later.": "Não é possível simular uma transferência no momento. Ajuste o valor ou tente novamente mais tarde.",
   "Unknown": "Desconhecido",
   "Unlike monthly payments, our installments are due every 4 weeks, which means payments are aligned with a 28-day cycle rather than the calendar month.": "Diferentemente dos pagamentos mensais, nossas parcelas vencem a cada 4 semanas, o que significa que os pagamentos são alinhados a um ciclo de 28 dias em vez do mês do calendário.",

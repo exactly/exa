@@ -51,6 +51,7 @@ import {
   lifiChainsOptions,
   lifiTokensOptions,
   quoteValidity,
+  routeCalls,
   statusOptions,
   trackable,
 } from "../../utils/lifi";
@@ -59,7 +60,7 @@ import queryClient from "../../utils/queryClient";
 import reportError, { classifyError } from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
-import useCrossChainGas from "../../utils/useCrossChainGas";
+import useSend from "../../utils/useSend";
 import useSimulateProposal from "../../utils/useSimulateProposal";
 import exa from "../../utils/wagmi/exa";
 import AnimatedView from "../shared/AnimatedView";
@@ -336,7 +337,7 @@ export default function Confirm() {
     if (!external || !address || fromAmount <= 0n) return;
     if (routed) {
       if (!route || !payUnderlying || (!isNativeTransfer && approved === undefined)) return;
-      return routeCalls(route, payUnderlying, isNativeTransfer ? maxUint256 : (approved ?? 0n));
+      return routeCalls(route, isNativeTransfer ? maxUint256 : (approved ?? 0n));
     }
     if (!receiverHex || receiverHex === zeroAddress) return;
     return [
@@ -364,6 +365,8 @@ export default function Confirm() {
     routed,
     zeroAddress,
   ]);
+  const spend =
+    external && fromAmount > 0n ? (routed ? route?.spend : { amount: fromAmount, token: externalAddress }) : undefined;
   const {
     data: transferEstimate,
     error: transferEstimateError,
@@ -371,10 +374,16 @@ export default function Confirm() {
     isPlaceholderData: isTransferEstimateStale,
     refetch: refetchTransferEstimate,
   } = useQuery({
-    queryKey: ["estimateCalls", payChain, calls],
+    queryKey: [
+      "estimateCalls",
+      payChain,
+      calls,
+      spend,
+      balances?.[payChain]?.map((token) => [token.address, token.amount]),
+    ],
     queryFn: () => {
       if (!calls) throw new Error("no calls ready");
-      return estimateCalls(exa, payChain, calls);
+      return estimateCalls(exa, payChain, calls, spend);
     },
     enabled: enableSimulations && !!calls,
     placeholderData: keepPreviousData,
@@ -383,31 +392,20 @@ export default function Confirm() {
   const payNetwork = chains?.find((item) => item.id === payChain);
   const nativeToken = payNetwork?.nativeToken;
   const sponsored = payChain === chain.id;
-  const networkCost = sponsored ? 0n : nativeToken ? transferEstimate : undefined;
+  const networkCost = sponsored ? 0n : nativeToken ? transferEstimate?.cost : undefined;
   const networkFeeUSD = sponsored
     ? 0
     : networkCost !== undefined && nativeToken
       ? Number(formatUnits(networkCost, nativeToken.decimals)) * Number(nativeToken.priceUSD)
       : undefined;
-  const routeValue = routed ? (route?.value ?? 0n) : 0n;
-  const {
-    erc20GasReserve,
-    feeIsSource,
-    gasToken,
-    insufficientGas,
-    nativeBalance,
-    nativeGasReserve,
-    paymasterAddress,
-    sendCalls,
-    submitted,
-  } = useCrossChainGas({
-    account: address,
-    amount: fromAmount,
-    chainId: payChain,
-    networkCost,
-    token: external,
-    value: routed ? routeValue : undefined,
+  const deficit = transferEstimate?.shortfall;
+  const insufficientGas = !!deficit;
+  useQuery({
+    ...balancesOptions(address),
+    refetchInterval: deficit ? quoteValidity / 3 : false,
+    notifyOnChangeProps: [],
   });
+  const { sendCalls, submitted } = useSend(payChain, spend);
   const {
     mutate: send,
     data: receipt,
@@ -433,7 +431,7 @@ export default function Confirm() {
           return sendCalls([{ to, data: encodeFunctionData({ abi, functionName, args }) }]);
         }
         const { data: allowed = 0n } = isNativeTransfer ? { data: maxUint256 } : await refetchAllowance();
-        return sendCalls(routeCalls(route, payUnderlying, allowed));
+        return sendCalls(routeCalls(route, allowed));
       }
       if (proposeSimulation) {
         const { address: to, abi, functionName, args } = proposeSimulation;
@@ -637,25 +635,19 @@ export default function Confirm() {
           ? "quote"
           : undefined;
   const highFee = feePercent !== undefined && feePercent > 3;
-  const fee =
-    insufficientGas && nativeToken
-      ? routeValue <= (nativeBalance ?? 0n) && gasToken && feeIsSource && paymasterAddress && erc20GasReserve > 0n
-        ? { reserve: erc20GasReserve, token: gasToken, network: undefined }
-        : { reserve: routeValue + nativeGasReserve, token: nativeToken, network: payNetwork.name }
-      : undefined;
-  const shortfall = fee
+  const shortfall = deficit
     ? t(
-        fee.network
+        deficit.native
           ? "You need ~{{amount}} {{symbol}} on {{network}} for network fees."
           : "Keep ~{{amount}} {{symbol}} for network fees.",
         {
-          amount: Number(formatUnits(fee.reserve, fee.token.decimals)).toLocaleString(language, {
+          amount: Number(formatUnits(deficit.amount, deficit.token.decimals)).toLocaleString(language, {
             minimumFractionDigits: 0,
-            maximumFractionDigits: fee.token.decimals,
+            maximumFractionDigits: deficit.token.decimals,
             useGrouping: false,
           }),
-          symbol: fee.token.symbol,
-          network: fee.network,
+          symbol: deficit.token.symbol,
+          network: payNetwork?.name ?? String(payChain),
         },
       )
     : undefined;
@@ -1263,21 +1255,6 @@ function Detail({ label, children }: { children: React.ReactNode; label: string 
       </XStack>
     </XStack>
   );
-}
-
-function routeCalls(route: Awaited<ReturnType<typeof getRouteFrom>>, underlying: string, allowed: bigint) {
-  const required = BigInt(route.estimate.fromAmount);
-  return [
-    ...(allowed >= required ? [] : allowed > 0n ? [0n, required] : [required]).map((value) => ({
-      to: getAddress(underlying),
-      data: encodeFunctionData({
-        abi: erc20Abi,
-        functionName: "approve",
-        args: [getAddress(route.estimate.approvalAddress), value],
-      }),
-    })),
-    { to: route.to, data: route.data, value: route.value },
-  ];
 }
 
 const probe = 12;

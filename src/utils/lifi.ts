@@ -367,12 +367,30 @@ export type RouteFrom = {
   data: Hex;
   estimate: Estimate;
   exchange?: string;
+  spend: Spend;
   to: Address;
   toAmount: bigint;
   tool?: string;
   value: bigint;
   wrapped?: boolean;
 };
+
+export type Spend = { amount: bigint; token: Address };
+
+export function routeCalls(route: RouteFrom, allowed: bigint) {
+  const { amount: required, token } = route.spend;
+  return [
+    ...(allowed >= required ? [] : allowed > 0n ? [0n, required] : [required]).map((value) => ({
+      to: token,
+      data: encodeFunctionData({
+        abi: erc20Abi,
+        functionName: "approve",
+        args: [getAddress(route.estimate.approvalAddress), value],
+      }),
+    })),
+    { to: route.to, data: route.data, value: route.value },
+  ];
+}
 
 export const bridgePolicyId = "97633483-b01d-4a91-bac5-11011a06b15d";
 export const bridgePolicyTokens: Partial<Record<number, readonly string[]>> = {
@@ -472,6 +490,7 @@ export async function getRouteFrom({
     });
     return {
       chainId: chain.id,
+      spend: { amount: fromAmount, token: from },
       to: swapperAddress,
       value: 0n,
       toAmount,
@@ -522,6 +541,7 @@ export async function getRouteFrom({
   assert(QuoteEstimate, estimate);
   return {
     ...parse(QuoteTransaction, { chainId: request.fromChain, value: "0", ...transactionRequest }),
+    spend: { amount: BigInt(estimate.fromAmount), token: getAddress(fromTokenAddress) },
     tool,
     exchange: quote.includedSteps.find(({ type }) => type === "swap")?.tool,
     estimate,

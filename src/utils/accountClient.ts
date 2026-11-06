@@ -10,6 +10,7 @@ import {
   smartAccountClientActions,
   toSmartContractAccount,
   type ClientMiddlewareArgs,
+  type ClientMiddlewareFn,
   type Deferrable,
   type GetEntryPointFromAccount,
   type MiddlewareClient,
@@ -24,6 +25,7 @@ import {
   alchemyFeeEstimator,
   alchemyGasManagerMiddleware,
   createAlchemyPublicRpcClient,
+  getAlchemyPaymasterAddress,
 } from "@account-kit/infra";
 // @ts-expect-error deep import to avoid broken dependency
 import { standardExecutor } from "@account-kit/smart-contracts/dist/esm/src/msca/account/standardExecutor"; // cspell:ignore msca
@@ -57,6 +59,8 @@ import {
   encodeAbiParameters,
   encodeFunctionData,
   encodePacked,
+  erc20Abi,
+  getAddress,
   hashMessage,
   hexToBytes,
   hexToNumber,
@@ -80,11 +84,14 @@ import {
   type Transport,
 } from "viem";
 import {
+  getBalance,
+  readContract,
   sendRawTransaction,
   signTransaction,
   getCallsStatus as viemGetCallsStatus,
   sendCalls as viemSendCalls,
 } from "viem/actions";
+import { hashFn } from "wagmi/query";
 
 import accountInit from "@exactly/common/accountInit";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
@@ -93,8 +100,19 @@ import { dataSuffix } from "@exactly/common/attribution";
 import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
 import chain, { alchemyChains, upgradeableModularAccountAbi } from "@exactly/common/generated/chain";
+import { sum } from "@exactly/lib";
 
+import {
+  balancesOptions,
+  bridgePolicyId,
+  bridgePolicyTokens,
+  gasReserveBuffer,
+  lifiChainsOptions,
+  quoteValidity,
+  type Spend,
+} from "./lifi";
 import { login } from "./onesignal";
+import parseAmount from "./parseAmount";
 import publicClient from "./publicClient";
 import queryClient, { type AuthMethod } from "./queryClient";
 import reportError, { classifyError } from "./reportError";
@@ -102,6 +120,7 @@ import { identify } from "./segment";
 import ownerConfig from "./wagmi/owner";
 
 import type { Credential } from "@exactly/common/validation";
+import type { Token } from "@lifi/sdk";
 import type { Config, SendCallsParameters } from "@wagmi/core";
 
 export default async function createAccountClient({ credentialId, factory, x, y, salt }: Credential) {
@@ -153,15 +172,7 @@ export default async function createAccountClient({ credentialId, factory, x, y,
     ...alchemyGasManagerMiddleware(alchemyGasPolicyId),
     gasEstimator,
   });
-  const crossChainAccounts = new Map<
-    number,
-    Promise<{
-      account: SmartContractAccount;
-      alchemyTransport: ReturnType<typeof alchemy>;
-      readClient: SmartAccountClient<Transport, Chain, SmartContractAccount>;
-      transport: Transport;
-    }>
-  >();
+  const crossChainAccounts = new Map<number, Promise<Remote>>();
   function getCrossChainAccount(targetChain: Chain) {
     const cached = crossChainAccounts.get(targetChain.id);
     if (cached) return cached;
@@ -178,6 +189,7 @@ export default async function createAccountClient({ credentialId, factory, x, y,
       .then((targetAccount) => ({
         account: targetAccount,
         alchemyTransport,
+        rpc: targetClient,
         readClient: createSmartAccountClient({
           chain: targetChain,
           transport: targetTransport,
@@ -198,6 +210,169 @@ export default async function createAccountClient({ credentialId, factory, x, y,
     if (!targetChain) throw new Error(`unsupported chain ${chainId}`);
     const { readClient } = await getCrossChainAccount(targetChain);
     return readClient;
+  }
+  let prepared: undefined | { at: number; key: string; plan: ReturnType<typeof plan> };
+  function prepare(targetChain: Chain, calls: readonly Call[], spend?: Spend) {
+    const result = plan(targetChain, calls, spend);
+    prepared = { at: Date.now(), key: planKey(targetChain, calls, spend), plan: result };
+    return result;
+  }
+  function planned(targetChain: Chain, calls: readonly Call[], spend?: Spend) {
+    const cached = prepared;
+    prepared = undefined;
+    if (cached?.key !== planKey(targetChain, calls, spend) || Date.now() - cached.at > quoteValidity) {
+      return plan(targetChain, calls, spend);
+    }
+    return cached.plan.catch(() => plan(targetChain, calls, spend));
+  }
+  async function plan(targetChain: Chain, calls: readonly Call[], spend?: Spend) {
+    const {
+      account: remoteAccount,
+      alchemyTransport,
+      rpc,
+      transport: remoteTransport,
+    } = await getCrossChainAccount(targetChain);
+    const uo = calls.map(({ to, data = "0x", value }) => ({ target: to, data, value }));
+    const operation = dataSuffix ? concatHex([await remoteAccount.encodeBatchExecute(uo), dataSuffix]) : uo;
+    function estimate(dummyPaymasterAndData?: ClientMiddlewareFn) {
+      return buildUserOperation(
+        createSmartAccountClient({
+          chain: targetChain,
+          transport: remoteTransport,
+          account: remoteAccount,
+          feeEstimator: alchemyFeeEstimator(alchemyTransport),
+          dummyPaymasterAndData,
+          gasEstimator,
+        }),
+        { uo: operation },
+      ) as Promise<Required<UserOperationStruct_v6>>;
+    }
+    const tokens = bridgePolicyTokens[targetChain.id] ?? [];
+    const holdings =
+      targetChain.id === chain.id
+        ? undefined
+        : queryClient.ensureQueryData(balancesOptions(accountAddress)).then(
+            (all) => all[targetChain.id],
+            () => undefined,
+          );
+    const [{ callGasLimit, maxFeePerGas, preVerificationGas, verificationGasLimit }, nativeBalance, balances, chains] =
+      await Promise.all([
+        estimate(
+          alchemyGasManagerMiddleware(targetChain.id === chain.id ? alchemyGasPolicyId : sponsorPolicy(targetChain))
+            .dummyPaymasterAndData,
+        ).catch(async (error: unknown) => {
+          if (!rejected(error)) throw error;
+          const listed = spend && spend.token !== zeroAddress ? await holdings : undefined;
+          const held = listed?.find(
+            ({ address, amount }) => tokens.includes(address.toLowerCase()) && !!amount && amount > 0n,
+          );
+          const stub = held?.amount
+            ? alchemyGasManagerMiddleware([bridgePolicyId, sponsorPolicy(targetChain)], {
+                address: getAddress(held.address),
+                maxTokenAmount: held.amount,
+              }).dummyPaymasterAndData
+            : undefined;
+          return (stub ? estimate(stub).catch(() => estimate()) : estimate()).catch(() => {
+            throw error;
+          });
+        }),
+        getBalance(rpc, { address: accountAddress }),
+        holdings,
+        queryClient.ensureQueryData(lifiChainsOptions).catch(() => undefined),
+      ]);
+    const cost =
+      (BigInt(callGasLimit) + BigInt(preVerificationGas) + BigInt(verificationGasLimit)) * BigInt(maxFeePerGas);
+    const nativeToken = chains?.find(({ id }) => id === targetChain.id)?.nativeToken;
+    const value = sum([0n, ...calls.map((call) => BigInt(call.value ?? 0))]);
+    const unfunded = value > nativeBalance;
+    const principal = spend?.token === zeroAddress ? spend.amount : 0n;
+    if (targetChain.id === chain.id) {
+      return {
+        cost,
+        payers: [],
+        shortfall:
+          unfunded && nativeToken && value > principal
+            ? { amount: value - principal, native: true, token: nativeToken }
+            : undefined,
+      };
+    }
+    if (!spend) throw new Error("missing spend");
+    const native = spend.token === zeroAddress;
+    const source = tokens.includes(spend.token.toLowerCase()) ? spend.token : undefined;
+    const gasToken = native
+      ? undefined
+      : (balances?.find(({ address }) => address.toLowerCase() === source?.toLowerCase()) ??
+        balances?.find(
+          ({ address, amount }) =>
+            address !== nativeToken?.address && tokens.includes(address.toLowerCase()) && !!amount && amount > 0n,
+        ));
+    const nativeGasReserve = (cost * gasReserveBuffer) / 100n;
+    const nativeCovered = value + nativeGasReserve <= nativeBalance;
+    const paymasterAddress = getAlchemyPaymasterAddress(targetChain, "0.6.0");
+    const nativeUsd = nativeToken && gasToken && nativeGasReserve > 0n ? parseAmount(nativeToken.priceUSD, 18) : 0n;
+    const tokenUsd = nativeUsd > 0n && gasToken ? parseAmount(gasToken.priceUSD, 18) : 0n;
+    const erc20GasReserve =
+      nativeToken && gasToken && tokenUsd > 0n
+        ? (nativeGasReserve * nativeUsd * 10n ** BigInt(gasToken.decimals)) /
+          (tokenUsd * 10n ** BigInt(nativeToken.decimals))
+        : 0n;
+    const feeIsSource = !!gasToken && gasToken.address.toLowerCase() === source?.toLowerCase();
+    const [held, allowance] =
+      gasToken && erc20GasReserve > 0n
+        ? await Promise.all([
+            readContract(rpc, {
+              address: getAddress(gasToken.address),
+              abi: erc20Abi,
+              functionName: "balanceOf",
+              args: [accountAddress],
+            }).catch((error: unknown) => ({ error })),
+            readContract(rpc, {
+              address: getAddress(gasToken.address),
+              abi: erc20Abi,
+              functionName: "allowance",
+              args: [accountAddress, paymasterAddress],
+            }).catch(() => 0n),
+          ])
+        : [0n, 0n];
+    const sponsored = !native && !feeIsSource;
+    if (typeof held !== "bigint" && !nativeCovered && !sponsored) throw held.error;
+    const payable =
+      typeof held === "bigint" &&
+      gasToken &&
+      erc20GasReserve > 0n &&
+      (feeIsSource ? spend.amount + erc20GasReserve : erc20GasReserve) <= held
+        ? gasToken
+        : undefined;
+    const payers: Payer[] = [
+      ...(nativeCovered ? [{}] : []),
+      ...(payable
+        ? [
+            {
+              approvals: (allowance < erc20GasReserve ? (allowance > 0n ? [0n, maxUint256] : [maxUint256]) : []).map(
+                (limit) => ({
+                  target: getAddress(payable.address),
+                  data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [paymasterAddress, limit] }),
+                }),
+              ),
+              policyId: [bridgePolicyId, sponsorPolicy(targetChain)],
+              token: { address: getAddress(payable.address), maxTokenAmount: erc20GasReserve },
+            },
+          ]
+        : []),
+      ...(sponsored || nativeCovered || payable
+        ? [{ policyId: [alchemyGasPolicyId, sponsorPolicy(targetChain)] }]
+        : []),
+    ];
+    return {
+      cost,
+      payers,
+      shortfall:
+        unfunded || (nativeGasReserve > 0n && !nativeCovered && !payable && !sponsored)
+          ? !unfunded && gasToken && feeIsSource && erc20GasReserve > 0n
+            ? { amount: erc20GasReserve, native: false, token: gasToken }
+            : nativeToken && { amount: value + nativeGasReserve - principal, native: true, token: nativeToken }
+          : undefined,
+    };
   }
   const initCodes = new Map<number, Promise<Hex>>();
   function getAccountInitCode(rpc: typeof publicClient) {
@@ -234,7 +409,11 @@ export default async function createAccountClient({ credentialId, factory, x, y,
             if (!Array.isArray(params) || params.length !== 1) throw new Error("bad params");
             const { calls, capabilities, chainId, from, id } = params[0] as {
               calls: readonly Call[];
-              capabilities?: ExtractCapabilities<"sendCalls", "Request"> & { dataSuffix?: { value?: unknown } };
+              capabilities?: ExtractCapabilities<"sendCalls", "Request"> & {
+                dataSuffix?: { value?: unknown };
+                retry?: () => void;
+                spend?: Spend;
+              };
               chainId?: Hex;
               from?: Address;
               id?: string;
@@ -249,45 +428,69 @@ export default async function createAccountClient({ credentialId, factory, x, y,
               args: [calls.map(({ to, data = "0x", value = 0n }) => ({ target: to, data, value }))],
               abi: upgradeableModularAccountAbi,
             } as const;
-            const context = capabilities?.paymasterService?.context as
-              | undefined
-              | { erc20Context?: { maxTokenAmount?: bigint; tokenAddress?: Address }; policyId?: string | string[] };
-            const policyToken =
-              context?.erc20Context?.tokenAddress && context.erc20Context.maxTokenAmount !== undefined
-                ? { address: context.erc20Context.tokenAddress, maxTokenAmount: context.erc20Context.maxTokenAmount }
-                : undefined;
             if (targetChainId !== chain.id) {
               const targetChain = alchemyChains.get(targetChainId);
               if (!targetChain) throw new Error(`unsupported chain ${targetChainId}`);
-              const policyId = [
-                ...(context?.policyId ? (Array.isArray(context.policyId) ? context.policyId : [context.policyId]) : []),
-                sponsorPolicy(targetChain),
-              ];
               const remote = await getCrossChainAccount(targetChain);
-              const crossClient = createSmartAccountClient({
-                chain: targetChain,
-                transport: remote.transport,
-                account: remote.account,
-                feeEstimator: alchemyFeeEstimator(remote.alchemyTransport),
-                ...(context
-                  ? alchemyGasManagerMiddleware(policyId, policyToken)
-                  : { opts: { feeOptions: { maxPriorityFeePerGas: { multiplier: 1.5 } } } }),
-                gasEstimator,
-              });
-              try {
-                const { hash } = await crossClient.sendUserOperation({
-                  uo: suffix ? concatHex([await remote.account.encodeBatchExecute(uo), suffix]) : uo,
+              async function build({ approvals = [], policyId: ids, token }: Payer) {
+                const batch = [...approvals, ...uo];
+                const sender = createSmartAccountClient({
+                  chain: targetChain,
+                  transport: remote.transport,
+                  account: remote.account,
+                  feeEstimator: alchemyFeeEstimator(remote.alchemyTransport),
+                  ...(ids
+                    ? alchemyGasManagerMiddleware(ids, token)
+                    : { opts: { feeOptions: { maxPriorityFeePerGas: { multiplier: 1.5 } } } }),
+                  gasEstimator,
                 });
-                return { id: concat([hash, numberToHex(targetChainId, { size: 32 }), UO_MAGIC_ID]) };
-              } catch (error) {
-                if (
-                  !isSiwe() ||
-                  !(error instanceof BaseError) ||
-                  !error.walk((cause) => cause instanceof RpcRequestError && [-32_502, -32_507].includes(cause.code)) ||
-                  !(await remote.account.isAccountDeployed())
-                ) {
-                  throw error;
+                const operation = await sender.buildUserOperation({
+                  uo: suffix ? concatHex([await remote.account.encodeBatchExecute(batch), suffix]) : batch,
+                });
+                return async () =>
+                  sender.sendRawUserOperation(
+                    await sender.signUserOperation({ uoStruct: operation }),
+                    remote.account.getEntryPoint().address,
+                  );
+              }
+              try {
+                const { payers } = await planned(targetChain, calls, capabilities?.spend);
+                let send: (() => Promise<Hex>) | undefined;
+                let erc20 = false;
+                for (const [index, payer] of payers.entries()) {
+                  try {
+                    send = await build(payer);
+                    erc20 = !!payer.token;
+                    break;
+                  } catch (error) {
+                    if (index === payers.length - 1 || !(payer.token ? denied(error) : rejected(error))) throw error;
+                  }
                 }
+                if (!send) throw new Error("no gas payer");
+                const hash = await send().catch((error: unknown) => {
+                  if (!erc20 || !rejected(error) || (isSiwe() && delegable(error))) throw error;
+                  reportError(error, { level: "warning" });
+                });
+                const receipt =
+                  hash && erc20
+                    ? await remote.readClient
+                        .waitForUserOperationTransaction({
+                          hash,
+                          retries: { intervalMs: 1000, maxRetries: 60, multiplier: 1 },
+                        })
+                        .then(() => remote.readClient.getUserOperationReceipt(hash))
+                        .catch(() => undefined)
+                    : undefined;
+                const sent =
+                  hash && receipt?.success !== false
+                    ? hash
+                    : await build({ policyId: [alchemyGasPolicyId, sponsorPolicy(targetChain)] }).then((sponsored) => {
+                        capabilities?.retry?.();
+                        return sponsored();
+                      });
+                return { id: concat([sent, numberToHex(targetChainId, { size: 32 }), UO_MAGIC_ID]) };
+              } catch (error) {
+                if (!isSiwe() || !delegable(error) || !(await remote.account.isAccountDeployed())) throw error;
                 reportError(error, { level: "warning", extra: { cause: error.cause } });
                 return sendOwnerCalls({
                   chainId: targetChainId,
@@ -296,10 +499,6 @@ export default async function createAccountClient({ credentialId, factory, x, y,
                 });
               }
             }
-            const policyId = [
-              ...(context?.policyId ? (Array.isArray(context.policyId) ? context.policyId : [context.policyId]) : []),
-              alchemyGasPolicyId,
-            ];
             if (isSiwe() && (await account.isAccountDeployed())) {
               const sent = await sendOwnerCalls({
                 id,
@@ -310,59 +509,29 @@ export default async function createAccountClient({ credentialId, factory, x, y,
                   paymasterService: {
                     optional: true,
                     url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-                    context: {
-                      policyId,
-                      ...(policyToken
-                        ? {
-                            erc20Context: {
-                              tokenAddress: policyToken.address,
-                              maxTokenAmount: numberToHex(policyToken.maxTokenAmount),
-                            },
-                          }
-                        : {}),
-                    },
+                    context: { policyId: [alchemyGasPolicyId] },
                   },
                 },
               });
               if (sent) return sent;
             }
-            const uoClient = context
-              ? createSmartAccountClient({
-                  chain,
-                  transport,
-                  account,
-                  ...alchemyGasManagerMiddleware(policyId, policyToken),
-                  gasEstimator,
-                })
-              : client;
-            const { hash } = await uoClient.sendUserOperation({
+            const { hash } = await client.sendUserOperation({
               uo: suffix ? concatHex([await account.encodeBatchExecute(uo), suffix]) : uo,
             });
             return { id: concat([hash, numberToHex(chain.id, { size: 32 }), UO_MAGIC_ID]) };
           }
           case "wallet_prepareCalls": {
             if (!Array.isArray(params) || params.length !== 1) throw new Error("bad params");
-            const { calls, chainId } = params[0] as { calls: readonly Call[]; chainId?: Hex };
+            const { calls, capabilities, chainId } = params[0] as {
+              calls: readonly Call[];
+              capabilities?: { spend?: Spend };
+              chainId?: Hex;
+            };
             const targetChainId = chainId ? hexToNumber(chainId) : chain.id;
             const targetChain = targetChainId === chain.id ? chain : alchemyChains.get(targetChainId);
             if (!targetChain) throw new Error(`unsupported chain ${targetChainId}`);
-            const remote = await getCrossChainAccount(targetChain);
-            const uo = calls.map(({ to, data = "0x", value }) => ({ target: to, data, value }));
-            const policyId = targetChainId === chain.id ? alchemyGasPolicyId : sponsorPolicy(targetChain);
-            const data = await buildUserOperation(
-              createSmartAccountClient({
-                chain: targetChain,
-                transport: remote.transport,
-                account: remote.account,
-                feeEstimator: alchemyFeeEstimator(remote.alchemyTransport),
-                ...(policyId
-                  ? { dummyPaymasterAndData: alchemyGasManagerMiddleware(policyId).dummyPaymasterAndData }
-                  : {}),
-                gasEstimator,
-              }),
-              { uo: dataSuffix ? concatHex([await remote.account.encodeBatchExecute(uo), dataSuffix]) : uo },
-            );
-            return { chainId: numberToHex(targetChainId), data, type: "user-operation-v060" };
+            const { cost, shortfall } = await prepare(targetChain, calls, capabilities?.spend);
+            return { chainId: numberToHex(targetChainId), cost, shortfall, type: "user-operation-v060" };
           }
           case "wallet_getCallsStatus": {
             if (!Array.isArray(params) || params.length !== 1 || typeof params[0] !== "string") throw new Error("bad");
@@ -444,6 +613,14 @@ async function gasEstimator<
   return result;
 }
 
+function planKey(targetChain: Chain, calls: readonly Call[], spend?: Spend) {
+  return hashFn([
+    targetChain.id,
+    calls.map(({ to, data = "0x", value }) => [to.toLowerCase(), data, BigInt(value ?? 0)]),
+    spend,
+  ]);
+}
+
 function sponsorPolicy(targetChain: Chain) {
   return targetChain.testnet ? "dc767b7d-9ce8-4512-ba67-ebe2cf7a1577" : "cb9db554-658f-46eb-ae73-8bff8ed2556b";
 }
@@ -493,9 +670,11 @@ function webauthn({
   );
 }
 
-export async function estimateCalls(config: Config, chainId: number, calls: readonly Call[]) {
+export async function estimateCalls(config: Config, chainId: number, calls: readonly Call[], spend?: Spend) {
   const client = await getConnectorClient(config);
-  const { data } = await client.request<{ ReturnType: { data: Required<UserOperationStruct_v6> } }>({
+  return client.request<{
+    ReturnType: { cost: bigint; shortfall?: { amount: bigint; native: boolean; token: Token } };
+  }>({
     method: "wallet_prepareCalls",
     params: [
       {
@@ -504,14 +683,41 @@ export async function estimateCalls(config: Config, chainId: number, calls: read
           value: call.value === undefined ? undefined : numberToHex(call.value),
         })),
         chainId: numberToHex(chainId),
+        ...(spend && { capabilities: { spend } }),
       },
     ],
   });
+}
+
+function delegable(error: unknown): error is BaseError {
   return (
-    (BigInt(data.callGasLimit) + BigInt(data.preVerificationGas) + BigInt(data.verificationGasLimit)) *
-    BigInt(data.maxFeePerGas)
+    error instanceof BaseError &&
+    !!error.walk((cause) => cause instanceof RpcRequestError && [-32_502, -32_507].includes(cause.code))
   );
 }
+
+function rejected(error: unknown) {
+  return error instanceof BaseError && !!error.walk((cause) => cause instanceof RpcRequestError);
+}
+
+function denied(error: unknown) {
+  const { authKnown, network } = classifyError(error);
+  return !authKnown && network === undefined;
+}
+
+type Remote = {
+  account: SmartContractAccount;
+  alchemyTransport: ReturnType<typeof alchemy>;
+  readClient: SmartAccountClient<Transport, Chain, SmartContractAccount>;
+  rpc: ReturnType<typeof createAlchemyPublicRpcClient>;
+  transport: Transport;
+};
+
+type Payer = {
+  approvals?: { data: Hex; target: Address }[];
+  policyId?: string[];
+  token?: { address: Address; maxTokenAmount: bigint };
+};
 
 export async function callsStatus(config: Config, id: string, chainId?: number) {
   try {
