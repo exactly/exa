@@ -145,9 +145,9 @@ export default function Review() {
           <StyledGradient
             locations={[0.5, 1]}
             position="absolute"
-            top={0}
-            left={0}
-            right={0}
+            top="s0"
+            left="s0"
+            right="s0"
             height={220}
             opacity={0.2}
             colors={[theme.uiSuccessSecondary.val, theme.backgroundSoft.val]}
@@ -158,7 +158,7 @@ export default function Review() {
             <YStack flex={1} justifyContent="center" alignItems="center" gap="s5">
               <Square
                 borderRadius="r4"
-                size={80}
+                size="s10"
                 backgroundColor={sent ? "interactiveBaseSuccessSoftDefault" : "backgroundStrong"}
               >
                 {sent ? (

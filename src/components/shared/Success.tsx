@@ -66,7 +66,7 @@ export default function Success({
                   backgroundColor={
                     isLatestPlugin ? "interactiveBaseInformationSoftDefault" : "interactiveBaseSuccessSoftDefault"
                   }
-                  size={80}
+                  size="s10"
                 >
                   <Check size={48} color="uiSuccessSecondary" strokeWidth={2} />
                 </Square>

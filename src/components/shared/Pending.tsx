@@ -42,7 +42,7 @@ export default function Pending({
         <YStack gap="s7" paddingBottom="s9">
           <IconButton alignSelf="flex-start" icon={X} aria-label={t("Close")} onPress={onClose} />
           <XStack justifyContent="center" alignItems="center">
-            <Square borderRadius="r4" backgroundColor="backgroundStrong" size={80}>
+            <Square borderRadius="r4" backgroundColor="backgroundStrong" size="s10">
               <ExaSpinner backgroundColor="transparent" color="uiNeutralPrimary" />
             </Square>
           </XStack>

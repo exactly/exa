@@ -128,7 +128,7 @@ export default function Asset() {
   const priced =
     protocol && symbol ? { address, chainId, symbol, priceUSD: formatUnits(protocol.usdPrice, 18) } : entry;
   return (
-    <SafeView fullScreen backgroundColor="backgroundSoft" paddingBottom={0}>
+    <SafeView fullScreen backgroundColor="backgroundSoft" paddingBottom="s0">
       <View padded flexDirection="row" alignItems="center" justifyContent="space-between">
         <IconButton
           icon={ArrowLeft}

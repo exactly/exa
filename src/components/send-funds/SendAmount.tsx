@@ -177,7 +177,7 @@ export default function SendAmount() {
                         backgroundColor="transparent"
                         textAlign="center"
                         color={hasError ? "interactiveBaseErrorDefault" : "uiNeutralPrimary"}
-                        minWidth={120}
+                        minWidth="s12"
                       />
                     </XStack>
                     <Separator

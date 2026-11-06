@@ -35,7 +35,7 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
   return (
     <ModalSheet open={open} onClose={onClose}>
       <SafeView
-        paddingTop={0}
+        paddingTop="s0"
         paddingBottom="web:s4"
         fullScreen
         borderTopLeftRadius="r4"
@@ -71,7 +71,7 @@ export default function BenefitSheet({ benefit, open, onClose }: BenefitSheetPro
             <Button
               backgroundColor="interactiveBaseBrandDefault"
               justifyContent="space-between"
-              minHeight={64}
+              minHeight="s9"
               padding="s4"
               onPress={() => {
                 const { url, external } = benefit;

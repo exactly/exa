@@ -62,7 +62,7 @@ export default function Statement() {
   const lastCard = cards.length - 1;
 
   return (
-    <SafeView fullScreen paddingBottom={0} backgroundColor="backgroundSoft">
+    <SafeView fullScreen paddingBottom="s0" backgroundColor="backgroundSoft">
       <View
         padded
         flexDirection="row"
@@ -298,7 +298,7 @@ function TimelineRow({
 }) {
   return (
     <XStack gap="s3">
-      <YStack width={24} alignItems="center">
+      <YStack width="s5" alignItems="center">
         <View
           position="absolute"
           top={first ? 11 : 0}
@@ -310,9 +310,9 @@ function TimelineRow({
         />
         {node ? (
           <YStack
-            width={24}
-            height={24}
-            borderRadius={12}
+            width="s5"
+            height="s5"
+            borderRadius="r4"
             backgroundColor="backgroundSoft"
             alignItems="center"
             justifyContent="center"
@@ -321,7 +321,7 @@ function TimelineRow({
           </YStack>
         ) : bullet ? (
           <YStack height={22} justifyContent="center">
-            <View width={7} height={7} borderRadius={4} backgroundColor="uiNeutralSecondary" />
+            <View width={7} height={7} borderRadius="r2" backgroundColor="uiNeutralSecondary" />
           </YStack>
         ) : null}
       </YStack>
@@ -334,7 +334,7 @@ function TimelineRow({
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <XStack alignItems="center" gap="s3" height={24}>
+    <XStack alignItems="center" gap="s3" height="s5">
       <Text emphasized subHeadline color="uiNeutralPrimary">
         {children}
       </Text>

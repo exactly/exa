@@ -36,8 +36,8 @@ export default function Step({
         gap="s3_5"
       >
         <View
-          width={20}
-          height={20}
+          width="s4_5"
+          height="s4_5"
           borderRadius="r_0"
           backgroundColor="uiSuccessSecondary"
           borderWidth={1}

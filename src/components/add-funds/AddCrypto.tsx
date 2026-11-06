@@ -141,7 +141,7 @@ export default function AddCrypto() {
       <View gap="s3_5" fullScreen padded>
         <View gap="s5" paddingBottom="s3">
           <XStack gap="s3" justifyContent="space-around" alignItems="center">
-            <View position="absolute" left={0}>
+            <View position="absolute" left="s0">
               <IconButton
                 icon={X}
                 aria-label={t("Close")}
@@ -172,8 +172,8 @@ export default function AddCrypto() {
                     bridgeLogoURI ? (
                       <Image
                         source={{ uri: bridgeLogoURI }}
-                        width={24}
-                        height={24}
+                        width="s5"
+                        height="s5"
                         borderRadius="r_0"
                         overflow="hidden"
                       />
@@ -207,10 +207,10 @@ export default function AddCrypto() {
                     />
                     <View
                       position="absolute"
-                      top={0}
-                      right={0}
-                      bottom={0}
-                      left={0}
+                      top="s0"
+                      right="s0"
+                      bottom="s0"
+                      left="s0"
                       alignItems="center"
                       justifyContent="center"
                     >
@@ -218,8 +218,8 @@ export default function AddCrypto() {
                         {bridgeLogoURI ? (
                           <Image
                             source={{ uri: bridgeLogoURI }}
-                            width={32}
-                            height={32}
+                            width="s6"
+                            height="s6"
                             borderRadius="r_0"
                             overflow="hidden"
                           />

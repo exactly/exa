@@ -78,7 +78,7 @@ export default function Receiver() {
     );
   }
   return (
-    <SafeView fullScreen paddingBottom={0}>
+    <SafeView fullScreen paddingBottom="s0">
       <View padded flexDirection="row" gap="s3_5" paddingBottom="s4" justifyContent="space-between" alignItems="center">
         <IconButton
           icon={ArrowLeft}
@@ -134,9 +134,9 @@ export default function Receiver() {
                 >
                   <XStack
                     backgroundColor={external ? "backgroundStrong" : "interactiveBaseBrandDefault"}
-                    width={20}
-                    height={20}
-                    borderRadius={12}
+                    width="s4_5"
+                    height="s4_5"
+                    borderRadius="r4"
                     alignItems="center"
                     justifyContent="center"
                   >
@@ -165,9 +165,9 @@ export default function Receiver() {
                 >
                   <XStack
                     backgroundColor={external ? "interactiveBaseBrandDefault" : "backgroundStrong"}
-                    width={20}
-                    height={20}
-                    borderRadius={12}
+                    width="s4_5"
+                    height="s4_5"
+                    borderRadius="r4"
                     alignItems="center"
                     justifyContent="center"
                   >
@@ -190,8 +190,8 @@ export default function Receiver() {
                             placeholder={t("Enter receiver address")}
                             borderColor="uiNeutralTertiary hover:borderBrandStrong focus:borderBrandStrong focus-visible:borderBrandStrong"
                             borderRightColor="transparent hover:borderBrandStrong focus:borderBrandStrong focus-visible:borderBrandStrong"
-                            borderTopRightRadius={0}
-                            borderBottomRightRadius={0}
+                            borderTopRightRadius="r0"
+                            borderBottomRightRadius="r0"
                             value={value}
                             onChangeText={handleChange}
                           />
@@ -199,8 +199,8 @@ export default function Receiver() {
                             outlined
                             borderColor="uiNeutralTertiary"
                             borderRadius="r3"
-                            borderTopLeftRadius={0}
-                            borderBottomLeftRadius={0}
+                            borderTopLeftRadius="r0"
+                            borderBottomLeftRadius="r0"
                             borderLeftWidth={0}
                             minHeight={44}
                             height={44}

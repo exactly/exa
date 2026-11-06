@@ -27,7 +27,7 @@ const StyledText = styled(TamaguiText, {
     caption2: { true: { fontSize: 12, lineHeight: "16px", letterSpacing: -0.024 } },
     brand: { true: { color: "interactiveBaseBrandDefault" } },
     centered: { true: { textAlign: "center" } },
-    pill: { true: { fontWeight: "bold", paddingHorizontal: 4, paddingVertical: 2, borderRadius: "r2" } },
+    pill: { true: { fontWeight: "bold", paddingHorizontal: "s2", paddingVertical: "s1", borderRadius: "r2" } },
     strikeThrough: { true: { textDecorationLine: "line-through" } },
     mono: { true: { fontFamily: "mono", fontVariant: [] as FontVariant[] } },
   } as const,

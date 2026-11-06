@@ -91,7 +91,7 @@ export default function Activity() {
         flex={1}
         backgroundColor={layout.items.length > 0 ? "backgroundMild" : "backgroundSoft"}
       >
-        <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="backgroundSoft" />
+        <View position="absolute" top="s0" left="s0" right="s0" height="50%" backgroundColor="backgroundSoft" />
         <FlatList<ActivityItemType>
           ref={listRef}
           style={{ flex: 1 }}

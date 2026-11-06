@@ -33,13 +33,13 @@ export default function CardActivity({
     <>
       <YStack gap="s7" paddingBottom="s9">
         <XStack justifyContent="center" alignItems="center">
-          <Square borderRadius="r4" backgroundColor="backgroundStrong" size={80}>
+          <Square borderRadius="r4" backgroundColor="backgroundStrong" size="s10">
             {refund ? (
               <Import size={48} color="uiSuccessSecondary" strokeWidth={2} />
             ) : processing ? (
               <ClockAlert size={48} color="interactiveOnBaseWarningSoft" strokeWidth={2} />
             ) : item.merchant.icon ? (
-              <Square size={80} borderRadius="r4" backgroundColor="white">
+              <Square size="s10" borderRadius="r4" backgroundColor="white">
                 <Image source={{ uri: item.merchant.icon }} width={52} height={52} contentFit="contain" />
               </Square>
             ) : (

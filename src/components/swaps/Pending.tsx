@@ -49,9 +49,9 @@ export default function Pending({
       <StyledGradient
         locations={[0.5, 1]}
         position="absolute"
-        top={0}
-        left={0}
-        right={0}
+        top="s0"
+        left="s0"
+        right="s0"
         height={220}
         opacity={0.8}
         colors={[theme.backgroundStrong.val, theme.backgroundSoft.val]}
@@ -61,7 +61,7 @@ export default function Pending({
           <YStack gap="s7" paddingBottom="s9">
             <IconButton alignSelf="flex-start" icon={X} aria-label={t("Close")} onPress={onClose} />
             <XStack justifyContent="center" alignItems="center">
-              <Square borderRadius="r4" backgroundColor="backgroundStrong" size={80}>
+              <Square borderRadius="r4" backgroundColor="backgroundStrong" size="s10">
                 <ExaSpinner backgroundColor="transparent" color="uiNeutralPrimary" />
               </Square>
             </XStack>

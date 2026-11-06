@@ -35,11 +35,11 @@ export default function GettingStarted() {
   const steps = useOnboardingSteps({ kyc, isDeployed: !!bytecode });
   const currentStep = steps.find(({ status }) => status === "pending");
   return (
-    <SafeView fullScreen backgroundColor="backgroundBrandSoft" paddingBottom={0}>
+    <SafeView fullScreen backgroundColor="backgroundBrandSoft" paddingBottom="s0">
       <View gap="s4_5" fullScreen>
-        <View gap="s4_5" padded paddingBottom={0}>
+        <View gap="s4_5" padded paddingBottom="s0">
           <View flexDirection="row" gap="s3_5" justifyContent="space-around" alignItems="center">
-            <View position="absolute" left={0}>
+            <View position="absolute" left="s0">
               <IconButton
                 icon={ArrowLeft}
                 aria-label={t("Back")}

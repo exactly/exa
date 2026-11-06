@@ -994,7 +994,7 @@ export default function Bridge() {
                       >
                         <XStack gap="s3_5" alignItems="center" justifyContent="space-between" flex={1}>
                           <XStack gap="s3_5" alignItems="center" flex={1}>
-                            <View width={40} height={40} position="relative">
+                            <View width="s7" height="s7" position="relative">
                               <AssetLogo
                                 symbol={destinationToken.symbol}
                                 uri={destinationToken.logoURI}
@@ -1003,8 +1003,8 @@ export default function Bridge() {
                               />
                               <View
                                 position="absolute"
-                                bottom={0}
-                                right={0}
+                                bottom="s0"
+                                right="s0"
                                 borderWidth={1}
                                 borderColor="white"
                                 borderRadius="r_0"
@@ -1300,7 +1300,7 @@ function ProcessingScreen({
           <IconButton alignSelf="flex-start" icon={X} aria-label={t("Close")} onPress={onClose} />
           <YStack gap="s4_5" justifyContent="center" alignItems="center">
             <Square
-              size={80}
+              size="s10"
               borderRadius="r4"
               backgroundColor={
                 status === "error"
