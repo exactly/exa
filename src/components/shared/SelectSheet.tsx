@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import Input from "./Input";
-import ModalSheet from "./ModalSheet";
+import ModalSheet, { Inset } from "./ModalSheet";
 import Text from "./Text";
 import { Check } from "../../generated/icons/Check";
 import { Search } from "../../generated/icons/Search";
@@ -16,6 +16,7 @@ export default function SelectSheet(properties: ComponentProps<typeof OptionList
       onClose={properties.onClose}
       disableDrag
       heightPercent={properties.heightPercent}
+      scrollsUnderInset
     >
       <OptionList {...properties} />
     </ModalSheet>
@@ -57,7 +58,6 @@ function OptionList({
       backgroundColor="backgroundSoft"
       paddingTop="s5"
       paddingHorizontal="s4"
-      paddingBottom="s7 android:s5"
     >
       <YStack gap="s5">
         <Text emphasized headline centered>
@@ -86,7 +86,12 @@ function OptionList({
           </XStack>
         )}
       </YStack>
-      <ScrollView flex={1} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        flex={1}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
         <YStack gap="s2">
           {filtered.map((option) => (
             <XStack
@@ -119,6 +124,7 @@ function OptionList({
             </XStack>
           ))}
         </YStack>
+        <Inset offset="s4" />
       </ScrollView>
     </YStack>
   );

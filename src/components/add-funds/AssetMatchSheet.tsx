@@ -14,7 +14,7 @@ import { CheckCircle } from "../../generated/icons/CheckCircle";
 import { lifiChainsOptions } from "../../utils/lifi";
 import AssetLogo from "../shared/AssetLogo";
 import ChainLogo from "../shared/ChainLogo";
-import ModalSheet from "../shared/ModalSheet";
+import ModalSheet, { Inset } from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -43,7 +43,7 @@ export default function AssetMatchSheet({
     select: (chains) => chains.find((c) => c.id === (sourceChainId ?? chain.id))?.name,
   });
   return (
-    <ModalSheet open={open} onClose={onClose} disableDrag>
+    <ModalSheet open={open} onClose={onClose} disableDrag scrollsUnderInset>
       <ScrollView showsVerticalScrollIndicator={false} maxHeight="web:100vh">
         <SafeView
           borderTopLeftRadius="r4"
@@ -51,7 +51,6 @@ export default function AssetMatchSheet({
           backgroundColor="backgroundSoft"
           paddingHorizontal="s5"
           paddingTop="web:s7"
-          paddingBottom="web:s7 android:s5"
         >
           <YStack gap="s5">
             <XStack gap="s3" alignItems="center">
@@ -106,6 +105,7 @@ export default function AssetMatchSheet({
             </Pressable>
           </YStack>
         </SafeView>
+        <Inset />
       </ScrollView>
     </ModalSheet>
   );

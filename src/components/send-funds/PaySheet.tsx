@@ -15,7 +15,7 @@ import AssetLogo from "../shared/AssetLogo";
 import ChainLogo from "../shared/ChainLogo";
 import Chip from "../shared/Chip";
 import Input from "../shared/Input";
-import ModalSheet from "../shared/ModalSheet";
+import ModalSheet, { Inset } from "../shared/ModalSheet";
 import Text from "../shared/Text";
 
 import type { PortfolioAsset } from "../../utils/usePortfolio";
@@ -82,7 +82,7 @@ export default function PaySheet({
     onClose();
   }
   return (
-    <ModalSheet open={open} onClose={close}>
+    <ModalSheet open={open} onClose={close} scrollsUnderInset>
       <YStack
         gap="s4_5"
         borderTopLeftRadius="r5"
@@ -90,7 +90,6 @@ export default function PaySheet({
         backgroundColor="backgroundSoft"
         paddingTop="s7"
         paddingHorizontal="s4"
-        paddingBottom="s7 android:s5"
       >
         <Text emphasized subHeadline primary textAlign="center">
           {t("Pay with")}
@@ -138,8 +137,13 @@ export default function PaySheet({
             </XStack>
           </ScrollView>
         )}
-        <ScrollView maxHeight={400} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          <YStack gap="s6" paddingBottom="s4_5">
+        <ScrollView
+          maxHeight={400}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
+          <YStack gap="s6">
             {groups.map((group) => (
               <YStack key={group.id} gap="s5">
                 {groups.length > 1 && (
@@ -218,6 +222,7 @@ export default function PaySheet({
               </Text>
             )}
           </YStack>
+          <Inset />
         </ScrollView>
       </YStack>
     </ModalSheet>
