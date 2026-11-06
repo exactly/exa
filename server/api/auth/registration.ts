@@ -430,7 +430,7 @@ export default function route({
               Object.hasOwn(tenants, headers.origin) && { salt: tenants[headers.origin] }),
           });
           const account = deriveAddress(result.factory, { x: result.x, y: result.y, salt: result.salt });
-          const intercomToken = await intercom(account, new Date(Date.now() + AUTH_EXPIRY));
+          const intercomToken = await intercom(account, new Date(Date.now() + AUTH_EXPIRY), result.salt);
           return c.json(
             {
               ...result,
