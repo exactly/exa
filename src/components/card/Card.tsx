@@ -47,10 +47,13 @@ import {
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useBeginKYC from "../../utils/useBeginKYC";
+import useBusiness from "../../utils/useBusiness";
 import useCardLimit from "../../utils/useCardLimit";
+import useIsBusiness from "../../utils/useIsBusiness";
 import useKYC from "../../utils/useKYC";
 import useMarkets from "../../utils/useMarkets";
 import useTabPress from "../../utils/useTabPress";
+import Banner from "../business/Banner";
 import TabBarContext from "../context/TabBarContext";
 import FundingAlert from "../shared/FundingAlert";
 import IconButton from "../shared/IconButton";
@@ -67,6 +70,7 @@ import View from "../shared/View";
 import type { Credential } from "@exactly/common/validation";
 
 export default function Card() {
+  const business = useIsBusiness();
   const [displayPIN, setDisplayPIN] = useState(false);
   const router = useRouter();
   const {
@@ -116,6 +120,8 @@ export default function Card() {
   });
 
   const { refetch: refetchMarkets } = useMarkets();
+  const { card: step, approved: companyApproved, locked, profile } = useBusiness();
+  const application = locked ? profile : step;
 
   const scrollRef = useRef<ScrollView>(null);
   const refresh = () =>
@@ -124,6 +130,7 @@ export default function Card() {
       queryClient.invalidateQueries({ queryKey: ["activity", "card"], exact: true }),
       queryClient.invalidateQueries({ queryKey: ["kyc", "cardLimit"], exact: true }),
       queryClient.invalidateQueries({ queryKey: ["kyc", "status"], exact: true }),
+      business ? queryClient.invalidateQueries({ queryKey: ["kyc", "panda-business"], exact: true }) : undefined,
       address ? refetchBytecode() : undefined,
       address ? refetchMarkets() : undefined,
       address && credential ? refetchInstalledPlugins() : undefined,
@@ -143,6 +150,12 @@ export default function Card() {
   } = useMutation({
     mutationKey: ["card", "reveal"],
     mutationFn: async function handleReveal() {
+      if (business && !cardDetails) {
+        const { data } = await refetchCard();
+        if (data) queryClient.setQueryData(["card-details-open"], true);
+        else router.push("/business");
+        return;
+      }
       if (!cardDetails) {
         const { data: code, isSuccess } = await refetchBytecode();
         if (!code) {
@@ -301,14 +314,36 @@ export default function Card() {
                     />
                   </View>
                 </XStack>
-                {isKYCInReview && !cardDetails && (
+                {!cardDetails &&
+                  (application === "pending" || application === "review" || application === "action") && (
+                    <Banner
+                      step={application}
+                      title={t("Get a business Exa Card")}
+                      description={
+                        application === "pending"
+                          ? companyApproved
+                            ? t("Your business is approved. Finish setting up your card.")
+                            : t("Finish your business account set up")
+                          : application === "review"
+                            ? companyApproved
+                              ? t("We’re reviewing the card user. Your card will be issued once approved.")
+                              : t("Review takes 3 to 5 business days.")
+                            : t("We need more information before we can continue.")
+                      }
+                      onPress={() => {
+                        router.push("/business");
+                      }}
+                    />
+                  )}
+                {!business && isKYCInReview && !cardDetails && (
                   <InfoAlert
                     variant="warning"
                     icon={ClockAlert}
                     title={t("We’re reviewing your documents. Your card will be ready once your identity is verified.")}
                   />
                 )}
-                {isKYCFetched &&
+                {!business &&
+                  isKYCFetched &&
                   !isKYCInReview &&
                   !cardDetails &&
                   ((isBytecodeFetched && !bytecode) || !isKYCApproved) && (

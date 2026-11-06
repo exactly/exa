@@ -8,6 +8,7 @@ import domain from "@exactly/common/domain";
 import queryClient, { type EmbeddingContext } from "./queryClient";
 import reportError from "./reportError";
 import { getKYCTokens, origin, type KYCStatus } from "./server";
+import { isBusiness } from "./useIsBusiness";
 
 import type { UseMutationOptions } from "@tanstack/react-query";
 
@@ -21,7 +22,7 @@ let current:
   | {
       controller: AbortController;
       promise: Promise<InquiryResult>;
-      scope: "bridge" | "cardLimit" | "manteca";
+      scope: "bridge" | "cardLimit" | "manteca" | "panda-business";
       tokens?: { inquiryId: string; sessionToken: string };
     }
   | { controller: AbortController; promise: Promise<KYCResult>; scope: "basic" };
@@ -44,7 +45,7 @@ export function startKYC() {
     if (Platform.OS === "web") {
       const [{ Client }, { inquiryId, sessionToken }] = await Promise.all([
         import("persona"),
-        getKYCTokens("basic", await getRedirectURI()),
+        getKYCTokens(isBusiness() ? "business" : "basic", await getRedirectURI()),
       ]);
       if (signal.aborted) throw signal.reason;
 
@@ -84,7 +85,7 @@ export function startKYC() {
       });
     }
 
-    const { inquiryId, sessionToken } = await getKYCTokens("basic", await getRedirectURI());
+    const { inquiryId, sessionToken } = await getKYCTokens(isBusiness() ? "business" : "basic", await getRedirectURI());
     if (signal.aborted) throw signal.reason;
 
     const { Inquiry } = await import("react-native-persona");
@@ -135,8 +136,12 @@ export function startCardLimitKYC() {
   return startScopedInquiry("cardLimit");
 }
 
+export function startBusinessKYC(tokens: { inquiryId: string; sessionToken: string }) {
+  return startScopedInquiry("panda-business", tokens);
+}
+
 function startScopedInquiry(
-  scope: "bridge" | "cardLimit" | "manteca",
+  scope: "bridge" | "cardLimit" | "manteca" | "panda-business",
   tokens?: { inquiryId: string; sessionToken: string },
 ) {
   if (current && !current.controller.signal.aborted && current.scope === scope && current.tokens === tokens)
