@@ -20,6 +20,7 @@ import type { Job } from "../../workers/chat/job";
 import type { context } from "../../workers/chat/worker";
 import type { InferPublicSchema } from "@mastra/core/schema";
 import type { JobsOptions } from "bullmq";
+import type { MockInstance } from "vitest";
 
 const redisUrl = parse(string(), process.env.REDIS_URL);
 const bullmq = connect(redisUrl);
@@ -36,6 +37,10 @@ Create your account and activate your card here: ${appOrigin}/?${utm}`;
 const help = `Hi again. Almost everything you need to know about the Exa Card is in our help center: credit limit, identity verification, billing address, installments and payments.
 Search for your topic here: https://help.exactly.app?${utm}
 If you don't find the answer there, write to us from the support chat inside the Exa app: ${appOrigin}/?support&${utm}`;
+
+const sender = "US.24681357";
+const message = "Hey!";
+const own = new Set<string>();
 
 let worker: ReturnType<typeof createChatWorker>;
 let connection: ReturnType<typeof connect>;
@@ -55,8 +60,7 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-  await queue.drain(true);
-  await bullmq.del("whatsapp:seen:US.12345678");
+  await bullmq.del(`whatsapp:seen:${sender}`);
 });
 
 describe("chat composition", () => {
@@ -171,32 +175,31 @@ describe("chat worker", () => {
       .mockResolvedValue({ toolResults: [{ payload: { result: { text: "sure!" } } }] } as never);
     const send = vi.spyOn(whatsapp, "send").mockResolvedValue();
     await jobFinished("whatsapp-new");
-    expect(generate).toHaveBeenCalledExactlyOnceWith("Hi!", options(false));
-    expect(send).toHaveBeenCalledExactlyOnceWith("US.12345678", "sure!");
-    await expect(bullmq.get("whatsapp:seen:US.12345678")).resolves.toBe("whatsapp-new");
-    expect(captureException).not.toHaveBeenCalled();
+    expect(generated(generate)).toStrictEqual([[message, options(false)]]);
+    expect(sent(send)).toStrictEqual([[sender, "sure!"]]);
+    await expect(bullmq.get(`whatsapp:seen:${sender}`)).resolves.toBe("whatsapp-new");
+    expect(captured()).toStrictEqual([]);
   });
 
   it("uses the help script for a sender who wrote before", async () => {
-    await bullmq.set("whatsapp:seen:US.12345678", "whatsapp-first");
+    await bullmq.set(`whatsapp:seen:${sender}`, "whatsapp-first");
     const generate = vi
       .spyOn(Agent.prototype, "generate")
       .mockResolvedValue({ toolResults: [{ payload: { result: { text: "hi again!" } } }] } as never);
     vi.spyOn(whatsapp, "send").mockResolvedValue();
     await jobFinished("whatsapp-returning");
-    expect(generate).toHaveBeenCalledExactlyOnceWith("Hi!", options(true));
-    await expect(bullmq.get("whatsapp:seen:US.12345678")).resolves.toBe("whatsapp-first");
+    expect(generated(generate)).toStrictEqual([[message, options(true)]]);
+    await expect(bullmq.get(`whatsapp:seen:${sender}`)).resolves.toBe("whatsapp-first");
   });
 
   it("reports a model failure after the final attempt", async () => {
     vi.spyOn(Agent.prototype, "generate").mockRejectedValue(new Error("model down"));
     await expect(jobFinished("whatsapp-model-failure")).rejects.toThrow("model down");
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0);
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("model down"), {
-      extra: { attempts: 1, from: "US.12345678", id: "whatsapp-model-failure" },
-      level: "fatal",
-    });
-    await expect(bullmq.exists("whatsapp:seen:US.12345678")).resolves.toBe(0);
+    await vi.waitUntil(() => captured().length > 0);
+    expect(captured()).toStrictEqual([
+      [new Error("model down"), { extra: { attempts: 1, from: sender, id: "whatsapp-model-failure" }, level: "fatal" }],
+    ]);
+    await expect(bullmq.exists(`whatsapp:seen:${sender}`)).resolves.toBe(0);
   });
 
   it("reports a rejected WhatsApp delivery", async () => {
@@ -205,11 +208,13 @@ describe("chat worker", () => {
     } as never);
     vi.spyOn(whatsapp, "send").mockRejectedValue(new Error("too many messages"));
     await expect(jobFinished("whatsapp-send-failure")).rejects.toThrow("too many messages");
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0);
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("too many messages"), {
-      extra: { attempts: 1, from: "US.12345678", id: "whatsapp-send-failure" },
-      level: "fatal",
-    });
+    await vi.waitUntil(() => captured().length > 0);
+    expect(captured()).toStrictEqual([
+      [
+        new Error("too many messages"),
+        { extra: { attempts: 1, from: sender, id: "whatsapp-send-failure" }, level: "fatal" },
+      ],
+    ]);
   });
 
   it("does not retry an unrecoverable WhatsApp rejection", async () => {
@@ -219,13 +224,12 @@ describe("chat worker", () => {
       .mockResolvedValue({ toolResults: [{ payload: { result: { text: "sure!" } } }] } as never);
     const send = vi.spyOn(whatsapp, "send").mockRejectedValue(error);
     await expect(jobFinished("whatsapp-permanent-failure", { attempts })).rejects.toThrow("invalid recipient");
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0);
-    expect(generate).toHaveBeenCalledOnce();
-    expect(send).toHaveBeenCalledOnce();
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
-      extra: { attempts: 1, from: "US.12345678", id: "whatsapp-permanent-failure" },
-      level: "fatal",
-    });
+    await vi.waitUntil(() => captured().length > 0);
+    expect(generated(generate)).toHaveLength(1);
+    expect(sent(send)).toHaveLength(1);
+    expect(captured()).toStrictEqual([
+      [error, { extra: { attempts: 1, from: sender, id: "whatsapp-permanent-failure" }, level: "fatal" }],
+    ]);
   });
 
   it("captures redis errors instead of crashing", async () => {
@@ -238,6 +242,7 @@ describe("chat worker", () => {
     });
     const listener = listen.mock.calls.find(([event]) => event === "error")?.[1];
     if (!listener) throw new Error("missing error listener");
+    vi.mocked(captureException).mockClear();
     listener(new Error("socket closed"));
     expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("socket closed"));
     await observed.ready;
@@ -280,11 +285,26 @@ async function execute(seen: boolean, locale: string) {
   return tool.execute({ locale });
 }
 
+function captured() {
+  return vi
+    .mocked(captureException)
+    .mock.calls.filter(([, hint]) => own.has((hint as undefined | { extra?: { id?: string } })?.extra?.id ?? ""));
+}
+
+function generated(generate: MockInstance<Agent["generate"]>) {
+  return generate.mock.calls.filter(([input]) => input === message);
+}
+
+function sent(send: MockInstance<ReturnType<typeof createWhatsapp>["send"]>) {
+  return send.mock.calls.filter(([to]) => to === sender);
+}
+
 async function jobFinished(id: string, jobOptions?: JobsOptions) {
+  own.add(id);
   const result = finished(events, id);
   await queue.add(
     "chat",
-    { from: "US.12345678", text: "Hi!" },
+    { from: sender, text: message },
     { attempts: 1, jobId: id, removeOnComplete: true, removeOnFail: true, ...jobOptions },
   );
   return result;

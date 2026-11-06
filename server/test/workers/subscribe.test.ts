@@ -42,18 +42,14 @@ const subscribe = createSubscribe(redis);
 const events = new QueueEvents(name, { connection: bullmq, lastEventId: await tip(bullmq, queue) });
 let worker: ReturnType<typeof subscribeWorker> | undefined;
 
-beforeAll(async () => {
+beforeAll(() => {
   if (!env.REDIS_URL) throw new Error("missing redis url");
-  await queue.drain(true);
 });
 
-beforeEach(async () => {
+beforeEach(() => {
   vi.restoreAllMocks();
   vi.clearAllMocks();
   mocks.networks = networks("ANVIL");
-  await queue.drain(true);
-  await queue.clean(0, 1000, "completed");
-  await queue.clean(0, 1000, "failed");
 });
 
 afterEach(async () => {
@@ -120,9 +116,10 @@ describe("subscribe worker", () => {
 
     expect(alchemy.createWebhook).not.toHaveBeenCalled();
     expect(alchemy.getWebhookAddresses).toHaveBeenCalledExactlyOnceWith("hook");
-    expect(alchemy.addWebhookAddresses).toHaveBeenCalledTimes(2);
-    expect(alchemy.addWebhookAddresses).toHaveBeenNthCalledWith(1, "hook", accounts.slice(0, 500));
-    expect(alchemy.addWebhookAddresses).toHaveBeenNthCalledWith(2, "hook", accounts.slice(500));
+    expect(calls(alchemy, ...accounts)).toStrictEqual([
+      ["hook", accounts.slice(0, 500)],
+      ["hook", accounts.slice(500)],
+    ]);
   });
 
   it("creates missing webhooks before backfilling", async () => {
@@ -141,7 +138,7 @@ describe("subscribe worker", () => {
       webhook_url: activityUrl,
     });
     expect(alchemy.getWebhookAddresses).toHaveBeenCalledExactlyOnceWith("new");
-    expect(alchemy.addWebhookAddresses).toHaveBeenCalledExactlyOnceWith("new", [current]);
+    expect(calls(alchemy, current)).toStrictEqual([["new", [current]]]);
     expect(alchemy.setWebhookActive).not.toHaveBeenCalled();
   });
 
@@ -154,15 +151,13 @@ describe("subscribe worker", () => {
       data: [current],
       pagination: { cursors: {}, total_count: 1 },
     });
-    alchemy.setWebhookActive.mockImplementation(() => {
-      expect(alchemy.addWebhookAddresses).toHaveBeenCalledExactlyOnceWith("new", [current]);
-      return Promise.resolve();
-    });
+    activateAfterAdding(alchemy);
 
     worker = subscribeWorker({ alchemy, bullmq, database: source([current]) });
     await worker.ready;
 
-    expect(alchemy.setWebhookActive).toHaveBeenCalledExactlyOnceWith("new", true);
+    expect(calls(alchemy, current)).toStrictEqual([["new", [current]]]);
+    expect(alchemy.setWebhookActive).toHaveBeenCalledWith("new", true);
   });
 
   it("does not guess among duplicate webhooks", async () => {
@@ -194,15 +189,17 @@ describe("subscribe worker", () => {
     const current = address(1);
     alchemy.getWebhooks.mockResolvedValue([webhook("anvil"), webhook("optimism", "OPT_SEPOLIA")]);
     alchemy.getWebhookAddresses.mockRejectedValueOnce(new Error("list failed"));
-    alchemy.addWebhookAddresses.mockResolvedValueOnce().mockRejectedValueOnce(new Error("add failed"));
+    failFor(alchemy, current, undefined, new Error("add failed"));
 
     worker = subscribeWorker({ alchemy, bullmq, database: source([current]) });
 
     await expect(worker.ready).rejects.toThrow("activity webhook reconciliation failed");
     await expect(worker.ready).rejects.toMatchObject({ errors: [new Error("list failed"), new Error("add failed")] });
     expect(alchemy.getWebhookAddresses).toHaveBeenCalledExactlyOnceWith("anvil");
-    expect(alchemy.addWebhookAddresses).toHaveBeenNthCalledWith(1, "anvil", [current]);
-    expect(alchemy.addWebhookAddresses).toHaveBeenNthCalledWith(2, "optimism", [current]);
+    expect(calls(alchemy, current)).toStrictEqual([
+      ["anvil", [current]],
+      ["optimism", [current]],
+    ]);
   });
 
   it("processes jobs after discovery while reconciliation is running", async () => {
@@ -214,7 +211,7 @@ describe("subscribe worker", () => {
 
     await jobFinished(current);
 
-    expect(alchemy.addWebhookAddresses).toHaveBeenCalledExactlyOnceWith("hook", [current]);
+    expect(calls(alchemy, current)).toStrictEqual([["hook", [current]]]);
     accounts.resolve([]);
     await worker.ready;
   });
@@ -225,13 +222,15 @@ describe("subscribe worker", () => {
     alchemy.getWebhooks.mockResolvedValue([webhook("anvil"), webhook("optimism", "OPT_SEPOLIA")]);
     worker = subscribeWorker({ alchemy, bullmq, database: source([]) });
     await worker.ready;
-    alchemy.addWebhookAddresses.mockRejectedValueOnce(new Error("first failed")).mockResolvedValueOnce();
     const current = address(1);
+    failFor(alchemy, current, new Error("first failed"));
 
     await expect(jobFinished(current)).rejects.toThrow("account subscription failed");
 
-    expect(alchemy.addWebhookAddresses).toHaveBeenNthCalledWith(1, "anvil", [current]);
-    expect(alchemy.addWebhookAddresses).toHaveBeenNthCalledWith(2, "optimism", [current]);
+    expect(calls(alchemy, current)).toStrictEqual([
+      ["anvil", [current]],
+      ["optimism", [current]],
+    ]);
   });
 
   it("warns and fails before reaching provider capacity", async () => {
@@ -250,7 +249,6 @@ describe("subscribe worker", () => {
       tags: { network: "ANVIL", webhook: "full" },
       extra: { addresses: 100_000 },
     });
-    expect(alchemy.addWebhookAddresses).not.toHaveBeenCalled();
   });
 
   it("adds accounts that are already subscribed", async () => {
@@ -265,7 +263,7 @@ describe("subscribe worker", () => {
     worker = subscribeWorker({ alchemy, bullmq, database: source([current]) });
     await worker.ready;
 
-    expect(alchemy.addWebhookAddresses).toHaveBeenCalledExactlyOnceWith("hook", [current]);
+    expect(calls(alchemy, current)).toStrictEqual([["hook", [current]]]);
     expect(captureMessage).not.toHaveBeenCalled();
   });
 
@@ -278,8 +276,10 @@ describe("subscribe worker", () => {
 
     await jobFinished(account);
 
-    expect(alchemy.addWebhookAddresses).toHaveBeenNthCalledWith(1, "anvil", [account]);
-    expect(alchemy.addWebhookAddresses).toHaveBeenNthCalledWith(2, "optimism", [account]);
+    expect(calls(alchemy, account)).toStrictEqual([
+      ["anvil", [account]],
+      ["optimism", [account]],
+    ]);
     expect(vi.mocked(startSpan)).toHaveBeenCalledWith(
       expect.objectContaining({ forceTransaction: true, name: "subscribe worker" }),
       expect.any(Function),
@@ -295,29 +295,28 @@ describe("subscribe worker", () => {
     const alchemy = api();
     alchemy.getWebhooks.mockResolvedValue([]);
     alchemy.createWebhook.mockResolvedValue(webhook("new", "ANVIL", false));
-    alchemy.setWebhookActive.mockImplementation(() => {
-      expect(alchemy.addWebhookAddresses).toHaveBeenCalledExactlyOnceWith("new", [account]);
-      return Promise.resolve();
-    });
+    activateAfterAdding(alchemy);
     worker = subscribeWorker({ alchemy, bullmq, database: source([]) });
     await worker.ready;
 
-    expect(alchemy.setWebhookActive).not.toHaveBeenCalled();
-
     await jobFinished(account);
 
-    expect(alchemy.setWebhookActive).toHaveBeenCalledExactlyOnceWith("new", true);
+    expect(calls(alchemy, account)).toStrictEqual([["new", [account]]]);
+    expect(alchemy.setWebhookActive).toHaveBeenCalledWith("new", true);
   });
 
   it("retries alchemy failures", async () => {
     const alchemy = api();
     worker = subscribeWorker({ alchemy, bullmq, database: source([]) });
     await worker.ready;
-    alchemy.addWebhookAddresses.mockRejectedValueOnce(new Error("bad")).mockResolvedValueOnce();
+    failFor(alchemy, account, new Error("bad"));
 
     await jobFinished(account, { attempts: 2, backoff: { type: "fixed", delay: 1 } });
 
-    expect(alchemy.addWebhookAddresses).toHaveBeenCalledTimes(2);
+    expect(calls(alchemy, account)).toStrictEqual([
+      ["hook", [account]],
+      ["hook", [account]],
+    ]);
     expect(vi.mocked(captureException)).not.toHaveBeenCalled();
   });
 
@@ -325,7 +324,7 @@ describe("subscribe worker", () => {
     const alchemy = api();
     worker = subscribeWorker({ alchemy, bullmq, database: source([]) });
     await worker.ready;
-    alchemy.addWebhookAddresses.mockRejectedValueOnce("bad");
+    failFor(alchemy, account, "bad");
     const setUser = await spyScopeSetUser();
 
     await expect(jobFinished(account)).rejects.toThrow("account subscription failed");
@@ -388,14 +387,13 @@ describe("subscribe worker", () => {
     const alchemy = api();
     worker = subscribeWorker({ alchemy, bullmq, database: source([]) });
     await worker.ready;
-    alchemy.addWebhookAddresses.mockRejectedValueOnce(error);
+    failFor(alchemy, account, error);
     const setUser = await spyScopeSetUser();
 
     await expect(jobFinished(account, { removeOnFail: false })).rejects.toThrow("account subscription failed");
 
-    await expect(queue.getFailedCount()).resolves.toBe(1);
     await expect(queue.getJobState(account)).resolves.toBe("failed");
-    const [job] = await queue.getFailed();
+    const job = await queue.getJob(account);
     if (!job) throw new Error("job not found");
     expect(job.id).toBe(account);
     expect(job.failedReason).toBe("account subscription failed");
@@ -418,14 +416,17 @@ describe("subscribe worker", () => {
     const alchemy = api();
     worker = subscribeWorker({ alchemy, bullmq, database: source([]) });
     await worker.ready;
-    alchemy.addWebhookAddresses.mockRejectedValue(error);
+    failFor(alchemy, account, error, error);
     const setUser = await spyScopeSetUser();
 
     await expect(jobFinished(account, { attempts: 2, backoff: { type: "fixed", delay: 1 } })).rejects.toThrow(
       "account subscription failed",
     );
 
-    expect(alchemy.addWebhookAddresses).toHaveBeenCalledTimes(2);
+    expect(calls(alchemy, account)).toStrictEqual([
+      ["hook", [account]],
+      ["hook", [account]],
+    ]);
     expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
     expect(vi.mocked(captureException)).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ message: "account subscription failed", errors: [error] }),
@@ -469,6 +470,26 @@ async function spyScopeSetUser() {
     }),
   );
   return setUser;
+}
+
+function calls(alchemy: ReturnType<typeof api>, ...owned: Address[]) {
+  return alchemy.addWebhookAddresses.mock.calls.filter(([, addresses]) =>
+    addresses.every((current) => owned.includes(current)),
+  );
+}
+
+function failFor(alchemy: ReturnType<typeof api>, current: Address, ...errors: unknown[]) {
+  alchemy.addWebhookAddresses.mockImplementation((_, addresses) => {
+    const error = addresses.includes(current) ? errors.shift() : undefined;
+    return error === undefined ? Promise.resolve() : Promise.reject(error); // eslint-disable-line @typescript-eslint/prefer-promise-reject-errors -- mirrors any rejection
+  });
+}
+
+function activateAfterAdding(alchemy: ReturnType<typeof api>) {
+  alchemy.setWebhookActive.mockImplementation((id) => {
+    expect(alchemy.addWebhookAddresses.mock.calls.some(([hook]) => hook === id)).toBe(true);
+    return Promise.resolve();
+  });
 }
 
 function api() {

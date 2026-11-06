@@ -8,6 +8,7 @@ import "../mocks/segment";
 import "../mocks/wallet";
 
 import { KeyManagementServiceClient } from "@google-cloud/kms";
+import { Queue } from "bullmq";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
@@ -43,13 +44,14 @@ import authSecret from "../../utils/authSecret";
 import createPanda from "../../utils/panda";
 import createPax from "../../utils/pax";
 import createPersona from "../../utils/persona";
+import redis from "../../utils/redis";
 import createSardine from "../../utils/sardine";
 import createSegment from "../../utils/segment";
 import ServiceError from "../../utils/ServiceError";
 import wallet, { signer } from "../../utils/wallet";
 import createWalletExtension from "../../utils/walletExtension";
+import createCredit from "../../workers/credit/queue";
 
-import type createCredit from "../../workers/credit/queue";
 import type * as sentry from "@sentry/node";
 import type { UnofficialStatusCode } from "hono/utils/http-status";
 
@@ -60,10 +62,7 @@ const { WALLET_EXTENSION_SECRET } = env;
 if (!WALLET_EXTENSION_SECRET) throw new Error("missing wallet extension secret");
 const walletExtensionKey = createSecretKey(Buffer.from(WALLET_EXTENSION_SECRET, "utf8"));
 const auth = createAuth(database, authSecret);
-const credit = {
-  close: vi.fn<ReturnType<typeof createCredit>["close"]>().mockResolvedValue(),
-  enqueue: vi.fn<ReturnType<typeof createCredit>["enqueue"]>(),
-};
+const credit = createCredit(redis);
 const panda = createPanda({
   key: parse(pipe(string(), nonEmpty()), env.PANDA_API_KEY),
   url: parse(pipe(string(), nonEmpty()), env.PANDA_API_URL),
@@ -97,7 +96,7 @@ beforeAll(async () => {
   keeper = wallet(await signer("keeper", kms));
 });
 
-afterAll(() => kms.close());
+afterAll(() => Promise.all([kms.close(), credit.close()]));
 
 describe("authenticated", () => {
   beforeAll(async () => {
@@ -198,7 +197,6 @@ describe("authenticated", () => {
 
   afterEach(() => vi.resetAllMocks());
   beforeEach(() => {
-    vi.mocked(credit.enqueue).mockResolvedValue();
     vi.spyOn(persona, "getAccount").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
     vi.spyOn(panda, "getCards").mockResolvedValue([]);
   });
@@ -671,6 +669,7 @@ describe("authenticated", () => {
     ]);
     const createCard = vi.spyOn(panda, "createCard");
     const getAccount = vi.spyOn(persona, "getAccount");
+    const add = vi.spyOn(Queue.prototype, "add");
 
     const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
 
@@ -693,7 +692,11 @@ describe("authenticated", () => {
       lastFour: "4242",
       productId: SIGNATURE_PRODUCT_ID,
     });
-    expect(credit.enqueue).toHaveBeenCalledExactlyOnceWith(padHex("0x4051", { size: 20 }));
+    expect(add).toHaveBeenCalledExactlyOnceWith(
+      "credit",
+      expect.objectContaining({ account: padHex("0x4051", { size: 20 }) }),
+      { jobId: padHex("0x4051", { size: 20 }) },
+    );
     expect(
       vi
         .mocked(captureException)
@@ -738,6 +741,7 @@ describe("authenticated", () => {
       },
     ]);
     const createCard = vi.spyOn(panda, "createCard");
+    const add = vi.spyOn(Queue.prototype, "add");
 
     const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
 
@@ -754,7 +758,7 @@ describe("authenticated", () => {
       where: eq(cards.credentialId, credentialId),
     });
     expect(persisted).toStrictEqual([{ id: first }]);
-    expect(credit.enqueue).toHaveBeenCalledExactlyOnceWith(account);
+    expect(add).toHaveBeenCalledExactlyOnceWith("credit", expect.objectContaining({ account }), { jobId: account });
     expect(
       vi
         .mocked(captureException)
@@ -970,6 +974,7 @@ describe("authenticated", () => {
     vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id });
     vi.spyOn(panda, "getCard").mockResolvedValueOnce({ ...cardTemplate, id });
     vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
+    const add = vi.spyOn(Queue.prototype, "add");
     const response = await appClient.index.$post({ header: { "test-credential-id": "debit" } });
 
     expect(response.status).toBe(200);
@@ -980,7 +985,11 @@ describe("authenticated", () => {
     });
 
     expect(created?.mode).toBe(0);
-    expect(credit.enqueue).toHaveBeenCalledExactlyOnceWith(padHex("0x4", { size: 20 }));
+    expect(add).toHaveBeenCalledExactlyOnceWith(
+      "credit",
+      expect.objectContaining({ account: padHex("0x4", { size: 20 }) }),
+      { jobId: padHex("0x4", { size: 20 }) },
+    );
     await expect(response.json()).resolves.toStrictEqual({
       status: "ACTIVE",
       lastFour: "7394",
@@ -996,19 +1005,14 @@ describe("authenticated", () => {
       last4: "1224",
     });
     vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
+    const add = vi.spyOn(Queue.prototype, "add");
     const response = await appClient.index.$post({ header: { "test-credential-id": "eth" } });
     expect(response.status).toBe(200);
-    const created = await database.query.cards.findFirst({
-      columns: { mode: true },
-      where: eq(cards.credentialId, "eth"),
+    const account = deriveAddress(exaAccountFactoryAddress, {
+      x: padHex(privateKeyToAddress(padHex("0xbeef"))),
+      y: zeroHash,
     });
-    expect(created?.mode).toBe(0);
-    expect(credit.enqueue).toHaveBeenCalledExactlyOnceWith(
-      deriveAddress(exaAccountFactoryAddress, {
-        x: padHex(privateKeyToAddress(padHex("0xbeef"))),
-        y: zeroHash,
-      }),
-    );
+    expect(add).toHaveBeenCalledExactlyOnceWith("credit", expect.objectContaining({ account }), { jobId: account });
     expect(captureException).not.toHaveBeenCalled();
     await expect(response.json()).resolves.toStrictEqual({
       status: "ACTIVE",
@@ -1032,7 +1036,7 @@ describe("authenticated", () => {
     });
     vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: cardId, last4: "4054" });
     vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
-    vi.mocked(credit.enqueue).mockRejectedValueOnce(error);
+    const add = vi.spyOn(Queue.prototype, "add").mockRejectedValueOnce(error);
 
     const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
 
@@ -1046,7 +1050,7 @@ describe("authenticated", () => {
     await expect(
       database.query.cards.findFirst({ columns: { id: true }, where: eq(cards.credentialId, credentialId) }),
     ).resolves.toStrictEqual({ id: cardId });
-    expect(credit.enqueue).toHaveBeenCalledExactlyOnceWith(account);
+    expect(add).toHaveBeenCalledExactlyOnceWith("credit", expect.objectContaining({ account }), { jobId: account });
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       level: "error",
       tags: { queue: "credit", job: "credit" },

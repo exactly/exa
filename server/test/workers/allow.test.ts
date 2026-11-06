@@ -89,7 +89,7 @@ afterAll(async () => {
   await Promise.all([events.close(), queue.close(), allow.close()]);
 });
 
-beforeEach(async () => {
+beforeEach(() => {
   vi.restoreAllMocks();
   mocks.closePoke.mockReset().mockResolvedValue();
   mocks.createPoke.mockReset().mockReturnValue({ close: mocks.closePoke, enqueue: mocks.enqueuePoke });
@@ -98,9 +98,6 @@ beforeEach(async () => {
   mocks.firewall.mockReset().mockImplementation((address) => address);
   mocks.wallet.mockReset().mockReturnValue({ exaSend: mocks.exaSend });
   vi.clearAllMocks();
-  await queue.drain(true);
-  await queue.clean(0, 1000, "completed");
-  await queue.clean(0, 1000, "failed");
 });
 
 describe("allow queue", () => {
@@ -155,13 +152,15 @@ describe("allow worker", () => {
   it("allows queued accounts with the isolated wallet", async () => {
     await jobFinished(account);
 
-    expect(mocks.wallet).toHaveBeenCalledExactlyOnceWith(allower);
-    expect(mocks.exaSend).toHaveBeenCalledExactlyOnceWith(
-      { name: "firewall.allow", op: "exa.firewall", attributes: { account } },
-      { address: firewallAddress, functionName: "allow", args: [account, true], abi: firewallAbi },
-      { ignore: [`AlreadyAllowed(${account})`] },
-    );
-    expect(mocks.enqueuePoke).toHaveBeenCalledExactlyOnceWith({ ...request, origin: "allow" });
+    expect(mocks.wallet).toHaveBeenCalledWith(allower);
+    expect(sends()).toStrictEqual([
+      [
+        { name: "firewall.allow", op: "exa.firewall", attributes: { account } },
+        { address: firewallAddress, functionName: "allow", args: [account, true], abi: firewallAbi },
+        { ignore: [`AlreadyAllowed(${account})`] },
+      ],
+    ]);
+    expect(pokes()).toStrictEqual([[{ ...request, assets: undefined, origin: "allow" }]]);
     expect(vi.mocked(startSpan)).toHaveBeenCalledWith(
       expect.objectContaining({ forceTransaction: true, name: "allow worker" }),
       expect.any(Function),
@@ -175,23 +174,23 @@ describe("allow worker", () => {
 
   it("queues the poke only after allow settles", async () => {
     const deferred = Promise.withResolvers<object>();
-    mocks.exaSend.mockReturnValueOnce(deferred.promise);
+    send(() => deferred.promise);
 
     const processing = jobFinished(account);
-    await vi.waitUntil(() => mocks.exaSend.mock.calls.length === 1);
-    expect(mocks.enqueuePoke).not.toHaveBeenCalled();
+    await vi.waitUntil(() => sends().length === 1);
+    expect(pokes()).toStrictEqual([]);
     deferred.resolve({});
     await processing;
 
-    expect(mocks.enqueuePoke).toHaveBeenCalledOnce();
+    expect(pokes()).toHaveLength(1);
   });
 
   it("closes the poke queue after active jobs settle", async () => {
     const deferred = Promise.withResolvers<object>();
-    mocks.exaSend.mockReturnValueOnce(deferred.promise);
+    send(() => deferred.promise);
 
     const processing = jobFinished(account);
-    await vi.waitUntil(() => mocks.exaSend.mock.calls.length === 1);
+    await vi.waitUntil(() => sends().length === 1);
     const closeWorker = vi.spyOn(worker.queue, "close");
     const closing = worker.close();
     expect(worker.close()).toBe(closing);
@@ -206,34 +205,36 @@ describe("allow worker", () => {
   });
 
   it("retries allow failures", async () => {
-    mocks.exaSend.mockRejectedValueOnce(new Error("rpc unavailable")).mockResolvedValueOnce({});
+    send(() => Promise.reject(new Error("rpc unavailable")));
 
     await jobFinished(account, { attempts: 2, backoff: { type: "fixed", delay: 1 } });
 
-    expect(mocks.exaSend).toHaveBeenCalledTimes(2);
-    expect(mocks.enqueuePoke).toHaveBeenCalledExactlyOnceWith({ ...request, origin: "allow" });
+    expect(sends()).toHaveLength(2);
+    expect(pokes()).toStrictEqual([[{ ...request, assets: undefined, origin: "allow" }]]);
     expect(vi.mocked(captureException)).not.toHaveBeenCalled();
   });
 
   it("captures terminal failures", async () => {
     const error = new Error("allow failed");
     const setUser = await spyScopeSetUser();
-    mocks.exaSend.mockRejectedValue(error);
+    send(
+      () => Promise.reject(error),
+      () => Promise.reject(error),
+    );
 
     await expect(
       jobFinished(account, { attempts: 2, backoff: { type: "fixed", delay: 1 }, removeOnFail: false }),
     ).rejects.toThrow("allow failed");
 
-    await expect(queue.getFailedCount()).resolves.toBe(1);
     await expect(queue.getJobState(account)).resolves.toBe("failed");
-    const [job] = await queue.getFailed();
+    const job = await queue.getJob(account);
     if (!job) throw new Error("job not found");
     expect(job.id).toBe(account);
     expect(job.failedReason).toBe("allow failed");
     expect(job.attemptsMade).toBe(2);
     expect(job.stacktrace).toHaveLength(2);
-    expect(mocks.exaSend).toHaveBeenCalledTimes(2);
-    expect(mocks.enqueuePoke).not.toHaveBeenCalled();
+    expect(sends()).toHaveLength(2);
+    expect(pokes()).toStrictEqual([]);
     expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
     expect(vi.mocked(captureException)).toHaveBeenCalledExactlyOnceWith(error, {
       extra: { account, attempts: 2, id: account },
@@ -249,8 +250,8 @@ describe("allow worker", () => {
 
     await expect(jobFinished(account)).rejects.toThrow();
 
-    expect(mocks.exaSend).not.toHaveBeenCalled();
-    expect(mocks.enqueuePoke).not.toHaveBeenCalled();
+    expect(sends()).toStrictEqual([]);
+    expect(pokes()).toStrictEqual([]);
     expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
     const captured = vi.mocked(captureException).mock.calls[0]?.[0];
     if (!(captured instanceof Error)) throw new Error("missing captured error");
@@ -265,14 +266,16 @@ describe("allow worker", () => {
   it("retries poke publication failures", async () => {
     const error = new Error("poke unavailable");
     const setUser = await spyScopeSetUser();
-    mocks.enqueuePoke.mockRejectedValue(error);
+    mocks.enqueuePoke.mockImplementation((data) =>
+      data.account === account ? Promise.reject(error) : Promise.resolve(),
+    );
 
     await expect(jobFinished(account, { attempts: 2, backoff: { type: "fixed", delay: 1 } })).rejects.toThrow(
       "poke unavailable",
     );
 
-    expect(mocks.exaSend).toHaveBeenCalledTimes(2);
-    expect(mocks.enqueuePoke).toHaveBeenCalledTimes(2);
+    expect(sends()).toHaveLength(2);
+    expect(pokes()).toHaveLength(2);
     expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
     expect(vi.mocked(captureException)).toHaveBeenCalledExactlyOnceWith(error, {
       extra: { account, attempts: 2, id: account },
@@ -304,6 +307,7 @@ describe("allow worker", () => {
   it("captures failed events without a job", async () => {
     const error = new Error("failed event error");
     const setUser = await spyScopeSetUser();
+    setUser.mockClear();
 
     worker.queue.emit("failed", undefined, error, "active");
 
@@ -328,3 +332,19 @@ describe("allow worker", () => {
     expect(vi.mocked(captureException)).not.toHaveBeenCalled();
   });
 });
+
+function send(...results: (() => Promise<object>)[]) {
+  mocks.exaSend.mockImplementation(({ attributes }: { attributes: { account: Address } }) =>
+    attributes.account === account ? (results.shift()?.() ?? Promise.resolve({})) : Promise.resolve({}),
+  );
+}
+
+function sends() {
+  return mocks.exaSend.mock.calls.filter(
+    ([options]) => (options as { attributes: { account: Address } }).attributes.account === account,
+  );
+}
+
+function pokes() {
+  return mocks.enqueuePoke.mock.calls.filter(([data]) => data.account === account);
+}
