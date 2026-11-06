@@ -1,38 +1,31 @@
 import "../mocks/sentry";
 
 import { captureException } from "@sentry/node";
+import { Queue } from "bullmq";
 import { createHmac } from "node:crypto";
+import { parse, string } from "valibot";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import createChatHook from "../../hooks/chat";
+import { connect } from "../../workers/worker";
 
-import type { Redis } from "ioredis";
+import type { MockInstance } from "vitest";
 
-const mocks = vi.hoisted(() => ({
-  close: vi.fn<() => Promise<void>>(),
-  enqueue: vi.fn<(data: { contact?: string; from: string; id: string; text: string }) => Promise<void>>(),
-  on: vi.fn<(event: string, listener: (error: unknown) => void) => void>(),
-}));
-
-vi.mock("../../workers/chat/queue", () => ({
-  default: () => ({ close: mocks.close, enqueue: mocks.enqueue }),
-}));
-
-const redis = { on: mocks.on } as unknown as Redis;
-
+let redis: ReturnType<typeof connect>;
 let chatHook: ReturnType<typeof createChatHook>;
+let add: MockInstance<Queue["add"]>;
 
 describe("chat hook", () => {
   afterEach(async () => {
     await chatHook.close();
+    await redis.quit();
     vi.clearAllMocks();
     vi.restoreAllMocks();
   });
 
   beforeEach(async () => {
-    mocks.close.mockReset().mockResolvedValue();
-    mocks.enqueue.mockReset().mockResolvedValue();
-    mocks.on.mockReset();
+    redis = connect(parse(string(), process.env.REDIS_URL));
+    add = vi.spyOn(Queue.prototype, "add");
     chatHook = createChatHook({
       redis,
       whatsappSecret: "hmac",
@@ -68,7 +61,7 @@ describe("chat hook", () => {
     });
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toStrictEqual({ code: "invalid signature" });
-    expect(mocks.enqueue).not.toHaveBeenCalled();
+    expect(add).not.toHaveBeenCalled();
   });
 
   it("rejects an incorrect signature of the expected length", async () => {
@@ -93,7 +86,7 @@ describe("chat hook", () => {
       const response = await emptyHook.app.request("/", { method: "POST", body: JSON.stringify(message()) });
       expect(response.status).toBe(401);
       await expect(response.json()).resolves.toStrictEqual({ code: "invalid signature" });
-      expect(mocks.enqueue).not.toHaveBeenCalled();
+      expect(add).not.toHaveBeenCalled();
     } finally {
       await emptyHook.close();
     }
@@ -108,19 +101,21 @@ describe("chat hook", () => {
     const response = await request(JSON.stringify({}));
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toMatchObject({ code: "bad chat" });
-    expect(mocks.enqueue).not.toHaveBeenCalled();
+    expect(add).not.toHaveBeenCalled();
   });
 
   it("enqueues a message", async () => {
     const response = await request(JSON.stringify(message()));
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-    expect(mocks.enqueue).toHaveBeenCalledExactlyOnceWith({
-      contact: "John",
-      from: "US.12345678",
-      id: "whatsapp-1",
-      text: "Hi!",
-    });
+    expect(add).toHaveBeenCalledExactlyOnceWith(
+      ...enqueued({
+        contact: "John",
+        from: "US.12345678",
+        id: "whatsapp-1",
+        text: "Hi!",
+      }),
+    );
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -128,7 +123,7 @@ describe("chat hook", () => {
     const response = await request(JSON.stringify(message("999")));
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-    expect(mocks.enqueue).not.toHaveBeenCalled();
+    expect(add).not.toHaveBeenCalled();
     expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("chat delivered to another business number"), {
       level: "error",
       extra: { expected: "321", foreign: ["999"] },
@@ -151,7 +146,7 @@ describe("chat hook", () => {
     );
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-    expect(mocks.enqueue).not.toHaveBeenCalled();
+    expect(add).not.toHaveBeenCalled();
   });
 
   it("ignores a message without text", async () => {
@@ -172,7 +167,7 @@ describe("chat hook", () => {
       }),
     );
     expect(response.status).toBe(200);
-    expect(mocks.enqueue).not.toHaveBeenCalled();
+    expect(add).not.toHaveBeenCalled();
   });
 
   it("merges a sender batch into a single job", async () => {
@@ -186,12 +181,14 @@ describe("chat hook", () => {
       ),
     );
     expect(response.status).toBe(200);
-    expect(mocks.enqueue).toHaveBeenCalledExactlyOnceWith({
-      contact: "John",
-      from: "US.12345678",
-      id: "whatsapp-1",
-      text: "Hi!\nHow are you?",
-    });
+    expect(add).toHaveBeenCalledExactlyOnceWith(
+      ...enqueued({
+        contact: "John",
+        from: "US.12345678",
+        id: "whatsapp-1",
+        text: "Hi!\nHow are you?",
+      }),
+    );
   });
 
   it("groups a batch by sender and drops duplicate message ids", async () => {
@@ -206,24 +203,28 @@ describe("chat hook", () => {
       ),
     );
     expect(response.status).toBe(200);
-    expect(mocks.enqueue).toHaveBeenCalledTimes(2);
-    expect(mocks.enqueue).toHaveBeenCalledWith({
-      contact: "John",
-      from: "US.12345678",
-      id: "whatsapp-1",
-      text: "Hi!",
-    });
-    expect(mocks.enqueue).toHaveBeenCalledWith({
-      contact: undefined,
-      from: "US.87654321",
-      id: "whatsapp-2",
-      text: "Hola!", // cspell:ignore Hola
-    });
+    expect(add).toHaveBeenCalledTimes(2);
+    expect(add).toHaveBeenCalledWith(
+      ...enqueued({
+        contact: "John",
+        from: "US.12345678",
+        id: "whatsapp-1",
+        text: "Hi!",
+      }),
+    );
+    expect(add).toHaveBeenCalledWith(
+      ...enqueued({
+        contact: undefined,
+        from: "US.87654321",
+        id: "whatsapp-2",
+        text: "Hola!", // cspell:ignore Hola
+      }),
+    );
   });
 
   it("captures and propagates queue failures", async () => {
     const error = new Error("queue down");
-    mocks.enqueue.mockRejectedValueOnce(error);
+    add.mockRejectedValueOnce(error);
     const response = await request(JSON.stringify(message()));
     expect(response.status).toBe(500);
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
@@ -232,10 +233,9 @@ describe("chat hook", () => {
     });
   });
 
-  it("captures redis errors instead of crashing", () => {
-    const listener = mocks.on.mock.calls.find(([event]) => event === "error")?.[1];
-    if (!listener) throw new Error("missing error listener");
-    listener(new Error("socket closed"));
+  it("captures redis errors instead of crashing", async () => {
+    await redis.ping();
+    redis.emit("error", new Error("socket closed"));
     expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("socket closed"));
   });
 });
@@ -268,6 +268,14 @@ function message(phoneNumberId = "321", ...messages: { from: string; id: string;
       },
     ],
   };
+}
+
+function enqueued({ id, ...data }: { contact: string | undefined; from: string; id: string; text: string }) {
+  return [
+    "chat",
+    { ...data, sentryBaggage: expect.any(String) as string, sentryTrace: expect.any(String) as string },
+    { jobId: id },
+  ] as const;
 }
 
 function request(body: string, headers?: Record<string, string>) {
