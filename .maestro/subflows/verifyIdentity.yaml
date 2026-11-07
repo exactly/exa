@@ -76,7 +76,65 @@ appId: ${APP_ID ?? "app.exactly"}
       - tapOn: Done
       - runFlow: { file: tapAria.yaml, env: { aria: Back } }
 - runFlow:
-    when: { visible: Getting Started }
+    when: { true: "${maestro.platform == 'web' && persona == 'sandbox'}" }
+    commands:
+      - tapOn: View all steps
+      - tapOn: Begin verifying
+      - tapOn: { id: Close }
+      - swipe: { start: "50%,50%", end: "50%,20%" }
+      - tapOn: Begin verifying
+      - tapOn: .*older than 18.*
+      - tapOn: Select
+      - tapOn: Passport
+      - assertVisible: Upload a photo
+      - addMedia: [../generated/passport.png]
+      - scrollUntilVisible: { element: Use this photo }
+      - tapOn: Use this photo
+      - scrollUntilVisible: { element: Continue }
+      - tapOn: Continue
+      - scrollUntilVisible: { element: Get started }
+      - tapOn: Get started
+      - scrollUntilVisible: { element: { id: liveness_scanner__capture--manual } }
+      - tapOn: { id: liveness_scanner__capture--manual, enabled: true }
+      - assertVisible: Look slightly left
+      - tapOn: { id: liveness_scanner__capture--manual, enabled: true }
+      - assertVisible: Look slightly right
+      - tapOn: { id: liveness_scanner__capture--manual, enabled: true }
+      - tapOn: Email address
+      - inputText: ${Date.now()}@e2e.exa
+      - tapOn: Continue
+      - tapOn: Confirmation Code
+      - inputText: "12345"
+      - tapOn: Continue
+      - tapOn: { id: input_phone_number }
+      - inputText: "1199999999"
+      - tapOn: Continue
+      - tapOn: { id: input_confirmation_code }
+      - inputText: "1234"
+      - tapOn: Continue
+      - tapOn: Economic activity
+      - inputText: "Science\tTravel\t<\t<"
+      - scrollUntilVisible: { element: Continue }
+      - tapOn: Continue
+      - scrollUntilVisible: { element: Select }
+      - tapOn: Select
+      - inputText: "No"
+      - scrollUntilVisible: { element: Continue }
+      - tapOn: Continue
+      - tapOn: I certify that.*
+      - tapOn: { text: "I accept the ", point: "10%,50%" }
+      - tapOn: { text: I accept the\s+of the Exa Card, point: "10%,50%" }
+      - tapOn: { text: I accept the \., point: "10%,50%" }
+      - scrollUntilVisible: { element: I acknowledge that.* }
+      - tapOn: I acknowledge that.*
+      - scrollUntilVisible: { element: Continue }
+      - tapOn: Continue
+      - assertVisible: Congratulations.*
+      - assertTrue: '${http.post("http://localhost:3000/e2e/review", { body: "persona" }).ok}'
+      - tapOn: { text: Done, below: Congratulations.* }
+      - runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- runFlow:
+    when: { visible: Getting Started, true: "${persona != 'sandbox'}" }
     commands:
       - runFlow: getAccount.yaml
       - runScript:
