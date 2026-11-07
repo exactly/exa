@@ -52,6 +52,7 @@ import {
   BUSINESS_PANDA_REPRESENTATIVE_TEMPLATE,
   BUSINESS_TEMPLATE,
   PANDA_BUSINESS_CHECKBOX_TEMPLATE,
+  PANDA_TEMPLATE,
 } from "../utils/persona";
 import createSardine from "../utils/sardine";
 import createSegment from "../utils/segment";
@@ -145,16 +146,22 @@ describe("e2e", () => {
           body,
         });
         const result = await response.text();
-        if (result !== JSON.stringify({ code: "ok" })) throw new Error(result);
+        if (!response.ok || ((JSON.parse(result) as { code?: string }).code ?? "ok") !== "ok") throw new Error(result);
       }
-      async function sandboxRequest<T>(endpoint: `/${string}`, method: "GET" | "POST" = "GET") {
+      async function sandboxRequest<T>(
+        endpoint: `/${string}`,
+        method: "GET" | "PATCH" | "POST" = "GET",
+        body?: object,
+      ) {
         const response = await fetch(`${env.PERSONA_URL}${endpoint}`, {
           method,
           headers: {
             authorization: `Bearer ${env.PERSONA_API_KEY}`,
+            "content-type": "application/json",
             "key-inflection": "camel",
             "persona-version": "2023-01-05",
           },
+          body: body && JSON.stringify(body),
         });
         if (!response.ok) throw new ServiceError("Persona", response.status, await response.text());
         return response.json() as Promise<T>;
@@ -360,10 +367,10 @@ describe("e2e", () => {
               case "persona": {
                 if (sandbox) {
                   const [latest] = await database.query.credentials
-                    .findMany({ columns: { id: true } })
+                    .findMany({ columns: { id: true, pandaId: true } })
                     .then((users) =>
                       Promise.all(
-                        users.map(({ id }) =>
+                        users.map(({ id, pandaId }) =>
                           sandboxRequest<{
                             data: {
                               attributes: { createdAt: string; status: string };
@@ -371,7 +378,7 @@ describe("e2e", () => {
                               relationships: { inquiryTemplate: { data: { id: string } } };
                             }[];
                           }>(`/inquiries?page[size]=1&filter[reference-id]=${id}`).then(
-                            ({ data: [inquiry] }) => inquiry,
+                            ({ data: [inquiry] }) => inquiry && { ...inquiry, pandaId },
                           ),
                         ),
                       ),
@@ -390,15 +397,35 @@ describe("e2e", () => {
                     } else if (latest.attributes.status !== "approved") break;
                     return c.json({ code: "ok" });
                   }
-                  if (latest.attributes.status !== "completed") break;
-                  await sandboxRequest(`/inquiries/${latest.id}/approve`, "POST");
+                  if (latest.relationships.inquiryTemplate.data.id === PANDA_TEMPLATE) {
+                    if (latest.pandaId || !["completed", "approved"].includes(latest.attributes.status)) break;
+                    await sandboxRequest(`/inquiries/${latest.id}`, "PATCH", {
+                      data: { attributes: { fields: { nameFirst: "Test", nameLast: "Approved" } } },
+                    });
+                    await sandboxRequest(`/inquiries/${latest.id}/approve`, "POST").catch((error: unknown) => {
+                      if (!(error instanceof ServiceError && error.status === 409)) throw error; // approved by persona
+                    });
+                  } else {
+                    if (latest.attributes.status !== "completed") break;
+                    await sandboxRequest(`/inquiries/${latest.id}/approve`, "POST");
+                  }
                   const {
                     data: [approval],
-                  } = await sandboxRequest<{ data: unknown[] }>(
+                  } = await sandboxRequest<{ data: { attributes: { payload: object } }[] }>(
                     `/events?page[size]=1&filter[object-id]=${latest.id}&filter[name]=inquiry.approved`,
                   );
                   if (!approval) throw new Error("no approval event");
-                  await hook(JSON.stringify({ data: approval }));
+                  const { included } = await sandboxRequest<{ included: unknown[] }>(
+                    `/inquiries/${latest.id}?include=sessions`,
+                  );
+                  await hook(
+                    JSON.stringify({
+                      data: {
+                        ...approval,
+                        attributes: { ...approval.attributes, payload: { ...approval.attributes.payload, included } },
+                      },
+                    }),
+                  );
                   return c.json({ code: "ok" });
                 }
                 const inquiry = [...inquiries.values()].findLast(({ status }) => status === "completed");
@@ -522,7 +549,10 @@ vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) =>
         cards.set(id, card);
         return Promise.resolve(card);
       }),
-      createUser: vi.fn().mockImplementation(() => {
+      createUser: vi.fn().mockImplementation((...args: Parameters<Panda["createUser"]>) => {
+        if (pandaSandbox && sandbox && args[0].personaShareToken.startsWith("inq_")) {
+          return original.default(...parameters).createUser(...args);
+        }
         const id = `usr_${Math.random().toString(36).slice(2)}`;
         const user: User = {
           applicationReason: "",
