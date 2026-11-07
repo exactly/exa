@@ -48,6 +48,7 @@ import {
   BUSINESS_PANDA_REPRESENTATIVE_TEMPLATE,
   BUSINESS_TEMPLATE,
   PANDA_BUSINESS_CHECKBOX_TEMPLATE,
+  PANDA_TEMPLATE,
 } from "../utils/persona";
 import createSardine from "../utils/sardine";
 import createSegment from "../utils/segment";
@@ -139,16 +140,22 @@ describe("e2e", () => {
           body,
         });
         const result = await response.text();
-        if (result !== JSON.stringify({ code: "ok" })) throw new Error(result);
+        if (!response.ok || ((JSON.parse(result) as { code?: string }).code ?? "ok") !== "ok") throw new Error(result);
       }
-      async function sandboxRequest<T>(endpoint: `/${string}`, method: "GET" | "POST" = "GET") {
+      async function sandboxRequest<T>(
+        endpoint: `/${string}`,
+        method: "GET" | "PATCH" | "POST" = "GET",
+        body?: object,
+      ) {
         const response = await fetch(`${env.PERSONA_URL}${endpoint}`, {
           method,
           headers: {
             authorization: `Bearer ${env.PERSONA_API_KEY}`,
+            "content-type": "application/json",
             "key-inflection": "camel",
             "persona-version": "2023-01-05",
           },
+          body: body && JSON.stringify(body),
         });
         if (!response.ok) throw new ServiceError("Persona", response.status, await response.text());
         return response.json() as Promise<T>;
@@ -279,7 +286,9 @@ describe("e2e", () => {
             switch (await c.req.text()) {
               case "persona": {
                 if (sandbox) {
-                  for (const { id } of await database.query.credentials.findMany({ columns: { id: true } })) {
+                  for (const { id, pandaId } of await database.query.credentials.findMany({
+                    columns: { id: true, pandaId: true },
+                  })) {
                     const {
                       data: [latest],
                     } = await sandboxRequest<{
@@ -298,15 +307,35 @@ describe("e2e", () => {
                       } else if (latest.attributes.status !== "approved") continue;
                       return c.json({ code: "ok" });
                     }
-                    if (latest.attributes.status !== "completed") continue;
-                    await sandboxRequest(`/inquiries/${latest.id}/approve`, "POST");
+                    if (latest.relationships.inquiryTemplate.data.id === PANDA_TEMPLATE) {
+                      if (pandaId || !["completed", "approved"].includes(latest.attributes.status)) continue;
+                      await sandboxRequest(`/inquiries/${latest.id}`, "PATCH", {
+                        data: { attributes: { fields: { nameFirst: "Test", nameLast: "Approved" } } },
+                      });
+                      await sandboxRequest(`/inquiries/${latest.id}/approve`, "POST").catch((error: unknown) => {
+                        if (!(error instanceof ServiceError && error.status === 409)) throw error; // approved by persona
+                      });
+                    } else {
+                      if (latest.attributes.status !== "completed") continue;
+                      await sandboxRequest(`/inquiries/${latest.id}/approve`, "POST");
+                    }
                     const {
                       data: [approval],
-                    } = await sandboxRequest<{ data: unknown[] }>(
+                    } = await sandboxRequest<{ data: { attributes: { payload: object } }[] }>(
                       `/events?page[size]=1&filter[object-id]=${latest.id}&filter[name]=inquiry.approved`,
                     );
                     if (!approval) throw new Error("no approval event");
-                    await hook(JSON.stringify({ data: approval }));
+                    const { included } = await sandboxRequest<{ included: unknown[] }>(
+                      `/inquiries/${latest.id}?include=sessions`,
+                    );
+                    await hook(
+                      JSON.stringify({
+                        data: {
+                          ...approval,
+                          attributes: { ...approval.attributes, payload: { ...approval.attributes.payload, included } },
+                        },
+                      }),
+                    );
                     return c.json({ code: "ok" });
                   }
                   break;
@@ -428,21 +457,23 @@ vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) =>
         cards.set(id, card);
         return Promise.resolve(card);
       }),
-      createUser: vi.fn().mockImplementation(() => {
-        const id = `usr_${Math.random().toString(36).slice(2)}`;
-        const user: User = {
-          applicationReason: "",
-          applicationStatus: "approved",
-          email: "test@example.com",
-          firstName: "Test",
-          id,
-          isActive: true,
-          lastName: "User",
-          phoneCountryCode: "+1",
-          phoneNumber: "5551234567",
-        };
-        users.set(id, user);
-        return Promise.resolve({ id });
+      ...(!(rain && sandbox) && {
+        createUser: vi.fn().mockImplementation(() => {
+          const id = `usr_${Math.random().toString(36).slice(2)}`;
+          const user: User = {
+            applicationReason: "",
+            applicationStatus: "approved",
+            email: "test@example.com",
+            firstName: "Test",
+            id,
+            isActive: true,
+            lastName: "User",
+            phoneCountryCode: "+1",
+            phoneNumber: "5551234567",
+          };
+          users.set(id, user);
+          return Promise.resolve({ id });
+        }),
       }),
       getCard: vi.fn().mockImplementation((cardId: string) => Promise.resolve(cards.get(cardId))),
       getCards: vi.fn().mockResolvedValue([]),
