@@ -187,7 +187,7 @@ jobs:
     after: [ios_get, ios_build]
     if: ${{ after.ios_get.outputs.build_id || after.ios_build.status == 'success' }}
     environment: development
-    runs_on: macos-large
+    runs_on: macos-medium
     image: latest
     env:
       APP_DOMAIN: localhost
