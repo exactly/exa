@@ -261,6 +261,8 @@ frontend.use(
         ),
         "https://api.onesignal.com",
         "https://cdn.onesignal.com",
+        "https://cdn.segment.com", // https://www.twilio.com/docs/segment/connections/sources/catalog/libraries/website/javascript/faq#does-segment-support-using-strict-content-security-policy-csp-on-the-page
+        "https://www.googletagmanager.com", // https://developers.google.com/tag-platform/security/guides/csp#google_analytics
         // #region intercom https://www.intercom.com/help/en/articles/3894-using-intercom-with-content-security-policy
         "'unsafe-eval'",
         "https://app.intercom.io",
@@ -273,10 +275,21 @@ frontend.use(
         "https://li.quest",
         "https://*.g.alchemy.com",
         "https://assets.smold.app",
+        "https://assets.exactly.app",
         "https://api.onesignal.com",
         "https://cdn.onesignal.com",
         "https://*.ingest.us.sentry.io",
         "https://raw.githubusercontent.com",
+        "https://reference-data-directory.vercel.app", // https://docs.chain.link/data-feeds/price-feeds/addresses
+        // #region segment https://www.twilio.com/docs/segment/connections/sources/catalog/libraries/website/javascript/faq#does-segment-support-using-strict-content-security-policy-csp-on-the-page
+        "https://api.segment.io",
+        "https://cdn.segment.com",
+        // #endregion
+        // #region google analytics https://developers.google.com/tag-platform/security/guides/csp#google_analytics
+        "https://www.googletagmanager.com",
+        "https://*.google-analytics.com",
+        "https://www.google.com",
+        // #endregion
         // #region intercom https://www.intercom.com/help/en/articles/3894-using-intercom-with-content-security-policy
         "https://via.intercom.io",
         "https://api.intercom.io",
@@ -305,6 +318,12 @@ frontend.use(
       ],
       childSrc: [
         "'self'",
+        "https://inquiry.withpersona.com", // https://docs.withpersona.com/embedded-flow-security#embedding-the-persona-iframe
+        // #region bridge
+        "https://bridge.withpersona.com", // https://apidocs.bridge.xyz/platform/customers/customers/kyclinks#embedding-as-an-iframe
+        "https://compliance.bridge.xyz", // https://apidocs.bridge.xyz/platform/customers/customers/tos
+        "https://compliance.sandbox.bridge.xyz", // https://apidocs.bridge.xyz/platform/customers/customers/tos
+        // #endregion
         // #region intercom https://www.intercom.com/help/en/articles/3894-using-intercom-with-content-security-policy
         "https://intercom-sheets.com",
         "https://www.intercom-reporting.com",
@@ -349,6 +368,21 @@ frontend.use(
         "https://optimistic.etherscan.io",
         "https://raw.githubusercontent.com",
         "https://avatars.githubusercontent.com",
+        "https://play-lh.googleusercontent.com", // https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Manifest/Reference/related_applications
+        // #region lifi token logos https://li.quest/v1/tokens
+        "https://ipfs.io",
+        "https://assets.coingecko.com",
+        "https://coin-images.coingecko.com",
+        "https://s2.coinmarketcap.com",
+        "https://financialmodelingprep.com",
+        "https://lifinance.github.io",
+        "https://strapi.jumper.exchange",
+        "https://cdn.ondo.finance",
+        // #endregion
+        // #region google analytics https://developers.google.com/tag-platform/security/guides/csp#google_analytics
+        "https://www.googletagmanager.com",
+        "https://*.google-analytics.com",
+        // #endregion
         // #region intercom https://www.intercom.com/help/en/articles/3894-using-intercom-with-content-security-policy
         "https://js.intercomcdn.com",
         "https://static.intercomassets.com",
@@ -377,6 +411,7 @@ frontend.use(
         // #endregion
       ],
       frameAncestors: [
+        "'self'",
         "https://farcaster.xyz",
         "https://base.app",
         "https://base.org",
@@ -384,6 +419,8 @@ frontend.use(
         "https://*.base.app",
         "https://*.base.org",
         "https://*.base.dev",
+        "https://sura.gg",
+        "https://*.sura.gg",
       ],
       scriptSrcAttr: ["'none'"],
       objectSrc: ["'none'"],
