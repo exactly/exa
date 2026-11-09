@@ -1,0 +1,12 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- runFlow: subflows/launch.yaml
+- runFlow:
+    file: subflows/mint.yaml
+    env: { asset: USDC, to: "${output.account}", amount: "2000" }
+- runFlow: subflows/verifyIdentity.yaml
+- runFlow: subflows/ach.yaml
+- evalScript: ${output.bridge = true}
+- repeat:
+    times: 20
+    commands: [{ runFlow: subflows/ach.yaml }]

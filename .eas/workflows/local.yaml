@@ -31,140 +31,6 @@ jobs:
             set-output $platform "$(pnpm exec fingerprint fingerprint:generate --platform $platform | node -p 'JSON.parse(require("fs").readFileSync(0)).hash')"
           done
 
-  android_get:
-    if: ${{ github.ref_type != 'tag' }}
-    type: get-build
-    needs: [fingerprint]
-    params:
-      platform: android
-      profile: e2e:local
-      fingerprint_hash: ${{ needs.fingerprint.outputs.android_fingerprint_hash }}
-      wait_for_in_progress: true
-
-  android_build:
-    type: build
-    needs: [fingerprint]
-    after: [android_get]
-    if: ${{ !after.android_get.outputs.build_id }}
-    params: { platform: android, profile: e2e:local }
-
-  android_e2e:
-    after: [android_get, android_build]
-    if: ${{ after.android_get.outputs.build_id || after.android_build.status == 'success' }}
-    environment: development
-    runs_on: linux-large-nested-virtualization
-    image: latest
-    env:
-      APP_DOMAIN: localhost
-      CHAIN_ID: "31337"
-      EXPO_PUBLIC_ENV: e2e
-      GIT_BRANCH: "${{ github.ref_name }}"
-      MAESTRO_CLI_NO_ANALYTICS: "true"
-      REDISMS_SYSTEM_BINARY: /usr/bin/redis-server
-    steps:
-      - uses: eas/checkout
-      - run: flock /tmp/apt.lock sudo sh -c "apt-get update && apt-get install --no-install-recommends --yes redis-server" > apt.log 2>&1 &
-        name: redis
-      - name: start emulator # cspell:ignore avdmanager sdkmanager setsid swangle
-        run: |
-          sdkmanager --install "system-images;android-35;google_apis;x86_64" > /dev/null
-          avdmanager -s create avd -n e2e -k "system-images;android-35;google_apis;x86_64" --force
-          printf '%s\n' "hw.ramSize=8192" "vm.heapSize=1024" >> $HOME/.android/avd/e2e.avd/config.ini
-          setsid $ANDROID_HOME/emulator/emulator -avd e2e -no-snapshot -no-snapshot-save -no-window -no-audio -no-boot-anim -gpu swangle -memory 8192 -wipe-data > emulator-process.log 2>&1 &
-      - uses: eas/restore_cache
-        if: ${{ github.ref_type != 'tag' }}
-        with: { key: "nx-android-e2e-${{ github.sha }}", restore_keys: nx-android-e2e-, path: nx.tar }
-      - run: tar -xf nx.tar -C ~ || true
-        name: unpack nx
-      - uses: eas/install_node_modules
-      - if: ${{ github.ref_name == 'main' }}
-        name: pack nx
-        run: tar -cf nx.tar -C ~ .nx
-      - uses: eas/save_cache
-        if: ${{ github.ref_name == 'main' }}
-        with: { key: "nx-android-e2e-${{ github.sha }}", path: nx.tar }
-      - name: exa setup
-        run: flock /tmp/apt.lock pnpm nx e2e server > server.log 2>&1 &
-      - id: script
-        name: hash
-        run: set-output hash "$(node -p 'require("./.maestro/package.json").scripts.maestro' | git hash-object --stdin)"
-      - uses: eas/restore_cache
-        id: maestro
-        with:
-          key: "maestro-${{ steps.script.outputs.hash }}-${{ hashFiles('.maestro/patches/*.patch') }}"
-          path: .maestro/build
-      - uses: eas/restore_cache
-        id: gradle
-        if: ${{ steps.maestro.outputs.cache_hit != 'true' }}
-        with:
-          key: "gradle-${{ steps.script.outputs.hash }}"
-          restore_keys: gradle-
-          path: | # cspell:ignore dists
-            .maestro/.gradle/caches/modules-2
-            .maestro/.gradle/wrapper/dists
-      - run: GRADLE_USER_HOME=$PWD/.maestro/.gradle pnpm nx maestro e2e && set-env PATH "$PWD/.maestro/build/bin:$PATH"
-        name: maestro
-      - uses: eas/save_cache
-        if: ${{ steps.maestro.outputs.cache_hit != 'true' }}
-        with:
-          key: "maestro-${{ steps.script.outputs.hash }}-${{ hashFiles('.maestro/patches/*.patch') }}"
-          path: .maestro/build
-      - uses: eas/save_cache
-        if: ${{ steps.maestro.outputs.cache_hit != 'true' && steps.gradle.outputs.cache_hit != 'true' }}
-        with:
-          key: "gradle-${{ steps.script.outputs.hash }}"
-          path: |
-            .maestro/.gradle/caches/modules-2
-            .maestro/.gradle/wrapper/dists
-      - uses: eas/download_build
-        id: download
-        with: { build_id: "${{ after.android_get.outputs.build_id || after.android_build.outputs.build_id }}" }
-      - uses: eas/repack
-        id: repack
-        with: { platform: android, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
-      - name: prepare device # cspell:ignore getprop logcat
-        run: |
-          adb wait-for-device
-          timeout 180 adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
-          adb shell settings put global window_animation_scale 0
-          adb shell settings put global transition_animation_scale 0
-          adb shell settings put global animator_duration_scale 0
-          adb reverse tcp:3000 tcp:3000 && adb reverse tcp:8545 tcp:8545 && adb reverse tcp:8969 tcp:8969 && adb reverse tcp:9944 tcp:9944
-          adb install "${{ steps.repack.outputs.output_path }}"
-          adb logcat -v time > emulator.log 2>&1 &
-          for i in {1..420}; do
-            curl -f http://localhost:3000/api/auth/authentication > /dev/null 2>&1 && break
-            [ $i -eq 420 ] && echo "health check timed out" && cat server.log && exit 1
-            sleep 1
-          done
-      - run: pnpm e2e:maestro --format junit --output .maestro/junit.xml
-        name: e2e
-      - name: exa teardown
-        if: always()
-        run: | # cspell:ignore pkill
-          curl -X POST http://localhost:3000/e2e/shutdown || true
-          for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done
-          curl -fsSO -Y 1000000 -y 10 https://cli.codecov.io/latest/linux/codecov && chmod +x codecov
-          pr="${{ github.event.pull_request.number }}"
-          ./codecov upload-coverage -Z --disable-search -f server/coverage/lcov.info -f server/coverage/app.lcov -F android -n android --build-url ${{ workflow.url }} --git-service github ${pr:+-P "$pr"} &
-          ./codecov do-upload -Z --report-type test_results --disable-search -f .maestro/junit.xml -F android -n android --build-url ${{ workflow.url }} --git-service github ${pr:+-P "$pr"}
-          wait $!
-          pkill -f "adb logcat" || true
-      - uses: eas/upload_artifact
-        if: always()
-        with:
-          type: other
-          ignore_error: true
-          path: |
-            apt.log
-            server.log
-            server/coverage
-            server/node_modules/@exactly/.*
-            emulator.log
-            emulator-process.log
-            ${{ env.HOME }}/.maestro/tests
-            .maestro/screenshots
-
   ios_get:
     if: ${{ github.ref_type != 'tag' }}
     type: get-build
@@ -187,7 +53,7 @@ jobs:
     after: [ios_get, ios_build]
     if: ${{ after.ios_get.outputs.build_id || after.ios_build.status == 'success' }}
     environment: development
-    runs_on: macos-large
+    runs_on: macos-medium
     image: latest
     env:
       APP_DOMAIN: localhost
@@ -275,13 +141,14 @@ jobs:
             [ $i -eq 420 ] && echo "health check timed out" && cat server.log && exit 1
             sleep 1
           done
-      - run: pnpm e2e:maestro --format junit --output .maestro/junit.xml
+      - run: maestro test .maestro/repro.yaml
         name: e2e
       - name: exa teardown
         if: always()
         run: | # cspell:ignore pkill
           curl -X POST http://localhost:3000/e2e/shutdown || true
-          for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done
+          pkill -f "log stream" || true
+          exit 0
           curl -fsSO -Y 1000000 -y 10 https://cli.codecov.io/latest/macos/codecov && chmod +x codecov
           pr="${{ github.event.pull_request.number }}"
           ./codecov upload-coverage -Z --disable-search -f server/coverage/lcov.info -f server/coverage/app.lcov -F ios -n ios --build-url ${{ workflow.url }} --git-service github ${pr:+-P "$pr"} &
