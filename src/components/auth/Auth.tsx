@@ -332,7 +332,7 @@ export default function Auth() {
           />
         </>
       ) : null}
-      <TimeToFullDisplay record={stage !== undefined && measured} />
+      <TimeToFullDisplay ready={stage !== undefined && measured} />
     </SafeView>
   );
 }
