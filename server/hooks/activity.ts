@@ -88,7 +88,7 @@ export default function hook({
               v.variant("category", [
                 v.object({
                   category: v.picklist(["external", "internal"]),
-                  asset: v.literal("ETH"),
+                  asset: v.string(),
                   rawContract: v.optional(v.object({ address: v.optional(v.undefined()), rawValue: v.optional(Hex) })),
                   value: v.optional(v.number()),
                 }),

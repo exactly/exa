@@ -222,6 +222,51 @@ describe("address activity", () => {
     expect(response.status).toBe(200);
   });
 
+  it("queues native coins other than eth", async () => {
+    const bsc = NETWORKS.get("BNB_MAINNET");
+    if (!bsc) throw new Error("missing BNB_MAINNET");
+    const sendPushNotification = sendPushNotificationMock;
+
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        webhookId: "BNB_MAINNET",
+        event: {
+          network: "BNB_MAINNET",
+          activity: [
+            {
+              ...activityPayload.json.event.activity[0],
+              toAddress: account,
+              asset: "BNB",
+              category: "internal",
+              value: 2,
+            },
+          ],
+        },
+      },
+    });
+
+    await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0, 5000);
+
+    expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
+      account,
+      assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
+      chainId: bsc.id,
+      factory: exaAccountFactoryAddress,
+      origin: "activity",
+      publicKey: owner.address.toLowerCase(),
+      source: null,
+    });
+    expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
+      userId: account,
+      headings: t("Funds received"),
+      contents: t("{{amount}} received", { amount: { en: "2 BNB", es: "2 BNB", pt: "2 BNB" } }),
+    });
+    expect(captureException).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+  });
+
   it("queues tokens when value is missing", async () => {
     const { value: _, ...transfer } = activityPayload.json.event.activity[1];
     const response = await appClient.index.$post({
