@@ -52,7 +52,6 @@ import {
   CRYPTOMATE_TEMPLATE,
   PANDA_BUSINESS_CHECKBOX_TEMPLATE,
   PANDA_TEMPLATE,
-  parseAccount,
   scopeValidationErrors,
 } from "../utils/persona";
 import publicClient from "../utils/publicClient";
@@ -192,10 +191,8 @@ export default function route({
                 });
               })
             : undefined;
-          if (unknownAccount) {
-            const countryCode = parseAccount(unknownAccount, "basic")?.attributes["country-code"];
-            countryCode && c.header("User-Country", countryCode);
-          }
+          const countryCode = unknownAccount?.data[0]?.attributes["country-code"];
+          countryCode && c.header("User-Country", countryCode);
           const cardLimit = await persona.getCardLimitStatus(credentialId, unknownAccount);
 
           switch (cardLimit.status) {
@@ -227,10 +224,10 @@ export default function route({
 
         if (scope === "basic" && credential.pandaId) {
           if (c.req.valid("query").countryCode) {
-            const personaAccount = await persona.getAccount(credentialId, scope).catch((error: unknown) => {
+            const unknownAccount = await persona.getUnknownAccount(credentialId).catch((error: unknown) => {
               captureException(error, { level: "error", contexts: { details: { credentialId, scope } } });
             });
-            const countryCode = personaAccount?.attributes["country-code"];
+            const countryCode = unknownAccount?.data[0]?.attributes["country-code"];
             countryCode && c.header("User-Country", countryCode);
           }
           return c.json({ code: "ok", legacy: "ok" }, 200);

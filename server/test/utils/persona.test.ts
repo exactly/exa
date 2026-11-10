@@ -2194,41 +2194,29 @@ const accountWithIdDocument = {
 };
 
 describe("parseAccount", () => {
-  it("returns the first account when basic scope matches", () => {
-    const result = persona.parseAccount(basicAccount, "basic");
-    expect(result?.id).toBe("test-account-id");
-    expect(result?.attributes["country-code"]).toBeDefined();
-  });
-
-  it("returns undefined when basic scope does not match", () => {
-    expect(persona.parseAccount({ data: [{ id: "x", type: "account", attributes: {} }] }, "basic")).toBeUndefined();
-  });
-
   it("returns undefined when data array is empty", () => {
-    expect(persona.parseAccount({ data: [] }, "basic")).toBeUndefined();
-    expect(persona.parseAccount({ data: [] }, "cardLimit")).toBeUndefined();
+    expect(persona.parseAccount({ data: [] })).toBeUndefined();
   });
 
   it("returns the first account when cardLimit scope matches", () => {
     const account = {
       data: [{ id: "cl-id", type: "account" as const, attributes: { fields: { card_limit_usd: { value: 5000 } } } }],
     };
-    const result = persona.parseAccount(account, "cardLimit");
+    const result = persona.parseAccount(account);
     expect(result?.id).toBe("cl-id");
     expect(result?.attributes.fields.card_limit_usd?.value).toBe(5000);
   });
 
   it("returns undefined when cardLimit scope value is not positive", () => {
     expect(
-      persona.parseAccount(
-        { data: [{ id: "cl-id", type: "account" as const, attributes: { fields: { card_limit_usd: { value: 0 } } } }] },
-        "cardLimit",
-      ),
+      persona.parseAccount({
+        data: [{ id: "cl-id", type: "account" as const, attributes: { fields: { card_limit_usd: { value: 0 } } } }],
+      }),
     ).toBeUndefined();
   });
 
   it("returns undefined when cardLimit scope does not match", () => {
-    expect(persona.parseAccount({ data: [{ id: "x", type: "account", attributes: {} }] }, "cardLimit")).toBeUndefined();
+    expect(persona.parseAccount({ data: [{ id: "x", type: "account", attributes: {} }] })).toBeUndefined();
   });
 });
 

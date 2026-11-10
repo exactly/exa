@@ -253,7 +253,7 @@ export default function persona(key: string, url: string) {
         captureException(error, { level: "error", contexts: { details: { referenceId, scope: "cardLimit" } } });
         throw error;
       }));
-    if (parseAccount(unknownAccount, "cardLimit")?.attributes.fields.card_limit_usd?.value != null)
+    if (parseAccount(unknownAccount)?.attributes.fields.card_limit_usd?.value != null)
       return { status: "resolved" as const };
     if ((await evaluateAccount(unknownAccount, "cardLimit")) !== CARD_LIMIT_TEMPLATE)
       return { status: "noTemplate" as const };
@@ -590,13 +590,8 @@ export type AccountScope = keyof typeof accountScopeSchemas;
 type AccountResponse<T extends AccountScope> = InferOutput<(typeof accountScopeSchemas)[T]>;
 export type AccountOutput<T extends AccountScope> = AccountResponse<T>["data"][number];
 
-export function parseAccount(unknownAccount: UnknownAccountOutput, scope: "basic"): AccountOutput<"basic"> | undefined;
-export function parseAccount(
-  unknownAccount: UnknownAccountOutput,
-  scope: "cardLimit",
-): AccountOutput<"cardLimit"> | undefined;
-export function parseAccount<T extends AccountScope>(unknownAccount: UnknownAccountOutput, scope: T) {
-  const result = safeParse(accountScopeSchemas[scope], unknownAccount);
+export function parseAccount(unknownAccount: UnknownAccountOutput) {
+  const result = safeParse(accountScopeSchemas.cardLimit, unknownAccount);
   return result.success ? result.output.data[0] : undefined;
 }
 

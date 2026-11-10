@@ -371,13 +371,11 @@ vi.mock("../utils/persona", async (importOriginal: () => Promise<typeof persona>
       }),
       addDocument: vi.fn().mockResolvedValue({ data: { id: "acc_mock" } }),
       getCardLimitStatus: vi.fn().mockResolvedValue({ status: "noTemplate" as const }),
-      getAccount: vi
-        .fn()
-        .mockImplementation(async (referenceId: string) =>
-          (await approved(referenceId))
-            ? { id: `act_${referenceId}`, type: "account" as const, attributes: { "country-code": "AR", fields: {} } }
-            : undefined,
-        ),
+      getAccount: vi.fn().mockImplementation(mockAccount),
+      getUnknownAccount: vi.fn().mockImplementation(async (referenceId: string) => {
+        const found = await mockAccount(referenceId);
+        return { data: found ? [found] : [] };
+      }),
     }),
   };
 });
@@ -584,6 +582,12 @@ vi.mock("@sentry/node", async (importOriginal) => {
     },
   };
 });
+
+async function mockAccount(referenceId: string) {
+  return (await approved(referenceId))
+    ? { id: `act_${referenceId}`, type: "account" as const, attributes: { "country-code": "AR", fields: {} } }
+    : undefined;
+}
 
 async function approved(referenceId: string) {
   const credential = await database.query.credentials.findFirst({

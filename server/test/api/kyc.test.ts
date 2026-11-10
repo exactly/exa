@@ -91,19 +91,84 @@ describe("authenticated", () => {
       it("returns ok kyc approved with country code when panda id is present", async () => {
         await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, "bob"));
         const getInquiry = vi.spyOn(persona, "getInquiry");
-        const getAccount = vi
-          .spyOn(persona, "getAccount")
-          .mockResolvedValueOnce(basicAccount as Persona.AccountOutput<"basic">);
+        const getUnknownAccount = vi
+          .spyOn(persona, "getUnknownAccount")
+          .mockResolvedValueOnce({ data: [basicAccount] });
 
         const response = await appClient.index.$get(
           { query: { countryCode: "true", scope: "basic" } },
           { headers: { "test-credential-id": "bob", SessionID: "fakeSession" } },
         );
 
-        expect(getAccount).toHaveBeenCalledOnce();
+        expect(getUnknownAccount).toHaveBeenCalledExactlyOnceWith("bob");
         expect(getInquiry).not.toHaveBeenCalled();
         await expect(response.json()).resolves.toStrictEqual({ code: "ok", legacy: "ok" });
         expect(response.headers.get("User-Country")).toBe("AR");
+        expect(response.status).toBe(200);
+      });
+
+      it("returns country code when legacy account lacks basic fields", async () => {
+        await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, "bob"));
+        const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+          Response.json({
+            data: [
+              {
+                id: "acc-legacy",
+                type: "account",
+                attributes: {
+                  "country-code": "AR",
+                  "email-address": null,
+                  "name-first": null,
+                  fields: { name: { value: { first: { value: null }, last: { value: null } } }, bridge_enable: null },
+                },
+              },
+            ],
+          }),
+        );
+
+        const response = await appClient.index.$get(
+          { query: { countryCode: "true", scope: "basic" } },
+          { headers: { "test-credential-id": "bob", SessionID: "fakeSession" } },
+        );
+
+        expect(fetchSpy).toHaveBeenCalledOnce();
+        await expect(response.json()).resolves.toStrictEqual({ code: "ok", legacy: "ok" });
+        expect(response.headers.get("User-Country")).toBe("AR");
+        expect(captureException).not.toHaveBeenCalled();
+        expect(response.status).toBe(200);
+      });
+
+      it("returns ok without country code when account is missing", async () => {
+        await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, "bob"));
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({ data: [] });
+
+        const response = await appClient.index.$get(
+          { query: { countryCode: "true", scope: "basic" } },
+          { headers: { "test-credential-id": "bob", SessionID: "fakeSession" } },
+        );
+
+        await expect(response.json()).resolves.toStrictEqual({ code: "ok", legacy: "ok" });
+        expect(response.headers.get("User-Country")).toBeNull();
+        expect(captureException).not.toHaveBeenCalled();
+        expect(response.status).toBe(200);
+      });
+
+      it("returns ok without country code when account fetch fails", async () => {
+        await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, "bob"));
+        const error = new Error("network error");
+        vi.spyOn(persona, "getUnknownAccount").mockRejectedValueOnce(error);
+
+        const response = await appClient.index.$get(
+          { query: { countryCode: "true", scope: "basic" } },
+          { headers: { "test-credential-id": "bob", SessionID: "fakeSession" } },
+        );
+
+        await expect(response.json()).resolves.toStrictEqual({ code: "ok", legacy: "ok" });
+        expect(response.headers.get("User-Country")).toBeNull();
+        expect(captureException).toHaveBeenCalledWith(error, {
+          level: "error",
+          contexts: { details: { credentialId: "bob", scope: "basic" } },
+        });
         expect(response.status).toBe(200);
       });
 
