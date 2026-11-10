@@ -12,6 +12,7 @@ import type * as BullMQ from "bullmq";
 export default function worker<Job extends { sentryBaggage?: string; sentryTrace?: string }, Ready = void>({
   attempts,
   bullmq,
+  concurrency,
   failed,
   name,
   process,
@@ -19,6 +20,7 @@ export default function worker<Job extends { sentryBaggage?: string; sentryTrace
 }: {
   attempts: number;
   bullmq: Redis;
+  concurrency?: number;
   failed: (job: BullMQ.Job<Job> | undefined, error: Error) => void;
   name: string;
   process: (job: BullMQ.Job<Job>, span: Span) => Promise<void>;
@@ -62,7 +64,7 @@ export default function worker<Job extends { sentryBaggage?: string; sentryTrace
         ? continueTrace({ sentryTrace: job.data.sentryTrace, baggage: job.data.sentryBaggage }, callback)
         : callback();
     },
-    { connection: bullmq, limiter: { max: 10, duration: 1000 }, autorun: !check },
+    { connection: bullmq, limiter: { max: 10, duration: 1000 }, autorun: !check, ...(concurrency && { concurrency }) },
   )
     .on("failed", (job, error) => {
       if (job && job.attemptsMade < (job.opts.attempts ?? attempts) && !(error instanceof UnrecoverableError)) return;

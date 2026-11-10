@@ -41,6 +41,8 @@ import createCredit from "./workers/credit/queue";
 import createHook from "./workers/hook/queue";
 import createHookWorker from "./workers/hook/worker";
 import createPoke from "./workers/poke/queue";
+import createProposal from "./workers/proposal/queue";
+import createProposalWorker from "./workers/proposal/worker";
 import createRefund from "./workers/refund/queue";
 import createSubscribe from "./workers/subscribe/queue";
 
@@ -73,6 +75,7 @@ const persona = createPersona(
 const allow = createAllow(redis);
 const credit = createCredit(redis);
 const poke = createPoke(redis);
+const proposal = createProposal(redis);
 const refund = createRefund(redis);
 const webhook = createHook(redis);
 const sardine = createSardine(
@@ -109,7 +112,7 @@ const activityHook = createActivityHook({
   poke,
   redis,
 });
-const blockHook = createBlockHook({ alchemy, blockKey: env.ALCHEMY_BLOCK_KEY, executor: keeper, onesignal, redis });
+const blockHook = createBlockHook({ alchemy, blockKey: env.ALCHEMY_BLOCK_KEY, proposal, redis });
 const bridgeHook = createBridgeHook({
   bridge,
   bridgeWebhookKey: env.BRIDGE_WEBHOOK_PUBLIC_KEY,
@@ -147,6 +150,7 @@ const personaHook = createPersonaHook({
   sardine,
 });
 const hookWorker = createHookWorker({ bullmq, database, panda });
+const proposalWorker = createProposalWorker({ bullmq, executor: keeper, onesignal });
 
 const app = new Hono();
 app.use(trimTrailingSlash());
@@ -422,6 +426,7 @@ export const close = supervise(
             mantecaHook.ready,
             pandaHook.ready,
             personaHook.ready,
+            proposalWorker.ready,
             reminders().catch(reminders),
           ]),
         },
@@ -430,6 +435,8 @@ export const close = supervise(
         () => credit.close(),
         () => hookWorker.close(),
         () => poke.close(),
+        () => proposal.close(),
+        () => proposalWorker.close(),
         () => refund.close(),
         () => segment.close(),
         () => subscribe.close(),
