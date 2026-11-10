@@ -142,6 +142,7 @@ jobs:
       - name: exa teardown
         if: always()
         run: | # cspell:ignore pkill
+          adb shell am force-stop app.exactly || true
           curl -X POST http://localhost:3000/e2e/shutdown || true
           for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done
           curl -fsSO -Y 1000000 -y 10 --retry 5 --retry-all-errors https://cli.codecov.io/latest/linux/codecov && chmod +x codecov
@@ -280,6 +281,7 @@ jobs:
       - name: exa teardown
         if: always()
         run: | # cspell:ignore pkill
+          xcrun simctl terminate booted app.exactly || true
           curl -X POST http://localhost:3000/e2e/shutdown || true
           for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done
           curl -fsSO -Y 1000000 -y 10 --retry 5 --retry-all-errors https://cli.codecov.io/latest/macos/codecov && chmod +x codecov
