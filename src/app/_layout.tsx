@@ -8,6 +8,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { isRunningInExpoGo } from "expo";
 import { useAssets } from "expo-asset";
+import Constants from "expo-constants";
 import { useFonts, type FontSource } from "expo-font";
 import { getLocales } from "expo-localization";
 import {
@@ -132,7 +133,9 @@ init({
   release,
   dsn:
     process.env.EXPO_PUBLIC_SENTRY_DSN ??
-    "https://ac8875331e4cecd67dd0a7519a36dfeb@o1351734.ingest.us.sentry.io/4506186349674496",
+    (__DEV__
+      ? `http://spotlight@${Constants.expoConfig?.hostUri?.split(":")[0] ?? "localhost"}:8969/0`
+      : "https://ac8875331e4cecd67dd0a7519a36dfeb@o1351734.ingest.us.sentry.io/4506186349674496"),
   environment: e2e
     ? "e2e"
     : channel || // eslint-disable-line @typescript-eslint/prefer-nullish-coalescing -- ignore empty string
@@ -180,7 +183,7 @@ init({
     }
     return event;
   },
-  spotlight: __DEV__ || e2e,
+  spotlight: e2e || (__DEV__ && !!process.env.EXPO_PUBLIC_SENTRY_DSN),
 });
 const useServerFonts = isServer ? useFonts : () => undefined; // eslint-disable-line @eslint-react/no-unnecessary-use-prefix -- ssr conditional
 const useServerAssets = isServer ? useAssets : () => undefined; // eslint-disable-line @eslint-react/no-unnecessary-use-prefix -- ssr conditional
