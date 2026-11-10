@@ -251,15 +251,8 @@ export default function manteca(key: string, url: string) {
   function isDevelopment(): boolean {
     return DevelopmentChainIds.includes(chain.id as (typeof DevelopmentChainIds)[number]);
   }
-  async function lockQrPayment(userAnyId: string, paymentDestination: string, amount?: string, against?: string) {
-    return await request(
-      QrPaymentResponse,
-      "/crypto/v2/payment-locks",
-      {},
-      { userAnyId, paymentDestination, amount, against },
-      "POST",
-      10_000,
-    );
+  async function lockQrPayment(lock: InferInput<typeof PaymentLock>) {
+    return await request(QrPaymentResponse, "/crypto/v2/payment-locks", {}, lock, "POST", 10_000);
   }
   async function onboarding(account: Address, credentialId: string, persona: PersonaService) {
     const externalId = account.replace("0x", "");
@@ -545,6 +538,13 @@ export const OnRampSynthetic = object({
     address: Address,
     network: picklist(["ETHEREUM", "BINANCE", "POLYGON", "OPTIMISM", "INTERNAL"]),
   }),
+});
+
+export const PaymentLock = object({
+  paymentDestination: string(),
+  amount: optional(string()),
+  against: optional(string()),
+  sender: object({ legalIdNationality: string(), legalId: string(), name: string(), surname: string() }),
 });
 
 export const QrPaymentResponse = object({
