@@ -1056,20 +1056,28 @@ export default function bridge(key: string, url: string) {
       };
     }
 
-    const personaAccount = await persona.getAccount(params.credentialId, "bridge");
-    if (!personaAccount) throw new Error(ErrorCodes.NO_PERSONA_ACCOUNT);
-
-    const countryCode = personaAccount.attributes["country-code"];
-    if (Denylist.has(countryCode)) {
+    const {
+      data: [account],
+    } = await persona.getUnknownAccount(params.credentialId);
+    if (!account) throw new Error(ErrorCodes.NO_PERSONA_ACCOUNT);
+    if (account.attributes["country-code"] && Denylist.has(account.attributes["country-code"])) {
       return { onramp: { currencies: [] }, offramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
     }
-    if (personaAccount.attributes.fields.bridge_enable?.value !== true) {
+    if (account.attributes.fields?.bridge_enable?.value !== true) {
       return {
         status: "ONBOARDING" as const,
         onramp: { currencies: [...currencies.onramp, ...CurrencyByEndorsement.base.currencies] },
         offramp: { currencies: [...currencies.offramp, ...CurrencyByEndorsement.base.currencies] },
       };
     }
+
+    const result = safeParse(Persona.BridgeAccount, account);
+    if (!result.success) {
+      setContext("validation", { ...result, flatten: flatten(result.issues) });
+      throw new ValiError(result.issues);
+    }
+    const personaAccount = result.output;
+    const countryCode = personaAccount.attributes["country-code"];
     const validDocument = persona.getDocumentForBridge(personaAccount.attributes.fields.documents.value);
     if (!validDocument) throw new Error(ErrorCodes.NO_DOCUMENT);
     const idClass = safeParse(picklist(Persona.IdentificationClasses), validDocument.id_class.value);
@@ -2662,5 +2670,5 @@ dwIDAQAB
 
 type PersonaService = Pick<
   ReturnType<typeof createPersona>,
-  "getAccount" | "getDocument" | "getDocumentForBridge" | "getInquiry"
+  "getAccount" | "getDocument" | "getDocumentForBridge" | "getInquiry" | "getUnknownAccount"
 >;

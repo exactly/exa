@@ -315,7 +315,7 @@ describe("evaluateAccount", () => {
     it("throws when account exists but is invalid", async () => {
       await expect(
         persona.evaluateAccount(
-          { data: [{ id: "acc-123", type: "account", attributes: { "country-code": 3 } }] },
+          { data: [{ id: "acc-123", type: "account", attributes: { "name-first": 3 } }] },
           "basic",
         ),
       ).rejects.toThrow(persona.scopeValidationErrors.INVALID_SCOPE_VALIDATION);
@@ -891,7 +891,7 @@ describe("evaluateAccount", () => {
     it("throws when account exists but is invalid", async () => {
       await expect(
         persona.evaluateAccount(
-          { data: [{ id: "acc-123", type: "account", attributes: { "country-code": 3 } }] },
+          { data: [{ id: "acc-123", type: "account", attributes: { "name-first": 3 } }] },
           "bridge",
         ),
       ).rejects.toThrow(persona.scopeValidationErrors.INVALID_SCOPE_VALIDATION);
@@ -971,6 +971,44 @@ describe("getUnknownAccount", () => {
     expect(fetchSpy).toHaveBeenCalledOnce();
     expect(fetchSpy.mock.calls[0]?.[0]).toContain("/accounts?page[size]=1&filter[reference-id]=ref_123");
     expect(result).toStrictEqual({ data: [account] });
+  });
+
+  it("parses accounts with null fields", async () => {
+    fetchSpy.mockResolvedValueOnce(Response.json(emptyAccount));
+
+    const {
+      data: [account],
+    } = await persona.getUnknownAccount("ref_123");
+
+    expect(account?.attributes).toStrictEqual(emptyAccount.data[0]?.attributes);
+  });
+
+  it("parses null country and bridge flag", async () => {
+    const account = {
+      id: "acct_123",
+      type: "account" as const,
+      attributes: { "country-code": null, fields: { bridge_enable: { value: null } } },
+    };
+    fetchSpy.mockResolvedValueOnce(Response.json({ data: [account] }));
+
+    await expect(persona.getUnknownAccount("ref_123")).resolves.toStrictEqual({ data: [account] });
+  });
+
+  it.each([{ type: "boolean" }, { type: "string", value: "true" }])("parses malformed bridge flag %o", async (flag) => {
+    const account = { id: "acct_123", type: "account" as const, attributes: { fields: { bridge_enable: flag } } };
+    fetchSpy.mockResolvedValueOnce(Response.json({ data: [account] }));
+
+    await expect(persona.getUnknownAccount("ref_123")).resolves.toStrictEqual({ data: [account] });
+  });
+
+  it("keeps fields needed by strict bridge parsing", async () => {
+    fetchSpy.mockResolvedValueOnce(Response.json(basicAccount));
+
+    const {
+      data: [account],
+    } = await persona.getUnknownAccount("ref_123");
+
+    expect(safeParse(Persona.BridgeAccount, account).success).toBe(true);
   });
 });
 

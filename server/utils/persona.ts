@@ -8,6 +8,7 @@ import {
   boolean,
   flatten,
   literal,
+  looseObject,
   minValue,
   nullable,
   nullish,
@@ -529,7 +530,7 @@ const MantecaAccount = object({
   }),
 });
 
-const BridgeAccount = object({
+export const BridgeAccount = object({
   ...BaseAccount.entries,
   attributes: object({
     ...BaseAccountAttributes.entries,
@@ -541,7 +542,16 @@ const BridgeAccount = object({
 });
 
 const UnknownAccount = object({
-  data: array(object({ id: string(), type: literal("account"), attributes: unknown() })),
+  data: array(
+    object({
+      id: string(),
+      type: literal("account"),
+      attributes: looseObject({
+        "country-code": nullish(string()),
+        fields: nullish(looseObject({ bridge_enable: nullish(looseObject({ value: optional(unknown()) })) })),
+      }),
+    }),
+  ),
 });
 export type UnknownAccountOutput = InferOutput<typeof UnknownAccount>;
 

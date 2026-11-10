@@ -1,9 +1,9 @@
 // cspell:ignore cust midmarket sepa spei iban COBADEFFXXX Anytown Joao Zdestination Adestination GABCDEFGHIJKLMNOPQRSTUVWXYZSTELLARDESTINATION
 import "../mocks/sentry";
 
-import { captureException } from "@sentry/core";
+import { captureException, setContext } from "@sentry/core";
 import { eq } from "drizzle-orm";
-import { parse, safeParse, type InferOutput } from "valibot";
+import { parse, safeParse, ValiError, type InferOutput } from "valibot";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
@@ -2298,15 +2298,50 @@ describe("bridge utils", () => {
 
     describe("without existing customer", () => {
       it("throws when persona account not found", async () => {
-        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({ data: [] });
 
         await expect(bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" })).rejects.toThrow(
           bridge.ErrorCodes.NO_PERSONA_ACCOUNT,
         );
       });
 
+      it("throws when enabled account is invalid", async () => {
+        const account = {
+          ...enabledPersonaAccount,
+          attributes: { ...enabledPersonaAccount.attributes, "name-first": 3 },
+        };
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({ data: [account] });
+
+        await expect(bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" })).rejects.toThrow(
+          ValiError,
+        );
+        expect(setContext).toHaveBeenCalledExactlyOnceWith("validation", {
+          ...safeParse(Persona.BridgeAccount, account),
+          flatten: { nested: { "attributes.name-first": ["Invalid type: Expected string but received 3"] } },
+        });
+      });
+
+      it("returns ONBOARDING when account lacks basic fields", async () => {
+        const fetchSpy = vi.spyOn(globalThis, "fetch");
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({
+          data: [{ id: "account-123", type: "account", attributes: {} }],
+        });
+
+        const result = await bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" });
+
+        expect(persona.getUnknownAccount).toHaveBeenCalledWith("cred-1");
+        expect(result).toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          offramp: { currencies: onboardingCurrencies },
+        });
+        expect(fetchSpy).not.toHaveBeenCalled();
+        expect(captureException).not.toHaveBeenCalled();
+        expect(setContext).not.toHaveBeenCalled();
+      });
+
       it("throws when no valid document found", async () => {
-        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(enabledPersonaAccount);
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({ data: [enabledPersonaAccount] });
         vi.spyOn(persona, "getDocumentForBridge").mockReturnValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
 
         await expect(bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" })).rejects.toThrow(
@@ -2316,9 +2351,8 @@ describe("bridge utils", () => {
 
       it("returns NOT_AVAILABLE when country is denylisted", async () => {
         const fetchSpy = vi.spyOn(globalThis, "fetch");
-        vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
-          ...personaAccount,
-          attributes: { ...personaAccount.attributes, "country-code": "ID" },
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({
+          data: [{ ...personaAccount, attributes: { ...personaAccount.attributes, "country-code": "ID" } }],
         });
 
         const result = await bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" });
@@ -2333,7 +2367,7 @@ describe("bridge utils", () => {
 
       it("returns ONBOARDING when bridge_enable is missing", async () => {
         const fetchSpy = vi.spyOn(globalThis, "fetch");
-        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(personaAccount);
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({ data: [personaAccount] });
 
         const result = await bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" });
 
@@ -2347,12 +2381,16 @@ describe("bridge utils", () => {
 
       it("returns ONBOARDING when bridge_enable is false", async () => {
         const fetchSpy = vi.spyOn(globalThis, "fetch");
-        vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
-          ...personaAccount,
-          attributes: {
-            ...personaAccount.attributes,
-            fields: { ...personaAccount.attributes.fields, bridge_enable: { value: false } },
-          },
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({
+          data: [
+            {
+              ...personaAccount,
+              attributes: {
+                ...personaAccount.attributes,
+                fields: { ...personaAccount.attributes.fields, bridge_enable: { value: false } },
+              },
+            },
+          ],
         });
 
         const result = await bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" });
@@ -2367,12 +2405,40 @@ describe("bridge utils", () => {
 
       it("returns ONBOARDING when bridge_enable value is null", async () => {
         const fetchSpy = vi.spyOn(globalThis, "fetch");
-        vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
-          ...personaAccount,
-          attributes: {
-            ...personaAccount.attributes,
-            fields: { ...personaAccount.attributes.fields, bridge_enable: { value: null } },
-          },
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({
+          data: [
+            {
+              ...personaAccount,
+              attributes: {
+                ...personaAccount.attributes,
+                fields: { ...personaAccount.attributes.fields, bridge_enable: { value: null } },
+              },
+            },
+          ],
+        });
+
+        const result = await bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" });
+
+        expect(result).toStrictEqual({
+          status: "ONBOARDING",
+          onramp: { currencies: onboardingCurrencies },
+          offramp: { currencies: onboardingCurrencies },
+        });
+        expect(fetchSpy).not.toHaveBeenCalled();
+      });
+
+      it("returns ONBOARDING when bridge_enable value is not boolean", async () => {
+        const fetchSpy = vi.spyOn(globalThis, "fetch");
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({
+          data: [
+            {
+              ...personaAccount,
+              attributes: {
+                ...personaAccount.attributes,
+                fields: { ...personaAccount.attributes.fields, bridge_enable: { value: "true" } },
+              },
+            },
+          ],
         });
 
         const result = await bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" });
@@ -2386,7 +2452,7 @@ describe("bridge utils", () => {
       });
 
       it("returns NOT_AVAILABLE when id class is not mappable to bridge type", async () => {
-        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(enabledPersonaAccount);
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({ data: [enabledPersonaAccount] });
         vi.spyOn(persona, "getDocumentForBridge").mockReturnValueOnce({
           ...identityDocument,
           id_class: { value: "wp" },
@@ -2409,7 +2475,7 @@ describe("bridge utils", () => {
       });
 
       it("returns NOT_AVAILABLE when id class is not listed in IdentificationClasses", async () => {
-        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(enabledPersonaAccount);
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({ data: [enabledPersonaAccount] });
         vi.spyOn(persona, "getDocumentForBridge").mockReturnValueOnce({
           ...identityDocument,
           id_class: { value: "unknown_type" },
@@ -2432,9 +2498,13 @@ describe("bridge utils", () => {
       });
 
       it("throws when country alpha3 conversion fails", async () => {
-        vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
-          ...enabledPersonaAccount,
-          attributes: { ...enabledPersonaAccount.attributes, "country-code": "INVALID" },
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({
+          data: [
+            {
+              ...enabledPersonaAccount,
+              attributes: { ...enabledPersonaAccount.attributes, "country-code": "INVALID" },
+            },
+          ],
         });
 
         await expect(bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" })).rejects.toThrow(
@@ -2443,13 +2513,17 @@ describe("bridge utils", () => {
       });
 
       it("throws when US user has no SSN", async () => {
-        vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
-          ...enabledPersonaAccount,
-          attributes: {
-            ...enabledPersonaAccount.attributes,
-            "country-code": "US",
-            "social-security-number": null,
-          },
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({
+          data: [
+            {
+              ...enabledPersonaAccount,
+              attributes: {
+                ...enabledPersonaAccount.attributes,
+                "country-code": "US",
+                "social-security-number": null,
+              },
+            },
+          ],
         });
 
         await expect(bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" })).rejects.toThrow(
@@ -2458,7 +2532,7 @@ describe("bridge utils", () => {
       });
 
       it("returns NOT_STARTED with basic currencies for standard country", async () => {
-        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(enabledPersonaAccount);
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({ data: [enabledPersonaAccount] });
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
 
         await expect(bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" })).resolves.toStrictEqual({
@@ -2505,15 +2579,19 @@ describe("bridge utils", () => {
       });
 
       it("appends spei endorsement for MX country", async () => {
-        vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
-          ...enabledPersonaAccount,
-          attributes: { ...enabledPersonaAccount.attributes, "country-code": "MX" },
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({
+          data: [
+            {
+              ...enabledPersonaAccount,
+              attributes: { ...enabledPersonaAccount.attributes, "country-code": "MX" },
+            },
+          ],
         });
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
 
         const result = await bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" });
 
-        expect(persona.getAccount).toHaveBeenCalledWith("cred-1", "bridge");
+        expect(persona.getUnknownAccount).toHaveBeenCalledExactlyOnceWith("cred-1");
         expect(result).toStrictEqual({
           status: "NOT_STARTED",
           tosLink: "https://tos.link/agree",
@@ -2523,15 +2601,19 @@ describe("bridge utils", () => {
       });
 
       it("appends pix endorsement for BR country", async () => {
-        vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
-          ...enabledPersonaAccount,
-          attributes: { ...enabledPersonaAccount.attributes, "country-code": "BR" },
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({
+          data: [
+            {
+              ...enabledPersonaAccount,
+              attributes: { ...enabledPersonaAccount.attributes, "country-code": "BR" },
+            },
+          ],
         });
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
 
         const result = await bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" });
 
-        expect(persona.getAccount).toHaveBeenCalledWith("cred-1", "bridge");
+        expect(persona.getUnknownAccount).toHaveBeenCalledExactlyOnceWith("cred-1");
         expect(result).toStrictEqual({
           status: "NOT_STARTED",
           tosLink: "https://tos.link/agree",
@@ -2541,15 +2623,19 @@ describe("bridge utils", () => {
       });
 
       it("appends faster_payments endorsement for GB country", async () => {
-        vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
-          ...enabledPersonaAccount,
-          attributes: { ...enabledPersonaAccount.attributes, "country-code": "GB" },
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({
+          data: [
+            {
+              ...enabledPersonaAccount,
+              attributes: { ...enabledPersonaAccount.attributes, "country-code": "GB" },
+            },
+          ],
         });
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
 
         const result = await bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" });
 
-        expect(persona.getAccount).toHaveBeenCalledWith("cred-1", "bridge");
+        expect(persona.getUnknownAccount).toHaveBeenCalledExactlyOnceWith("cred-1");
         expect(result).toStrictEqual({
           status: "NOT_STARTED",
           tosLink: "https://tos.link/agree",
@@ -2559,7 +2645,7 @@ describe("bridge utils", () => {
       });
 
       it("appends redirect URL with provider param", async () => {
-        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(enabledPersonaAccount);
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({ data: [enabledPersonaAccount] });
         const fetchSpy = vi
           .spyOn(globalThis, "fetch")
           .mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
@@ -2579,7 +2665,7 @@ describe("bridge utils", () => {
       });
 
       it("preserves existing query params in tos URL when appending redirect_uri", async () => {
-        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(enabledPersonaAccount);
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({ data: [enabledPersonaAccount] });
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
           fetchResponse({ url: "https://tos.link/agree?session_token=abc" }),
         );
@@ -2598,7 +2684,7 @@ describe("bridge utils", () => {
 
       it("works on development chain", async () => {
         chainMock.id = optimismSepolia.id;
-        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(enabledPersonaAccount);
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({ data: [enabledPersonaAccount] });
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
 
         await expect(bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" })).resolves.toStrictEqual({
@@ -6105,6 +6191,17 @@ const personaAccount = {
       birthdate: { value: "1990-01-01" },
       phone_number: { value: "+5491123456789" },
       email_address: { value: "test@example.com" },
+      selfie_photo: { value: { filename: "selfie.jpg", url: "https://persona.test/selfie.jpg" } },
+      rain_e_sign_consent: { value: true },
+      exa_card_tc: { value: true },
+      privacy__policy: { value: true },
+      account_opening_disclosure: { value: null },
+      economic_activity: { value: "employed" },
+      annual_salary: { value: "50000" },
+      expected_monthly_volume: { value: "1000" },
+      accurate_info_confirmation: { value: true },
+      non_unauthorized_solicitation: { value: true },
+      non_illegal_activities_2: { value: "No" as const },
       documents: { value: [{ value: identityDocument }] },
     },
   },
