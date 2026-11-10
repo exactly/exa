@@ -6,7 +6,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { getTokens, ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
-import { base, baseSepolia } from "viem/chains";
+import { base } from "viem/chains";
 
 import chain from "@exactly/common/generated/chain";
 
@@ -152,8 +152,7 @@ export default function SendFunds() {
                   />
                 )}
                 {(!business || transfers === "completed") &&
-                  hasFiat !== false &&
-                  (business ? chain.id === base.id || chain.id === baseSepolia.id : chain.id !== base.id) && (
+                  (business ? hasFiat : hasFiat !== false && chain.id !== base.id) && (
                     <AddFundsOption
                       icon={<Banknote size={24} color="iconBrandDefault" />}
                       title={t("Bank transfers")}
