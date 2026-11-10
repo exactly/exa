@@ -726,6 +726,42 @@ describe("manteca utils", () => {
     });
   });
 
+  describe("lockQrPayment", () => {
+    it("locks with the real payer as sender", async () => {
+      const lock = {
+        code: "fa44218d-7b3c-4a1e-bc9f-2d5e8f01c3a7",
+        type: "QR3",
+        companyId: "64a1b2c3d4e5f6a7b8c9d0e1",
+        userId: "64a1b2c3d4e5f6a7b8c9d0e2",
+        userNumberId: "12345",
+        userExternalId: "ext-001",
+        paymentRecipientName: "Merchant",
+        paymentRecipientLegalId: "30712345678",
+        paymentAssetAmount: "15000.00",
+        paymentAsset: "ARS",
+        paymentPrice: "1250.50",
+        paymentAgainstAmount: "12.00",
+        expireAt: "2026-02-21T15:30:00.000Z",
+        creationTime: "2026-02-21T15:25:00.000Z",
+      };
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchResponse(lock));
+      const sender = { legalIdNationality: "ARGENTINA", legalId: "12345678", name: "JANE", surname: "DOE" };
+
+      await expect(
+        manteca.lockQrPayment({ paymentDestination: "qr3", against: "USDC", sender }),
+      ).resolves.toStrictEqual(lock);
+
+      expect(fetchSpy).toHaveBeenCalledOnce();
+      expect(fetchSpy.mock.calls[0]?.[0]).toBe("https://manteca.test/crypto/v2/payment-locks");
+      expect(fetchSpy.mock.calls[0]?.[1]?.method).toBe("POST");
+      expect(JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string)).toStrictEqual({
+        paymentDestination: "qr3",
+        against: "USDC",
+        sender,
+      });
+    });
+  });
+
   describe("uploadIdentityFile", () => {
     it("retries file upload on failure and succeeds", async () => {
       let forwardAttempt = 0;
