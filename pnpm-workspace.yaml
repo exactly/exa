@@ -21,33 +21,22 @@ allowBuilds:
   utf-8-validate: true
 auditConfig:
   ignoreGhsas: # cspell:ignore ghsas
-    - GHSA-28wg-ghj8-5hjv
-    - GHSA-2v37-7h3g-55p8
-    - GHSA-395f-4hp3-45gv
     - GHSA-3g3m-2fjr-6pw4
     - GHSA-44jh-23m7-hpcf # cspell:ignore hpcf
     - GHSA-4x5r-pxfx-6jf8 # cspell:ignore pxfx
-    - GHSA-52cp-r559-cp3m
-    - GHSA-5p4m-2wfm-xmqj # cspell:ignore xmqj
     - GHSA-6g55-p6wh-862q
     - GHSA-848j-6mx2-7j84
-    - GHSA-866g-f22w-33x8
-    - GHSA-86w9-cpqp-85rv # cspell:ignore cpqp
     - GHSA-965c-763c-88jm
     - GHSA-fxqj-rqcc-2cmp # cspell:ignore fxqj rqcc
     - GHSA-g3hv-75wg-m249
     - GHSA-gcqx-w48m-w2h4 # cspell:ignore gcqx
-    - GHSA-h67p-54hq-rp68
     - GHSA-5p2g-fcmc-qvqq # cspell:ignore fcmc qvqq
-    - GHSA-mh99-v99m-4gvg
     - GHSA-mrhx-c7xc-m3w5 # cspell:ignore mrhx
     - GHSA-q84f-53jg-9ppm
     - GHSA-qr28-fpjm-wq7f # cspell:ignore fpjm
     - GHSA-r28c-9q8g-f849
     - GHSA-r4xp-prcw-77qf # cspell:ignore prcw
-    - GHSA-rgw5-rvv9-x895
     - GHSA-vcc3-ghjq-m6fr # cspell:ignore ghjq
-    - GHSA-vfj7-8cjw-p6xm
     - GHSA-w3rx-r6r6-pgpr # cspell:ignore pgpr
     - GHSA-w5hq-g745-h8pq
 autoInstallPeers: false
