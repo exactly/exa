@@ -1,4 +1,4 @@
-import { captureException, setUser } from "@sentry/node";
+import { captureException, setUser, withScope } from "@sentry/node";
 import { UnrecoverableError } from "bullmq";
 import createDebug from "debug";
 import { and, eq } from "drizzle-orm";
@@ -28,11 +28,14 @@ export default function worker({
     attempts,
     bullmq,
     failed(job, error) {
-      captureException(error, {
-        extra: { attempts: job?.attemptsMade, id: job?.id },
-        level: "fatal",
-        fingerprint: ["{{ default }}", "hook.exhausted"],
-        tags: { queue: name, job: job?.name },
+      withScope((scope) => {
+        if (job) scope.setUser({ id: job.data.account });
+        captureException(error, {
+          extra: { attempts: job?.attemptsMade, id: job?.id },
+          level: "fatal",
+          fingerprint: ["{{ default }}", "hook.exhausted"],
+          tags: { queue: name, job: job?.name },
+        });
       });
     },
     name,

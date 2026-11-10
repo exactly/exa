@@ -1,5 +1,5 @@
 import { SPAN_STATUS_ERROR, SPAN_STATUS_OK } from "@sentry/core";
-import { captureException, continueTrace, startSpan } from "@sentry/node";
+import { captureException, continueTrace, startSpan, withIsolationScope } from "@sentry/node";
 import { UnrecoverableError, Worker } from "bullmq";
 import { Redis } from "ioredis";
 import { argv } from "node:process";
@@ -58,9 +58,11 @@ export default function worker<Job extends { sentryBaggage?: string; sentryTrace
             },
           ),
         );
-      return job.data.sentryTrace || job.data.sentryBaggage
-        ? continueTrace({ sentryTrace: job.data.sentryTrace, baggage: job.data.sentryBaggage }, callback)
-        : callback();
+      return withIsolationScope(() =>
+        job.data.sentryTrace || job.data.sentryBaggage
+          ? continueTrace({ sentryTrace: job.data.sentryTrace, baggage: job.data.sentryBaggage }, callback)
+          : callback(),
+      );
     },
     { connection: bullmq, limiter: { max: 10, duration: 1000 }, autorun: !check },
   )

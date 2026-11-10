@@ -142,8 +142,9 @@ export default function hook({
           });
           if (user) setUser({ id: user.account });
           if (payload.resource !== "card" || payload.action !== "notification") {
+            if (!user) return c.json({ code: "user not found" }, 404);
             try {
-              await webhook.enqueue({}, payload.id);
+              await webhook.enqueue({ account: v.parse(Address, user.account) }, payload.id);
             } catch (error: unknown) {
               captureException(error, {
                 level: "error",
@@ -570,7 +571,7 @@ export default function hook({
               })
               .catch((error: unknown) => captureException(error, { level: "error" }));
             try {
-              await webhook.enqueue({}, payload.id);
+              await webhook.enqueue({ account }, payload.id);
             } catch (error: unknown) {
               captureException(error, {
                 level: "error",
@@ -595,7 +596,7 @@ export default function hook({
               .catch((error: unknown) => captureException(error, { level: "error" }));
 
             try {
-              await webhook.enqueue({}, payload.id);
+              await webhook.enqueue({ account }, payload.id);
             } catch (error: unknown) {
               captureException(error, {
                 level: "error",
@@ -647,7 +648,7 @@ export default function hook({
                 .catch((error: unknown) => captureException(error, { level: "error" }));
 
               try {
-                await webhook.enqueue({}, payload.id);
+                await webhook.enqueue({ account }, payload.id);
               } catch (error: unknown) {
                 captureException(error, {
                   level: "error",
@@ -718,6 +719,7 @@ export default function hook({
                       : webhook
                           .enqueue(
                             {
+                              account,
                               receipt: {
                                 blockNumber: Number(receipt.blockNumber),
                                 transactionHash: receipt.transactionHash,

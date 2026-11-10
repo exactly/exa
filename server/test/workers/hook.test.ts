@@ -1,6 +1,6 @@
 import "../mocks/sentry";
 
-import { captureException, continueTrace, setUser, startSpan } from "@sentry/node";
+import { captureException, continueTrace, getClient, setUser, startSpan } from "@sentry/node";
 import { Queue, QueueEvents } from "bullmq";
 import { createHmac, randomBytes } from "node:crypto";
 import { env } from "node:process";
@@ -21,6 +21,7 @@ import { finished, tip } from "../redis";
 import type * as P from "../../utils/panda";
 import type { Job as Hook } from "../../workers/hook/job";
 import type * as C from "@exactly/common/generated/chain";
+import type { Event } from "@sentry/node";
 import type { JobsOptions } from "bullmq";
 
 const secret = randomBytes(16).toString("hex");
@@ -30,6 +31,10 @@ const hook = createHook(redis);
 const queue = new Queue<Hook, void, "hook">("hook", { connection: bullmq });
 const events = new QueueEvents("hook", { connection: bullmq, lastEventId: await tip(bullmq, queue) });
 const webhooks = new Map<string, unknown>();
+const reported: Event[] = [];
+getClient()?.on("beforeSendEvent", (event) => {
+  if (event.type === undefined) reported.push(event);
+});
 
 let worker: ReturnType<typeof hookWorker>;
 let connection: ReturnType<typeof connect>;
@@ -45,7 +50,13 @@ describe("hook queue", () => {
   });
 
   it("publishes hook jobs", async () => {
-    await hook.enqueue({ receipt: { blockNumber: 7, transactionHash: "0x1234" } }, "wk-queue");
+    await hook.enqueue(
+      {
+        account: parse(Address, padHex("0xfab1", { size: 20 })),
+        receipt: { blockNumber: 7, transactionHash: "0x1234" },
+      },
+      "wk-queue",
+    );
 
     const job = await queue.getJob("wk-queue");
     if (!job) throw new Error("job not found");
@@ -53,6 +64,7 @@ describe("hook queue", () => {
     expect(job.id).toBe("wk-queue");
     expect(job.name).toBe("hook");
     expect(job.data).toStrictEqual({
+      account: parse(Address, padHex("0xfab1", { size: 20 })),
       receipt: { blockNumber: 7, transactionHash: "0x1234" },
       sentryBaggage: expect.any(String) as string,
       sentryTrace: expect.any(String) as string,
@@ -94,7 +106,7 @@ describe("hook queue", () => {
     const error = new Error("queue error");
     vi.spyOn(Queue.prototype, "add").mockRejectedValueOnce(error);
 
-    const result = hook.enqueue({}, "wk-queue-failure");
+    const result = hook.enqueue({ account: parse(Address, padHex("0xfab1", { size: 20 })) }, "wk-queue-failure");
 
     await expect(result).rejects.toThrow(error);
     await expect(queue.getJob("wk-queue-failure")).resolves.toBeUndefined();
@@ -593,12 +605,13 @@ describe("hook worker", () => {
   });
 
   it("captures terminal delivery failures", async () => {
+    const account = parse(Address, padHex("0xfab1", { size: 20 }));
     transaction("wk-terminal", {});
     vi.spyOn(globalThis, "fetch").mockImplementation(() =>
       Promise.resolve(Response.json({ code: "err" }, { status: 500 })),
     );
 
-    const result = jobFinished("wk-terminal", { removeOnFail: false });
+    const result = jobFinished("wk-terminal", { removeOnFail: false }, { account });
 
     await expect(result).rejects.toThrow("webhook failed");
     await expect(queue.getJobState("wk-terminal")).resolves.toBe("failed");
@@ -615,6 +628,7 @@ describe("hook worker", () => {
       tags: { queue: "hook", job: "hook" },
       extra: { attempts: 1, id: "wk-terminal" },
     });
+    expect(reported.find(({ extra }) => extra?.id === "wk-terminal")?.user).toStrictEqual({ id: account });
     await job.remove();
   });
 
@@ -687,6 +701,9 @@ describe("hook worker", () => {
       tags: { queue: "hook", job: undefined },
       extra: { attempts: undefined, id: undefined },
     });
+    const event = reported.find(({ exception }) => exception?.values?.[0]?.value === "failed event error");
+    expect(event).toBeDefined();
+    expect(event?.user).toBeUndefined();
   });
 });
 
@@ -765,15 +782,19 @@ function user(id: string, pandaId: string) {
   });
 }
 
-async function jobFinished(id: string, options?: JobsOptions, data: Hook = {}) {
+async function jobFinished(id: string, options?: JobsOptions, data: Partial<Hook> = {}) {
   const result = finished(events, id);
-  await queue.add("hook", data, {
-    attempts: 1,
-    jobId: id,
-    removeOnComplete: true,
-    removeOnFail: true,
-    ...options,
-  });
+  await queue.add(
+    "hook",
+    { account: parse(Address, padHex("0xfab1", { size: 20 })), ...data },
+    {
+      attempts: 1,
+      jobId: id,
+      removeOnComplete: true,
+      removeOnFail: true,
+      ...options,
+    },
+  );
   await result.catch(async (error: unknown) => {
     await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0);
     throw error;

@@ -3,7 +3,7 @@ import "../mocks/sardine";
 import "../mocks/segment";
 import "../mocks/sentry";
 
-import { captureException, continueTrace, setUser, startSpan } from "@sentry/node";
+import { captureException, continueTrace, setUser, startSpan, withScope } from "@sentry/node";
 import { Queue, QueueEvents } from "bullmq";
 import { eq } from "drizzle-orm";
 import { env } from "node:process";
@@ -55,6 +55,7 @@ import type * as W from "../../utils/wallet";
 import type createHook from "../../workers/hook/queue";
 import type { Job as Refund } from "../../workers/refund/job";
 import type * as C from "@exactly/common/generated/chain";
+import type * as sentry from "@sentry/node";
 import type { JobsOptions } from "bullmq";
 
 const account = parse(Address, padHex("0xb0b", { size: 20 }));
@@ -349,7 +350,7 @@ describe("refund worker", () => {
       payload: { type: "panda", bodies: [{ ...requestBody, createdAt: "2026-01-01T00:00:01.000Z" }] },
     });
     expect(hook.enqueue).toHaveBeenCalledExactlyOnceWith(
-      { receipt: { blockNumber: expect.any(Number) as number, transactionHash: transaction?.hashes[0] } },
+      { account, receipt: { blockNumber: expect.any(Number) as number, transactionHash: transaction?.hashes[0] } },
       "wh-authorized",
     );
     expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
@@ -433,6 +434,7 @@ describe("refund worker", () => {
     });
     expect(hook.enqueue).toHaveBeenCalledExactlyOnceWith(
       {
+        account,
         receipt: {
           blockNumber: expect.any(Number) as number,
           transactionHash: expect.stringMatching(/^0x[0-9a-f]{64}$/) as string,
@@ -470,6 +472,7 @@ describe("refund worker", () => {
     );
     expect(hook.enqueue).toHaveBeenCalledExactlyOnceWith(
       {
+        account,
         receipt: {
           blockNumber: expect.any(Number) as number,
           transactionHash: expect.stringMatching(/^0x[0-9a-f]{64}$/) as string,
@@ -577,7 +580,10 @@ describe("refund worker", () => {
     await jobFinished("wh-hook-error");
 
     await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error));
-    expect(hook.enqueue).toHaveBeenCalledExactlyOnceWith(expect.anything(), "wh-hook-error");
+    expect(hook.enqueue).toHaveBeenCalledExactlyOnceWith(
+      { account, receipt: expect.anything() as unknown },
+      "wh-hook-error",
+    );
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       level: "error",
       tags: { queue: "hook", job: "hook" },
@@ -614,6 +620,7 @@ describe("refund worker", () => {
   it("fails without retries on amount mismatches", async () => {
     webhook("wh-mismatch", { amount: 500, authorizedAmount: 2500, status: "pending" });
     const track = vi.spyOn(segment, "track").mockReturnValue();
+    const scopeSetUser = await spyScopeSetUser();
 
     const result = jobFinished("wh-mismatch", { attempts: 2, backoff: { type: "fixed", delay: 1 } });
 
@@ -642,6 +649,7 @@ describe("refund worker", () => {
       },
       extra: { attempts: 1, id: "wh-mismatch", recipient: refunderAddress },
     });
+    expect(scopeSetUser).toHaveBeenCalledExactlyOnceWith({ id: account });
   });
 
   it("fails without retries on missing controllers", async () => {
@@ -1147,8 +1155,9 @@ describe("refund worker", () => {
     expect(captureException).toHaveBeenCalledWith(error, { level: "error", tags: { queue: "refund" } });
   });
 
-  it("captures failed events without a job", () => {
+  it("captures failed events without a job", async () => {
     const error = new Error("failed event error");
+    const scopeSetUser = await spyScopeSetUser();
 
     worker.queue.emit("failed", undefined, error, "active");
 
@@ -1158,6 +1167,7 @@ describe("refund worker", () => {
       tags: { queue: "refund", job: undefined, "panda.reason": "failed event error", "panda.reasonName": "Error" },
       extra: { attempts: undefined, id: undefined, recipient: refunderAddress },
     });
+    expect(scopeSetUser).not.toHaveBeenCalled();
   });
 
   it("captures only terminal failed events", async () => {
@@ -1346,4 +1356,20 @@ async function jobFinished(id: string, options?: JobsOptions, data?: Partial<Ref
     await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0);
     throw error;
   });
+}
+
+async function spyScopeSetUser() {
+  const { withScope: realWithScope } = await vi.importActual<typeof sentry>("@sentry/node");
+  const scopeSetUser = vi.fn();
+  vi.mocked(withScope).mockImplementation((_scopeOrCallback, _callback?) =>
+    realWithScope((scope) => {
+      const originalSetUser = scope.setUser.bind(scope);
+      scope.setUser = (...args: Parameters<typeof scope.setUser>) => {
+        scopeSetUser(...args);
+        return originalSetUser(...args);
+      };
+      return ((_callback ?? _scopeOrCallback) as NonNullable<typeof _callback>)(scope);
+    }),
+  );
+  return scopeSetUser;
 }

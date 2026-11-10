@@ -1,4 +1,4 @@
-import { captureException, setUser } from "@sentry/node";
+import { captureException, setUser, withScope } from "@sentry/node";
 import { UnrecoverableError } from "bullmq";
 import { and, eq } from "drizzle-orm";
 import { number, object, parse, string } from "valibot";
@@ -78,11 +78,14 @@ export default function worker({
         const error = raw instanceof UnrecoverableError && raw.cause instanceof Error ? raw.cause : raw;
         const reason = revertReason(error, { fallback: "message" });
         const reasonName = revertReason(error, { fallback: "name" });
-        captureException(error, {
-          extra: { attempts: job?.attemptsMade, id: job?.id, recipient: refunderContract },
-          level: "fatal",
-          fingerprint: ["{{ default }}", "refund.exhausted", ...revertFingerprint(error).slice(1)],
-          tags: { queue: name, job: job?.name, "panda.reason": reason, "panda.reasonName": reasonName },
+        withScope((scope) => {
+          if (job) scope.setUser({ id: job.data.account });
+          captureException(error, {
+            extra: { attempts: job?.attemptsMade, id: job?.id, recipient: refunderContract },
+            level: "fatal",
+            fingerprint: ["{{ default }}", "refund.exhausted", ...revertFingerprint(error).slice(1)],
+            tags: { queue: name, job: job?.name, "panda.reason": reason, "panda.reasonName": reasonName },
+          });
         });
         if (!job) return;
         panda
@@ -301,7 +304,10 @@ export default function worker({
                 status === "reverted"
                   ? undefined
                   : hook
-                      .enqueue({ receipt: { blockNumber: Number(blockNumber), transactionHash } }, webhookId)
+                      .enqueue(
+                        { account: job.data.account, receipt: { blockNumber: Number(blockNumber), transactionHash } },
+                        webhookId,
+                      )
                       .catch((error: unknown) =>
                         captureException(error, {
                           level: "error",

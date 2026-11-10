@@ -676,6 +676,7 @@ describe("card operations", () => {
         await vi.waitUntil(() => hookQueue.enqueue.mock.calls.length > 0);
         expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith(
           {
+            account,
             receipt: {
               blockNumber: Number(purchaseReceipt.blockNumber),
               transactionHash: purchaseReceipt.transactionHash,
@@ -3675,6 +3676,10 @@ describe("concurrency", () => {
 });
 
 describe("webhooks", () => {
+  beforeAll(async () => {
+    await database.update(credentials).set({ pandaId: "cred" }).where(eq(credentials.id, "cred"));
+  });
+
   it("enqueues declined transaction webhooks", async () => {
     const response = await appClient.index.$post({
       ...authorization,
@@ -3695,7 +3700,7 @@ describe("webhooks", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, authorization.json.id);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, authorization.json.id);
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -3714,18 +3719,33 @@ describe("webhooks", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, authorization.json.id);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, authorization.json.id);
     expect(captureException).not.toHaveBeenCalled();
   });
 
   it("enqueues card updated webhooks", async () => {
     const response = await appClient.index.$post({
       ...cardUpdated,
-      json: { ...cardUpdated.json, body: { ...cardUpdated.json.body, tokenWallets: ["Apple"] } },
+      json: { ...cardUpdated.json, body: { ...cardUpdated.json.body, tokenWallets: ["Apple"], userId: "cred" } },
     });
 
     expect(response.status).toBe(200);
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, cardUpdated.json.id);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, cardUpdated.json.id);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("rejects card updated webhooks of unknown users", async () => {
+    const response = await appClient.index.$post({
+      ...cardUpdated,
+      json: { ...cardUpdated.json, body: { ...cardUpdated.json.body, tokenWallets: ["Apple"] } },
+    });
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toStrictEqual({ code: "user not found" });
+    expect(setUser).not.toHaveBeenCalled();
+    expect(hookQueue.enqueue).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -3738,10 +3758,25 @@ describe("webhooks", () => {
   });
 
   it("enqueues user updated webhooks", async () => {
-    const response = await appClient.index.$post(userUpdated);
+    const response = await appClient.index.$post({
+      ...userUpdated,
+      json: { ...userUpdated.json, body: { ...userUpdated.json.body, id: "cred" } },
+    });
 
     expect(response.status).toBe(200);
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, userUpdated.json.id);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, userUpdated.json.id);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("rejects user updated webhooks of unknown users", async () => {
+    const response = await appClient.index.$post(userUpdated);
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toStrictEqual({ code: "user not found" });
+    expect(setUser).not.toHaveBeenCalled();
+    expect(hookQueue.enqueue).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -3759,12 +3794,12 @@ describe("webhooks", () => {
 
     const response = await appClient.index.$post({
       ...cardUpdated,
-      json: { ...cardUpdated.json, body: { ...cardUpdated.json.body, tokenWallets: ["Apple"] } },
+      json: { ...cardUpdated.json, body: { ...cardUpdated.json.body, tokenWallets: ["Apple"], userId: "cred" } },
     });
 
     expect(response.status).toBe(569);
     await expect(response.json()).resolves.toStrictEqual({ code: "queue down" });
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, cardUpdated.json.id);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, cardUpdated.json.id);
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       level: "error",
       tags: { queue: "hook", job: "hook" },
@@ -3777,12 +3812,12 @@ describe("webhooks", () => {
 
     const response = await appClient.index.$post({
       ...cardUpdated,
-      json: { ...cardUpdated.json, body: { ...cardUpdated.json.body, tokenWallets: ["Apple"] } },
+      json: { ...cardUpdated.json, body: { ...cardUpdated.json.body, tokenWallets: ["Apple"], userId: "cred" } },
     });
 
     expect(response.status).toBe(569);
     await expect(response.json()).resolves.toStrictEqual({ code: "queue unavailable" });
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, cardUpdated.json.id);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, cardUpdated.json.id);
     expect(captureException).toHaveBeenCalledExactlyOnceWith("queue unavailable", {
       level: "error",
       tags: { queue: "hook", job: "hook" },
@@ -3814,7 +3849,7 @@ describe("webhooks", () => {
 
     expect(response.status).toBe(569);
     await expect(response.json()).resolves.toStrictEqual({ code: "queue down" });
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, authorization.json.id);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, authorization.json.id);
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       level: "error",
       tags: { queue: "hook", job: "hook" },
@@ -3845,7 +3880,7 @@ describe("webhooks", () => {
 
     expect(response.status).toBe(569);
     await expect(response.json()).resolves.toStrictEqual({ code: "queue unavailable" });
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, authorization.json.id);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, authorization.json.id);
     expect(captureException).toHaveBeenCalledExactlyOnceWith("queue unavailable", {
       level: "error",
       tags: { queue: "hook", job: "hook" },
@@ -3872,7 +3907,7 @@ describe("webhooks", () => {
 
     expect(response.status).toBe(569);
     await expect(response.json()).resolves.toStrictEqual({ code: "queue down" });
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, authorization.json.id);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, authorization.json.id);
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       level: "error",
       tags: { queue: "hook", job: "hook" },
@@ -3898,7 +3933,7 @@ describe("webhooks", () => {
 
     expect(response.status).toBe(569);
     await expect(response.json()).resolves.toStrictEqual({ code: "queue unavailable" });
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, authorization.json.id);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, authorization.json.id);
     expect(captureException).toHaveBeenCalledExactlyOnceWith("queue unavailable", {
       level: "error",
       tags: { queue: "hook", job: "hook" },
@@ -3934,7 +3969,7 @@ describe("webhooks", () => {
 
     expect(response.status).toBe(569);
     await expect(response.json()).resolves.toStrictEqual({ code: "queue down" });
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, authorization.json.id);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, authorization.json.id);
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       level: "error",
       tags: { queue: "hook", job: "hook" },
@@ -3969,7 +4004,7 @@ describe("webhooks", () => {
 
     expect(response.status).toBe(569);
     await expect(response.json()).resolves.toStrictEqual({ code: "queue unavailable" });
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({}, authorization.json.id);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, authorization.json.id);
     expect(captureException).toHaveBeenCalledExactlyOnceWith("queue unavailable", {
       level: "error",
       tags: { queue: "hook", job: "hook" },
@@ -4003,7 +4038,7 @@ describe("webhooks", () => {
 
     expect(response.status).toBe(200);
     expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith(
-      { receipt: { blockNumber: 69, transactionHash: zeroHash } },
+      { account, receipt: { blockNumber: 69, transactionHash: zeroHash } },
       authorization.json.id,
     );
     await vi.waitFor(() =>

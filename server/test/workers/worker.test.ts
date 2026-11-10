@@ -1,12 +1,14 @@
 /// <reference types="vite/client" />
 import "../mocks/sentry";
 
-import { Queue } from "bullmq";
+import { getIsolationScope, setUser } from "@sentry/node";
+import { Queue, QueueEvents } from "bullmq";
 import { argv, env } from "node:process";
 import { nonEmpty, parse, pipe, string } from "valibot";
 import { afterAll, afterEach, beforeAll, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import worker, { connect } from "../../workers/worker";
+import { finished, tip } from "../redis";
 
 const workers = Object.entries(import.meta.glob<{ default: unknown }>("../../workers/*/worker.ts"));
 const length = argv.length;
@@ -77,6 +79,44 @@ describe("worker", () => {
     } finally {
       await handle.close();
       await bullmq.quit();
+    }
+  });
+
+  it("isolates scope per job", async () => {
+    const name = `worker-${crypto.randomUUID()}`;
+    const redis = connect(redisUrl);
+    const queue = new Queue(name, { connection: redis });
+    const events = new QueueEvents(name, { connection: connect(redisUrl), lastEventId: await tip(redis, queue) });
+    const users: unknown[] = [];
+    const bullmq = connect(redisUrl);
+    const handle = worker({
+      attempts: 1,
+      bullmq,
+      failed: vi.fn(),
+      name,
+      process: (job) => {
+        users.push(getIsolationScope().getUser());
+        setUser({ id: job.id });
+        users.push(getIsolationScope().getUser());
+        return Promise.resolve();
+      },
+    });
+
+    try {
+      await Promise.all([handle.ready, events.waitUntilReady()]);
+      for (const id of ["first", "second"]) {
+        const result = finished(events, id);
+        await queue.add("isolate", {}, { jobId: id, removeOnComplete: true });
+        await result;
+      }
+      expect(users).toStrictEqual([{}, { id: "first" }, {}, { id: "second" }]);
+      expect(getIsolationScope().getUser()).toStrictEqual({});
+    } finally {
+      await handle.close();
+      await bullmq.quit();
+      await events.close();
+      await queue.close();
+      await redis.quit();
     }
   });
 
