@@ -150,7 +150,9 @@ export function extender(
                     startSpan({ name: "send transaction", op: "tx.send" }, () =>
                       publicClient.sendRawTransaction({ serializedTransaction }),
                     ).catch((error: unknown) => {
-                      captureException(error, { level: "error" });
+                      if (!(error instanceof InvalidInputRpcError && error.details === "already known")) {
+                        captureException(error, { level: "error" });
+                      }
                       throw error;
                     }),
                     setTimeout(10_000, null, { signal: abortController.signal }),

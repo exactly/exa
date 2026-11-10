@@ -15,6 +15,7 @@ import {
   padHex,
   RawContractError,
   ResourceNotFoundRpcError,
+  RpcRequestError,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { recoverAuthorizationAddress } from "viem/utils";
@@ -146,6 +147,43 @@ describe("fault tolerance", () => {
     expect(captureException).toHaveBeenCalledWith(new Error("send"), expect.objectContaining({ level: "error" }));
     expect(onHash).toHaveBeenCalledOnce();
     expect(receipt?.status).toBe("success");
+    expect(sendRawTransaction.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("skips capture when rebroadcast is already known", async () => {
+    const known = new InvalidInputRpcError(
+      new RpcRequestError({ body: {}, url: "", error: { code: -32_000, message: "already known" } }),
+    );
+    const waitForTransactionReceipt = publicClient.waitForTransactionReceipt;
+    vi.spyOn(publicClient, "waitForTransactionReceipt").mockImplementation((parameters) =>
+      waitForTransactionReceipt({ ...parameters, checkReplacement: false, pollingInterval: 10, retryDelay: 10 }),
+    );
+    vi.spyOn(publicClient, "sendRawTransaction").mockRejectedValueOnce(known);
+    const receipt = await keeper.exaSend(
+      { name: "test transfer", op: "test.transfer" },
+      { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
+    );
+
+    expect(receipt?.status).toBe("success");
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("captures other invalid input errors on rebroadcast", async () => {
+    const invalid = new InvalidInputRpcError(
+      new RpcRequestError({ body: {}, url: "", error: { code: -32_000, message: "nonce too low" } }),
+    );
+    const waitForTransactionReceipt = publicClient.waitForTransactionReceipt;
+    vi.spyOn(publicClient, "waitForTransactionReceipt").mockImplementation((parameters) =>
+      waitForTransactionReceipt({ ...parameters, checkReplacement: false, pollingInterval: 10, retryDelay: 10 }),
+    );
+    const sendRawTransaction = vi.spyOn(publicClient, "sendRawTransaction").mockRejectedValueOnce(invalid);
+    const receipt = await keeper.exaSend(
+      { name: "test transfer", op: "test.transfer" },
+      { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
+    );
+
+    expect(receipt?.status).toBe("success");
+    expect(captureException).toHaveBeenCalledWith(invalid, { level: "error" });
     expect(sendRawTransaction.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 
