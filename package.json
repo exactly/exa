@@ -138,7 +138,7 @@
     "@nx/eslint": "catalog:",
     "@nx/eslint-plugin": "catalog:",
     "@nx/js": "catalog:",
-    "@spotlightjs/spotlight": "^4.11.3",
+    "@spotlightjs/spotlight": "^4.12.1",
     "@svgr/core": "^8.1.0",
     "@tamagui/cli": "catalog:",
     "@types/babel__core": "^7.20.5",
