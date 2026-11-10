@@ -26,7 +26,6 @@ afterAll(async () => {
 
 describe("createCredential", () => {
   beforeEach(async () => {
-    vi.clearAllMocks();
     await database.delete(credentials).where(eq(credentials.id, credentialId));
   });
 

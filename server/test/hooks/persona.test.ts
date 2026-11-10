@@ -466,7 +466,6 @@ describe("persona hook", () => {
   afterEach(async () => {
     await new Promise((resolve) => setImmediate(resolve));
     await database.update(credentials).set({ account, pandaId: null }).where(eq(credentials.id, "persona-ref"));
-    vi.clearAllMocks();
     vi.restoreAllMocks();
   });
 

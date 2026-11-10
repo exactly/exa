@@ -25,7 +25,6 @@ let chatHook: ReturnType<typeof createChatHook>;
 describe("chat hook", () => {
   afterEach(async () => {
     await chatHook.close();
-    vi.clearAllMocks();
     vi.restoreAllMocks();
   });
 

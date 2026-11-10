@@ -75,7 +75,6 @@ describe("bridge hook", () => {
   });
 
   afterEach(() => {
-    vi.clearAllMocks();
     vi.restoreAllMocks();
   });
 

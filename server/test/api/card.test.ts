@@ -2486,7 +2486,6 @@ describe("wallet extension", () => {
       payload = {},
     }) => {
       const getProcessorDetails = vi.spyOn(panda, "getProcessorDetails");
-      const calls = vi.mocked(captureException).mock.calls.length;
       const response = await app.request("/provisioning", {
         headers: {
           authorization: `Bearer ${await new SignJWT({
@@ -2506,9 +2505,7 @@ describe("wallet extension", () => {
       expect(response.status).toBe(401);
       await expect(response.json()).resolves.toStrictEqual({ code: "unauthorized" });
       expect(getProcessorDetails).not.toHaveBeenCalled();
-      expect(vi.mocked(captureException).mock.calls.slice(calls)).toStrictEqual([
-        [expect.any(Error), { level: "warning" }],
-      ]);
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(Error), { level: "warning" });
     },
   );
 

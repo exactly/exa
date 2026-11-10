@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import appId from "@exactly/common/onesignalAppId.web";
 
@@ -18,10 +18,6 @@ vi.mock("@onesignal/node-onesignal", async (importOriginal) => ({
     createNotification = mocks.createNotification;
   },
 }));
-
-afterEach(() => {
-  vi.clearAllMocks();
-});
 
 describe("onesignal", () => {
   it("sends a notification", async () => {

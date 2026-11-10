@@ -425,25 +425,22 @@ describe("level option", () => {
     vi.spyOn(publicClient, "simulateContract").mockImplementationOnce(() => {
       throw new Error("operational failure");
     });
-    const initialCalls = vi.mocked(captureException).mock.calls.length;
     await expect(
       keeper.exaSend(
         { name: "test transfer", op: "test.transfer" },
         { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
       ),
     ).rejects.toThrow("operational failure");
-    const calls = vi.mocked(captureException).mock.calls.slice(initialCalls);
-    expect(calls).toContainEqual([
+    expect(captureException).toHaveBeenCalledWith(
       expect.objectContaining({ message: "operational failure" }),
       expect.objectContaining({ level: "error" }),
-    ]);
+    );
   });
 
   it("captures with static warning level", async () => {
     vi.spyOn(publicClient, "simulateContract").mockImplementationOnce(() => {
       throw new Error("test warning");
     });
-    const initialCalls = vi.mocked(captureException).mock.calls.length;
     await expect(
       keeper.exaSend(
         { name: "test transfer", op: "test.transfer" },
@@ -451,18 +448,16 @@ describe("level option", () => {
         { level: "warning" },
       ),
     ).rejects.toThrow("test warning");
-    const calls = vi.mocked(captureException).mock.calls.slice(initialCalls);
-    expect(calls).toContainEqual([
+    expect(captureException).toHaveBeenCalledWith(
       expect.objectContaining({ message: "test warning" }),
       expect.objectContaining({ level: "warning" }),
-    ]);
+    );
   });
 
   it("suppresses capture with false", async () => {
     vi.spyOn(publicClient, "simulateContract").mockImplementationOnce(() => {
       throw new Error("suppressed");
     });
-    const initialCalls = vi.mocked(captureException).mock.calls.length;
     await expect(
       keeper.exaSend(
         { name: "test transfer", op: "test.transfer" },
@@ -470,8 +465,7 @@ describe("level option", () => {
         { level: false },
       ),
     ).rejects.toThrow("suppressed");
-    const calls = vi.mocked(captureException).mock.calls.slice(initialCalls);
-    expect(calls.some(([error]) => error instanceof Error && error.message === "suppressed")).toBe(false);
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it("calls level function with reason and error", async () => {
@@ -485,7 +479,6 @@ describe("level option", () => {
     const levelFunction = vi
       .fn<(reason: string, error: unknown) => "error" | "warning" | false>()
       .mockReturnValue("warning");
-    const initialCalls = vi.mocked(captureException).mock.calls.length;
     await expect(
       keeper.exaSend(
         { name: "test transfer", op: "test.transfer" },
@@ -494,8 +487,7 @@ describe("level option", () => {
       ),
     ).rejects.toThrow();
     expect(levelFunction).toHaveBeenCalledWith(expect.stringContaining("InsufficientShortfall"), contractError);
-    const calls = vi.mocked(captureException).mock.calls.slice(initialCalls);
-    expect(calls).toContainEqual([contractError, expect.objectContaining({ level: "warning" })]);
+    expect(captureException).toHaveBeenCalledWith(contractError, expect.objectContaining({ level: "warning" }));
   });
 
   it("suppresses capture when level function returns false", async () => {
@@ -506,7 +498,6 @@ describe("level option", () => {
         { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
       );
     });
-    const initialCalls = vi.mocked(captureException).mock.calls.length;
     await expect(
       keeper.exaSend(
         { name: "test transfer", op: "test.transfer" },
@@ -514,12 +505,7 @@ describe("level option", () => {
         { level: () => false },
       ),
     ).rejects.toThrow();
-    const calls = vi.mocked(captureException).mock.calls.slice(initialCalls);
-    expect(
-      calls.some(
-        ([error]) => error instanceof Error && "functionName" in error && error.functionName === "enterMarket",
-      ),
-    ).toBe(false);
+    expect(captureException).not.toHaveBeenCalled();
   });
 });
 
@@ -574,18 +560,16 @@ describe("trace transaction retry", () => {
     const { default: traceClient } = await import("../../utils/traceClient");
     const traceTransaction = vi.spyOn(traceClient, "traceTransaction");
     traceTransaction.mockRejectedValue(new Error("debug_traceTransaction unavailable"));
-    const initialCalls = vi.mocked(captureException).mock.calls.length;
     const receipt = await keeper.exaSend(
       { name: "test transfer", op: "test.transfer" },
       { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
     );
 
     expect(receipt?.status).toBe("success");
-    const calls = vi.mocked(captureException).mock.calls.slice(initialCalls);
-    expect(calls).toContainEqual([
+    expect(captureException).toHaveBeenCalledWith(
       expect.objectContaining({ message: "debug_traceTransaction unavailable" }),
       expect.objectContaining({ level: "error" }),
-    ]);
+    );
   });
 });
 

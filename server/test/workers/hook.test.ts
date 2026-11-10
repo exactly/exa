@@ -42,7 +42,6 @@ afterAll(async () => {
 describe("hook queue", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    vi.clearAllMocks();
   });
 
   it("publishes hook jobs", async () => {
@@ -183,7 +182,6 @@ describe("hook worker", () => {
     vi.restoreAllMocks();
     webhooks.clear();
     mocks.getWebhook.mockReset().mockImplementation((id) => Promise.resolve(webhooks.get(id)));
-    vi.clearAllMocks();
     await queue.drain(true);
     await queue.clean(0, 1000, "completed");
     await queue.clean(0, 1000, "failed");

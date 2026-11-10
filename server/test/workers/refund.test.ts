@@ -101,7 +101,6 @@ afterAll(async () => {
 describe("refund queue", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    vi.clearAllMocks();
   });
 
   it("publishes refund jobs", async () => {

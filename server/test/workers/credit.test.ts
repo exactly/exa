@@ -72,7 +72,6 @@ beforeAll(async () => {
 beforeEach(async () => {
   vi.restoreAllMocks();
   sendPushNotificationMock.mockResolvedValue({});
-  vi.clearAllMocks();
   await database.update(cards).set({ mode: 0, status: "ACTIVE" }).where(eq(cards.credentialId, "credit-worker"));
 });
 

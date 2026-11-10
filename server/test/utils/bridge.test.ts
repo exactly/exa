@@ -1093,7 +1093,6 @@ describe("bridge utils", () => {
             }),
           )
           .mockResolvedValueOnce(fetchResponse({ url: "https://kyc.bridge.xyz/link" }));
-        vi.mocked(captureException).mockClear();
 
         await expect(
           bridge.getProvider({
@@ -4535,7 +4534,6 @@ describe("bridge utils", () => {
     });
 
     it("returns an empty list when no accounts exist", async () => {
-      vi.mocked(captureException).mockClear();
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ count: 0, data: [] }));
 
       const result = await bridge.listExternalAccounts("cust-123");

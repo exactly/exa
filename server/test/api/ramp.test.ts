@@ -76,7 +76,6 @@ describe("ramp api", () => {
   });
 
   afterEach(() => {
-    vi.clearAllMocks();
     vi.restoreAllMocks();
   });
 

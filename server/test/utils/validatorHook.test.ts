@@ -2,7 +2,7 @@ import "../mocks/sentry";
 
 import { captureException } from "@sentry/node";
 import { flatten, number, object, optional, safeParse, string, type InferOutput } from "valibot";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import validatorHook from "../../utils/validatorHook";
 
@@ -24,10 +24,6 @@ describe("validation error hook", () => {
   const TestSchema = object({
     name: string(),
     optional: optional(number()),
-  });
-
-  beforeEach(() => {
-    vi.clearAllMocks();
   });
 
   it("should handle successful validation with debug function", async () => {

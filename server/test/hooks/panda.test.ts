@@ -1247,7 +1247,7 @@ describe("card operations", () => {
 
   describe("refund and reversal", () => {
     beforeEach(() => {
-      refund.enqueue.mockClear().mockResolvedValue();
+      refund.enqueue.mockResolvedValue();
     });
 
     it("enqueues reversals", async () => {
@@ -4234,6 +4234,5 @@ vi.mock("debug", () => {
 });
 
 afterEach(() => {
-  vi.clearAllMocks();
   vi.restoreAllMocks();
 });

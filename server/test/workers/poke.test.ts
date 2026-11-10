@@ -136,7 +136,6 @@ beforeEach(() => {
   vi.spyOn(publicClient, "waitForTransactionReceipt").mockImplementation((parameters) =>
     waitForReceipt({ ...parameters, checkReplacement: false, pollingInterval: 10 }),
   );
-  vi.clearAllMocks();
 });
 afterAll(async () => {
   await Promise.all([events.close(), queue.close(), poke.close()]);

@@ -1386,7 +1386,6 @@ describe("authenticated", () => {
           status: "approved",
           id: personaTemplate.id,
         });
-        vi.mocked(captureException).mockClear();
 
         const response = await appClient.index.$get(
           { query: { scope: "cardLimit" } },
@@ -2273,7 +2272,6 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
             const signature = await owner.signMessage({ message });
             const verify = { message, signature, walletAddress: owner.address, chainId: chain.id };
             await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, account));
-            const initialCalls = vi.mocked(captureException).mock.calls.length;
 
             const response = await appClient.application.$post(
               { json: { ...applicationPayload, verify } },
@@ -2285,7 +2283,7 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
               code: "invalid encryption",
               message: "bad encryption",
             });
-            expect(vi.mocked(captureException).mock.calls.slice(initialCalls)).toStrictEqual([]);
+            expect(captureException).not.toHaveBeenCalled();
           });
 
           it("returns invalid payload on unauthorized", async () => {
@@ -2310,7 +2308,6 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
             const signature = await owner.signMessage({ message });
             const verify = { message, signature, walletAddress: owner.address, chainId: chain.id };
             await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, account));
-            const initialCalls = vi.mocked(captureException).mock.calls.length;
 
             const response = await appClient.application.$post(
               { json: { ...applicationPayload, verify } },
@@ -2322,7 +2319,7 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
               code: "invalid payload",
               message: "invalid data",
             });
-            expect(vi.mocked(captureException).mock.calls.slice(initialCalls)).toStrictEqual([]);
+            expect(captureException).not.toHaveBeenCalled();
           });
 
           it("propagates panda errors with unexpected status to global handler", async () => {
@@ -2483,7 +2480,6 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
           vi.spyOn(panda, "updateApplication").mockRejectedValueOnce(
             new ServiceError("Panda", 400, '{"message":"application is no longer editable"}'),
           );
-          const initialCalls = vi.mocked(captureException).mock.calls.length;
 
           const response = await appClient.application.$patch(
             { json: { firstName: "john-updated" } },
@@ -2495,7 +2491,7 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
             code: "bad request",
             message: ["application is no longer editable"],
           });
-          expect(vi.mocked(captureException).mock.calls.slice(initialCalls)).toStrictEqual([]);
+          expect(captureException).not.toHaveBeenCalled();
         });
 
         it("propagates panda errors with unexpected status to global handler", async () => {

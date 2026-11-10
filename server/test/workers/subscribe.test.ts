@@ -49,7 +49,6 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   vi.restoreAllMocks();
-  vi.clearAllMocks();
   mocks.networks = networks("ANVIL");
   await queue.drain(true);
   await queue.clean(0, 1000, "completed");

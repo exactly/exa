@@ -977,7 +977,6 @@ describe.concurrent("authenticated", () => {
 vi.mock("@sentry/node", { spy: true });
 
 afterEach(() => {
-  vi.clearAllMocks();
   vi.restoreAllMocks();
 });
 

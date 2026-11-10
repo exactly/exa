@@ -35,7 +35,6 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.doUnmock("@exactly/common/domain");
   vi.resetModules();
-  vi.clearAllMocks();
 });
 
 beforeAll(() => {

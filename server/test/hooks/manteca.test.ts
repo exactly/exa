@@ -56,7 +56,6 @@ describe("manteca hook", () => {
   });
 
   afterEach(() => {
-    vi.clearAllMocks();
     vi.restoreAllMocks();
   });
 

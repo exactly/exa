@@ -67,7 +67,6 @@ async function verifyInput(
 
 describe("siwe verifyMessage", () => {
   afterEach(() => {
-    vi.clearAllMocks();
     vi.restoreAllMocks();
   });
 

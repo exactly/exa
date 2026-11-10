@@ -97,7 +97,6 @@ beforeEach(async () => {
   mocks.exaSend.mockReset().mockResolvedValue({});
   mocks.firewall.mockReset().mockImplementation((address) => address);
   mocks.wallet.mockReset().mockReturnValue({ exaSend: mocks.exaSend });
-  vi.clearAllMocks();
   await queue.drain(true);
   await queue.clean(0, 1000, "completed");
   await queue.clean(0, 1000, "failed");

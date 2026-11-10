@@ -91,7 +91,6 @@ describe("authentication", () => {
   });
 
   afterEach(async () => {
-    vi.clearAllMocks();
     await redis.del("session:test-session");
   });
 
@@ -822,7 +821,6 @@ describe("registration", () => {
   });
 
   afterEach(async () => {
-    vi.clearAllMocks();
     await redis.del("session:test-session");
   });
 
