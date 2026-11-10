@@ -11,6 +11,7 @@ import {
   type BaseIssue,
   type BaseSchema,
   type InferInput,
+  type InferOutput,
 } from "valibot";
 import { withRetry } from "viem";
 import { optimism, optimismSepolia } from "viem/chains";
@@ -22,19 +23,26 @@ import { MantecaCountryCode } from "../persona";
 import ServiceError from "../ServiceError";
 
 import type createPersona from "../persona";
+import type { AccountOutput } from "../persona";
 
 export const name = "manteca" as const;
 
 export default function manteca(key: string, url: string) {
+  let company: undefined | { expiry: number; response: Promise<InferOutput<typeof CompanyResponse>> };
   return {
     acceptTermsAndConditions,
     balances,
     convertBalanceToUsdc,
     createOrder,
+    executeQrPayment,
     getDepositDetails,
     getLimits,
+    getPaymentLock,
     getProvider,
     getQuote,
+    getSettlement,
+    getSettlements,
+    getSynthetic,
     getUser,
     initiateOnboarding,
     lockQrPayment,
@@ -76,7 +84,27 @@ export default function manteca(key: string, url: string) {
   async function createOrder(order: InferInput<typeof Order>) {
     return await request(OrderResponse, "/crypto/v2/orders", {}, order, "POST", 10_000);
   }
-  // eslint-disable-next-line unicorn/consistent-function-scoping
+  async function executeQrPayment(qrCode: string, externalId: string) {
+    return await request(
+      SyntheticResponse,
+      "/crypto/v2/synthetics/qr-payment",
+      {},
+      { qrCode, externalId },
+      "POST",
+      10_000,
+    ).catch(async (error: unknown) => {
+      if (
+        error instanceof ServiceError &&
+        typeof error.cause === "string" &&
+        (error.cause.includes(MantecaApiErrorCodes.SYNTHETIC_EXISTS) ||
+          error.cause.includes(MantecaApiErrorCodes.DUPLICATE_REQUEST))
+      ) {
+        const synthetic = await getSynthetic(externalId);
+        if (synthetic) return synthetic;
+      }
+      throw error;
+    });
+  }
   async function forwardFileToURL(sourceURL: string, destinationURL: string): Promise<void> {
     const abort = new AbortController();
     const timeout = setTimeout(() => {
@@ -128,6 +156,21 @@ export default function manteca(key: string, url: string) {
     const result = safeParse(picklist(MantecaCountryCode), countryCode);
     if (!result.success) throw new Error(`Invalid country: ${countryCode}`);
     return Nationality[result.output];
+  }
+  async function getPaymentLock(code: string) {
+    return await request(QrPaymentResponse, `/crypto/v2/payment-locks/${code}`, {}, undefined, "GET", 10_000).catch(
+      (error: unknown) => {
+        if (error instanceof ServiceError && error.status === 404) return;
+        if (
+          error instanceof ServiceError &&
+          typeof error.cause === "string" &&
+          error.cause.includes(MantecaApiErrorCodes.EXPIRED_LOCK)
+        ) {
+          return null;
+        }
+        throw error;
+      },
+    );
   }
   async function getProvider(account: Address, countryCode?: string) {
     if (!Supported[chain.id]) {
@@ -222,6 +265,58 @@ export default function manteca(key: string, url: string) {
     if (!quote) return;
     return { buyRate: quote.buy, sellRate: quote.sell };
   }
+  async function getSettlement(asset: string) {
+    const { [asset]: settlement } = await getSettlements();
+    if (!settlement) throw new Error(ErrorCodes.NOT_SUPPORTED_CURRENCY);
+    return settlement;
+  }
+  async function getSettlements() {
+    if (!company || Date.now() >= company.expiry) {
+      const previous = company?.response;
+      company = {
+        expiry: Date.now() + 10 * 60_000,
+        response: request(CompanyResponse, "/crypto/v2/company", {}, undefined, "GET", 10_000).catch(
+          (error: unknown) => {
+            if (!previous) {
+              company = undefined;
+              throw error;
+            }
+            captureException(error, { level: "warning" });
+            return previous;
+          },
+        ),
+      };
+    }
+    const { banking } = await company.response;
+    const network = Supported[chain.id];
+    return Object.fromEntries(
+      Object.entries(SettlementEntity).flatMap(([asset, entity]) => {
+        const settlement = banking.addresses.find(
+          ({ acceptedNetworks, address, legalEntity, type }) =>
+            type === "SETTLEMENT" &&
+            legalEntity === entity &&
+            network !== undefined &&
+            acceptedNetworks.includes(network) &&
+            safeParse(Address, address).success,
+        );
+        return settlement ? [[asset, parse(Address, settlement.address)] as const] : [];
+      }),
+    );
+  }
+  async function getSynthetic(externalId: string) {
+    return await request(SyntheticResponse, `/crypto/v2/synthetics/${externalId}`, {}, undefined, "GET", 10_000).catch(
+      (error: unknown) => {
+        if (
+          error instanceof ServiceError &&
+          typeof error.cause === "string" &&
+          error.cause.includes(MantecaApiErrorCodes.SYNTHETIC_NOT_FOUND)
+        ) {
+          return null;
+        }
+        throw error;
+      },
+    );
+  }
   function getSupported(countryCode?: string): (typeof MantecaCurrency)[number][] {
     if (!countryCode) return [];
     if (isDevelopment()) return CurrenciesByExchange.ARGENTINA;
@@ -251,14 +346,15 @@ export default function manteca(key: string, url: string) {
   function isDevelopment(): boolean {
     return DevelopmentChainIds.includes(chain.id as (typeof DevelopmentChainIds)[number]);
   }
-  async function lockQrPayment(userAnyId: string, paymentDestination: string, amount?: string, against?: string) {
-    return await request(
-      QrPaymentResponse,
-      "/crypto/v2/payment-locks",
-      {},
-      { userAnyId, paymentDestination, amount, against },
-      "POST",
-      10_000,
+  async function lockQrPayment(lock: InferInput<typeof PaymentLock>) {
+    return await request(QrPaymentResponse, "/crypto/v2/payment-locks", {}, lock, "POST", 10_000).catch(
+      (error: unknown) => {
+        if (error instanceof ServiceError && typeof error.cause === "string") {
+          if (error.cause.includes(MantecaApiErrorCodes.INVALID_AMOUNT)) throw new Error(ErrorCodes.INVALID_AMOUNT);
+          if (error.cause.includes(MantecaApiErrorCodes.INVALID_QR)) throw new Error(ErrorCodes.INVALID_QR);
+        }
+        throw error;
+      },
     );
   }
   async function onboarding(account: Address, credentialId: string, persona: PersonaService) {
@@ -491,6 +587,12 @@ export default function manteca(key: string, url: string) {
   }
 }
 
+export function nationalId(account: AccountOutput<"basic">) {
+  return account.attributes.fields.documents.value.find(
+    ({ value }) => value.id_class.value === "id" && value.id_issuing_country.value === "AR",
+  )?.value;
+}
+
 // #region schemas
 export const Currency = ["ARS", "BRL", "USD"] as const;
 const DevelopmentChainIds = [optimismSepolia.id] as const;
@@ -547,6 +649,13 @@ export const OnRampSynthetic = object({
   }),
 });
 
+export const PaymentLock = object({
+  paymentDestination: string(),
+  amount: optional(string()),
+  against: optional(string()),
+  sender: object({ legalIdNationality: string(), legalId: string(), name: string(), surname: string() }),
+});
+
 export const QrPaymentResponse = object({
   code: optional(string()),
   type: string(),
@@ -554,6 +663,7 @@ export const QrPaymentResponse = object({
   userId: string(),
   userNumberId: string(),
   userExternalId: optional(string()),
+  sender: optional(object({ legalId: string() })),
   paymentRecipientName: optional(string()),
   paymentRecipientLegalId: optional(string()),
   paymentAssetAmount: string(),
@@ -563,6 +673,30 @@ export const QrPaymentResponse = object({
   expireAt: string(),
   creationTime: string(),
 });
+
+export const SyntheticStatus = ["STARTING", "ACTIVE", "WAITING", "COMPLETED", "CANCELLED"] as const;
+export const SyntheticResponse = object({
+  id: string(),
+  numberId: string(),
+  externalId: optional(string()),
+  status: picklist(SyntheticStatus),
+  type: string(),
+});
+
+const CompanyResponse = object({
+  banking: object({
+    addresses: array(
+      object({
+        acceptedNetworks: optional(array(string()), []),
+        address: string(),
+        legalEntity: string(),
+        type: string(),
+      }),
+    ),
+  }),
+});
+
+const SettlementEntity = { ARS: "WALLET_ARG", BRL: "CRYPTO_GLOBAL" };
 
 export const QuoteResponse = object({ ticker: string(), timestamp: string(), buy: string(), sell: string() });
 
@@ -756,15 +890,25 @@ export const ErrorCodes = {
   NOT_SUPPORTED_CHAIN_ID: "not supported chain id",
   NOT_SUPPORTED_CURRENCY: "not supported currency",
   MANTECA_USER_INACTIVE: "manteca user inactive",
+  EXPIRED_LOCK: "expired lock",
+  INVALID_AMOUNT: "invalid amount",
   INVALID_LEGAL_ID: "invalid legal id",
   INVALID_ORDER_SIZE: "invalid order size",
+  INVALID_PAYMENT: "invalid payment",
+  INVALID_QR: "invalid qr",
   NO_PERSONA_ACCOUNT: "no persona account",
   NO_DOCUMENT: "no document",
 };
 
 const MantecaApiErrorCodes = {
+  DUPLICATE_REQUEST: "DUPLICATE_REQUEST",
+  EXPIRED_LOCK: "EXPIRED_LOCK",
+  INVALID_AMOUNT: "amount has wrong value",
   INVALID_LEGAL_ID: "legalId has wrong value",
   INVALID_ORDER_SIZE: "MIN_SIZE",
+  INVALID_QR: "PAYMENT_DESTINATION",
+  SYNTHETIC_EXISTS: "SYNTHETIC_EXISTS",
+  SYNTHETIC_NOT_FOUND: "SYNTHETIC_NF",
   USER_NOT_FOUND: "USER_NF",
 } as const;
 

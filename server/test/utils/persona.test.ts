@@ -1,7 +1,8 @@
 import "../mocks/sentry";
 
+import { setContext } from "@sentry/core";
 import { captureException } from "@sentry/node";
-import { array, minLength, number, object, optional, pipe, safeParse, string, union } from "valibot";
+import { array, minLength, number, object, optional, pipe, safeParse, string, union, ValiError } from "valibot";
 import { baseSepolia, optimism } from "viem/chains";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 
@@ -19,6 +20,7 @@ vi.mock("@exactly/common/generated/chain", () => ({
 vi.mock("../../utils/panda");
 vi.mock("../../utils/pax");
 
+vi.mock("@sentry/core", { spy: true });
 vi.mock("@sentry/node", { spy: true });
 
 const persona = { ...Persona, ...createPersona("persona", "https://persona.test") };
@@ -665,6 +667,25 @@ describe("evaluateAccount", () => {
       expect(result).toBeUndefined();
     });
 
+    it.each(["Prefer not to say", "Rather not say"])("returns undefined when sex is %s", async (sex) => {
+      const account = mantecaAccount.data[0];
+      const result = await persona.evaluateAccount(
+        {
+          data: [
+            {
+              ...account,
+              type: "account" as const,
+              id: "test-account-id",
+              attributes: { ...account?.attributes, fields: { ...account?.attributes.fields, sex_1: { value: sex } } },
+            },
+          ],
+        },
+        "manteca",
+      );
+
+      expect(result).toBeUndefined();
+    });
+
     it("throws when schema validation fails", async () => {
       await expect(
         persona.evaluateAccount(
@@ -1029,6 +1050,16 @@ describe("getUnknownAccount", () => {
     expect(fetchSpy).toHaveBeenCalledOnce();
     expect(fetchSpy.mock.calls[0]?.[0]).toContain("/accounts?page[size]=1&filter[reference-id]=ref_123");
     expect(result).toStrictEqual({ data: [account] });
+  });
+
+  it("sets the validation issues as context without the account", async () => {
+    fetchSpy.mockResolvedValueOnce(Response.json({ data: [{ id: 1, type: "account", attributes: {} }] }));
+
+    await expect(persona.getUnknownAccount("ref_123")).rejects.toThrow(ValiError);
+
+    expect(setContext).toHaveBeenCalledExactlyOnceWith("validation", {
+      flatten: { nested: { "data.0.id": ["Invalid type: Expected string but received 1"] } },
+    });
   });
 
   it("parses accounts with null fields", async () => {
