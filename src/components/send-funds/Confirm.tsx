@@ -11,6 +11,7 @@ import { AnimatePresence, ScrollView, Separator, Square, XStack, YStack } from "
 
 import { ChainType } from "@lifi/sdk";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
+import { readContract } from "@wagmi/core/actions";
 import { parse, safeParse } from "valibot";
 import {
   encodeEventTopics,
@@ -21,6 +22,7 @@ import {
   maxUint256,
   parseAbi,
   zeroAddress as viemZeroAddress,
+  zeroHash,
 } from "viem";
 import { useReadContract, useSimulateContract } from "wagmi";
 
@@ -300,6 +302,53 @@ export default function Confirm() {
   }, [external?.address, zeroAddress]);
 
   const isNativeTransfer = !!external && externalAddress === zeroAddress;
+  const payNetwork = chains?.find((item) => item.id === payChain);
+  const {
+    data: wrap,
+    error: lookupError,
+    isEnabled: isWrapEnabled,
+    isFetching: isWrapFetching,
+    refetch: refetchWrap,
+  } = useQuery({
+    queryKey: ["lifi", "wrapper", payChain],
+    queryFn: async () => {
+      const networks = await queryClient.ensureQueryData(lifiChainsOptions);
+      const { diamondAddress } = networks.find((item) => item.id === payChain) ?? {};
+      if (!diamondAddress) throw new Error(`unsupported chain ${payChain}`);
+      const diamond = getAddress(diamondAddress);
+      const wrapper = await readContract(exa, {
+        address: diamond,
+        chainId: payChain,
+        abi: parseAbi(["function getPeripheryContract(string name) view returns (address)"]),
+        functionName: "getPeripheryContract",
+        args: ["TokenWrapper"],
+      });
+      return {
+        diamond,
+        wrapper,
+        token: await readContract(exa, {
+          address: wrapper,
+          chainId: payChain,
+          abi: parseAbi(["function wrappedToken() view returns (address)"]),
+          functionName: "wrappedToken",
+        }).catch(async () => {
+          const abi = parseAbi([
+            "function WRAPPED_TOKEN() view returns (address)",
+            "function CONVERTER() view returns (address)",
+          ]);
+          const [token, converter] = await Promise.all([
+            readContract(exa, { address: wrapper, chainId: payChain, abi, functionName: "WRAPPED_TOKEN" }),
+            readContract(exa, { address: wrapper, chainId: payChain, abi, functionName: "CONVERTER" }),
+          ]);
+          if (converter !== token) throw new Error("unsupported wrapper");
+          return token;
+        }),
+      };
+    },
+    enabled: isNativeTransfer && !routed,
+    staleTime: Infinity,
+  });
+  const wrapError = isWrapEnabled && !wrap ? lookupError : null;
 
   const {
     data: erc20TransferSimulation,
@@ -340,17 +389,55 @@ export default function Confirm() {
       return routeCalls(route, isNativeTransfer ? maxUint256 : (approved ?? 0n));
     }
     if (!receiverHex || receiverHex === zeroAddress) return;
+    if (isNativeTransfer) {
+      if (!wrap) return;
+      return [
+        {
+          to: wrap.token,
+          value: fromAmount,
+          data: encodeFunctionData({ abi: parseAbi(["function deposit() payable"]), functionName: "deposit" }),
+        },
+        {
+          to: wrap.token,
+          data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [wrap.diamond, fromAmount] }),
+        },
+        {
+          to: wrap.diamond,
+          data: encodeFunctionData({
+            abi: parseAbi([
+              "struct SwapData { address callTo; address approveTo; address sendingAssetId; address receivingAssetId; uint256 fromAmount; bytes callData; bool requiresDeposit; }",
+              "function swapTokensSingleV3ERC20ToNative(bytes32 transactionId, string integrator, string referrer, address receiver, uint256 minAmountOut, SwapData swapData)",
+            ]),
+            functionName: "swapTokensSingleV3ERC20ToNative",
+            args: [
+              zeroHash,
+              "exa_app",
+              "",
+              receiverHex,
+              fromAmount,
+              {
+                callTo: wrap.wrapper,
+                approveTo: wrap.wrapper,
+                sendingAssetId: wrap.token,
+                receivingAssetId: zeroAddress,
+                fromAmount,
+                callData: encodeFunctionData({ abi: parseAbi(["function withdraw()"]), functionName: "withdraw" }),
+                requiresDeposit: true,
+              },
+            ],
+          }),
+        },
+      ];
+    }
     return [
-      isNativeTransfer
-        ? { to: receiverHex, value: fromAmount }
-        : {
-            to: externalAddress,
-            data: encodeFunctionData({
-              abi: parseAbi(["function transfer(address to, uint256 amount)"]),
-              functionName: "transfer",
-              args: [receiverHex, fromAmount],
-            }),
-          },
+      {
+        to: externalAddress,
+        data: encodeFunctionData({
+          abi: parseAbi(["function transfer(address to, uint256 amount)"]),
+          functionName: "transfer",
+          args: [receiverHex, fromAmount],
+        }),
+      },
     ];
   }, [
     address,
@@ -363,6 +450,7 @@ export default function Confirm() {
     receiverHex,
     route,
     routed,
+    wrap,
     zeroAddress,
   ]);
   const spend =
@@ -389,7 +477,6 @@ export default function Confirm() {
     placeholderData: keepPreviousData,
   });
 
-  const payNetwork = chains?.find((item) => item.id === payChain);
   const nativeToken = payNetwork?.nativeToken;
   const sponsored = payChain === chain.id;
   const networkCost = sponsored ? 0n : nativeToken ? transferEstimate?.cost : undefined;
@@ -437,7 +524,7 @@ export default function Confirm() {
         const { address: to, abi, functionName, args } = proposeSimulation;
         return sendCalls([{ to, data: encodeFunctionData({ abi, functionName, args }) }]);
       }
-      if (isNativeTransfer && receiverHex) return sendCalls([{ to: receiverHex, value: fromAmount }]);
+      if (isNativeTransfer && calls) return sendCalls(calls);
       if (erc20TransferSimulation) {
         const { address: to, abi, functionName, args } = erc20TransferSimulation.request;
         return sendCalls([{ to, data: encodeFunctionData({ abi, functionName, args }) }]);
@@ -600,7 +687,7 @@ export default function Confirm() {
       : transferEstimateError
     : market
       ? proposeError
-      : (erc20TransferError ?? transferEstimateError);
+      : (erc20TransferError ?? wrapError ?? transferEstimateError);
   const tool = route?.tool;
   const { data: dust } = useReadContract({
     address: route?.wrapped && payUnderlying ? getAddress(payUnderlying) : undefined,
@@ -957,7 +1044,7 @@ export default function Confirm() {
                       : isRouteFetching || (!destination && isTokensFetching)
                     : market
                       ? !proposeSimulation && !proposeError && isProposePending
-                      : isErc20TransferSimulating || isTransferEstimating
+                      : isErc20TransferSimulating || isWrapFetching || isTransferEstimating
                 }
                 overflow="hidden"
                 {...(web
@@ -1043,7 +1130,11 @@ export default function Confirm() {
                     loading={
                       failure !== "route" &&
                       failure !== "liquidity" &&
-                      (isRouteFetching || isTokensFetching || isErc20TransferSimulating || isTransferEstimating)
+                      (isRouteFetching ||
+                        isTokensFetching ||
+                        isErc20TransferSimulating ||
+                        isWrapFetching ||
+                        isTransferEstimating)
                     }
                     onPress={() => {
                       switch (failure) {
@@ -1061,9 +1152,13 @@ export default function Confirm() {
                           if (market) {
                             (routed ? refetchBridgePropose() : refetchPropose()).catch(reportError);
                           } else {
-                            (isNativeTransfer || routed
-                              ? refetchTransferEstimate()
-                              : Promise.all([refetchErc20Transfer(), refetchTransferEstimate()])
+                            (wrapError
+                              ? refetchWrap()
+                              : routed
+                                ? refetchTransferEstimate()
+                                : isNativeTransfer
+                                  ? refetchTransferEstimate().then(({ error }) => error && refetchWrap())
+                                  : Promise.all([refetchErc20Transfer(), refetchTransferEstimate()])
                             ).catch(reportError);
                           }
                           break;
