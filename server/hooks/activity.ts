@@ -170,9 +170,10 @@ export default function hook({
             },
           ),
         };
-        const known = marketsByAsset.has(underlying)
-          ? Promise.resolve(true)
-          : isKnownToken(chain.id, underlying, redis);
+        const known =
+          asset === ETH || marketsByAsset.has(underlying)
+            ? Promise.resolve(true)
+            : isKnownToken(chain.id, underlying, redis);
         known
           .then((isKnown) => (isKnown ? onesignal.sendPushNotification(notification) : undefined))
           .catch((error: unknown) => captureException(error, { level: "error" }));

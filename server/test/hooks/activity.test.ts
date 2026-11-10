@@ -603,6 +603,45 @@ describe("address activity", () => {
       expect(response.status).toBe(200);
     });
 
+    it("notifies native coins without checking lifi", async () => {
+      const mainnet = NETWORKS.get("ETH_MAINNET");
+      if (!mainnet) throw new Error("missing ETH_MAINNET");
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+      const sendPushNotification = sendPushNotificationMock;
+
+      const response = await appClient.index.$post({
+        ...activityPayload,
+        json: {
+          ...activityPayload.json,
+          webhookId: "ETH_MAINNET",
+          event: {
+            network: "ETH_MAINNET",
+            activity: [{ ...activityPayload.json.event.activity[0], toAddress: account, value: 2 }],
+          },
+        },
+      });
+
+      await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0, 5000);
+
+      expect(fetchSpy).not.toHaveBeenCalledWith(expect.stringContaining("/tokens?chains="), expect.anything());
+      expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
+        userId: account,
+        headings: t("Funds received"),
+        contents: t("{{amount}} received", { amount: { en: "2 ETH", es: "2 ETH", pt: "2 ETH" } }),
+      });
+      expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
+        account,
+        assets: ["0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
+        chainId: mainnet.id,
+        factory: exaAccountFactoryAddress,
+        origin: "activity",
+        publicKey: owner.address.toLowerCase(),
+        source: null,
+      });
+      expect(captureException).not.toHaveBeenCalled();
+      expect(response.status).toBe(200);
+    });
+
     it("fetches separately per chain and does not share cache between chains", async () => {
       const arbMainnet = NETWORKS.get("ARB_MAINNET");
       if (!arbMainnet) throw new Error("missing ARB_MAINNET");
