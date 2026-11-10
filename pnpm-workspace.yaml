@@ -52,7 +52,7 @@ catalog:
   "@nx/eslint": *nx
   "@nx/eslint-plugin": *nx
   "@nx/js": *nx
-  "@sentry/core": &sentry ^10.71.0
+  "@sentry/core": &sentry ^10.78.0
   "@sentry/node": *sentry
   "@sentry/profiling-node": *sentry
   tamagui: &tamagui ^3.2.0

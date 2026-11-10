@@ -189,14 +189,14 @@ catalogs:
       specifier: ^23.2.1
       version: 23.2.1
     '@sentry/core':
-      specifier: ^10.71.0
-      version: 10.71.0
+      specifier: ^10.78.0
+      version: 10.78.0
     '@sentry/node':
-      specifier: ^10.71.0
-      version: 10.71.0
+      specifier: ^10.78.0
+      version: 10.78.0
     '@sentry/profiling-node':
-      specifier: ^10.71.0
-      version: 10.71.0
+      specifier: ^10.78.0
+      version: 10.78.0
     '@tamagui/animations-reanimated':
       specifier: ^3.2.0
       version: 3.2.0
@@ -254,10 +254,10 @@ overrides:
   '@modelcontextprotocol/server@2.0.0': ^2.3.1
   '@opentelemetry/core@<2.8.0': ^2.12.0
   '@opentelemetry/sdk-node@<0.217.0': ^0.223.0
-  '@sentry/core@10': ^10.71.0
-  '@sentry/node@9': ^10.71.0
-  '@sentry/node@10': ^10.71.0
-  '@sentry/profiling-node@10': ^10.71.0
+  '@sentry/core@10': ^10.78.0
+  '@sentry/node@9': ^10.78.0
+  '@sentry/node@10': ^10.78.0
+  '@sentry/profiling-node@10': ^10.78.0
   '@tamagui/core': ^3.2.0
   '@tamagui/web': ^3.2.0
   '@valora/viem-account-hsm-gcp@1.2.19>@google-cloud/kms': ^6.0.0
@@ -398,11 +398,11 @@ importers:
         specifier: ^1.84.1
         version: 1.84.1
       '@sentry/browser':
-        specifier: ^10.46.0
-        version: 10.46.0
+        specifier: ^10.78.0
+        version: 10.78.0
       '@sentry/react-native':
-        specifier: ^8.6.0
-        version: 8.6.0(expo@55.0.9)(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)
+        specifier: ^8.34.0
+        version: 8.34.0(@babel/core@7.29.0)(@expo/config-types@55.0.5)(@expo/config@55.0.11(typescript@5.9.3))(@expo/env@2.1.1)(@react-navigation/native@7.2.1(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0))(dotenv@17.4.2)(expo-router@55.0.8)(expo-updates@55.0.16(expo@55.0.9)(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)(typescript@5.9.3))(expo@55.0.9)(metro-config@0.81.5(bufferutil@4.1.0)(utf-8-validate@5.0.10))(open@10.1.0)(promise@8.3.0)(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)(rollup@4.60.0)
       '@simplewebauthn/browser':
         specifier: ^13.3.0
         version: 13.3.0
@@ -896,10 +896,10 @@ importers:
         version: 5.6.1
       modular-account:
         specifier: alchemyplatform/modular-account#c81e7122eb46e13447afa3f2e0d2537cf2792beb
-        version: https://codeload.github.com/alchemyplatform/modular-account/tar.gz/c81e7122eb46e13447afa3f2e0d2537cf2792beb
+        version: git+https://github.com/alchemyplatform/modular-account.git#c81e7122eb46e13447afa3f2e0d2537cf2792beb
       modular-account-libs:
         specifier: erc6900/modular-account-libs#v0.7.1
-        version: https://codeload.github.com/erc6900/modular-account-libs/tar.gz/5d9d0e403332251045eee2954c2a8b7ea0bae953
+        version: git+https://github.com/erc6900/modular-account-libs.git#5d9d0e403332251045eee2954c2a8b7ea0bae953
       solady:
         specifier: ^0.1.26
         version: 0.1.26
@@ -908,10 +908,10 @@ importers:
         version: solady@0.0.227
       webauthn-owner-plugin:
         specifier: exactly/webauthn-owner-plugin#9c0c38b
-        version: https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/9c0c38bd63c2aa70b60c03c815e9de108e264cda
+        version: git+https://github.com/exactly/webauthn-owner-plugin.git#9c0c38bd63c2aa70b60c03c815e9de108e264cda
       webauthn-sol:
         specifier: base/webauthn-sol#v1.0.0
-        version: https://codeload.github.com/base/webauthn-sol/tar.gz/619f20ab0f074fef41066ee4ab24849a913263b2
+        version: git+https://github.com/base/webauthn-sol.git#619f20ab0f074fef41066ee4ab24849a913263b2
     devDependencies:
       '@exactly/protocol':
         specifier: ^0.2.25
@@ -930,22 +930,22 @@ importers:
         version: '@openzeppelin/contracts@4.9.6'
       account-abstraction:
         specifier: eth-infinitism/account-abstraction#v0.6.0
-        version: accountabstraction@https://codeload.github.com/eth-infinitism/account-abstraction/tar.gz/abff2aca61a8f0934e533d0d352978055fddbd96
+        version: accountabstraction@git+https://github.com/eth-infinitism/account-abstraction.git#abff2aca61a8f0934e533d0d352978055fddbd96
       forge-std:
         specifier: foundry-rs/forge-std#v1.15.0
-        version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/0844d7e1fc5e60d77b68e469bff60265f236c398
+        version: git+https://github.com/foundry-rs/forge-std.git#0844d7e1fc5e60d77b68e469bff60265f236c398
       fresh-crypto-lib:
         specifier: rdubois-crypto/FreshCryptoLib#fd2a0e6e64609ade0b0c165e4d66de8106a70db6
-        version: https://codeload.github.com/rdubois-crypto/FreshCryptoLib/tar.gz/fd2a0e6e64609ade0b0c165e4d66de8106a70db6
+        version: git+https://github.com/rdubois-crypto/FreshCryptoLib.git#fd2a0e6e64609ade0b0c165e4d66de8106a70db6
       solhint:
         specifier: ^6.1.0
         version: 6.1.0(typescript@5.9.3)
       solmate:
         specifier: transmissions11/solmate#v7
-        version: '@rari-capital/solmate@https://codeload.github.com/transmissions11/solmate/tar.gz/eaa7041378f9a6c12f943de08a6c41b31a9870fc'
+        version: '@rari-capital/solmate@git+https://github.com/transmissions11/solmate.git#eaa7041378f9a6c12f943de08a6c41b31a9870fc'
       surl:
         specifier: memester-xyz/surl
-        version: https://codeload.github.com/memester-xyz/surl/tar.gz/5f92a5260c8e0198ca3ee6a16255d6cda4e0887a
+        version: git+https://github.com/memester-xyz/surl.git#5f92a5260c8e0198ca3ee6a16255d6cda4e0887a
       typescript:
         specifier: 'catalog:'
         version: 5.9.3
@@ -1054,13 +1054,13 @@ importers:
         version: 3.0.0
       '@sentry/core':
         specifier: 'catalog:'
-        version: 10.71.0
+        version: 10.78.0
       '@sentry/node':
         specifier: 'catalog:'
-        version: 10.71.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))
+        version: 10.78.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))
       '@sentry/profiling-node':
         specifier: 'catalog:'
-        version: 10.71.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))
+        version: 10.78.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))
       '@simplewebauthn/server':
         specifier: ^13.3.3
         version: 13.3.3
@@ -1244,7 +1244,7 @@ importers:
         version: 9.0.4(debug@4.4.3)
       webauthn-owner-plugin:
         specifier: exactly/webauthn-owner-plugin#9c0c38b
-        version: https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/9c0c38bd63c2aa70b60c03c815e9de108e264cda
+        version: git+https://github.com/exactly/webauthn-owner-plugin.git#9c0c38bd63c2aa70b60c03c815e9de108e264cda
 
 packages:
 
@@ -1339,17 +1339,6 @@ packages:
   '@apidevtools/json-schema-ref-parser@13.0.5':
     resolution: {integrity: sha512-xfh4xVJD62gG6spIc7lwxoWT+l16nZu1ELyU8FkjaP/oD2yP09EvLAU6KhtudN9aML2Khhs9pY6Slr7KGTES3w==}
     engines: {node: '>= 16'}
-
-  '@apm-js-collab/code-transformer-bundler-plugins@0.7.4':
-    resolution: {integrity: sha512-nAfOeZPSUAQvJa1iFT/5oCrTm5YQhMMrfCNthNnaXHZiOQhu1KGuLoIx7HtbAi3wfwaBYLaICPIeenIaEwcXIg==}
-    engines: {node: '>=18.0.0'}
-
-  '@apm-js-collab/code-transformer@0.18.1':
-    resolution: {integrity: sha512-u1Hb6bHjWtkSpiprwVP6YaHC1DTN4RAU3zYkUDUe7WMnJwdyU1pwTL9dFKiSJB9IiLue/EQovmyx6xhU7FFtAQ==}
-    hasBin: true
-
-  '@apm-js-collab/tracing-hooks@0.13.0':
-    resolution: {integrity: sha512-mTvWz9rnQwx1U3h0XPTHaX7bgfkpipLLTQyjlC2cdhQpQEuoLT0AGzoydeoq2NxfEVv6fWOOETcSbb2nptleyw==}
 
   '@astrojs/compiler-binding-android-arm64@0.5.2':
     resolution: {integrity: sha512-kckIxon6Rm/Bxzh9mGPYpRRqUbToUQoHptCmpMmE+Yt0Xumq8CqrKUidyYhrBsrHVO7bxuRzzWUUqvpf+iYceQ==}
@@ -5458,8 +5447,8 @@ packages:
       '@types/react':
         optional: true
 
-  '@rari-capital/solmate@https://codeload.github.com/transmissions11/solmate/tar.gz/eaa7041378f9a6c12f943de08a6c41b31a9870fc':
-    resolution: {gitHosted: true, integrity: sha512-IDkimq4MCCW59JG5wNc9rnNXYnoqPNeu+BI6d7TmQrn6b7w4Cyd17CF8Si8ch4ZTwboDGMpGmr4lo8PJ5pdNXA==, tarball: https://codeload.github.com/transmissions11/solmate/tar.gz/eaa7041378f9a6c12f943de08a6c41b31a9870fc}
+  '@rari-capital/solmate@git+https://github.com/transmissions11/solmate.git#eaa7041378f9a6c12f943de08a6c41b31a9870fc':
+    resolution: {commit: eaa7041378f9a6c12f943de08a6c41b31a9870fc, repo: https://github.com/transmissions11/solmate.git, type: git}
     version: 7.0.0-alpha.3
 
   '@react-native-async-storage/async-storage@2.2.0':
@@ -5991,33 +5980,29 @@ packages:
   '@segment/isodate@1.0.3':
     resolution: {integrity: sha512-BtanDuvJqnACFkeeYje7pWULVv8RgZaqKHWwGFnL/g/TH/CcZjkIVTfGDp/MAxmilYHUkrX70SqwnYSTNEaN7A==}
 
-  '@sentry-internal/browser-utils@10.46.0':
-    resolution: {integrity: sha512-WB1gBT9G13V02ekZ6NpUhoI1aGHV2eNfjEPthkU2bGBvFpQKnstwzjg7waIRGR7cu+YSW2Q6UI6aQLgBeOPD1g==}
+  '@sentry/browser-utils@10.78.0':
+    resolution: {integrity: sha512-zlIrDub15KsHb0CacqDSnXevV0Z67IvfhB/5zb6I/DavIfMHJC4urvIXMkLzSktfAbLB3m7cQpMoqQBhhoB1kQ==}
     engines: {node: '>=18'}
 
-  '@sentry-internal/feedback@10.46.0':
-    resolution: {integrity: sha512-c4pI/z9nZCQXe9GYEw/hE/YTY9AxGBp8/wgKI+T8zylrN35SGHaXv63szzE1WbI8lacBY8lBF7rstq9bQVCaHw==}
+  '@sentry/browser@10.78.0':
+    resolution: {integrity: sha512-azZBJHq5XxOhQAKdMpkBR7ERR0fSaTS+aQzfayicFk/xMepmFjWgAm2Vph1od2ULyY0OCadIfipCpu/cbsIJMA==}
     engines: {node: '>=18'}
 
-  '@sentry-internal/replay-canvas@10.46.0':
-    resolution: {integrity: sha512-ub314MWUsekVCuoH0/HJbbimlI24SkV745UW2pj9xRbxOAEf1wjkmIzxKrMDbTgJGuEunug02XZVdJFJUzOcDw==}
-    engines: {node: '>=18'}
-
-  '@sentry-internal/replay@10.46.0':
-    resolution: {integrity: sha512-JBsWeXG6bRbxBFK8GzWymWGOB9QE7Kl57BeF3jzgdHTuHSWZ2mRnAmb1K05T4LU+gVygk6yW0KmdC8Py9Qzg9A==}
-    engines: {node: '>=18'}
-
-  '@sentry/babel-plugin-component-annotate@5.1.1':
-    resolution: {integrity: sha512-x2wEpBHwsTyTF2rWsLKJlzrRF1TTIGOfX+ngdE+Yd5DBkoS58HwQv824QOviPGQRla4/ypISqAXzjdDPL/zalg==}
+  '@sentry/bundler-plugins@10.78.0':
+    resolution: {integrity: sha512-vI52/j8xjDewXfbfdL0V/wKPMUUAp6e5rf5Xww8lJB9cNhCT5nQ71c78GE48wFuDEn7PuD9e9t6gvYujrESZkA==}
     engines: {node: '>= 18'}
+    peerDependencies:
+      rollup: '>=3.2.0'
+      webpack: '>=5.0.0'
+    peerDependenciesMeta:
+      rollup:
+        optional: true
+      webpack:
+        optional: true
 
-  '@sentry/browser@10.46.0':
-    resolution: {integrity: sha512-80DmGlTk5Z2/OxVOzLNxwolMyouuAYKqG8KUcoyintZqHbF6kO1RulI610HmyUt3OagKeBCqt9S7w0VIfCRL+Q==}
-    engines: {node: '>=18'}
-
-  '@sentry/cli-darwin@3.3.4':
-    resolution: {integrity: sha512-1cFHgwJq0yJ4lAvxQISag2R5R/wRtY7e4YX54Da4n+Isw1WHdF2CLmdT0ufOyT04iiF406UD2d7qsPEVDniAmw==}
-    engines: {node: '>=18'}
+  '@sentry/cli-darwin@2.58.6':
+    resolution: {integrity: sha512-udAVvcyfNa0R+95GvPz/+43/N3TC0TYKdkQ7D7jhPSzbcMc7l2fxRNN5yB3UpCA5fWFnW4toeaqwDBhb/Wh3LA==}
+    engines: {node: '>=10'}
     os: [darwin]
 
   '@sentry/cli-darwin@3.6.2':
@@ -6025,9 +6010,14 @@ packages:
     engines: {node: '>=18'}
     os: [darwin]
 
-  '@sentry/cli-linux-arm64@3.3.4':
-    resolution: {integrity: sha512-SD9YQjUPXjIBkt4q41lHMopeL9lKskaxc7qpt1ZuQpoHOszDOUNP3WPvxpeiaMjFMmgMkGojyDBk2XY9eyfGNQ==}
+  '@sentry/cli-darwin@3.8.2':
+    resolution: {integrity: sha512-S9xIhtpPk5uU0J0dMLz5VCtlBn+OHjG7En8HkZNGYsleNACQOwcG5wcfAnGuq+7x643KrEOubtd1VPtGfrBHsQ==}
     engines: {node: '>=18'}
+    os: [darwin]
+
+  '@sentry/cli-linux-arm64@2.58.6':
+    resolution: {integrity: sha512-q8mEcNNmeXMy5i+jWT30TVpH7LcP4HD21CD5XRSPAd/a912HF6EpK0ybf/1USO14WOhoXbAGi9txwaWabSe33g==}
+    engines: {node: '>=10'}
     cpu: [arm64]
     os: [linux, freebsd, android]
 
@@ -6037,9 +6027,15 @@ packages:
     cpu: [arm64]
     os: [linux, freebsd, android]
 
-  '@sentry/cli-linux-arm@3.3.4':
-    resolution: {integrity: sha512-8XDDmUZ/4X7Dw2hoSU6T9tpD8qMwtVKHYLQjcY+xNBQujPrSq+YCrNXK/iIN9UgX8Rza2q4IftsIkJADOxLFow==}
+  '@sentry/cli-linux-arm64@3.8.2':
+    resolution: {integrity: sha512-sWKkGTSOqRmGW8d2Q6ir1gBEkvfXWNbDxcf/dF0MJt8q9p594k+04GOm5mZ/VAePKGzs9W8fXE1xfmZ/UNCLcQ==}
     engines: {node: '>=18'}
+    cpu: [arm64]
+    os: [linux, freebsd, android]
+
+  '@sentry/cli-linux-arm@2.58.6':
+    resolution: {integrity: sha512-pD0LAt5PcUzAinBwvDqc66x9+2CabHEv486yP0gRjWO7SakbaxmfVq/EXd8VLq/Tzi39LAu422UYK1lpW3MILw==}
+    engines: {node: '>=10'}
     cpu: [arm]
     os: [linux, freebsd, android]
 
@@ -6049,9 +6045,15 @@ packages:
     cpu: [arm]
     os: [linux, freebsd, android]
 
-  '@sentry/cli-linux-i686@3.3.4':
-    resolution: {integrity: sha512-LNQlRDPrHLTDgxxJsAzT+1+sJ8Kv/Lq8E4Ob8RjqkwuZxl/wR6QJ4O83cxYGJPPnmjEAT+lOUQt1pTPXAwIwLQ==}
+  '@sentry/cli-linux-arm@3.8.2':
+    resolution: {integrity: sha512-maj9TXsnyWqNKs+UTHc+/gpsvXPVlCbheH+QHaBx8FD9u0B56REVDfxKUSCzeC9eTGDf0eKAFxbxWiMXKG4B5Q==}
     engines: {node: '>=18'}
+    cpu: [arm]
+    os: [linux, freebsd, android]
+
+  '@sentry/cli-linux-i686@2.58.6':
+    resolution: {integrity: sha512-q8vNJi1eOV/4vxAFWBsEwLHoSYapaZHIf4j76KJGJXFKTkEbsjCOOsKbwUIBTQQhRgV4DFWh3ryfsPS/que4Kg==}
+    engines: {node: '>=10'}
     cpu: [x86, ia32]
     os: [linux, freebsd, android]
 
@@ -6061,9 +6063,15 @@ packages:
     cpu: [x86, ia32]
     os: [linux, freebsd, android]
 
-  '@sentry/cli-linux-x64@3.3.4':
-    resolution: {integrity: sha512-yEOVI4a0RTBYcHJBEaiFU2s4GzcfkXDToMUeLlUg4B3Bgz8AX76163RTEJH5dKavKkoMLKzOrKgVylXPxo1JLQ==}
+  '@sentry/cli-linux-i686@3.8.2':
+    resolution: {integrity: sha512-6aOKjTWGl5XEYCOOha4GO3aq5C7ISmYB8QECec8mFLWx0L3QoXdKtaNQoLUYslsSN0jEmFeOgA0U27Tp5OEBww==}
     engines: {node: '>=18'}
+    cpu: [x86, ia32]
+    os: [linux, freebsd, android]
+
+  '@sentry/cli-linux-x64@2.58.6':
+    resolution: {integrity: sha512-DZu956Mhi3ZRjTBe1WdbGV46ldVbA8d2rgp/fh51GsI25zjBHah4wZnPTSzpc+YqxU6pJpg579B/r3jrIK530Q==}
+    engines: {node: '>=10'}
     cpu: [x64]
     os: [linux, freebsd, android]
 
@@ -6073,9 +6081,15 @@ packages:
     cpu: [x64]
     os: [linux, freebsd, android]
 
-  '@sentry/cli-win32-arm64@3.3.4':
-    resolution: {integrity: sha512-aLGgnIf7FHK+yRsemXGQ1yF0Q4R3D/jwCf/20k1miUgFP9fn5mZt+fArGDHr5k3vFfh3bUTf22Ga4CUwXqwkvQ==}
+  '@sentry/cli-linux-x64@3.8.2':
+    resolution: {integrity: sha512-icx2NoqaxuE4H5khIoRCB/MDX76/kKbDZFvJe/UYloGp9aucxi6c7mk8oDxFvskMFqLfbprQ6RzKH7iILmODQg==}
     engines: {node: '>=18'}
+    cpu: [x64]
+    os: [linux, freebsd, android]
+
+  '@sentry/cli-win32-arm64@2.58.6':
+    resolution: {integrity: sha512-nj0Ff/kmAB73EPDhR8B4O9r+NUHK5GkPCkGWC+kXVemqAJWL5jcJ5KdxG0l/S0z6RoEoltID8/43/B+TaMlT7A==}
+    engines: {node: '>=10'}
     cpu: [arm64]
     os: [win32]
 
@@ -6085,9 +6099,15 @@ packages:
     cpu: [arm64]
     os: [win32]
 
-  '@sentry/cli-win32-i686@3.3.4':
-    resolution: {integrity: sha512-mLD5NpgI3G3+f1iBWGqTTC1kvdQ0CzmkvM9aIRiXUYWXZiaZVd4YuqhoDvTU6zNFEUXI+9jUEp84VF171B0Pqg==}
+  '@sentry/cli-win32-arm64@3.8.2':
+    resolution: {integrity: sha512-lSzj1ywih1madjyMrTHSjJKPhvErozSsSrG7QF6yIt7dMLYX4Qh9X3puVReh1YB5mOPCX8MJPtur67YJmR1S+w==}
     engines: {node: '>=18'}
+    cpu: [arm64]
+    os: [win32]
+
+  '@sentry/cli-win32-i686@2.58.6':
+    resolution: {integrity: sha512-WNZiDzPbgsEMQWq4avsQ391v/xWKJDIWWWo9GYl+N/w5qcYKkoDW7wQG7T9FasI6ENn68phChTOAPXXxbfAdOg==}
+    engines: {node: '>=10'}
     cpu: [x86, ia32]
     os: [win32]
 
@@ -6097,9 +6117,15 @@ packages:
     cpu: [x86, ia32]
     os: [win32]
 
-  '@sentry/cli-win32-x64@3.3.4':
-    resolution: {integrity: sha512-dNWifGo3VLx7n3N3/m+7+rLGNZEb7JmnLwLLAHoz11DneCa6OTBSMCKFABArxqLinlzTbiSOYc8QbvCTcLk5FA==}
+  '@sentry/cli-win32-i686@3.8.2':
+    resolution: {integrity: sha512-k4dPGNNliNY46G/4hSeJygHlMoyMoL292IO+YP3MasBqyqPEy9hz6Py3FjUVW/Ckso52eoAVtGgb6DntFBjIWA==}
     engines: {node: '>=18'}
+    cpu: [x86, ia32]
+    os: [win32]
+
+  '@sentry/cli-win32-x64@2.58.6':
+    resolution: {integrity: sha512-R35WJ17oF4D2eqI1DR2sQQqr0fjRTt5xoP16WrTu91XM2lndRMFsnjh+/GttbxapLCBNlrjzia99MJ0PZHZpgA==}
+    engines: {node: '>=10'}
     cpu: [x64]
     os: [win32]
 
@@ -6109,9 +6135,15 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@sentry/cli@3.3.4':
-    resolution: {integrity: sha512-r97H1GTdaRs1qhTvbzyomclPesrt4vpjY2W7KGtgSOa5ynQsXKajsM5oJOtNW99O1pNNMZFlR1mmGDMHOxYm4g==}
-    engines: {node: '>= 18'}
+  '@sentry/cli-win32-x64@3.8.2':
+    resolution: {integrity: sha512-IBX5W2M3Zckpg3zOXfnNoayWTKhVlZN/b7ifO7dRArkOsNRzVa2lNB5M7L28O0/ZYu/8V+SnzCoHVGN9bxRdwg==}
+    engines: {node: '>=18'}
+    cpu: [x64]
+    os: [win32]
+
+  '@sentry/cli@2.58.6':
+    resolution: {integrity: sha512-baBcNPLLfUi9WuL+Tpri9BFaAdvugZIKelC5X0tt0Zdy+K0K+PCVSrnNmwMWU/HyaF/SEv6b6UHnXIdqanBlcg==}
+    engines: {node: '>= 10'}
     hasBin: true
 
   '@sentry/cli@3.6.2':
@@ -6119,22 +6151,44 @@ packages:
     engines: {node: '>= 18'}
     hasBin: true
 
+  '@sentry/cli@3.8.2':
+    resolution: {integrity: sha512-JbB/UTBPRQREkI6CaxD8Cs0ppNc3YT8CROgRV7WeaqPn7mZOAgTYqtcxiW/OF7OquOIHUd0u6gu2vL+g5ITdHQ==}
+    engines: {node: '>= 18'}
+    hasBin: true
+
   '@sentry/conventions@0.16.0':
     resolution: {integrity: sha512-fO9PLmHdVURcSPUpWCItWAtgKiMwGdJHbovoSEyLplX5sxs2ugvI4CBPTrkkgqhObnZOD0CnWBKDzSVQYBKEyQ==}
     engines: {node: '>=14'}
 
-  '@sentry/core@10.71.0':
-    resolution: {integrity: sha512-OIjT7rzcWJjUC6r3eBT3Td1j0afDBMkbbx9jTocSD+ZSfc25eEU7hoIPS0WvfeIOTIN3y8bfQnXavwMReaNVHQ==}
+  '@sentry/core@10.78.0':
+    resolution: {integrity: sha512-MMR4ME+agrjbvQ0DtTYJJypm+QlCoz9UJgWN8gjcXqlyDjYk69LwPjnaocYN1JyQMy2dx5Hk4S/Rt12gTQ5cGw==}
     engines: {node: '>=18'}
 
-  '@sentry/node-core@10.71.0':
-    resolution: {integrity: sha512-sxd0/ZW+Uda/17H0R7lB2Othm37VYcdwKdWdyHRizg872TfCX4UwTTPaoS2tMJAUjV2tVh83ZA0fsoC2q9SpjA==}
+  '@sentry/expo-upload-sourcemaps@8.34.0':
+    resolution: {integrity: sha512-SazqRC4NWWw19DFxITGmrJ5eDNuZeLqvSt4s9goQgzBQJ0bYE6L9TW+vfmcqSF40FTNOh0oC9qLoOpdTCjaqiA==}
+    engines: {node: '>=18'}
+    hasBin: true
+    peerDependencies:
+      '@expo/env': '*'
+      dotenv: '*'
+    peerDependenciesMeta:
+      '@expo/env':
+        optional: true
+      dotenv:
+        optional: true
+
+  '@sentry/feedback@10.78.0':
+    resolution: {integrity: sha512-sFcZ/TowGAIlbijurWmtO35RtwYwtwv74yKO3x0yxlre5gsmocdbJxi/zYyuuwypCClTFb1cSBtOrRVb7e7yjA==}
+    engines: {node: '>=18'}
+
+  '@sentry/node-core@10.78.0':
+    resolution: {integrity: sha512-HJ3k7xINBiiTzc/QaIRHdt5ugctVYtcZnjruTxFa2tXFJSJYhVtgCE+DzLSkHXbVAlVS/rilAMGcO9GUiIqWTQ==}
     engines: {node: '>=18'}
     peerDependencies:
-      '@opentelemetry/api': ^1.9.0
+      '@opentelemetry/api': '>=1.9.0 <1.10.0'
       '@opentelemetry/core': ^2.12.0
-      '@opentelemetry/exporter-trace-otlp-http': '>=0.57.0 <1'
-      '@opentelemetry/instrumentation': '>=0.57.1 <1'
+      '@opentelemetry/exporter-trace-otlp-http': '>=0.57.0 <0.300.0'
+      '@opentelemetry/instrumentation': '>=0.57.1 <0.300.0'
       '@opentelemetry/sdk-trace-base': ^1.30.1 || ^2.1.0
     peerDependenciesMeta:
       '@opentelemetry/api':
@@ -6148,50 +6202,93 @@ packages:
       '@opentelemetry/sdk-trace-base':
         optional: true
 
-  '@sentry/node-cpu-profiler@2.4.3':
-    resolution: {integrity: sha512-18g/yJKRUk4PNcnZYEPyT2nS+9UoFcTRrIrct1DbpfI7k//RtQ+8araZrR0WH5MT8xoiLCm67GEX/RcxDsI0iQ==}
+  '@sentry/node-cpu-profiler@2.4.4':
+    resolution: {integrity: sha512-FaYbFWxEyTTVqXLJccokJCkwx2cTuvTiRaM9kA+O4HbZVT49xYXqSV9cNLI5UqJhgdHiZDhelBd5LB4wj7IIRA==}
     engines: {node: '>=18'}
 
-  '@sentry/node@10.71.0':
-    resolution: {integrity: sha512-bw2M/xkMu2+ATo6QWFmtTZTYp5LV1krt9/DTtYqtt4GmhXmXgdFPXCv6783AJI3HUoEMx2BcehhNbKzGrFXo/g==}
+  '@sentry/node@10.78.0':
+    resolution: {integrity: sha512-AE6nyehiCK6zcktrqzzBby5OCBqIL2ZwOyOLqoenczI7ufumfmcOMSpD0IVqjeIC/Kf0N0ymujqGPzqXgu9KrA==}
     engines: {node: '>=18'}
 
-  '@sentry/opentelemetry@10.71.0':
-    resolution: {integrity: sha512-YgeL0xTObKma3MuOrt+/6M/f6mo/Z08LHh3OxPomzQpgpCgCLGyJ/739cDSSH1LRjqWdPQtoia5asl5ZRdhWmw==}
+  '@sentry/opentelemetry@10.78.0':
+    resolution: {integrity: sha512-s47uqNaHres6ijiMsaoI6/DRev80vUqTqRMk0u/DfF9xAJttK7gOGqZBESr0YD2BXA21O+sUPsPeWuHlYHiScA==}
     engines: {node: '>=18'}
     peerDependencies:
-      '@opentelemetry/api': ^1.9.0
+      '@opentelemetry/api': '>=1.9.0 <1.10.0'
       '@opentelemetry/core': ^2.12.0
       '@opentelemetry/sdk-trace-base': ^1.30.1 || ^2.1.0
 
-  '@sentry/profiling-node@10.71.0':
-    resolution: {integrity: sha512-jdiEDX0f6nwc9TAnbGSrxCt4lHDOyTfky26oV8Q/H2A/BZjhGCZnVnWgEefrQPa9ceA74lTkuJe0xY+BLDa4ww==}
+  '@sentry/profiling-node@10.78.0':
+    resolution: {integrity: sha512-28qy9CkqomhgybytnCBExOiPqyir5XKzVwWV5M+0wUeCQoTFzor4Pmvr0ukGxwwRQ3xeRdiI4Xv4c502kK81jw==}
     engines: {node: '>=18'}
     hasBin: true
 
-  '@sentry/react-native@8.6.0':
-    resolution: {integrity: sha512-sT44HU09BCxlFndTJaYJjxkd6OGAiTLd85rgXkShlllur5ITDg7GZmVgTv/ja4bPOqSMHAGMI9Tx3/VTDq3dgQ==}
+  '@sentry/react-native@8.34.0':
+    resolution: {integrity: sha512-BqBRS7qbg7qUlVwQqGoIfIy1vrU2J27uUSmhLhA7pYgMThx8+3mla2EKmUABtLo7nLYxQpp/kg5DQ+hWKVwO+A==}
     hasBin: true
     peerDependencies:
+      '@babel/core': '>=7.0.0'
+      '@expo/config': '*'
+      '@expo/config-types': '*'
+      '@expo/env': '*'
+      '@react-navigation/native': '*'
+      dotenv: '*'
       expo: '>=49.0.0'
+      expo-router: '*'
+      expo-updates: '*'
+      metro: '*'
+      metro-config: '*'
+      metro-resolver: '*'
+      open: '*'
+      promise: '*'
       react: '>=17.0.0'
       react-native: '>=0.65.0'
     peerDependenciesMeta:
+      '@babel/core':
+        optional: true
+      '@expo/config':
+        optional: true
+      '@expo/config-types':
+        optional: true
+      '@expo/env':
+        optional: true
+      '@react-navigation/native':
+        optional: true
+      dotenv:
+        optional: true
       expo:
         optional: true
+      expo-router:
+        optional: true
+      expo-updates:
+        optional: true
+      metro:
+        optional: true
+      metro-config:
+        optional: true
+      metro-resolver:
+        optional: true
+      open:
+        optional: true
+      promise:
+        optional: true
 
-  '@sentry/react@10.46.0':
-    resolution: {integrity: sha512-Rb1S+9OuUPVwsz7GWnQ6Kgf3azbsseUymIegg3JZHNcW/fM1nPpaljzTBnuineia113DH0pgMBcdrrZDLaosFQ==}
+  '@sentry/react@10.78.0':
+    resolution: {integrity: sha512-FJGxL7YSWFnxswrmm/Du0O9tgLoU1H0Bjs2DOgu2vYhn259eD0q11ARRAa653ExuwxQlMvNZhTqfTdLV9K0nqw==}
     engines: {node: '>=18'}
     peerDependencies:
       react: ^16.14.0 || 17.x || 18.x || 19.x
 
-  '@sentry/server-utils@10.71.0':
-    resolution: {integrity: sha512-zdyShKNsghzPGVWVRzc7oybYTsRZdKgdPtq+dsksImo1b6n7ILlD7eYx1Q0eAOZoWkDqDmm+Ml6MQb76IT1eTA==}
+  '@sentry/replay-canvas@10.78.0':
+    resolution: {integrity: sha512-opwqU4kZFKxIaOcpHy237bvNzcc4wSGYOv76al7iwktHlnw7h1ggf048bHF9pIPOGxMEA9N/X+vHar6z8nCAtw==}
     engines: {node: '>=18'}
 
-  '@sentry/types@10.46.0':
-    resolution: {integrity: sha512-ZJWEuevCTzxA2z+C5NQ+bXKxA+oVnZM5QacBZ+RX6NHItwgYOcp4GNM6Wc9xTymOUvVmBC0Vcj1wbx7TA2JX0Q==}
+  '@sentry/replay@10.78.0':
+    resolution: {integrity: sha512-W2TEKRmoZFvEK01u9+F6GKxQsH8xYFOF+A/+OaDoYqpBAj2zJ1oosLFvwbOS74eg3rDkmkEyWCm+p7M8JNk2oA==}
+    engines: {node: '>=18'}
+
+  '@sentry/server-utils@10.78.0':
+    resolution: {integrity: sha512-MssOiA9SansFX4E51cloHZEy4bYSZyszFNWUWeIGgQiYyTN84PbPJmyLuboj26G/ycSBW2pUERPbcfjxcs7BrA==}
     engines: {node: '>=18'}
 
   '@shikijs/core@4.5.0':
@@ -7962,8 +8059,8 @@ packages:
     resolution: {integrity: sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng==}
     engines: {node: '>= 0.6'}
 
-  accountabstraction@https://codeload.github.com/eth-infinitism/account-abstraction/tar.gz/abff2aca61a8f0934e533d0d352978055fddbd96:
-    resolution: {gitHosted: true, integrity: sha512-NvWO0tyLOCZdxK4eQ+iPimXRPLcCG5sqJspWxd5qyZnCAWfktg/s2wHhenmz6pIqP5A2cb/KKseodXKZy63sCg==, tarball: https://codeload.github.com/eth-infinitism/account-abstraction/tar.gz/abff2aca61a8f0934e533d0d352978055fddbd96}
+  accountabstraction@git+https://github.com/eth-infinitism/account-abstraction.git#abff2aca61a8f0934e533d0d352978055fddbd96:
+    resolution: {commit: abff2aca61a8f0934e533d0d352978055fddbd96, repo: https://github.com/eth-infinitism/account-abstraction.git, type: git}
     version: 0.6.0
 
   acorn-import-assertions@1.9.0:
@@ -10819,8 +10916,8 @@ packages:
     resolution: {integrity: sha512-gIXjKqtFuWEgzFRJA9WCQeSJLZDjgJUOMCMzxtvFq/37KojM1BFGufqsCy0r4qSQmYLsZYMeyRqzIWOMup03sw==}
     engines: {node: '>=14'}
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/0844d7e1fc5e60d77b68e469bff60265f236c398:
-    resolution: {gitHosted: true, integrity: sha512-nm0eLdbGRP9DY/keWSyz6nGNGLQeXw5o++DsZK2bkOJWliJZiGptMtQ7utvA7JyO0mxbuGJZkNbtYswALq66qg==, tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/0844d7e1fc5e60d77b68e469bff60265f236c398}
+  forge-std@git+https://github.com/foundry-rs/forge-std.git#0844d7e1fc5e60d77b68e469bff60265f236c398:
+    resolution: {commit: 0844d7e1fc5e60d77b68e469bff60265f236c398, repo: https://github.com/foundry-rs/forge-std.git, type: git}
     version: 1.15.0
 
   form-data-encoder@2.1.4:
@@ -10856,8 +10953,8 @@ packages:
   framesync@6.0.1:
     resolution: {integrity: sha512-fUY88kXvGiIItgNC7wcTOl0SNRCVXMKSWW2Yzfmn7EKNc+MpCzcz9DhdHcdjbrtN3c6R4H5dTY2jiCpPdysEjA==}
 
-  fresh-crypto-lib@https://codeload.github.com/rdubois-crypto/FreshCryptoLib/tar.gz/fd2a0e6e64609ade0b0c165e4d66de8106a70db6:
-    resolution: {gitHosted: true, integrity: sha512-9f3WvfKlrlLTfC4Z0TjfnCYz/ZexRumY/mGBx4QBRiNaVVx00aJrA+ersfpIpaadnl2zQRatlv480tjc9ShBbw==, tarball: https://codeload.github.com/rdubois-crypto/FreshCryptoLib/tar.gz/fd2a0e6e64609ade0b0c165e4d66de8106a70db6}
+  fresh-crypto-lib@git+https://github.com/rdubois-crypto/FreshCryptoLib.git#fd2a0e6e64609ade0b0c165e4d66de8106a70db6:
+    resolution: {commit: fd2a0e6e64609ade0b0c165e4d66de8106a70db6, repo: https://github.com/rdubois-crypto/FreshCryptoLib.git, type: git}
     version: 0.0.0
 
   fresh@0.5.2:
@@ -12611,10 +12708,6 @@ packages:
     resolution: {integrity: sha512-8q7VEgMJW4J8tcfVPy8g09NcQwZdbwFEqhe/WZkoIzjn/3TGDwtOCYtXGxA3O8tPzpczCCDgv+P2P5y00ZJOOg==}
     engines: {node: '>= 8'}
 
-  meriyah@6.1.4:
-    resolution: {integrity: sha512-Sz8FzjzI0kN13GK/6MVEsVzMZEPvOhnmmI1lU5+/1cGOiK3QUahntrNNtdVeihrO7t9JpoH75iMNXg6R6uWflQ==}
-    engines: {node: '>=18.0.0'}
-
   mermaid@11.16.1:
     resolution: {integrity: sha512-TQsq6u22fAn3rek5VOubrhKPo1g5hwC3FXUN9hiyupTckcYiGuuKGkNQrKYwGJkXUxZdojwRG46gsSCFZMDp4g==}
 
@@ -13035,12 +13128,12 @@ packages:
   mlly@1.8.2:
     resolution: {integrity: sha512-d+ObxMQFmbt10sretNDytwt85VrbkhhUA/JBGm1MPaWJ65Cl4wOgLaB1NYvJSZ0Ef03MMEU/0xpPMXUIQ29UfA==}
 
-  modular-account-libs@https://codeload.github.com/erc6900/modular-account-libs/tar.gz/5d9d0e403332251045eee2954c2a8b7ea0bae953:
-    resolution: {gitHosted: true, integrity: sha512-nvoIGwsRt7LfsuZ5B3TyLOHnNXNsVphE6sGOnrTuzmKa77pAQLMXClfz1fp/vIbmCzMs3zgxmLZEpB3fzqHLjA==, tarball: https://codeload.github.com/erc6900/modular-account-libs/tar.gz/5d9d0e403332251045eee2954c2a8b7ea0bae953}
+  modular-account-libs@git+https://github.com/erc6900/modular-account-libs.git#5d9d0e403332251045eee2954c2a8b7ea0bae953:
+    resolution: {commit: 5d9d0e403332251045eee2954c2a8b7ea0bae953, repo: https://github.com/erc6900/modular-account-libs.git, type: git}
     version: 0.7.0
 
-  modular-account@https://codeload.github.com/alchemyplatform/modular-account/tar.gz/c81e7122eb46e13447afa3f2e0d2537cf2792beb:
-    resolution: {gitHosted: true, integrity: sha512-srHbFjSh7iy8d6vFYRxDtkXduu3gau730cKhi8uCB5nOouvZGEuwWMsvHfYWN0VP6oRid96S6V7LP4iM/bpaLA==, tarball: https://codeload.github.com/alchemyplatform/modular-account/tar.gz/c81e7122eb46e13447afa3f2e0d2537cf2792beb}
+  modular-account@git+https://github.com/alchemyplatform/modular-account.git#c81e7122eb46e13447afa3f2e0d2537cf2792beb:
+    resolution: {commit: c81e7122eb46e13447afa3f2e0d2537cf2792beb, repo: https://github.com/alchemyplatform/modular-account.git, type: git}
     version: v1.0.1
 
   module-details-from-path@1.0.4:
@@ -13139,6 +13232,7 @@ packages:
 
   node-abort-controller@3.1.1:
     resolution: {integrity: sha512-AGK2yQKIjRuqnc6VkX2Xj5d+QW8xZ87pa1UK6yA6ouUyuxfHuMP6umE5QK7UmTeOAymo+Zx1Fxiuw9rVx8taHQ==}
+    deprecated: This package is no longer needed on supported Node.js versions. Node.js 16+ includes AbortController and AbortSignal as built-in globals. All Node.js versions requiring this polyfill are end-of-life. Use the built-in globals instead.
 
   node-domexception@1.0.0:
     resolution: {integrity: sha512-/jKZoMpw0F8GRwl4/eLROPA3cfcXtLApP0QzLmUT/HuPCZWyB7IY9ZrMeKw2O/nFIqPQB3PVM9aYm0F312AXDQ==}
@@ -14702,9 +14796,6 @@ packages:
   secure-json-parse@4.1.1:
     resolution: {integrity: sha512-lnd81MQEZKjhW/Gd2TQqdd4XP6QYNdDW/EP+I7nTrFHP9y2LmaGPIHk9xsnzcOiEr1c39c/e84xFgGviQKBTRw==}
 
-  semifies@1.0.0:
-    resolution: {integrity: sha512-xXR3KGeoxTNWPD4aBvL5NUpMTT7WMANr3EWnaS190QVkY52lqqcVRD7Q05UVbBhiWDGWMlJEUam9m7uFFGVScw==}
-
   semver@6.3.1:
     resolution: {integrity: sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==}
     hasBin: true
@@ -15220,8 +15311,8 @@ packages:
     resolution: {integrity: sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==}
     engines: {node: '>= 0.4'}
 
-  surl@https://codeload.github.com/memester-xyz/surl/tar.gz/5f92a5260c8e0198ca3ee6a16255d6cda4e0887a:
-    resolution: {gitHosted: true, integrity: sha512-DKIsQPjjOnqlUi2/h7oapmNRfwWLNqn6V/tLMUbAiPb0mVnWD1rvLWekMCiEqvP52dn00nhE9vK4sTsrK1AZTQ==, tarball: https://codeload.github.com/memester-xyz/surl/tar.gz/5f92a5260c8e0198ca3ee6a16255d6cda4e0887a}
+  surl@git+https://github.com/memester-xyz/surl.git#5f92a5260c8e0198ca3ee6a16255d6cda4e0887a:
+    resolution: {commit: 5f92a5260c8e0198ca3ee6a16255d6cda4e0887a, repo: https://github.com/memester-xyz/surl.git, type: git}
     version: 0.0.0
 
   svg-arc-to-cubic-bezier@3.2.0:
@@ -16017,15 +16108,15 @@ packages:
     resolution: {integrity: sha512-d2JWLCivmZYTSIoge9MsgFCZrt571BikcWGYkjC1khllbTeDlGqZ2D8vD8E/lJa8WGWbb7Plm8/XJYV7IJHZZw==}
     engines: {node: '>= 8'}
 
-  webauthn-owner-plugin@https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/9c0c38bd63c2aa70b60c03c815e9de108e264cda:
-    resolution: {gitHosted: true, integrity: sha512-yibBPzOEH5biyThe7DG6cYJeP5z5bj4TTvU5F8A8zCq4uJHxABm9AxSbPjhpZmRX9CKgobrFoObcT1wFxqVesg==, tarball: https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/9c0c38bd63c2aa70b60c03c815e9de108e264cda}
+  webauthn-owner-plugin@git+https://github.com/exactly/webauthn-owner-plugin.git#9c0c38bd63c2aa70b60c03c815e9de108e264cda:
+    resolution: {commit: 9c0c38bd63c2aa70b60c03c815e9de108e264cda, repo: https://github.com/exactly/webauthn-owner-plugin.git, type: git}
     version: 0.0.0
 
   webauthn-p256@0.0.10:
     resolution: {integrity: sha512-EeYD+gmIT80YkSIDb2iWq0lq2zbHo1CxHlQTeJ+KkCILWpVy3zASH3ByD4bopzfk0uCwXxLqKGLqp2W4O28VFA==}
 
-  webauthn-sol@https://codeload.github.com/base/webauthn-sol/tar.gz/619f20ab0f074fef41066ee4ab24849a913263b2:
-    resolution: {gitHosted: true, integrity: sha512-pTBB+/Emirl8CQgUGY2vXDWPNAt8+wO251JDofOIjoQ/9uGCwzuebMnSE5EvsgqAse9LsSB7EKdM8pBclLAovA==, tarball: https://codeload.github.com/base/webauthn-sol/tar.gz/619f20ab0f074fef41066ee4ab24849a913263b2}
+  webauthn-sol@git+https://github.com/base/webauthn-sol.git#619f20ab0f074fef41066ee4ab24849a913263b2:
+    resolution: {commit: 619f20ab0f074fef41066ee4ab24849a913263b2, repo: https://github.com/base/webauthn-sol.git, type: git}
     version: 0.0.0
 
   webcrypto-core@1.8.1:
@@ -16425,28 +16516,6 @@ snapshots:
     dependencies:
       '@types/json-schema': 7.0.15
       js-yaml: 4.3.2
-
-  '@apm-js-collab/code-transformer-bundler-plugins@0.7.4':
-    dependencies:
-      '@apm-js-collab/code-transformer': 0.18.1
-      es-module-lexer: 2.3.2
-      magic-string: 0.30.21
-      module-details-from-path: 1.0.4
-
-  '@apm-js-collab/code-transformer@0.18.1':
-    dependencies:
-      '@types/estree': 1.0.8
-      astring: 1.9.0
-      esquery: 1.7.0
-      meriyah: 6.1.4
-      semifies: 1.0.0
-      source-map: 0.6.1
-
-  '@apm-js-collab/tracing-hooks@0.13.0':
-    dependencies:
-      '@apm-js-collab/code-transformer': 0.18.1
-      debug: 4.4.3
-      module-details-from-path: 1.0.4
 
   '@astrojs/compiler-binding-android-arm64@0.5.2':
     optional: true
@@ -20278,7 +20347,7 @@ snapshots:
       '@mastra/core': 1.63.2(@grpc/grpc-js@1.14.5)(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(utf-8-validate@5.0.10)(zod@4.6.7)
       '@mastra/observability': 1.17.4(@mastra/core@1.63.2(@grpc/grpc-js@1.14.5)(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(utf-8-validate@5.0.10)(zod@4.6.7))(zod@4.6.7)
       '@mastra/otel-exporter': 1.3.12(@mastra/core@1.63.2(@grpc/grpc-js@1.14.5)(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(utf-8-validate@5.0.10)(zod@4.6.7))(zod@4.6.7)
-      '@sentry/node': 10.71.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))
+      '@sentry/node': 10.78.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))
     transitivePeerDependencies:
       - '@opentelemetry/core'
       - '@opentelemetry/exporter-trace-otlp-http'
@@ -21524,7 +21593,7 @@ snapshots:
       '@opentelemetry/sdk-trace-base': 1.30.1(@opentelemetry/api@1.9.1)
       '@opentelemetry/semantic-conventions': 1.43.0
       '@pimlico/opentelemetry-instrumentation-viem': 0.0.4(@opentelemetry/api@1.9.1)
-      '@sentry/node': 10.71.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))
+      '@sentry/node': 10.78.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))
       '@types/bull': 4.10.4
       '@types/node': 18.19.130
       '@types/ws': 8.18.2
@@ -21858,7 +21927,7 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.2.14
 
-  '@rari-capital/solmate@https://codeload.github.com/transmissions11/solmate/tar.gz/eaa7041378f9a6c12f943de08a6c41b31a9870fc': {}
+  '@rari-capital/solmate@git+https://github.com/transmissions11/solmate.git#eaa7041378f9a6c12f943de08a6c41b31a9870fc': {}
 
   '@react-native-async-storage/async-storage@2.2.0(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))':
     dependencies:
@@ -22454,97 +22523,124 @@ snapshots:
 
   '@segment/isodate@1.0.3': {}
 
-  '@sentry-internal/browser-utils@10.46.0':
+  '@sentry/browser-utils@10.78.0':
     dependencies:
-      '@sentry/core': 10.71.0
+      '@sentry/conventions': 0.16.0
+      '@sentry/core': 10.78.0
 
-  '@sentry-internal/feedback@10.46.0':
+  '@sentry/browser@10.78.0':
     dependencies:
-      '@sentry/core': 10.71.0
+      '@sentry/browser-utils': 10.78.0
+      '@sentry/conventions': 0.16.0
+      '@sentry/core': 10.78.0
+      '@sentry/feedback': 10.78.0
+      '@sentry/replay': 10.78.0
+      '@sentry/replay-canvas': 10.78.0
 
-  '@sentry-internal/replay-canvas@10.46.0':
+  '@sentry/bundler-plugins@10.78.0(rollup@4.60.0)':
     dependencies:
-      '@sentry-internal/replay': 10.46.0
-      '@sentry/core': 10.71.0
+      '@babel/core': 7.29.0
+      '@sentry/cli': 2.58.6
+      '@sentry/core': 10.78.0
+      dotenv: 17.4.2
+      find-up: 5.0.0
+      glob: 13.0.6
+      magic-string: 0.30.21
+    optionalDependencies:
+      rollup: 4.60.0
+    transitivePeerDependencies:
+      - encoding
 
-  '@sentry-internal/replay@10.46.0':
-    dependencies:
-      '@sentry-internal/browser-utils': 10.46.0
-      '@sentry/core': 10.71.0
-
-  '@sentry/babel-plugin-component-annotate@5.1.1': {}
-
-  '@sentry/browser@10.46.0':
-    dependencies:
-      '@sentry-internal/browser-utils': 10.46.0
-      '@sentry-internal/feedback': 10.46.0
-      '@sentry-internal/replay': 10.46.0
-      '@sentry-internal/replay-canvas': 10.46.0
-      '@sentry/core': 10.71.0
-
-  '@sentry/cli-darwin@3.3.4':
+  '@sentry/cli-darwin@2.58.6':
     optional: true
 
   '@sentry/cli-darwin@3.6.2':
     optional: true
 
-  '@sentry/cli-linux-arm64@3.3.4':
+  '@sentry/cli-darwin@3.8.2':
+    optional: true
+
+  '@sentry/cli-linux-arm64@2.58.6':
     optional: true
 
   '@sentry/cli-linux-arm64@3.6.2':
     optional: true
 
-  '@sentry/cli-linux-arm@3.3.4':
+  '@sentry/cli-linux-arm64@3.8.2':
+    optional: true
+
+  '@sentry/cli-linux-arm@2.58.6':
     optional: true
 
   '@sentry/cli-linux-arm@3.6.2':
     optional: true
 
-  '@sentry/cli-linux-i686@3.3.4':
+  '@sentry/cli-linux-arm@3.8.2':
+    optional: true
+
+  '@sentry/cli-linux-i686@2.58.6':
     optional: true
 
   '@sentry/cli-linux-i686@3.6.2':
     optional: true
 
-  '@sentry/cli-linux-x64@3.3.4':
+  '@sentry/cli-linux-i686@3.8.2':
+    optional: true
+
+  '@sentry/cli-linux-x64@2.58.6':
     optional: true
 
   '@sentry/cli-linux-x64@3.6.2':
     optional: true
 
-  '@sentry/cli-win32-arm64@3.3.4':
+  '@sentry/cli-linux-x64@3.8.2':
+    optional: true
+
+  '@sentry/cli-win32-arm64@2.58.6':
     optional: true
 
   '@sentry/cli-win32-arm64@3.6.2':
     optional: true
 
-  '@sentry/cli-win32-i686@3.3.4':
+  '@sentry/cli-win32-arm64@3.8.2':
+    optional: true
+
+  '@sentry/cli-win32-i686@2.58.6':
     optional: true
 
   '@sentry/cli-win32-i686@3.6.2':
     optional: true
 
-  '@sentry/cli-win32-x64@3.3.4':
+  '@sentry/cli-win32-i686@3.8.2':
+    optional: true
+
+  '@sentry/cli-win32-x64@2.58.6':
     optional: true
 
   '@sentry/cli-win32-x64@3.6.2':
     optional: true
 
-  '@sentry/cli@3.3.4':
+  '@sentry/cli-win32-x64@3.8.2':
+    optional: true
+
+  '@sentry/cli@2.58.6':
     dependencies:
+      https-proxy-agent: 5.0.1
+      node-fetch: 2.7.0
       progress: 2.0.3
       proxy-from-env: 1.1.0
-      undici: 6.29.1
       which: 2.0.2
     optionalDependencies:
-      '@sentry/cli-darwin': 3.3.4
-      '@sentry/cli-linux-arm': 3.3.4
-      '@sentry/cli-linux-arm64': 3.3.4
-      '@sentry/cli-linux-i686': 3.3.4
-      '@sentry/cli-linux-x64': 3.3.4
-      '@sentry/cli-win32-arm64': 3.3.4
-      '@sentry/cli-win32-i686': 3.3.4
-      '@sentry/cli-win32-x64': 3.3.4
+      '@sentry/cli-darwin': 2.58.6
+      '@sentry/cli-linux-arm': 2.58.6
+      '@sentry/cli-linux-arm64': 2.58.6
+      '@sentry/cli-linux-i686': 2.58.6
+      '@sentry/cli-linux-x64': 2.58.6
+      '@sentry/cli-win32-arm64': 2.58.6
+      '@sentry/cli-win32-i686': 2.58.6
+      '@sentry/cli-win32-x64': 2.58.6
+    transitivePeerDependencies:
+      - encoding
 
   '@sentry/cli@3.6.2':
     dependencies:
@@ -22562,92 +22658,138 @@ snapshots:
       '@sentry/cli-win32-i686': 3.6.2
       '@sentry/cli-win32-x64': 3.6.2
 
+  '@sentry/cli@3.8.2':
+    dependencies:
+      progress: 2.0.3
+      proxy-from-env: 1.1.0
+      undici: 6.29.1
+      which: 2.0.2
+    optionalDependencies:
+      '@sentry/cli-darwin': 3.8.2
+      '@sentry/cli-linux-arm': 3.8.2
+      '@sentry/cli-linux-arm64': 3.8.2
+      '@sentry/cli-linux-i686': 3.8.2
+      '@sentry/cli-linux-x64': 3.8.2
+      '@sentry/cli-win32-arm64': 3.8.2
+      '@sentry/cli-win32-i686': 3.8.2
+      '@sentry/cli-win32-x64': 3.8.2
+
   '@sentry/conventions@0.16.0': {}
 
-  '@sentry/core@10.71.0':
+  '@sentry/core@10.78.0':
     dependencies:
       '@sentry/conventions': 0.16.0
 
-  '@sentry/node-core@10.71.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))(@opentelemetry/instrumentation@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))':
+  '@sentry/expo-upload-sourcemaps@8.34.0(@expo/env@2.1.1)(dotenv@17.4.2)':
+    dependencies:
+      '@sentry/cli': 3.8.2
+    optionalDependencies:
+      '@expo/env': 2.1.1
+      dotenv: 17.4.2
+
+  '@sentry/feedback@10.78.0':
+    dependencies:
+      '@sentry/core': 10.78.0
+
+  '@sentry/node-core@10.78.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))(@opentelemetry/instrumentation@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.12.0(@opentelemetry/api@1.9.1))':
     dependencies:
       '@sentry/conventions': 0.16.0
-      '@sentry/core': 10.71.0
-      '@sentry/opentelemetry': 10.71.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))
+      '@sentry/core': 10.78.0
+      '@sentry/opentelemetry': 10.78.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.12.0(@opentelemetry/api@1.9.1))
       import-in-the-middle: 3.0.0
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 2.12.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/exporter-trace-otlp-http': 0.223.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/instrumentation': 0.220.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/sdk-trace-base': 2.10.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-trace-base': 2.12.0(@opentelemetry/api@1.9.1)
 
-  '@sentry/node-cpu-profiler@2.4.3':
+  '@sentry/node-cpu-profiler@2.4.4':
     dependencies:
       detect-libc: 2.1.2
       node-abi: 3.89.0
 
-  '@sentry/node@10.71.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))':
+  '@sentry/node@10.78.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))':
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/instrumentation': 0.220.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/sdk-trace-base': 2.10.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-trace-base': 2.12.0(@opentelemetry/api@1.9.1)
       '@sentry/conventions': 0.16.0
-      '@sentry/core': 10.71.0
-      '@sentry/node-core': 10.71.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))(@opentelemetry/instrumentation@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))
-      '@sentry/opentelemetry': 10.71.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))
-      '@sentry/server-utils': 10.71.0
+      '@sentry/core': 10.78.0
+      '@sentry/node-core': 10.78.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))(@opentelemetry/instrumentation@0.220.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.12.0(@opentelemetry/api@1.9.1))
+      '@sentry/opentelemetry': 10.78.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.12.0(@opentelemetry/api@1.9.1))
+      '@sentry/server-utils': 10.78.0
       import-in-the-middle: 3.0.0
     transitivePeerDependencies:
       - '@opentelemetry/core'
       - '@opentelemetry/exporter-trace-otlp-http'
 
-  '@sentry/opentelemetry@10.71.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.10.0(@opentelemetry/api@1.9.1))':
+  '@sentry/opentelemetry@10.78.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.12.0(@opentelemetry/api@1.9.1))':
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 2.12.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/sdk-trace-base': 2.10.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-trace-base': 2.12.0(@opentelemetry/api@1.9.1)
       '@sentry/conventions': 0.16.0
-      '@sentry/core': 10.71.0
+      '@sentry/core': 10.78.0
 
-  '@sentry/profiling-node@10.71.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))':
+  '@sentry/profiling-node@10.78.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))':
     dependencies:
-      '@sentry/core': 10.71.0
-      '@sentry/node': 10.71.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))
-      '@sentry/node-cpu-profiler': 2.4.3
+      '@sentry/core': 10.78.0
+      '@sentry/node': 10.78.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))
+      '@sentry/node-cpu-profiler': 2.4.4
     transitivePeerDependencies:
       - '@opentelemetry/core'
       - '@opentelemetry/exporter-trace-otlp-http'
 
-  '@sentry/react-native@8.6.0(expo@55.0.9)(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)':
+  '@sentry/react-native@8.34.0(@babel/core@7.29.0)(@expo/config-types@55.0.5)(@expo/config@55.0.11(typescript@5.9.3))(@expo/env@2.1.1)(@react-navigation/native@7.2.1(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0))(dotenv@17.4.2)(expo-router@55.0.8)(expo-updates@55.0.16(expo@55.0.9)(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)(typescript@5.9.3))(expo@55.0.9)(metro-config@0.81.5(bufferutil@4.1.0)(utf-8-validate@5.0.10))(open@10.1.0)(promise@8.3.0)(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)(rollup@4.60.0)':
     dependencies:
-      '@sentry/babel-plugin-component-annotate': 5.1.1
-      '@sentry/browser': 10.46.0
-      '@sentry/cli': 3.3.4
-      '@sentry/core': 10.71.0
-      '@sentry/react': 10.46.0(react@19.2.0)
-      '@sentry/types': 10.46.0
+      '@sentry/browser': 10.78.0
+      '@sentry/bundler-plugins': 10.78.0(rollup@4.60.0)
+      '@sentry/cli': 3.8.2
+      '@sentry/core': 10.78.0
+      '@sentry/expo-upload-sourcemaps': 8.34.0(@expo/env@2.1.1)(dotenv@17.4.2)
+      '@sentry/react': 10.78.0(react@19.2.0)
       react: 19.2.0
       react-native: 0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10)
     optionalDependencies:
+      '@babel/core': 7.29.0
+      '@expo/config': 55.0.11(typescript@5.9.3)
+      '@expo/config-types': 55.0.5
+      '@expo/env': 2.1.1
+      '@react-navigation/native': 7.2.1(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)
+      dotenv: 17.4.2
       expo: 55.0.9(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(@expo/metro-runtime@55.0.7)(bufferutil@4.1.0)(expo-router@55.0.8)(react-dom@19.2.0(react@19.2.0))(react-native-webview@13.16.0(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      expo-router: 55.0.8(e648b7c2d7f97def12d5a5dbfb5d4641)
+      expo-updates: 55.0.16(expo@55.0.9)(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)(typescript@5.9.3)
+      metro-config: 0.81.5(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      open: 10.1.0
+      promise: 8.3.0
+    transitivePeerDependencies:
+      - encoding
+      - rollup
+      - webpack
 
-  '@sentry/react@10.46.0(react@19.2.0)':
+  '@sentry/react@10.78.0(react@19.2.0)':
     dependencies:
-      '@sentry/browser': 10.46.0
-      '@sentry/core': 10.71.0
+      '@sentry/browser': 10.78.0
+      '@sentry/conventions': 0.16.0
+      '@sentry/core': 10.78.0
       react: 19.2.0
 
-  '@sentry/server-utils@10.71.0':
+  '@sentry/replay-canvas@10.78.0':
     dependencies:
-      '@apm-js-collab/code-transformer-bundler-plugins': 0.7.4
-      '@apm-js-collab/tracing-hooks': 0.13.0
-      '@sentry/conventions': 0.16.0
-      '@sentry/core': 10.71.0
-      meriyah: 6.1.4
+      '@sentry/core': 10.78.0
+      '@sentry/replay': 10.78.0
 
-  '@sentry/types@10.46.0':
+  '@sentry/replay@10.78.0':
     dependencies:
-      '@sentry/core': 10.71.0
+      '@sentry/browser-utils': 10.78.0
+      '@sentry/core': 10.78.0
+
+  '@sentry/server-utils@10.78.0':
+    dependencies:
+      '@sentry/conventions': 0.16.0
+      '@sentry/core': 10.78.0
 
   '@shikijs/core@4.5.0':
     dependencies:
@@ -22763,8 +22905,8 @@ snapshots:
       '@hono/node-server': 2.1.5(hono@4.13.13)
       '@jridgewell/trace-mapping': 0.3.31
       '@modelcontextprotocol/sdk': 1.32.1
-      '@sentry/core': 10.71.0
-      '@sentry/node': 10.71.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))
+      '@sentry/core': 10.78.0
+      '@sentry/node': 10.78.0(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))
       anser: 2.3.5
       chalk: 5.6.2
       eventsource: 4.1.0
@@ -25868,7 +26010,7 @@ snapshots:
       mime-types: 3.0.2
       negotiator: 1.0.0
 
-  accountabstraction@https://codeload.github.com/eth-infinitism/account-abstraction/tar.gz/abff2aca61a8f0934e533d0d352978055fddbd96:
+  accountabstraction@git+https://github.com/eth-infinitism/account-abstraction.git#abff2aca61a8f0934e533d0d352978055fddbd96:
     dependencies:
       '@gnosis.pm/safe-contracts': '@favware/skip-dependency@1.2.2'
       '@nomiclabs/hardhat-etherscan': '@favware/skip-dependency@1.2.2'
@@ -29415,7 +29557,7 @@ snapshots:
       cross-spawn: 7.0.6
       signal-exit: 4.1.0
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/0844d7e1fc5e60d77b68e469bff60265f236c398: {}
+  forge-std@git+https://github.com/foundry-rs/forge-std.git#0844d7e1fc5e60d77b68e469bff60265f236c398: {}
 
   form-data-encoder@2.1.4: {}
 
@@ -29461,7 +29603,7 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
-  fresh-crypto-lib@https://codeload.github.com/rdubois-crypto/FreshCryptoLib/tar.gz/fd2a0e6e64609ade0b0c165e4d66de8106a70db6: {}
+  fresh-crypto-lib@git+https://github.com/rdubois-crypto/FreshCryptoLib.git#fd2a0e6e64609ade0b0c165e4d66de8106a70db6: {}
 
   fresh@0.5.2: {}
 
@@ -31375,8 +31517,6 @@ snapshots:
 
   merge2@1.4.1: {}
 
-  meriyah@6.1.4: {}
-
   mermaid@11.16.1:
     dependencies:
       '@braintree/sanitize-url': 7.1.2
@@ -32276,9 +32416,9 @@ snapshots:
       pkg-types: 1.3.1
       ufo: 1.6.3
 
-  modular-account-libs@https://codeload.github.com/erc6900/modular-account-libs/tar.gz/5d9d0e403332251045eee2954c2a8b7ea0bae953: {}
+  modular-account-libs@git+https://github.com/erc6900/modular-account-libs.git#5d9d0e403332251045eee2954c2a8b7ea0bae953: {}
 
-  modular-account@https://codeload.github.com/alchemyplatform/modular-account/tar.gz/c81e7122eb46e13447afa3f2e0d2537cf2792beb: {}
+  modular-account@git+https://github.com/alchemyplatform/modular-account.git#c81e7122eb46e13447afa3f2e0d2537cf2792beb: {}
 
   module-details-from-path@1.0.4: {}
 
@@ -34373,8 +34513,6 @@ snapshots:
 
   secure-json-parse@4.1.1: {}
 
-  semifies@1.0.0: {}
-
   semver@6.3.1: {}
 
   semver@7.6.3: {}
@@ -34978,7 +35116,7 @@ snapshots:
 
   supports-preserve-symlinks-flag@1.0.0: {}
 
-  surl@https://codeload.github.com/memester-xyz/surl/tar.gz/5f92a5260c8e0198ca3ee6a16255d6cda4e0887a: {}
+  surl@git+https://github.com/memester-xyz/surl.git#5f92a5260c8e0198ca3ee6a16255d6cda4e0887a: {}
 
   svg-arc-to-cubic-bezier@3.2.0: {}
 
@@ -35810,14 +35948,14 @@ snapshots:
 
   web-streams-polyfill@3.3.3: {}
 
-  webauthn-owner-plugin@https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/9c0c38bd63c2aa70b60c03c815e9de108e264cda: {}
+  webauthn-owner-plugin@git+https://github.com/exactly/webauthn-owner-plugin.git#9c0c38bd63c2aa70b60c03c815e9de108e264cda: {}
 
   webauthn-p256@0.0.10:
     dependencies:
       '@noble/curves': 1.9.7
       '@noble/hashes': 1.8.0
 
-  webauthn-sol@https://codeload.github.com/base/webauthn-sol/tar.gz/619f20ab0f074fef41066ee4ab24849a913263b2: {}
+  webauthn-sol@git+https://github.com/base/webauthn-sol.git#619f20ab0f074fef41066ee4ab24849a913263b2: {}
 
   webcrypto-core@1.8.1:
     dependencies:
