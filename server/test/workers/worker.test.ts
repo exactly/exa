@@ -106,7 +106,7 @@ describe("worker", () => {
     } finally {
       await handle.close();
       await bullmq.quit();
-      await queue.obliterate({ force: true });
+      await job.remove();
       await queue.close();
       await redis.quit();
     }

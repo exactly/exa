@@ -26,7 +26,7 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { optimismSepolia } from "viem/chains";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 
 import chain, {
   exaAccountFactoryAddress,
@@ -52,7 +52,6 @@ import { finished, tip } from "../redis";
 
 import type * as P from "../../utils/panda";
 import type * as W from "../../utils/wallet";
-import type createHook from "../../workers/hook/queue";
 import type { Job as Refund } from "../../workers/refund/job";
 import type * as C from "@exactly/common/generated/chain";
 import type { JobsOptions } from "bullmq";
@@ -75,10 +74,9 @@ const refund = createRefund(redis);
 const queue = new Queue<Refund, void, "refund">("refund", { connection: bullmq });
 const events = new QueueEvents("refund", { connection: bullmq, lastEventId: await tip(bullmq, queue) });
 const webhooks = new Map<string, unknown>();
-const hook = vi.hoisted(() => ({
-  close: vi.fn<ReturnType<typeof createHook>["close"]>().mockResolvedValue(),
-  enqueue: vi.fn<ReturnType<typeof createHook>["enqueue"]>(),
-}));
+const own = new Set<string>();
+const foreign = new WeakSet<object>();
+const enqueue = Queue.prototype.add; // eslint-disable-line @typescript-eslint/unbound-method -- called with the queue
 const slot = keccak256(
   encodeAbiParameters(
     [{ type: "address" }, { type: "bytes32" }],
@@ -89,6 +87,7 @@ const slot = keccak256(
   ),
 );
 
+let add: MockInstance<Queue["add"]>;
 let worker: ReturnType<typeof refundWorker>;
 let connection: ReturnType<typeof connect>;
 let deployedRefunder: Hex;
@@ -173,7 +172,6 @@ describe("refund worker", () => {
     const code = await anvilClient.getCode({ address: refunderAddress });
     if (!code) throw new Error("refunder not deployed");
     deployedRefunder = code;
-    await queue.drain(true);
     await Promise.all([
       anvilClient.setBalance({ address: refunder.address, value: 10n ** 24n }),
       anvilClient.setCode({ address: refunder.address, bytecode: "0x" }),
@@ -219,7 +217,7 @@ describe("refund worker", () => {
       anvilClient.setStorageAt({ address: refunderAddress, index: 0, value: padHex("0x0", { size: 32 }) }),
     ]);
     webhooks.clear();
-    mocks.getWebhook.mockReset().mockImplementation((id) => Promise.resolve(webhooks.get(id)));
+    mocks.getWebhook.mockReset().mockImplementation(lookup);
     mocks.getUser.mockReset().mockResolvedValue(user);
     mocks.getContracts.mockReset().mockResolvedValue([
       { chainId: optimismSepolia.id, contractVersion: 2, controllerAddress: account, proxyAddress: collateral },
@@ -232,9 +230,7 @@ describe("refund worker", () => {
       }),
     );
     vi.clearAllMocks();
-    await queue.drain(true);
-    await queue.clean(0, 1000, "completed");
-    await queue.clean(0, 1000, "failed");
+    add = vi.spyOn(Queue.prototype, "add");
   });
 
   it("delegates the refunder on startup when needed", async () => {
@@ -306,7 +302,7 @@ describe("refund worker", () => {
     await jobFinished("wh-authorized");
     const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, "wh-authorized") });
 
-    expect(mocks.getWebhook).toHaveBeenCalledExactlyOnceWith("wh-authorized");
+    expect(mocks.getWebhook.mock.calls.filter(([id]) => id === "wh-authorized")).toStrictEqual([["wh-authorized"]]);
     expect(mocks.getUser).toHaveBeenCalledExactlyOnceWith("user");
     expect(mocks.getWithdrawal).toHaveBeenCalledExactlyOnceWith(1000, refunderAddress, refunder.address);
     expect(mocks.getContracts).toHaveBeenCalledExactlyOnceWith();
@@ -349,10 +345,12 @@ describe("refund worker", () => {
       hashes: [expect.stringMatching(/^0x[0-9a-f]{64}$/) as string],
       payload: { type: "panda", bodies: [{ ...requestBody, createdAt: "2026-01-01T00:00:01.000Z" }] },
     });
-    expect(hook.enqueue).toHaveBeenCalledExactlyOnceWith(
-      { receipt: { blockNumber: expect.any(Number) as number, transactionHash: transaction?.hashes[0] } },
-      "wh-authorized",
-    );
+    expect(hooks()).toStrictEqual([
+      published(
+        { receipt: { blockNumber: expect.any(Number) as number, transactionHash: transaction?.hashes[0] } },
+        "wh-authorized",
+      ),
+    ]);
     expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
       userId: account,
       headings: t("Refund processed"),
@@ -389,8 +387,7 @@ describe("refund worker", () => {
       expect.any(Function),
     );
     expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
-    expect(continueTrace).not.toHaveBeenCalled();
-    expect(captureException).not.toHaveBeenCalled();
+    expect(captured()).toStrictEqual([]);
   });
 
   it("refunds reversed authorization updates", async () => {
@@ -432,15 +429,17 @@ describe("refund worker", () => {
       hashes: [zeroHash, expect.stringMatching(/^0x[0-9a-f]{64}$/) as string],
       payload: { type: "panda", bodies: [{ ...requestBody, createdAt: "2026-01-01T00:00:00.000Z" }] },
     });
-    expect(hook.enqueue).toHaveBeenCalledExactlyOnceWith(
-      {
-        receipt: {
-          blockNumber: expect.any(Number) as number,
-          transactionHash: expect.stringMatching(/^0x[0-9a-f]{64}$/) as string,
+    expect(hooks()).toStrictEqual([
+      published(
+        {
+          receipt: {
+            blockNumber: expect.any(Number) as number,
+            transactionHash: expect.stringMatching(/^0x[0-9a-f]{64}$/) as string,
+          },
         },
-      },
-      "wh-reversed",
-    );
+        "wh-reversed",
+      ),
+    ]);
     expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ headings: t("Refund processed") }),
     );
@@ -469,15 +468,17 @@ describe("refund worker", () => {
         payload: { type: "panda", bodies: [{ ...requestBody, createdAt: "2026-01-01T00:00:01.000Z" }] },
       }),
     );
-    expect(hook.enqueue).toHaveBeenCalledExactlyOnceWith(
-      {
-        receipt: {
-          blockNumber: expect.any(Number) as number,
-          transactionHash: expect.stringMatching(/^0x[0-9a-f]{64}$/) as string,
+    expect(hooks()).toStrictEqual([
+      published(
+        {
+          receipt: {
+            blockNumber: expect.any(Number) as number,
+            transactionHash: expect.stringMatching(/^0x[0-9a-f]{64}$/) as string,
+          },
         },
-      },
-      "wh-negative",
-    );
+        "wh-negative",
+      ),
+    ]);
     expect(track).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
         event: "TransactionRefund",
@@ -525,7 +526,7 @@ describe("refund worker", () => {
     );
     expect(sendPushNotification).toHaveBeenCalledOnce();
     expect(track).toHaveBeenCalledOnce();
-    expect(captureException).not.toHaveBeenCalled();
+    expect(captured()).toStrictEqual([]);
   });
 
   it("captures notification errors", async () => {
@@ -537,8 +538,8 @@ describe("refund worker", () => {
 
     await jobFinished("wh-push-error", undefined, { amount: 20_000_000 });
 
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error));
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(error);
+    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([exception]) => exception === error));
+    expect(captured()).toStrictEqual([[error]]);
     expect(track).toHaveBeenCalledOnce();
     expect(feedback).toHaveBeenCalledOnce();
   });
@@ -551,8 +552,8 @@ describe("refund worker", () => {
 
     await jobFinished("wh-feedback-error", undefined, { amount: 20_000_000 });
 
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error));
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(error, { level: "error" });
+    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([exception]) => exception === error));
+    expect(captured()).toStrictEqual([[error, { level: "error" }]]);
     expect(track).toHaveBeenCalledOnce();
   });
 
@@ -564,26 +565,31 @@ describe("refund worker", () => {
 
     await jobFinished("wh-partial-feedback-error");
 
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error));
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(error, { level: "error" });
+    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([exception]) => exception === error));
+    expect(captured()).toStrictEqual([[error, { level: "error" }]]);
     expect(track).toHaveBeenCalledOnce();
   });
 
   it("captures hook enqueue failures", async () => {
     webhook("wh-hook-error", { amount: 500, authorizedAmount: 1500, status: "pending" });
     const error = new Error("queue down");
-    hook.enqueue.mockRejectedValueOnce(error);
+    failHook(error);
     const track = vi.spyOn(segment, "track").mockReturnValue();
 
     await jobFinished("wh-hook-error");
 
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error));
-    expect(hook.enqueue).toHaveBeenCalledExactlyOnceWith(expect.anything(), "wh-hook-error");
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
-      level: "error",
-      tags: { queue: "hook", job: "hook" },
-      extra: { id: "wh-hook-error" },
-    });
+    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([exception]) => exception === error));
+    expect(hooks()).toStrictEqual([["hook", expect.anything(), { jobId: "wh-hook-error" }]]);
+    expect(captured()).toStrictEqual([
+      [
+        error,
+        {
+          level: "error",
+          tags: { queue: "hook", job: "hook" },
+          extra: { id: "wh-hook-error" },
+        },
+      ],
+    ]);
     expect(sendPushNotification).toHaveBeenCalledOnce();
     expect(track).toHaveBeenCalledOnce();
   });
@@ -597,11 +603,11 @@ describe("refund worker", () => {
     await vi.waitUntil(() =>
       vi
         .mocked(captureException)
-        .mock.calls.some(([captured]) => captured instanceof Error && captured.message === "card not found"),
+        .mock.calls.some(([exception]) => exception instanceof Error && exception.message === "card not found"),
     );
     expect(mocks.getUser).not.toHaveBeenCalled();
     expect(mocks.exaSend).not.toHaveBeenCalled();
-    expect(hook.enqueue).not.toHaveBeenCalled();
+    expect(hooks()).toStrictEqual([]);
     expect(sendPushNotification).not.toHaveBeenCalled();
     expect(setUser).not.toHaveBeenCalled();
     expect(captureException).toHaveBeenCalledWith(expect.objectContaining({ message: "card not found" }), {
@@ -621,7 +627,7 @@ describe("refund worker", () => {
     await expect(result).rejects.toThrow("amount mismatch");
     await vi.waitUntil(() => track.mock.calls.length > 0);
     expect(mocks.exaSend).not.toHaveBeenCalled();
-    expect(hook.enqueue).not.toHaveBeenCalled();
+    expect(hooks()).toStrictEqual([]);
     expect(setUser).not.toHaveBeenCalled();
     expect(track).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
@@ -632,17 +638,22 @@ describe("refund worker", () => {
         }) as unknown,
       }),
     );
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ message: "amount mismatch" }), {
-      level: "fatal",
-      fingerprint: ["{{ default }}", "refund.exhausted", "unknown"],
-      tags: {
-        queue: "refund",
-        job: "refund",
-        "panda.reason": "amount mismatch",
-        "panda.reasonName": "UnrecoverableError",
-      },
-      extra: { attempts: 1, id: "wh-mismatch", recipient: refunderAddress },
-    });
+    expect(captured()).toStrictEqual([
+      [
+        expect.objectContaining({ message: "amount mismatch" }),
+        {
+          level: "fatal",
+          fingerprint: ["{{ default }}", "refund.exhausted", "unknown"],
+          tags: {
+            queue: "refund",
+            job: "refund",
+            "panda.reason": "amount mismatch",
+            "panda.reasonName": "UnrecoverableError",
+          },
+          extra: { attempts: 1, id: "wh-mismatch", recipient: refunderAddress },
+        },
+      ],
+    ]);
   });
 
   it("fails without retries on missing controllers", async () => {
@@ -658,7 +669,7 @@ describe("refund worker", () => {
     await vi.waitUntil(() => track.mock.calls.length > 0);
     expect(mocks.getContracts).toHaveBeenCalledOnce();
     expect(mocks.exaSend).not.toHaveBeenCalled();
-    expect(hook.enqueue).not.toHaveBeenCalled();
+    expect(hooks()).toStrictEqual([]);
     expect(track).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
         event: "TransactionRejected",
@@ -668,20 +679,22 @@ describe("refund worker", () => {
         }) as unknown,
       }),
     );
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ message: "controller not found" }),
-      {
-        level: "fatal",
-        fingerprint: ["{{ default }}", "refund.exhausted", "unknown"],
-        tags: {
-          queue: "refund",
-          job: "refund",
-          "panda.reason": "controller not found",
-          "panda.reasonName": "UnrecoverableError",
+    expect(captured()).toStrictEqual([
+      [
+        expect.objectContaining({ message: "controller not found" }),
+        {
+          level: "fatal",
+          fingerprint: ["{{ default }}", "refund.exhausted", "unknown"],
+          tags: {
+            queue: "refund",
+            job: "refund",
+            "panda.reason": "controller not found",
+            "panda.reasonName": "UnrecoverableError",
+          },
+          extra: { attempts: 1, id: "wh-no-controller", recipient: refunderAddress },
         },
-        extra: { attempts: 1, id: "wh-no-controller", recipient: refunderAddress },
-      },
-    );
+      ],
+    ]);
   });
 
   it.each([
@@ -702,7 +715,7 @@ describe("refund worker", () => {
     await vi.waitUntil(() => track.mock.calls.length > 0);
     expect(mocks.getWithdrawal).toHaveBeenCalledExactlyOnceWith(1000, refunderAddress, refunder.address);
     expect(mocks.exaSend).not.toHaveBeenCalled();
-    expect(hook.enqueue).not.toHaveBeenCalled();
+    expect(hooks()).toStrictEqual([]);
     expect(sendPushNotification).not.toHaveBeenCalled();
     expect(track).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
@@ -713,20 +726,22 @@ describe("refund worker", () => {
         }) as unknown,
       }),
     );
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ message: "withdrawal mismatch" }),
-      {
-        level: "fatal",
-        fingerprint: ["{{ default }}", "refund.exhausted", "unknown"],
-        tags: {
-          queue: "refund",
-          job: "refund",
-          "panda.reason": "withdrawal mismatch",
-          "panda.reasonName": "UnrecoverableError",
+    expect(captured()).toStrictEqual([
+      [
+        expect.objectContaining({ message: "withdrawal mismatch" }),
+        {
+          level: "fatal",
+          fingerprint: ["{{ default }}", "refund.exhausted", "unknown"],
+          tags: {
+            queue: "refund",
+            job: "refund",
+            "panda.reason": "withdrawal mismatch",
+            "panda.reasonName": "UnrecoverableError",
+          },
+          extra: { attempts: 1, id: `wh-withdrawal-${field}`, recipient: refunderAddress },
         },
-        extra: { attempts: 1, id: `wh-withdrawal-${field}`, recipient: refunderAddress },
-      },
-    );
+      ],
+    ]);
   });
 
   it("fails on inactive users", async () => {
@@ -783,11 +798,11 @@ describe("refund worker", () => {
     await expect(
       database.query.transactions.findFirst({ where: eq(transactions.id, "wh-replay") }),
     ).resolves.toBeUndefined();
-    expect(hook.enqueue).not.toHaveBeenCalled();
+    expect(hooks()).toStrictEqual([]);
     expect(sendPushNotification).not.toHaveBeenCalled();
     expect(track).not.toHaveBeenCalled();
     expect(feedback).not.toHaveBeenCalled();
-    expect(captureException).not.toHaveBeenCalled();
+    expect(captured()).toStrictEqual([]);
   });
 
   it("fails without retries on expired signatures", async () => {
@@ -805,7 +820,7 @@ describe("refund worker", () => {
     await expect(result).rejects.toThrow("Expired");
     await vi.waitUntil(() => track.mock.calls.length > 0);
     expect(mocks.exaSend).toHaveBeenCalledOnce();
-    expect(hook.enqueue).not.toHaveBeenCalled();
+    expect(hooks()).toStrictEqual([]);
     expect(sendPushNotification).not.toHaveBeenCalled();
     expect(track).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
@@ -823,12 +838,17 @@ describe("refund worker", () => {
         } as unknown,
       }),
     );
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(ContractFunctionExecutionError), {
-      level: "fatal",
-      fingerprint: ["{{ default }}", "refund.exhausted", "Expired"],
-      tags: { queue: "refund", job: "refund", "panda.reason": "Expired", "panda.reasonName": "Expired" },
-      extra: { attempts: 1, id: "wh-expired", recipient: refunderAddress },
-    });
+    expect(captured()).toStrictEqual([
+      [
+        expect.any(ContractFunctionExecutionError),
+        {
+          level: "fatal",
+          fingerprint: ["{{ default }}", "refund.exhausted", "Expired"],
+          tags: { queue: "refund", job: "refund", "panda.reason": "Expired", "panda.reasonName": "Expired" },
+          extra: { attempts: 1, id: "wh-expired", recipient: refunderAddress },
+        },
+      ],
+    ]);
   });
 
   it("retries decoded reverts", async () => {
@@ -846,7 +866,7 @@ describe("refund worker", () => {
     await expect(result).rejects.toThrow("MarketFrozen");
     await vi.waitUntil(() => track.mock.calls.length > 0);
     expect(mocks.exaSend).toHaveBeenCalledTimes(2);
-    expect(hook.enqueue).not.toHaveBeenCalled();
+    expect(hooks()).toStrictEqual([]);
     expect(track).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
         event: "TransactionRejected",
@@ -856,12 +876,17 @@ describe("refund worker", () => {
         }) as unknown,
       }),
     );
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(ContractFunctionExecutionError), {
-      level: "fatal",
-      fingerprint: ["{{ default }}", "refund.exhausted", "MarketFrozen"],
-      tags: { queue: "refund", job: "refund", "panda.reason": "MarketFrozen", "panda.reasonName": "MarketFrozen" },
-      extra: { attempts: 2, id: "wh-frozen", recipient: refunderAddress },
-    });
+    expect(captured()).toStrictEqual([
+      [
+        expect.any(ContractFunctionExecutionError),
+        {
+          level: "fatal",
+          fingerprint: ["{{ default }}", "refund.exhausted", "MarketFrozen"],
+          tags: { queue: "refund", job: "refund", "panda.reason": "MarketFrozen", "panda.reasonName": "MarketFrozen" },
+          extra: { attempts: 2, id: "wh-frozen", recipient: refunderAddress },
+        },
+      ],
+    ]);
   });
 
   it("reports panda withdrawal reverts", async () => {
@@ -875,16 +900,18 @@ describe("refund worker", () => {
 
     await expect(result).rejects.toThrow(selector);
     expect(mocks.exaSend).toHaveBeenCalledOnce();
-    expect(hook.enqueue).not.toHaveBeenCalled();
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ functionName: "withdrawAsset" }),
-      {
-        level: "fatal",
-        fingerprint: ["{{ default }}", "refund.exhausted", selector],
-        tags: { queue: "refund", job: "refund", "panda.reason": selector, "panda.reasonName": selector },
-        extra: { attempts: 1, id: "wh-custody", recipient: refunderAddress },
-      },
-    );
+    expect(hooks()).toStrictEqual([]);
+    expect(captured()).toStrictEqual([
+      [
+        expect.objectContaining({ functionName: "withdrawAsset" }),
+        {
+          level: "fatal",
+          fingerprint: ["{{ default }}", "refund.exhausted", selector],
+          tags: { queue: "refund", job: "refund", "panda.reason": selector, "panda.reasonName": selector },
+          extra: { attempts: 1, id: "wh-custody", recipient: refunderAddress },
+        },
+      ],
+    ]);
   });
 
   it("retries invalid withdrawal signatures", async () => {
@@ -903,21 +930,23 @@ describe("refund worker", () => {
     await vi.waitUntil(() => track.mock.calls.length > 0);
     expect(mocks.exaSend).toHaveBeenCalledTimes(2);
     expect(mocks.getWithdrawal).toHaveBeenCalledTimes(2);
-    expect(hook.enqueue).not.toHaveBeenCalled();
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ functionName: "withdrawAsset" }),
-      {
-        level: "fatal",
-        fingerprint: ["{{ default }}", "refund.exhausted", "InvalidSignature"],
-        tags: {
-          queue: "refund",
-          job: "refund",
-          "panda.reason": "InvalidSignature",
-          "panda.reasonName": "InvalidSignature",
+    expect(hooks()).toStrictEqual([]);
+    expect(captured()).toStrictEqual([
+      [
+        expect.objectContaining({ functionName: "withdrawAsset" }),
+        {
+          level: "fatal",
+          fingerprint: ["{{ default }}", "refund.exhausted", "InvalidSignature"],
+          tags: {
+            queue: "refund",
+            job: "refund",
+            "panda.reason": "InvalidSignature",
+            "panda.reasonName": "InvalidSignature",
+          },
+          extra: { attempts: 2, id: "wh-invalid", recipient: refunderAddress },
         },
-        extra: { attempts: 2, id: "wh-invalid", recipient: refunderAddress },
-      },
-    );
+      ],
+    ]);
   });
 
   it("fails without retries on admin thresholds", async () => {
@@ -935,7 +964,7 @@ describe("refund worker", () => {
     await expect(result).rejects.toThrow("UnderAdminThreshold");
     await vi.waitUntil(() => track.mock.calls.length > 0);
     expect(mocks.exaSend).toHaveBeenCalledOnce();
-    expect(hook.enqueue).not.toHaveBeenCalled();
+    expect(hooks()).toStrictEqual([]);
     expect(sendPushNotification).not.toHaveBeenCalled();
     expect(track).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
@@ -946,20 +975,22 @@ describe("refund worker", () => {
         }) as unknown,
       }),
     );
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ functionName: "withdrawAsset" }),
-      {
-        level: "fatal",
-        fingerprint: ["{{ default }}", "refund.exhausted", "UnderAdminThreshold"],
-        tags: {
-          queue: "refund",
-          job: "refund",
-          "panda.reason": "UnderAdminThreshold",
-          "panda.reasonName": "UnderAdminThreshold",
+    expect(captured()).toStrictEqual([
+      [
+        expect.objectContaining({ functionName: "withdrawAsset" }),
+        {
+          level: "fatal",
+          fingerprint: ["{{ default }}", "refund.exhausted", "UnderAdminThreshold"],
+          tags: {
+            queue: "refund",
+            job: "refund",
+            "panda.reason": "UnderAdminThreshold",
+            "panda.reasonName": "UnderAdminThreshold",
+          },
+          extra: { attempts: 1, id: "wh-threshold", recipient: refunderAddress },
         },
-        extra: { attempts: 1, id: "wh-threshold", recipient: refunderAddress },
-      },
-    );
+      ],
+    ]);
   });
 
   it("skips reverted receipts", async () => {
@@ -980,7 +1011,7 @@ describe("refund worker", () => {
     await expect(result).rejects.toThrow("tx reverted");
     await vi.waitUntil(() => track.mock.calls.length > 0);
     expect(mocks.exaSend).toHaveBeenCalledOnce();
-    expect(hook.enqueue).not.toHaveBeenCalled();
+    expect(hooks()).toStrictEqual([]);
     expect(sendPushNotification).not.toHaveBeenCalled();
     expect(track).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
@@ -998,12 +1029,17 @@ describe("refund worker", () => {
         } as unknown,
       }),
     );
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
-      level: "fatal",
-      fingerprint: ["{{ default }}", "refund.exhausted", "unknown"],
-      tags: { queue: "refund", job: "refund", "panda.reason": "tx reverted", "panda.reasonName": "Error" },
-      extra: { attempts: 1, id: "wh-reverted", recipient: refunderAddress },
-    });
+    expect(captured()).toStrictEqual([
+      [
+        error,
+        {
+          level: "fatal",
+          fingerprint: ["{{ default }}", "refund.exhausted", "unknown"],
+          tags: { queue: "refund", job: "refund", "panda.reason": "tx reverted", "panda.reasonName": "Error" },
+          extra: { attempts: 1, id: "wh-reverted", recipient: refunderAddress },
+        },
+      ],
+    ]);
   });
 
   it("fails when refund amount is not found", async () => {
@@ -1060,7 +1096,7 @@ describe("refund worker", () => {
     await jobFinished("wh-retry", { attempts: 2, backoff: { type: "fixed", delay: 1 } });
 
     expect(mocks.exaSend).toHaveBeenCalledTimes(2);
-    expect(captureException).not.toHaveBeenCalled();
+    expect(captured()).toStrictEqual([]);
   });
 
   it("captures terminal failures", async () => {
@@ -1071,15 +1107,14 @@ describe("refund worker", () => {
     const result = jobFinished("wh-terminal", { removeOnFail: false });
 
     await expect(result).rejects.toThrow("refund failed");
-    await expect(queue.getFailedCount()).resolves.toBe(1);
     await expect(queue.getJobState("wh-terminal")).resolves.toBe("failed");
-    const [job] = await queue.getFailed();
+    const job = await queue.getJob("wh-terminal");
     if (!job) throw new Error("job not found");
     expect(job.id).toBe("wh-terminal");
     expect(job.failedReason).toBe("refund failed");
     expect(job.attemptsMade).toBe(1);
     expect(job.stacktrace).toHaveLength(1);
-    expect(hook.enqueue).not.toHaveBeenCalled();
+    expect(hooks()).toStrictEqual([]);
     expect(captureException).toHaveBeenCalledWith(error, {
       level: "fatal",
       fingerprint: ["{{ default }}", "refund.exhausted", "unknown"],
@@ -1090,7 +1125,7 @@ describe("refund worker", () => {
   });
 
   it("captures panda webhook rejections", async () => {
-    mocks.getWebhook.mockRejectedValueOnce(new ServiceError("Panda", 502, "panda error"));
+    rejectWebhook("wh-panda-down", new ServiceError("Panda", 502, "panda error"));
 
     const result = jobFinished("wh-panda-down");
 
@@ -1108,7 +1143,7 @@ describe("refund worker", () => {
   });
 
   it("captures non-error failures", async () => {
-    mocks.getWebhook.mockRejectedValueOnce("panda unavailable");
+    rejectWebhook("wh-non-error", "panda unavailable");
 
     const result = jobFinished("wh-non-error");
 
@@ -1170,12 +1205,17 @@ describe("refund worker", () => {
 
     await expect(result).rejects.toThrow("intermediate failure");
     expect(mocks.exaSend).toHaveBeenCalledTimes(2);
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
-      level: "fatal",
-      fingerprint: ["{{ default }}", "refund.exhausted", "unknown"],
-      tags: { queue: "refund", job: "refund", "panda.reason": "intermediate failure", "panda.reasonName": "Error" },
-      extra: { attempts: 2, id: "wh-intermediate", recipient: refunderAddress },
-    });
+    expect(captured()).toStrictEqual([
+      [
+        error,
+        {
+          level: "fatal",
+          fingerprint: ["{{ default }}", "refund.exhausted", "unknown"],
+          tags: { queue: "refund", job: "refund", "panda.reason": "intermediate failure", "panda.reasonName": "Error" },
+          extra: { attempts: 2, id: "wh-intermediate", recipient: refunderAddress },
+        },
+      ],
+    ]);
   });
 });
 
@@ -1212,13 +1252,6 @@ vi.mock("../../utils/panda", async (importOriginal) => {
     })) as typeof original.default,
   };
 });
-
-vi.mock("../../workers/hook/queue", () => ({
-  default: () => ({
-    close: () => Promise.resolve(hook.close()),
-    enqueue: (...args: Parameters<ReturnType<typeof createHook>["enqueue"]>) => Promise.resolve(hook.enqueue(...args)),
-  }),
-}));
 
 vi.mock("../../utils/wallet", async (importOriginal) => {
   const original = await importOriginal<typeof W>();
@@ -1337,6 +1370,7 @@ async function withdrawal(amount: bigint) {
 }
 
 async function jobFinished(id: string, options?: JobsOptions, data?: Partial<Refund>) {
+  own.add(id);
   const result = finished(events, id);
   await queue.add(
     "refund",
@@ -1344,7 +1378,51 @@ async function jobFinished(id: string, options?: JobsOptions, data?: Partial<Ref
     { attempts: 1, jobId: id, removeOnComplete: true, removeOnFail: true, ...options },
   );
   await result.catch(async (error: unknown) => {
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0);
+    await vi.waitUntil(() => captured().length > 0);
     throw error;
+  });
+}
+
+function lookup(id: string) {
+  if (own.has(id) || webhooks.has(id)) return Promise.resolve(webhooks.get(id));
+  const error = new ServiceError("Panda", 404, "webhook not found");
+  foreign.add(error);
+  return Promise.reject(error);
+}
+
+function captured() {
+  return vi.mocked(captureException).mock.calls.filter(([error, context]) => {
+    const id = (context as undefined | { extra?: { id?: string } })?.extra?.id;
+    return !(error instanceof Error && foreign.has(error)) && (id === undefined || own.has(id));
+  });
+}
+
+function hooks() {
+  return add.mock.calls.filter(([name]) => name === "hook");
+}
+
+function published(data: object, jobId: string) {
+  return [
+    "hook",
+    { ...data, sentryBaggage: expect.any(String) as string, sentryTrace: expect.any(String) as string },
+    { jobId },
+  ] as const;
+}
+
+function failHook(error: Error) {
+  let pending = true;
+  add.mockImplementation(function (this: Queue, ...args: Parameters<Queue["add"]>) {
+    if (!pending || args[0] !== "hook") return enqueue.apply(this, args) as ReturnType<Queue["add"]>;
+    pending = false;
+    return Promise.reject(error);
+  });
+}
+
+function rejectWebhook(id: string, error: unknown) {
+  let pending = true;
+  mocks.getWebhook.mockImplementation((current) => {
+    if (!pending || current !== id) return lookup(current);
+    pending = false;
+    return Promise.reject(error); // eslint-disable-line @typescript-eslint/prefer-promise-reject-errors -- mirrors any rejection
   });
 }

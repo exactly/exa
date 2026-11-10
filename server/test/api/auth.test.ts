@@ -15,7 +15,7 @@ import { nonEmpty, object, parse, pipe, string, type InferOutput } from "valibot
 import { getAddress, keccak256, padHex, slice, toBytes, verifyMessage, zeroAddress } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { parseSiweMessage, validateSiweMessage } from "viem/siwe";
-import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import * as derive from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
@@ -36,8 +36,8 @@ import createSardine from "../../utils/sardine";
 import createSegment from "../../utils/segment";
 import validFactories from "../../utils/validFactories";
 import createWalletExtension from "../../utils/walletExtension";
+import createSubscribe from "../../workers/subscribe/queue";
 
-import type createSubscribe from "../../workers/subscribe/queue";
 import type * as SimpleWebAuthn from "@simplewebauthn/server";
 import type * as SimpleWebAuthnHelpers from "@simplewebauthn/server/helpers";
 import type * as ViemSiwe from "viem/siwe";
@@ -47,10 +47,7 @@ const WALLET_EXTENSION_EXPIRY = 60 * 24 * 60 * 60_000;
 vi.mock("@sentry/node", { spy: true });
 
 const walletExtension = createWalletExtension(parse(pipe(string(), nonEmpty()), env.WALLET_EXTENSION_SECRET));
-const subscribe = {
-  close: vi.fn<ReturnType<typeof createSubscribe>["close"]>().mockResolvedValue(),
-  enqueue: vi.fn<ReturnType<typeof createSubscribe>["enqueue"]>().mockResolvedValue(),
-};
+const subscribe = createSubscribe(redis);
 const createCredential = createCredentialFactory({
   authSecret,
   database,
@@ -66,6 +63,8 @@ const appClient = testClient(
   authentication({ authSecret, createCredential, database, intercom, redis, walletExtension }),
 );
 const registrationAppClient = testClient(registration({ createCredential, intercom, redis, walletExtension }));
+
+afterAll(() => subscribe.close());
 
 function expectWalletExtensionExpire(expire: number, auth: number, start: number) {
   expect(expire).toBeGreaterThan(auth);
