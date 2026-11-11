@@ -237,9 +237,15 @@ export default function route({
           return c.json({ code: "legacy kyc", legacy: "legacy kyc" }, 200);
         }
 
+        const unknownAccount =
+          scope !== "business" && c.req.valid("query").countryCode
+            ? await persona.getUnknownAccount(credentialId)
+            : undefined;
         let inquiryTemplateId: Awaited<ReturnType<(typeof persona)["getPendingInquiryTemplate"]>>;
         try {
-          inquiryTemplateId = await persona.getPendingInquiryTemplate(credentialId, scope);
+          inquiryTemplateId = unknownAccount
+            ? await persona.evaluateAccount(unknownAccount, scope)
+            : await persona.getPendingInquiryTemplate(credentialId, scope);
         } catch (error: unknown) {
           if (error instanceof Error && error.message === scopeValidationErrors.NOT_SUPPORTED) {
             return c.json({ code: "not supported" }, 400);
@@ -247,27 +253,25 @@ export default function route({
           throw error;
         }
         if (!inquiryTemplateId) {
-          if (c.req.valid("query").countryCode) {
-            const countryCode = await (
-              scope === "business"
-                ? Promise.all([
-                    persona.getAccount(credentialId, scope),
-                    persona.getInquiry(credentialId, BUSINESS_TEMPLATE),
-                  ]).then(([personaAccount, inquiry]) => {
+          const countryCode =
+            scope === "business"
+              ? c.req.valid("query").countryCode &&
+                (await Promise.all([
+                  persona.getAccount(credentialId, scope),
+                  persona.getInquiry(credentialId, BUSINESS_TEMPLATE),
+                ])
+                  .then(([personaAccount, inquiry]) => {
                     const result = safeParse(
                       pipe(string(), trim(), toUpperCase(), regex(/^[A-Z]{2}$/)),
                       merge(personaAccount?.attributes.fields, inquiry?.attributes.fields).country_code_2,
                     );
                     return result.success ? result.output : undefined;
                   })
-                : persona
-                    .getAccount(credentialId, scope)
-                    .then((personaAccount) => personaAccount?.attributes["country-code"])
-            ).catch((error: unknown) => {
-              captureException(error, { level: "error", contexts: { details: { credentialId, scope } } });
-            });
-            countryCode && c.header("User-Country", countryCode);
-          }
+                  .catch((error: unknown) => {
+                    captureException(error, { level: "error", contexts: { details: { credentialId, scope } } });
+                  }))
+              : unknownAccount?.data[0]?.attributes["country-code"];
+          countryCode && c.header("User-Country", countryCode);
           return c.json({ code: "ok", legacy: "ok" }, 200);
         }
         const inquiry = await persona.getInquiry(credentialId, inquiryTemplateId);
@@ -527,7 +531,8 @@ export default function route({
         }
 
         if (scope === "cardLimit") {
-          const cardLimit = await persona.getCardLimitStatus(credentialId);
+          const unknownAccount = await persona.getUnknownAccount(credentialId);
+          const cardLimit = await persona.getCardLimitStatus(credentialId, unknownAccount);
           switch (cardLimit.status) {
             case "resolved":
               return c.json({ code: "already approved" }, 400);
@@ -540,22 +545,15 @@ export default function route({
             case "noTemplate":
               return c.json({ code: "not started" }, 400);
             case "noInquiry": {
-              const basicAccount = await persona.getAccount(credentialId, "basic").catch((error: unknown) => {
-                captureException(error, {
-                  level: "error",
-                  contexts: { details: { credentialId, scope: "cardLimit" } },
-                });
-              });
+              const names = safeParse(
+                object({ "name-first": string(), "name-last": string() }),
+                unknownAccount.data[0]?.attributes,
+              );
               const { data } = await persona.createInquiry(
                 credentialId,
                 CARD_LIMIT_TEMPLATE,
                 redirectURI,
-                basicAccount
-                  ? {
-                      "name-first": basicAccount.attributes["name-first"],
-                      "name-last": basicAccount.attributes["name-last"],
-                    }
-                  : undefined,
+                names.success ? names.output : undefined,
               );
               return c.json(await generateInquiryTokens(data.id, persona), 200);
             }

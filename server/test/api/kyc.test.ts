@@ -1154,17 +1154,19 @@ describe("authenticated", () => {
 
       it("returns ok when account has all manteca fields and country code", async () => {
         await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
-        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(mantecaAccount as Persona.AccountOutput<"manteca">);
-        const getPendingInquiryTemplate = vi
-          .spyOn(persona, "getPendingInquiryTemplate")
-          .mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        const unknownAccount = { data: [mantecaAccount] };
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce(unknownAccount);
+        const evaluateAccount = vi.spyOn(persona, "evaluateAccount").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        const getAccount = vi.spyOn(persona, "getAccount");
 
         const response = await appClient.index.$get(
           { query: { scope: "manteca", countryCode: "true" } },
           { headers: { "test-credential-id": "bob" } },
         );
 
-        expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "manteca");
+        expect(persona.getUnknownAccount).toHaveBeenCalledExactlyOnceWith("bob");
+        expect(evaluateAccount).toHaveBeenCalledExactlyOnceWith(unknownAccount, "manteca");
+        expect(getAccount).not.toHaveBeenCalled();
         await expect(response.json()).resolves.toStrictEqual({ code: "ok", legacy: "ok" });
         expect(response.headers.get("User-Country")).toBe("AR");
         expect(response.status).toBe(200);
@@ -1478,17 +1480,16 @@ describe("authenticated", () => {
 
       it("returns ok with country code header when account has a supported document", async () => {
         await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
-        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(basicAccount as Persona.AccountOutput<"bridge">);
-        const getPendingInquiryTemplate = vi
-          .spyOn(persona, "getPendingInquiryTemplate")
-          .mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({ data: [basicAccount] });
+        const getAccount = vi.spyOn(persona, "getAccount");
 
         const response = await appClient.index.$get(
           { query: { scope: "bridge", countryCode: "true" } },
           { headers: { "test-credential-id": "bob" } },
         );
 
-        expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "bridge");
+        expect(persona.getUnknownAccount).toHaveBeenCalledExactlyOnceWith("bob");
+        expect(getAccount).not.toHaveBeenCalled();
         await expect(response.json()).resolves.toStrictEqual({ code: "ok", legacy: "ok" });
         expect(response.headers.get("User-Country")).toBe("AR");
         expect(response.status).toBe(200);
@@ -1877,6 +1878,12 @@ describe("authenticated", () => {
     });
 
     describe("posting kyc", () => {
+      const unknownAccount = { data: [basicAccount] } satisfies Persona.UnknownAccountOutput;
+
+      beforeEach(() => {
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValue(unknownAccount);
+      });
+
       it("returns already approved when persona account has card_limit_usd set", async () => {
         vi.spyOn(persona, "getCardLimitStatus").mockResolvedValueOnce({ status: "resolved" });
 
@@ -1905,7 +1912,6 @@ describe("authenticated", () => {
         const sessionToken = "persona-session-token";
 
         vi.spyOn(persona, "getCardLimitStatus").mockResolvedValueOnce({ status: "noInquiry" });
-        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(basicAccount);
         vi.spyOn(persona, "createInquiry").mockResolvedValueOnce(inquiry);
         vi.spyOn(persona, "resumeInquiry").mockResolvedValueOnce({
           ...resumeTemplate,
@@ -1917,7 +1923,8 @@ describe("authenticated", () => {
           { headers: { "test-credential-id": "bob" } },
         );
 
-        expect(persona.getAccount).toHaveBeenCalledWith("bob", "basic");
+        expect(persona.getUnknownAccount).toHaveBeenCalledExactlyOnceWith("bob");
+        expect(persona.getCardLimitStatus).toHaveBeenCalledExactlyOnceWith("bob", unknownAccount);
         expect(persona.createInquiry).toHaveBeenCalledWith("bob", persona.CARD_LIMIT_TEMPLATE, undefined, {
           "name-first": "ALEXANDER J",
           "name-last": "SAMPLE",
@@ -1933,8 +1940,8 @@ describe("authenticated", () => {
       it("creates inquiry without name when account is not found", async () => {
         const sessionToken = "persona-session-token";
 
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({ data: [] });
         vi.spyOn(persona, "getCardLimitStatus").mockResolvedValueOnce({ status: "noInquiry" });
-        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
         vi.spyOn(persona, "createInquiry").mockResolvedValueOnce(inquiry);
         vi.spyOn(persona, "resumeInquiry").mockResolvedValueOnce({
           ...resumeTemplate,
@@ -1946,37 +1953,6 @@ describe("authenticated", () => {
           { headers: { "test-credential-id": "bob" } },
         );
 
-        expect(persona.getAccount).toHaveBeenCalledWith("bob", "basic");
-        expect(persona.createInquiry).toHaveBeenCalledWith("bob", persona.CARD_LIMIT_TEMPLATE, undefined, undefined);
-        await expect(response.json()).resolves.toStrictEqual({
-          inquiryId: resumeTemplate.data.id,
-          sessionToken,
-          type: "persona",
-        });
-        expect(response.status).toBe(200);
-      });
-
-      it("creates inquiry without name when getAccount fails", async () => {
-        const sessionToken = "persona-session-token";
-
-        vi.spyOn(persona, "getCardLimitStatus").mockResolvedValueOnce({ status: "noInquiry" });
-        vi.spyOn(persona, "getAccount").mockRejectedValueOnce(new Error("network error"));
-        vi.spyOn(persona, "createInquiry").mockResolvedValueOnce(inquiry);
-        vi.spyOn(persona, "resumeInquiry").mockResolvedValueOnce({
-          ...resumeTemplate,
-          meta: { ...resumeTemplate.meta, "session-token": sessionToken },
-        });
-
-        const response = await appClient.index.$post(
-          { json: { scope: "cardLimit" } },
-          { headers: { "test-credential-id": "bob" } },
-        );
-
-        expect(persona.getAccount).toHaveBeenCalledWith("bob", "basic");
-        expect(captureException).toHaveBeenCalledWith(expect.objectContaining({ message: "network error" }), {
-          level: "error",
-          contexts: { details: { credentialId: "bob", scope: "cardLimit" } },
-        });
         expect(persona.createInquiry).toHaveBeenCalledWith("bob", persona.CARD_LIMIT_TEMPLATE, undefined, undefined);
         await expect(response.json()).resolves.toStrictEqual({
           inquiryId: resumeTemplate.data.id,
@@ -2083,7 +2059,6 @@ describe("authenticated", () => {
         const sessionToken = "persona-session-token";
 
         vi.spyOn(persona, "getCardLimitStatus").mockResolvedValueOnce({ status: "noInquiry" });
-        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(basicAccount);
         vi.spyOn(persona, "createInquiry").mockResolvedValueOnce(inquiry);
         vi.spyOn(persona, "resumeInquiry").mockResolvedValueOnce({
           ...resumeTemplate,
@@ -2095,7 +2070,6 @@ describe("authenticated", () => {
           { headers: { "test-credential-id": "bob" } },
         );
 
-        expect(persona.getAccount).toHaveBeenCalledWith("bob", "basic");
         expect(persona.createInquiry).toHaveBeenCalledWith("bob", persona.CARD_LIMIT_TEMPLATE, "https://example.com", {
           "name-first": "ALEXANDER J",
           "name-last": "SAMPLE",

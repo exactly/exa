@@ -332,6 +332,11 @@ vi.mock("../utils/persona", async (importOriginal: () => Promise<typeof persona>
         .mockImplementation(async (referenceId: string) =>
           (await approved(referenceId)) ? undefined : original.PANDA_TEMPLATE,
         ),
+      evaluateAccount: vi
+        .fn()
+        .mockImplementation(({ data }: persona.UnknownAccountOutput) =>
+          Promise.resolve(data[0] ? undefined : original.PANDA_TEMPLATE),
+        ),
       getInquiry: vi.fn().mockImplementation((referenceId: string, templateId: string) => {
         const key = `${referenceId}:${templateId}`;
         const inquiry = inquiries.get(key);
