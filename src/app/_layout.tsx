@@ -149,6 +149,7 @@ init({
   attachStacktrace: true,
   attachViewHierarchy: true,
   enableAutoSessionTracking: true,
+  enableWatchdogTerminationTracking: false,
   tracePropagationTargets: [domain, origin],
   enableNativeFramesTracking: !isRunningInExpoGo(),
   enableUserInteractionTracing: true,
