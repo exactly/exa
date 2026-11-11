@@ -69,6 +69,7 @@ export default defineConfig([
         project: "../contracts",
         include: [
           "AppPreviewer.sol/AppPreviewer.json",
+          "Depositor.sol/Depositor.json",
           "ExaAccountFactory.sol/ExaAccountFactory.json",
           "ExaPlugin.sol/ExaPlugin.json",
           "ExaPreviewer.sol/ExaPreviewer.json",
@@ -232,6 +233,7 @@ export default defineConfig([
               }),
               ...Object.entries({
                 balancerVault: loadDeployment("Balancer2Vault", false)?.address,
+                depositor: loadBroadcast("Depositor", chainId, false)?.transactions[0]?.contractAddress,
                 exa: loadDeployment("EXA", false)?.address,
                 flashLoanAdapter: loadDeployment("FlashLoanAdapter", false)?.address,
               }).map(
@@ -313,11 +315,24 @@ function loadDeployment<R extends boolean = true>(
   }
 }
 
-function loadBroadcast(script: string, id = chainId) {
-  return JSON.parse(
-    readFileSync(`node_modules/@exactly/plugin/broadcast/${script}.s.sol/${id}/run-latest.json`, "utf8"),
-  ) as { transactions: { contractAddress: string }[] };
+function loadBroadcast<R extends boolean = true>(
+  script: string,
+  id = chainId,
+  required = true as R,
+): R extends true ? Broadcast : Broadcast | undefined {
+  try {
+    return JSON.parse(
+      readFileSync(`node_modules/@exactly/plugin/broadcast/${script}.s.sol/${id}/run-latest.json`, "utf8"),
+    ) as never;
+  } catch (error) {
+    if (!required) return undefined as never;
+    throw error;
+  }
 }
+
+type Broadcast = {
+  transactions: { contractAddress: string }[];
+};
 
 type Deployment = {
   address: string;
