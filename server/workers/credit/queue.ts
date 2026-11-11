@@ -8,7 +8,7 @@ export default function queue(bullmq: Redis) {
   return {
     close: () => instance.close(),
     async enqueue(account: Job["account"], jobId: string = account) {
-      await instance.enqueue({ account }, jobId);
+      await instance.enqueue({ account }, { jobId });
     },
   };
 }
