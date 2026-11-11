@@ -11,6 +11,7 @@ import {
   type BaseIssue,
   type BaseSchema,
   type InferInput,
+  type InferOutput,
 } from "valibot";
 import { withRetry } from "viem";
 import { optimism, optimismSepolia } from "viem/chains";
@@ -26,15 +27,21 @@ import type createPersona from "../persona";
 export const name = "manteca" as const;
 
 export default function manteca(key: string, url: string) {
+  let company: Promise<InferOutput<typeof CompanyResponse>> | undefined;
   return {
     acceptTermsAndConditions,
     balances,
     convertBalanceToUsdc,
     createOrder,
+    executeQrPayment,
     getDepositDetails,
     getLimits,
+    getPaymentLock,
     getProvider,
     getQuote,
+    getSettlement,
+    getSettlements,
+    getSynthetic,
     getUser,
     initiateOnboarding,
     lockQrPayment,
@@ -76,7 +83,27 @@ export default function manteca(key: string, url: string) {
   async function createOrder(order: InferInput<typeof Order>) {
     return await request(OrderResponse, "/crypto/v2/orders", {}, order, "POST", 10_000);
   }
-  // eslint-disable-next-line unicorn/consistent-function-scoping
+  async function executeQrPayment(qrCode: string, externalId: string) {
+    return await request(
+      SyntheticResponse,
+      "/crypto/v2/synthetics/qr-payment",
+      {},
+      { qrCode, externalId },
+      "POST",
+      10_000,
+    ).catch(async (error: unknown) => {
+      if (
+        error instanceof ServiceError &&
+        typeof error.cause === "string" &&
+        (error.cause.includes(MantecaApiErrorCodes.SYNTHETIC_EXISTS) ||
+          error.cause.includes(MantecaApiErrorCodes.DUPLICATE_REQUEST))
+      ) {
+        const synthetic = await getSynthetic(externalId);
+        if (synthetic) return synthetic;
+      }
+      throw error;
+    });
+  }
   async function forwardFileToURL(sourceURL: string, destinationURL: string): Promise<void> {
     const abort = new AbortController();
     const timeout = setTimeout(() => {
@@ -128,6 +155,20 @@ export default function manteca(key: string, url: string) {
     const result = safeParse(picklist(MantecaCountryCode), countryCode);
     if (!result.success) throw new Error(`Invalid country: ${countryCode}`);
     return Nationality[result.output];
+  }
+  async function getPaymentLock(code: string) {
+    return await request(QrPaymentResponse, `/crypto/v2/payment-locks/${code}`, {}, undefined, "GET", 10_000).catch(
+      (error: unknown) => {
+        if (
+          error instanceof ServiceError &&
+          typeof error.cause === "string" &&
+          error.cause.includes(MantecaApiErrorCodes.EXPIRED_LOCK)
+        ) {
+          return null;
+        }
+        throw error;
+      },
+    );
   }
   async function getProvider(account: Address, countryCode?: string) {
     if (!Supported[chain.id]) {
@@ -221,6 +262,41 @@ export default function manteca(key: string, url: string) {
     });
     if (!quote) return;
     return { buyRate: quote.buy, sellRate: quote.sell };
+  }
+  async function getSettlement(asset: string) {
+    const { [asset]: settlement } = await getSettlements();
+    if (!settlement) throw new Error(ErrorCodes.NOT_SUPPORTED_CURRENCY);
+    return settlement;
+  }
+  async function getSettlements() {
+    company ??= request(CompanyResponse, "/crypto/v2/company", {}, undefined, "GET", 10_000).catch((error: unknown) => {
+      company = undefined;
+      throw error;
+    });
+    const { banking } = await company;
+    return Object.fromEntries(
+      Object.entries(SettlementEntity).flatMap(([asset, entity]) => {
+        const settlement = banking.addresses.find(
+          ({ address, legalEntity, type }) =>
+            type === "SETTLEMENT" && legalEntity === entity && safeParse(Address, address).success,
+        );
+        return settlement ? [[asset, parse(Address, settlement.address)] as const] : [];
+      }),
+    );
+  }
+  async function getSynthetic(externalId: string) {
+    return await request(SyntheticResponse, `/crypto/v2/synthetics/${externalId}`, {}, undefined, "GET", 10_000).catch(
+      (error: unknown) => {
+        if (
+          error instanceof ServiceError &&
+          typeof error.cause === "string" &&
+          error.cause.includes(MantecaApiErrorCodes.SYNTHETIC_NOT_FOUND)
+        ) {
+          return null;
+        }
+        throw error;
+      },
+    );
   }
   function getSupported(countryCode?: string): (typeof MantecaCurrency)[number][] {
     if (!countryCode) return [];
@@ -554,6 +630,7 @@ export const QrPaymentResponse = object({
   userId: string(),
   userNumberId: string(),
   userExternalId: optional(string()),
+  sender: optional(object({ legalId: string() })),
   paymentRecipientName: optional(string()),
   paymentRecipientLegalId: optional(string()),
   paymentAssetAmount: string(),
@@ -563,6 +640,21 @@ export const QrPaymentResponse = object({
   expireAt: string(),
   creationTime: string(),
 });
+
+export const SyntheticStatus = ["STARTING", "ACTIVE", "WAITING", "COMPLETED", "CANCELLED"] as const;
+export const SyntheticResponse = object({
+  id: string(),
+  numberId: string(),
+  externalId: optional(string()),
+  status: picklist(SyntheticStatus),
+  type: string(),
+});
+
+const CompanyResponse = object({
+  banking: object({ addresses: array(object({ address: string(), legalEntity: string(), type: string() })) }),
+});
+
+const SettlementEntity = { ARS: "WALLET_ARG", BRL: "CRYPTO_GLOBAL" };
 
 export const QuoteResponse = object({ ticker: string(), timestamp: string(), buy: string(), sell: string() });
 
@@ -763,8 +855,12 @@ export const ErrorCodes = {
 };
 
 const MantecaApiErrorCodes = {
+  DUPLICATE_REQUEST: "DUPLICATE_REQUEST",
+  EXPIRED_LOCK: "EXPIRED_LOCK",
   INVALID_LEGAL_ID: "legalId has wrong value",
   INVALID_ORDER_SIZE: "MIN_SIZE",
+  SYNTHETIC_EXISTS: "SYNTHETIC_EXISTS",
+  SYNTHETIC_NOT_FOUND: "SYNTHETIC_NF",
   USER_NOT_FOUND: "USER_NF",
 } as const;
 
