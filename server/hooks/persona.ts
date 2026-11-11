@@ -30,7 +30,7 @@ import {
 import { bytesToHex } from "viem";
 
 import chain, { firewallAddress } from "@exactly/common/generated/chain";
-import { SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
+import { CLASSIC_PRODUCT_ID } from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
 
 import { cards, credentials } from "../database/schema";
@@ -428,7 +428,7 @@ export default function hook({
             .then(({ id }) =>
               panda.createCard(
                 id,
-                SIGNATURE_PRODUCT_ID,
+                CLASSIC_PRODUCT_ID,
                 payload.data.attributes.fields.weeklyCardLimit?.value == null
                   ? undefined
                   : Math.round(payload.data.attributes.fields.weeklyCardLimit.value * 100),
@@ -437,9 +437,7 @@ export default function hook({
             );
           await database
             .insert(cards)
-            .values([
-              { id: card.id, credentialId: referenceId, lastFour: card.last4, productId: SIGNATURE_PRODUCT_ID },
-            ]);
+            .values([{ id: card.id, credentialId: referenceId, lastFour: card.last4, productId: CLASSIC_PRODUCT_ID }]);
           return c.json({ code: "ok" }, 200);
         } catch (error) {
           if (

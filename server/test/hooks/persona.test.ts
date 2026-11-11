@@ -14,7 +14,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import chain, { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
-import { SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
+import { CLASSIC_PRODUCT_ID } from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
 
 import database, { cards, credentials } from "../../database";
@@ -1044,7 +1044,7 @@ describe("business representative", () => {
     );
     expect(panda.createCard).toHaveBeenCalledExactlyOnceWith(
       "authorized-user",
-      SIGNATURE_PRODUCT_ID,
+      CLASSIC_PRODUCT_ID,
       200_000,
       "evt_representative_123",
     );
@@ -1067,7 +1067,7 @@ describe("business representative", () => {
         where: eq(cards.credentialId, referenceId),
       }),
     ).resolves.toStrictEqual([
-      { id: "business-card", lastFour: "4321", productId: SIGNATURE_PRODUCT_ID, status: "ACTIVE" },
+      { id: "business-card", lastFour: "4321", productId: CLASSIC_PRODUCT_ID, status: "ACTIVE" },
     ]);
   });
 
@@ -1087,7 +1087,7 @@ describe("business representative", () => {
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
     expect(panda.createCard).toHaveBeenCalledExactlyOnceWith(
       "authorized-user",
-      SIGNATURE_PRODUCT_ID,
+      CLASSIC_PRODUCT_ID,
       undefined,
       "evt_representative_123",
     );
@@ -1113,7 +1113,7 @@ describe("business representative", () => {
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
     expect(panda.createCard).toHaveBeenCalledExactlyOnceWith(
       "authorized-user",
-      SIGNATURE_PRODUCT_ID,
+      CLASSIC_PRODUCT_ID,
       115,
       "evt_representative_123",
     );
@@ -1285,7 +1285,7 @@ describe("business representative", () => {
     );
     expect(panda.createCard).toHaveBeenCalledExactlyOnceWith(
       "authorized-user",
-      SIGNATURE_PRODUCT_ID,
+      CLASSIC_PRODUCT_ID,
       undefined,
       "evt_representative_123",
     );
@@ -1299,7 +1299,7 @@ describe("business representative", () => {
         columns: { id: true, lastFour: true, productId: true },
         where: eq(cards.credentialId, referenceId),
       }),
-    ).resolves.toStrictEqual([{ id: "business-card", lastFour: "4321", productId: SIGNATURE_PRODUCT_ID }]);
+    ).resolves.toStrictEqual([{ id: "business-card", lastFour: "4321", productId: CLASSIC_PRODUCT_ID }]);
   });
 
   it("returns card limit reached when panda rejects with the max cards error", async () => {
@@ -1456,7 +1456,7 @@ describe("business representative", () => {
     expect(panda.createCompanyUser).not.toHaveBeenCalled();
     expect(panda.createCard).toHaveBeenCalledExactlyOnceWith(
       "business-user",
-      SIGNATURE_PRODUCT_ID,
+      CLASSIC_PRODUCT_ID,
       200_000,
       "evt_representative_123",
     );
@@ -1468,7 +1468,7 @@ describe("business representative", () => {
         where: eq(cards.credentialId, referenceId),
       }),
     ).resolves.toStrictEqual([
-      { id: "business-card", lastFour: "4321", productId: SIGNATURE_PRODUCT_ID, status: "ACTIVE" },
+      { id: "business-card", lastFour: "4321", productId: CLASSIC_PRODUCT_ID, status: "ACTIVE" },
     ]);
   });
 
@@ -1490,7 +1490,7 @@ describe("business representative", () => {
     expect(allow.enqueue).not.toHaveBeenCalled();
     expect(panda.createCard).toHaveBeenCalledExactlyOnceWith(
       "authorized-user",
-      SIGNATURE_PRODUCT_ID,
+      CLASSIC_PRODUCT_ID,
       undefined,
       "evt_representative_123",
     );

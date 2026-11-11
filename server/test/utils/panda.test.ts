@@ -6,7 +6,7 @@ import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { usdcAddress } from "@exactly/common/generated/chain";
-import { PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
+import { CLASSIC_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
 
 import createPanda from "../../utils/panda";
@@ -448,6 +448,28 @@ describe("create card", () => {
       }),
     );
     expect(fetchSpy.mock.lastCall?.[1]?.headers).not.toHaveProperty("Idempotency-Key");
+  });
+
+  it("sends classic card art on base", async () => {
+    chainMock.id = base.id;
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      arrayBuffer: () => Promise.resolve(new TextEncoder().encode(JSON.stringify(card)).buffer),
+    } as Response);
+
+    await expect(panda.createCard("user-id", CLASSIC_PRODUCT_ID)).resolves.toStrictEqual(card);
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      expect.stringContaining("/issuing/users/user-id/cards"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          type: "virtual",
+          status: "active",
+          limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
+          configuration: { productId: CLASSIC_PRODUCT_ID, virtualCardArt: "1f3e23aaeb024388a0373c59ff3a5a7e" },
+        }),
+      }),
+    );
   });
 
   it("sends the idempotency key", async () => {

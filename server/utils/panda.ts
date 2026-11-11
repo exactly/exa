@@ -43,7 +43,7 @@ import { recoverTypedDataAddress, type LocalAccount } from "viem";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
 import chain, { issuerCheckerAddress, usdcAddress } from "@exactly/common/generated/chain";
-import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
+import { BASE_PRODUCT_ID, CLASSIC_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { Address, Hex } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 
@@ -79,7 +79,11 @@ export default function panda({ key, url }: { key: string; url: string }) {
 
   async function createCard(
     userId: string,
-    productId: typeof BASE_PRODUCT_ID | typeof PLATINUM_PRODUCT_ID | typeof SIGNATURE_PRODUCT_ID,
+    productId:
+      | typeof BASE_PRODUCT_ID
+      | typeof CLASSIC_PRODUCT_ID
+      | typeof PLATINUM_PRODUCT_ID
+      | typeof SIGNATURE_PRODUCT_ID,
     amount = 1_000_000,
     idempotencyKey?: string,
   ) {
@@ -100,6 +104,7 @@ export default function panda({ key, url }: { key: string; url: string }) {
                   [PLATINUM_PRODUCT_ID]: "81e42f27affd4e328f19651d4f2b438e",
                   [SIGNATURE_PRODUCT_ID]: "398c4919514b4ec4927e6a9114a4c816",
                   [BASE_PRODUCT_ID]: "79c1c868c3ae4b4dae2564295e75c357",
+                  [CLASSIC_PRODUCT_ID]: "1f3e23aaeb024388a0373c59ff3a5a7e",
                 }[productId],
         },
       }),
@@ -655,7 +660,7 @@ const CreateCardRequest = object({
     ]),
   }),
   configuration: object({
-    productId: picklist([BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
+    productId: picklist([BASE_PRODUCT_ID, CLASSIC_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
     virtualCardArt: string(),
   }),
 });
