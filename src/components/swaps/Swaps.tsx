@@ -194,7 +194,7 @@ export default function Swaps() {
     () =>
       Object.keys(allowlists)
         .map(Number)
-        .filter((id) => Number.isInteger(id) && (id === chain.id || alchemyChains.has(id))),
+        .filter((id) => Number.isInteger(id) && (id === chain.id || alchemyChains.get(id)?.smartAccount)),
     [],
   );
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });

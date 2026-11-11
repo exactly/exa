@@ -685,13 +685,11 @@ async function* getWalletBalances(account: Address, lifiTokens: Token[], chains:
             rpc(url, "alchemy_getTokenBalances", [account, "erc20"], signal),
             rpc(url, "eth_getBalance", [account, "latest"], signal),
           ]);
-          if (typeof tokens === "string" || !tokens?.pageKey) {
+          if (tokens && typeof native === "string" && (typeof tokens === "string" || !tokens.pageKey)) {
             const held: Holding[] = [];
-            if (typeof native === "string") {
-              const amount = BigInt(native);
-              if (amount > 0n) held.push({ address: zeroAddress, amount });
-            }
-            if (tokens && typeof tokens !== "string") {
+            const balance = BigInt(native);
+            if (balance > 0n) held.push({ address: zeroAddress, amount: balance });
+            if (typeof tokens !== "string") {
               for (const { contractAddress, tokenBalance } of tokens.tokenBalances) {
                 if (!tokenBalance) continue;
                 const amount = BigInt(tokenBalance);
@@ -769,21 +767,15 @@ async function rpc(url: string, method: string, params: unknown[], signal: Abort
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
     signal,
   });
-  if (response.status === 400 || response.status === 403) return;
-  if (!response.ok) throw new Error(`${method} failed: ${response.status} ${await response.text()}`);
-  const { error, result } = parse(Balances, await response.json());
-  if (error) throw new Error(`${method} failed: ${error.code} ${error.message}`);
-  return result;
+  if (!response.ok) return;
+  return parse(Balances, await response.json()).result;
 }
 
 const alchemyURLs = Object.fromEntries(
-  [...alchemyChains.values()].flatMap(({ id, rpcUrls }) =>
-    rpcUrls.alchemy ? [[id, `${rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`] as const] : [],
-  ),
+  [...alchemyChains.values()].map(({ id, rpcUrls }) => [id, `${rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`]),
 );
 
 const Balances = object({
-  error: nullish(object({ code: number(), message: string() })),
   result: nullish(
     union([
       Hex,

@@ -206,9 +206,7 @@ export default async function createAccountClient({ credentialId, factory, x, y,
   }
   async function getReadClient(chainId: number) {
     if (chainId === chain.id) return client;
-    const targetChain = alchemyChains.get(chainId);
-    if (!targetChain) throw new Error(`unsupported chain ${chainId}`);
-    const { readClient } = await getCrossChainAccount(targetChain);
+    const { readClient } = await getCrossChainAccount(smartAccountChain(chainId));
     return readClient;
   }
   let prepared: undefined | { at: number; key: string; plan: ReturnType<typeof plan> };
@@ -429,8 +427,7 @@ export default async function createAccountClient({ credentialId, factory, x, y,
               abi: upgradeableModularAccountAbi,
             } as const;
             if (targetChainId !== chain.id) {
-              const targetChain = alchemyChains.get(targetChainId);
-              if (!targetChain) throw new Error(`unsupported chain ${targetChainId}`);
+              const targetChain = smartAccountChain(targetChainId);
               const remote = await getCrossChainAccount(targetChain);
               async function build({ approvals = [], policyId: ids, token }: Payer) {
                 const batch = [...approvals, ...uo];
@@ -528,8 +525,7 @@ export default async function createAccountClient({ credentialId, factory, x, y,
               chainId?: Hex;
             };
             const targetChainId = chainId ? hexToNumber(chainId) : chain.id;
-            const targetChain = targetChainId === chain.id ? chain : alchemyChains.get(targetChainId);
-            if (!targetChain) throw new Error(`unsupported chain ${targetChainId}`);
+            const targetChain = targetChainId === chain.id ? chain : smartAccountChain(targetChainId);
             const { cost, shortfall } = await prepare(targetChain, calls, capabilities?.spend);
             return { chainId: numberToHex(targetChainId), cost, shortfall, type: "user-operation-v060" };
           }
@@ -619,6 +615,12 @@ function planKey(targetChain: Chain, calls: readonly Call[], spend?: Spend) {
     calls.map(({ to, data = "0x", value }) => [to.toLowerCase(), data, BigInt(value ?? 0)]),
     spend,
   ]);
+}
+
+function smartAccountChain(chainId: number) {
+  const targetChain = alchemyChains.get(chainId);
+  if (!targetChain?.smartAccount) throw new Error(`unsupported chain ${chainId}`);
+  return targetChain;
 }
 
 function sponsorPolicy(targetChain: Chain) {

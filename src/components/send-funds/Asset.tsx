@@ -71,7 +71,7 @@ export default function AssetSelection() {
     () => [
       ...new Set(
         allAssets.flatMap((asset) =>
-          asset.type === "external" && asset.chainId !== chain.id && alchemyChains.has(asset.chainId)
+          asset.type === "external" && asset.chainId !== chain.id && alchemyChains.get(asset.chainId)?.smartAccount
             ? [asset.chainId]
             : [],
         ),

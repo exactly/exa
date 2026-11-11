@@ -23,7 +23,7 @@ export default function deployedOptions(address: Address | undefined, chainId: n
 }
 
 export function isUnsupported(chainId: number, deployedChains: Map<number, boolean>) {
-  return chainId !== chain.id && (!alchemyChains.has(chainId) || deployedChains.get(chainId) === false);
+  return chainId !== chain.id && (!alchemyChains.get(chainId)?.smartAccount || deployedChains.get(chainId) === false);
 }
 
 export function revalidateUnsupported() {

@@ -18,9 +18,7 @@ export default createConfig({
   transports: {
     ...Object.fromEntries(others.map((c) => [c.id, http()])),
     ...Object.fromEntries(
-      [...alchemyChains.values()].flatMap(({ id, rpcUrls }) =>
-        rpcUrls.alchemy ? [[id, http(`${rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`)] as const] : [],
-      ),
+      [...alchemyChains.values()].map(({ id, rpcUrls }) => [id, http(`${rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`)]),
     ),
     [chain.id]: custom(publicClient),
   },

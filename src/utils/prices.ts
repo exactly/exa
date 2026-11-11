@@ -60,29 +60,28 @@ export function useHistory(
   });
   const fallback = feed === null || reverted(onchain.error);
   const alchemy = useQuery({
-    queryKey: ["prices", token.chainId, token.address.toLowerCase(), range],
+    queryKey: ["prices", token.chainId, token.address.toLowerCase(), token.symbol, range],
     enabled: fallback,
     staleTime: 60_000,
     placeholderData: keepPreviousData,
     meta: { warnError: () => true },
     queryFn: async () => {
-      const network = alchemyChains.get(token.chainId);
-      const url = network?.rpcUrls.alchemy?.http[0];
-      if (!network || !url || !alchemyAPIKey) return null;
+      const url = alchemyChains.get(token.chainId)?.rpcUrls.alchemy.http[0];
+      if (!url || !alchemyAPIKey) return null;
       const now = Math.floor(Date.now() / 1000);
       const response = await fetch(`https://api.g.alchemy.com/prices/v1/${alchemyAPIKey}/tokens/historical`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           ...(token.address === zeroAddress
-            ? { symbol: network.nativeCurrency.symbol }
+            ? { symbol: token.symbol }
             : { network: new URL(url).hostname.split(".")[0], address: token.address }),
           startTime: new Date((now - ranges[range]) * 1000).toISOString(),
           endTime: new Date(now * 1000).toISOString(),
           interval: range === "1D" ? "5m" : "1h",
         }),
       });
-      if (response.status === 400) return null;
+      if (response.status === 400 || response.status === 404) return null;
       if (!response.ok) throw new Error(`alchemy prices failed: ${response.status} ${await response.text()}`);
       const points = parse(
         object({ data: array(object({ timestamp: string(), value: string() })) }),

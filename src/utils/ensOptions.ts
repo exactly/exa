@@ -30,7 +30,7 @@ export function ensName(input: string) {
   } catch {} // eslint-disable-line no-empty -- rejects malformed names
 }
 
-const alchemyURL = alchemyChains.get(mainnet.id)?.rpcUrls.alchemy?.http[0];
+const alchemyURL = alchemyChains.get(mainnet.id)?.rpcUrls.alchemy.http[0];
 const client = createPublicClient({
   chain: mainnet,
   transport: alchemyURL && alchemyAPIKey ? fallback([http(`${alchemyURL}/${alchemyAPIKey}`), http()]) : http(),

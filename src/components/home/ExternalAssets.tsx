@@ -41,7 +41,7 @@ export default function ExternalAssets({ assets }: { assets: PortfolioAsset[] })
     ...new Set(
       assets
         .flatMap((asset) => (asset.type === "external" ? [asset.chainId] : []))
-        .filter((chainId) => chainId !== chain.id && alchemyChains.has(chainId)),
+        .filter((chainId) => chainId !== chain.id && alchemyChains.get(chainId)?.smartAccount),
     ),
   ];
 

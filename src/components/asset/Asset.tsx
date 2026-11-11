@@ -179,7 +179,7 @@ export default function Asset() {
           ) : (
             <Skeleton width="100%" height={320} />
           )}
-          {(chainId === chain.id || (alchemyChains.has(chainId) && factory === true)) && (
+          {(chainId === chain.id || (alchemyChains.get(chainId)?.smartAccount && factory === true)) && (
             <XStack gap="s3">
               {[
                 ...(!token || (stock && restrictedCountries.has(country ?? ""))

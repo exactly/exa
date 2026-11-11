@@ -91,7 +91,7 @@ export default function Amount() {
       [
         ...new Set(
           allAssets.flatMap((item) =>
-            item.type === "external" && item.chainId !== chain.id && alchemyChains.has(item.chainId)
+            item.type === "external" && item.chainId !== chain.id && alchemyChains.get(item.chainId)?.smartAccount
               ? [item.chainId]
               : [],
           ),

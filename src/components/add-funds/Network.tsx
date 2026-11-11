@@ -71,7 +71,7 @@ export default function Network() {
         c.id !== chain.id &&
         c.mainnet &&
         symbols.has(c.id) &&
-        alchemyChains.has(c.id) &&
+        alchemyChains.get(c.id)?.smartAccount &&
         !alchemyChains.get(c.id)?.testnet,
     );
     const pinned: number[] = [mainnet.id, base.id, arbitrum.id, polygon.id, bsc.id].filter((id) => id !== chain.id);
