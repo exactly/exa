@@ -27,7 +27,6 @@ import {
   ErrorBoundary,
   feedbackIntegration,
   init,
-  mobileReplayIntegration,
   reactNavigationIntegration,
   setContext,
   wrap,
@@ -153,9 +152,7 @@ init({
   tracePropagationTargets: [domain, origin],
   enableNativeFramesTracking: !isRunningInExpoGo(),
   enableUserInteractionTracing: true,
-  replaysOnErrorSampleRate: __DEV__ || e2e ? undefined : 1,
-  replaysSessionSampleRate: __DEV__ || e2e ? undefined : 0.01,
-  integrations: [routingInstrumentation, userFeedback, ...(__DEV__ || e2e ? [] : [mobileReplayIntegration()])],
+  integrations: [routingInstrumentation, userFeedback],
   beforeSend: (event, hint) => {
     let knownInfo = false;
     let knownWarning = false;
