@@ -9,10 +9,13 @@ import {
 } from "./MockVelodromeFactory.sol";
 import { IERC20 } from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import { SafeERC20 } from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
+import { Address } from "openzeppelin-contracts/contracts/utils/Address.sol";
 
 contract MockSwapper {
   using SafeERC20 for IERC20;
+  using Address for address;
 
+  uint256 internal constant RECOVER_GAS = 100_000;
   IVelodromeFactory public immutable VELODROME_FACTORY;
   uint256 internal transactionCount;
   mapping(bytes32 transactionId => bool completed) public completed;
@@ -86,6 +89,12 @@ contract MockSwapper {
     emit LiFiTransferStarted(bridgeData);
   }
 
+  function startBridgeTokensAndCallViaMock(BridgeData calldata bridgeData, bytes calldata message) external {
+    IERC20(bridgeData.sendingAssetId).safeTransferFrom(msg.sender, address(this), bridgeData.minAmount);
+    emit LiFiTransferStarted(bridgeData);
+    emit BridgeMessage(bridgeData.transactionId, message);
+  }
+
   function swapAndStartBridgeTokensViaMock(BridgeData memory bridgeData, address fromAssetId, uint256 fromAmount)
     external
   {
@@ -114,6 +123,34 @@ contract MockSwapper {
     emit LiFiTransferCompleted(transactionId, receivingAssetId, receiver, amount, block.timestamp); // solhint-disable-line not-rely-on-time
   }
 
+  function completeBridgeTokensAndCallViaMock(
+    bytes32 transactionId,
+    address receivingAssetId,
+    uint256 amount,
+    bytes calldata message
+  ) external {
+    if (completed[transactionId]) revert AlreadyCompleted();
+    completed[transactionId] = true;
+    (, SwapData[] memory swapData, address receiver) = abi.decode(message, (bytes32, SwapData[], address));
+    bytes memory data = abi.encodeCall(this.executeViaMock, (receivingAssetId, amount, swapData, receiver));
+    uint256 gasLeft = gasleft();
+    bool success;
+    if (gasLeft > RECOVER_GAS) (success,) = address(this).call{ gas: gasLeft - RECOVER_GAS }(data); // solhint-disable-line avoid-low-level-calls
+    if (!success) IERC20(receivingAssetId).safeTransfer(receiver, amount);
+    emit LiFiTransferCompleted(transactionId, receivingAssetId, receiver, amount, block.timestamp); // solhint-disable-line not-rely-on-time
+  }
+
+  function executeViaMock(address assetId, uint256 amount, SwapData[] calldata swapData, address receiver) external {
+    if (msg.sender != address(this)) revert NotSelf();
+    uint256 balance = IERC20(assetId).balanceOf(address(this));
+    for (uint256 i = 0; i < swapData.length; ++i) {
+      IERC20(swapData[i].sendingAssetId).forceApprove(swapData[i].approveTo, swapData[i].fromAmount);
+      swapData[i].callTo.functionCall(swapData[i].callData);
+    }
+    uint256 left = amount - (balance - IERC20(assetId).balanceOf(address(this)));
+    if (left != 0) IERC20(assetId).safeTransfer(receiver, left);
+  }
+
   function _getAmountIn(address pool, uint256 amountOut, bool isToken0, uint256 fee) internal view returns (uint256) {
     (uint256 reserve0, uint256 reserve1,) = IVelodromePool(pool).getReserves();
     return (isToken0
@@ -130,6 +167,7 @@ contract MockSwapper {
 }
 
 error AlreadyCompleted();
+error NotSelf();
 
 // solhint-disable-next-line gas-struct-packing
 struct BridgeData {
@@ -145,7 +183,20 @@ struct BridgeData {
   bool hasDestinationCall;
 }
 
+// solhint-disable-next-line gas-struct-packing
+struct SwapData {
+  address callTo;
+  address approveTo;
+  address sendingAssetId;
+  address receivingAssetId;
+  uint256 fromAmount;
+  bytes callData;
+  bool requiresDeposit;
+}
+
 event LiFiTransferStarted(BridgeData bridgeData);
+
+event BridgeMessage(bytes32 indexed transactionId, bytes message);
 
 event LiFiTransferCompleted(
   bytes32 indexed transactionId, address receivingAssetId, address receiver, uint256 amount, uint256 timestamp
