@@ -494,6 +494,34 @@ describe("create card", () => {
       }),
     );
   });
+
+  it.each([
+    [base.id, "c4c03256d6764a8390f41b60561d27af"],
+    [optimism.id, "398c4919514b4ec4927e6a9114a4c816"],
+  ] as const)("sends partner card art only on base (chain %i)", async (id, art) => {
+    chainMock.id = id;
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      arrayBuffer: () => Promise.resolve(new TextEncoder().encode(JSON.stringify(card)).buffer),
+    } as Response);
+
+    await expect(
+      panda.createCard("user-id", SIGNATURE_PRODUCT_ID, 1_000_000, undefined, Panda.partner),
+    ).resolves.toStrictEqual(card);
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      expect.stringContaining("/issuing/users/user-id/cards"),
+      expect.objectContaining({
+        method: "POST",
+        headers: { "Api-Key": "panda", accept: "application/json", "content-type": "application/json" },
+        body: JSON.stringify({
+          type: "virtual",
+          status: "active",
+          limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
+          configuration: { productId: SIGNATURE_PRODUCT_ID, virtualCardArt: art },
+        }),
+      }),
+    );
+  });
 });
 
 describe("siwe", () => {

@@ -86,6 +86,7 @@ export default function panda({ key, url }: { key: string; url: string }) {
       | typeof SIGNATURE_PRODUCT_ID,
     amount = 1_000_000,
     idempotencyKey?: string,
+    source?: null | string,
   ) {
     return await request(
       CardResponse,
@@ -100,12 +101,14 @@ export default function panda({ key, url }: { key: string; url: string }) {
           virtualCardArt:
             chain.id === baseSepolia.id || chain.id === optimismSepolia.id
               ? "0c515d7eb0a140fa8f938f8242b0780a"
-              : {
-                  [PLATINUM_PRODUCT_ID]: "81e42f27affd4e328f19651d4f2b438e",
-                  [SIGNATURE_PRODUCT_ID]: "398c4919514b4ec4927e6a9114a4c816",
-                  [BASE_PRODUCT_ID]: "79c1c868c3ae4b4dae2564295e75c357",
-                  [CLASSIC_PRODUCT_ID]: "1f3e23aaeb024388a0373c59ff3a5a7e",
-                }[productId],
+              : chain.id === base.id && productId === SIGNATURE_PRODUCT_ID && source === partner
+                ? "c4c03256d6764a8390f41b60561d27af"
+                : {
+                    [BASE_PRODUCT_ID]: "79c1c868c3ae4b4dae2564295e75c357",
+                    [CLASSIC_PRODUCT_ID]: "1f3e23aaeb024388a0373c59ff3a5a7e",
+                    [PLATINUM_PRODUCT_ID]: "81e42f27affd4e328f19651d4f2b438e",
+                    [SIGNATURE_PRODUCT_ID]: "398c4919514b4ec4927e6a9114a4c816",
+                  }[productId],
         },
       }),
       "POST",
@@ -716,6 +719,8 @@ const UserResponse = object({
   ]),
   applicationReason: string(),
 });
+
+export const partner = "5lu2sNu0v0ZElC2m77QR3rAZBHLr8PoG"; // cspell:ignore azbh
 
 export const collectors: Address[] = (
   {

@@ -40,6 +40,7 @@ import { Address, Base64URL, Hex } from "@exactly/common/validation";
 
 import { cards, credentials } from "../database/schema";
 import { origin } from "../utils/appOrigin";
+import { partner } from "../utils/panda";
 import publicClient from "../utils/publicClient";
 import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
@@ -607,11 +608,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
                 return c.json({ code: "kyc not approved" }, 403);
               }
               const productId =
-                chain.id === base.id
-                  ? credential.source === "5lu2sNu0v0ZElC2m77QR3rAZBHLr8PoG" // cspell:ignore azbh
-                    ? SIGNATURE_PRODUCT_ID
-                    : BASE_PRODUCT_ID
-                  : SIGNATURE_PRODUCT_ID;
+                chain.id === base.id && credential.source !== partner ? BASE_PRODUCT_ID : SIGNATURE_PRODUCT_ID;
               const card = await panda
                 .getCards(pandaId)
                 .then((pandaCards) => pandaCards.find(({ status }) => status === "active"))
@@ -644,6 +641,8 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
                             contexts: { details: { credentialId, scope: "cardLimit" } },
                           });
                         }),
+                      undefined,
+                      credential.source,
                     );
                   }
                 });
