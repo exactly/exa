@@ -30,12 +30,14 @@ import {
   type InferInput,
   type InferOutput,
 } from "valibot";
+import { isAddressEqual } from "viem";
 import { base } from "viem/chains";
 import { createSiweMessage, parseSiweMessage, verifySiweMessage } from "viem/siwe";
 
 import chain from "@exactly/common/generated/chain";
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 import { BASE_PRODUCT_ID, CLASSIC_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
+import { business } from "@exactly/common/tenants";
 import { Address, Base64URL, Hex } from "@exactly/common/validation";
 
 import { cards, credentials } from "../database/schema";
@@ -539,7 +541,11 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
             content: {
               "application/json": {
                 schema: resolver(
-                  union([object({ code: literal("no panda") }), object({ code: literal("kyc not approved") })]),
+                  union([
+                    object({ code: literal("business") }),
+                    object({ code: literal("no panda") }),
+                    object({ code: literal("kyc not approved") }),
+                  ]),
                   { errorMode: "ignore" },
                 ),
               },
@@ -562,7 +568,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
           .runExclusive(async () => {
             const credential = await database.query.credentials.findFirst({
               where: eq(credentials.id, credentialId),
-              columns: { account: true, pandaId: true, source: true },
+              columns: { account: true, pandaId: true, salt: true, source: true },
               with: {
                 cards: {
                   columns: { id: true, status: true, productId: true },
@@ -574,6 +580,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
             const account = parse(Address, credential.account);
             setUser({ id: account });
 
+            if (isAddressEqual(parse(Address, credential.salt), business)) return c.json({ code: "business" }, 403);
             if (!credential.pandaId) return c.json({ code: "no panda" }, 403);
             const pandaId = credential.pandaId;
 

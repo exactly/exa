@@ -4,7 +4,7 @@ import "../mocks/panda";
 import * as pax from "../mocks/pax";
 import "../mocks/persona";
 import "../mocks/sardine";
-import "../mocks/segment";
+import * as segment from "../mocks/segment";
 import "../mocks/wallet";
 
 import { KeyManagementServiceClient } from "@google-cloud/kms";
@@ -33,6 +33,7 @@ import chain, {
   wethAddress,
 } from "@exactly/common/generated/chain";
 import { BASE_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
+import { business } from "@exactly/common/tenants";
 import { Address } from "@exactly/common/validation";
 
 import route from "../../api/card";
@@ -1099,6 +1100,14 @@ describe("authenticated", () => {
           source: "5lu2sNu0v0ZElC2m77QR3rAZBHLr8PoG", // cspell:ignore azbh
         },
         {
+          id: "base-business",
+          publicKey: new Uint8Array(),
+          account: padHex("0xba53", { size: 20 }),
+          factory: exaAccountFactoryAddress,
+          pandaId: "base-business-panda",
+          salt: business,
+        },
+        {
           id: "optimism-credential",
           publicKey: new Uint8Array(),
           account: padHex("0x0b71", { size: 20 }),
@@ -1177,6 +1186,25 @@ describe("authenticated", () => {
         where: eq(cards.credentialId, "base-signature"),
       });
       expect(created?.productId).toBe(SIGNATURE_PRODUCT_ID);
+    });
+
+    it("rejects business credentials", async () => {
+      chain.id = base.id;
+      const getApplicationStatus = vi.spyOn(panda, "getApplicationStatus");
+      const createCard = vi.spyOn(panda, "createCard");
+
+      const response = await appClient.index.$post({ header: { "test-credential-id": "base-business" } });
+
+      expect(response.status).toBe(403);
+      await expect(response.json()).resolves.toStrictEqual({ code: "business" });
+      expect(getApplicationStatus).not.toHaveBeenCalled();
+      expect(createCard).not.toHaveBeenCalled();
+      expect(credit.enqueue).not.toHaveBeenCalled();
+      expect(segment.track).not.toHaveBeenCalled();
+      expect(captureException).not.toHaveBeenCalled();
+      await expect(
+        database.query.cards.findFirst({ where: eq(cards.credentialId, "base-business") }),
+      ).resolves.toBeUndefined();
     });
 
     it("issues a signature product card on optimism", async () => {
