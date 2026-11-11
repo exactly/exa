@@ -77,9 +77,11 @@ describe("server", () => {
         return [name, response.status, await response.text()];
       }),
     );
+    const page = await app.request("/+not-found.html");
+    const body = await page.text();
     expect(responses).toStrictEqual(
       Object.keys(hooks).map((name) =>
-        enabled.includes(name) ? [name, 200, JSON.stringify({ hook: name })] : [name, 404, "404 Not Found"],
+        enabled.includes(name) ? [name, 200, JSON.stringify({ hook: name })] : [name, 404, body],
       ),
     );
     await handle.close();
