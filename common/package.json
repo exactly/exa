@@ -4,9 +4,11 @@
   "private": true,
   "scripts": {
     "prepare:git": "git config blame.ignoreRevsFile .git-blame-ignore-revs || true",
+    "generate:alchemy": "node alchemy.mts",
     "generate:wagmi": "wagmi generate",
     "git:unshallow": "git fetch --unshallow --filter=blob:none || true",
     "test": "nx test common",
+    "test:alchemy": "node alchemy.mts --check",
     "test:ts": "tsc --pretty ${GITHUB_ACTIONS:+false}"
   },
   "engines": {
@@ -70,9 +72,13 @@
         ],
         "executor": "nx:noop"
       },
+      "generate:alchemy": {
+        "cache": false
+      },
       "generate:wagmi": {
         "inputs": [
           "^production",
+          "{projectRoot}/alchemy.json",
           "{projectRoot}/wagmi.config.ts",
           {
             "env": "CHAIN_ID"
@@ -103,10 +109,21 @@
       },
       "test": {
         "dependsOn": [
+          "test:alchemy",
           "test:eslint",
           "test:ts"
         ],
         "executor": "nx:noop"
+      },
+      "test:alchemy": {
+        "dependsOn": [],
+        "inputs": [
+          "{projectRoot}/alchemy.json",
+          "{projectRoot}/alchemy.mts",
+          {
+            "runtime": "curl -fsS https://app-api.alchemy.com/trpc/config.getNetworkConfig"
+          }
+        ]
       }
     }
   }

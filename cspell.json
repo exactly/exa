@@ -8,6 +8,7 @@
     "*.svg",
     "*.local.yaml",
     ".github/matcher.json",
+    "common/alchemy.json",
     "cspell.json",
     "contracts/broadcast",
     "patches",
