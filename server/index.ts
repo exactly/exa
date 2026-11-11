@@ -242,14 +242,12 @@ frontend.use(
   "/assets/*",
   secureHeaders({
     xFrameOptions: false,
-    referrerPolicy: "strict-origin-when-cross-origin",
     crossOriginResourcePolicy: "cross-origin",
   }),
 );
 frontend.use(
   secureHeaders({
     xFrameOptions: false,
-    referrerPolicy: "strict-origin-when-cross-origin",
     reportingEndpoints: [{ name: "sentry", url: reportUri }],
     contentSecurityPolicyReportOnly: {
       defaultSrc: ["'self'"],
