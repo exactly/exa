@@ -146,7 +146,7 @@ jobs:
           curl -X POST http://localhost:3000/e2e/shutdown || true
           for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done
           curl -fsSO -Y 1000000 -y 10 --retry 5 --retry-all-errors https://cli.codecov.io/latest/linux/codecov && chmod +x codecov
-          pr="${{ github.event.pull_request.number }}"
+          pr="${{ github.event.pull_request.number || '' }}"
           ./codecov upload-coverage -Z --disable-search -f server/coverage/lcov.info -f server/coverage/app.lcov -F android -n android --build-url ${{ workflow.url }} --git-service github ${pr:+-P "$pr"} &
           ./codecov do-upload -Z --report-type test_results --disable-search -f .maestro/junit.xml -F android -n android --build-url ${{ workflow.url }} --git-service github ${pr:+-P "$pr"}
           wait $!
@@ -285,7 +285,7 @@ jobs:
           curl -X POST http://localhost:3000/e2e/shutdown || true
           for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done
           curl -fsSO -Y 1000000 -y 10 --retry 5 --retry-all-errors https://cli.codecov.io/latest/macos/codecov && chmod +x codecov
-          pr="${{ github.event.pull_request.number }}"
+          pr="${{ github.event.pull_request.number || '' }}"
           ./codecov upload-coverage -Z --disable-search -f server/coverage/lcov.info -f server/coverage/app.lcov -F ios -n ios --build-url ${{ workflow.url }} --git-service github ${pr:+-P "$pr"} &
           ./codecov do-upload -Z --report-type test_results --disable-search -f .maestro/junit.xml -F ios -n ios --build-url ${{ workflow.url }} --git-service github ${pr:+-P "$pr"}
           wait $!
