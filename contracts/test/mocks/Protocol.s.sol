@@ -196,6 +196,8 @@ contract DeployProtocol is BaseScript {
     verifiedAuditor.enableMarket(frozen, IPriceFeed(address(feed)), 0.9e18, false);
     frozen.setFrozen(true);
     ProposalManager(broadcast("ProposalManager")).allowTarget(address(asset), true);
+    firewall.grantRole(firewall.ALLOWER_ROLE(), acct("deployer"));
+    firewall.allow(broadcast("Depositor"), true);
 
     asset.mint(acct("swapper"), 1_000_000e6);
 
