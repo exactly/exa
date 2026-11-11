@@ -1,9 +1,11 @@
 import { Hono } from "hono";
 import {
   createPublicClient,
+  encodeAbiParameters,
   encodeFunctionData,
   erc20Abi,
   formatUnits,
+  getAbiItem,
   getAddress,
   http,
   keccak256,
@@ -110,6 +112,87 @@ export default function lifi(chains: readonly Chain[]) {
       )),
     ];
   }
+  type Token = Awaited<ReturnType<typeof tokens>>[number];
+  async function route({
+    fromChain,
+    toChain,
+    fromAddress,
+    toAddress,
+    fromAmount,
+    toAmount,
+    from,
+    to,
+    eth,
+    data,
+    slippage,
+    fastest,
+  }: {
+    data: Hex;
+    eth: Token | undefined;
+    fastest: boolean;
+    from: Token | undefined;
+    fromAddress: Hex;
+    fromAmount: bigint;
+    fromChain: number;
+    slippage: number;
+    to: Token | undefined;
+    toAddress: Hex;
+    toAmount: bigint;
+    toChain: number;
+  }) {
+    const price = await client(fromChain).getGasPrice();
+    const action = {
+      fromChainId: fromChain,
+      toChainId: toChain,
+      fromToken: from,
+      toToken: to,
+      fromAmount: String(fromAmount),
+      fromAddress,
+      toAddress,
+      slippage,
+    };
+    const estimate = {
+      tool: tool.key,
+      fromAmount: String(fromAmount),
+      fromAmountUSD: from && (Number(formatUnits(fromAmount, from.decimals)) * Number(from.priceUSD)).toFixed(2),
+      toAmount: String(toAmount),
+      toAmountUSD: to && (Number(formatUnits(toAmount, to.decimals)) * Number(to.priceUSD)).toFixed(2),
+      toAmountMin: String(toAmount),
+      approvalAddress: swapperAddress,
+      executionDuration: fromChain === toChain ? 1 : fastest ? 60 : 1200,
+      feeCosts: [],
+      gasCosts: [
+        {
+          type: "SEND",
+          price: String(price),
+          estimate: String(gas),
+          limit: String((gas * 125n) / 100n),
+          amount: String(gas * price),
+          amountUSD: (Number(formatUnits(gas * price, 18)) * Number(eth?.priceUSD)).toFixed(4),
+          token: eth,
+        },
+      ],
+    };
+    return {
+      type: "lifi",
+      id: crypto.randomUUID(),
+      tool: tool.key,
+      toolDetails: tool,
+      action,
+      estimate,
+      includedSteps: [
+        {
+          id: crypto.randomUUID(),
+          type: fromChain === toChain ? "swap" : "cross",
+          tool: tool.key,
+          toolDetails: tool,
+          action,
+          estimate,
+        },
+      ],
+      transactionRequest: { from: fromAddress, to: swapperAddress, chainId: fromChain, data, value: "0x0" },
+    };
+  }
   return new Hono()
     .get("/v1/chains", async (c) =>
       c.json({
@@ -186,11 +269,7 @@ export default function lifi(chains: readonly Chain[]) {
       const toAddress = getAddress(query.toAddress ?? fromAddress);
       const exact = c.req.param("direction") === "toAmount" ? "out" : "in";
       const source = client(fromChain);
-      const [fromTokens, toTokens, price] = await Promise.all([
-        tokens(fromChain),
-        tokens(toChain),
-        source.getGasPrice(),
-      ]);
+      const [fromTokens, toTokens] = await Promise.all([tokens(fromChain), tokens(toChain)]);
       const from = fromTokens.find(({ address }) => address === fromToken);
       const to = toTokens.find(({ address }) => address === toToken);
       const eth = fromTokens.find(({ address }) => address === zeroAddress);
@@ -274,57 +353,109 @@ export default function lifi(chains: readonly Chain[]) {
                 args: [bridgeData, fromToken, fromAmount],
               });
       }
-      const action = {
-        fromChainId: fromChain,
-        toChainId: toChain,
-        fromToken: from,
-        toToken: to,
-        fromAmount: String(fromAmount),
-        fromAddress,
-        toAddress,
-        slippage: Number(query.slippage ?? 0),
-      };
-      const estimate = {
-        tool: tool.key,
-        fromAmount: String(fromAmount),
-        fromAmountUSD: from && (Number(formatUnits(fromAmount, from.decimals)) * Number(from.priceUSD)).toFixed(2),
-        toAmount: String(toAmount),
-        toAmountUSD: to && (Number(formatUnits(toAmount, to.decimals)) * Number(to.priceUSD)).toFixed(2),
-        toAmountMin: String(toAmount),
-        approvalAddress: swapperAddress,
-        executionDuration: fromChain === toChain ? 1 : query.order === "FASTEST" ? 60 : 1200,
-        feeCosts: [],
-        gasCosts: [
+      return c.json(
+        await route({
+          fromChain,
+          toChain,
+          fromAddress,
+          toAddress,
+          fromAmount,
+          toAmount,
+          from,
+          to,
+          eth,
+          data,
+          slippage: Number(query.slippage ?? 0),
+          fastest: query.order === "FASTEST",
+        }),
+      );
+    })
+    .post("/v1/quote/contractCalls", async (c) => {
+      const body = await c.req.json<{
+        contractCalls: {
+          fromAmount: string;
+          fromTokenAddress: string;
+          toApprovalAddress?: string;
+          toContractAddress: string;
+          toContractCallData: Hex;
+          toContractGasLimit: string;
+        }[];
+        fromAddress: string;
+        fromChain: number | string;
+        fromToken: string;
+        slippage?: number;
+        toAmount: string;
+        toChain: number | string;
+        toFallbackAddress?: string;
+        toToken: string;
+      }>();
+      const fromChain = Number(body.fromChain);
+      const toChain = Number(body.toChain);
+      const fromAddress = getAddress(body.fromAddress);
+      const toAddress = getAddress(body.toFallbackAddress ?? fromAddress);
+      const [fromTokens, toTokens] = await Promise.all([tokens(fromChain), tokens(toChain)]);
+      const from = fromTokens.find(({ address }) => address === getAddress(body.fromToken));
+      const eth = fromTokens.find(({ address }) => address === zeroAddress);
+      const to = toTokens.find(({ address }) => address === getAddress(body.toToken));
+      if (!from || from.symbol !== to?.symbol || fromChain === toChain) {
+        return c.json({ code: 1002, message: "No available quotes for the requested transfer", errors: {} }, 404);
+      }
+      const toAmount = BigInt(body.toAmount);
+      const transactionId = keccak256(toHex(`${fromChain}:${fromAddress}:${Date.now()}:${Math.random()}`));
+      const data = encodeFunctionData({
+        abi: mockSwapperAbi,
+        functionName: "startBridgeTokensAndCallViaMock",
+        args: [
           {
-            type: "SEND",
-            price: String(price),
-            estimate: String(gas),
-            limit: String((gas * 125n) / 100n),
-            amount: String(gas * price),
-            amountUSD: (Number(formatUnits(gas * price, 18)) * Number(eth?.priceUSD)).toFixed(4),
-            token: eth,
+            transactionId,
+            bridge: "mock",
+            integrator: "",
+            referrer: zeroAddress,
+            sendingAssetId: from.address,
+            receiver: toAddress,
+            minAmount: toAmount,
+            destinationChainId: BigInt(toChain),
+            hasSourceSwaps: false,
+            hasDestinationCall: true,
           },
+          encodeAbiParameters(
+            [
+              { type: "bytes32" },
+              getAbiItem({ abi: mockSwapperAbi, name: "executeViaMock" }).inputs[2],
+              { type: "address" },
+            ],
+            [
+              transactionId,
+              body.contractCalls.map((call) => ({
+                callTo: getAddress(call.toContractAddress),
+                approveTo: getAddress(call.toApprovalAddress ?? call.toContractAddress),
+                sendingAssetId: getAddress(call.fromTokenAddress),
+                receivingAssetId: getAddress(call.fromTokenAddress),
+                fromAmount: BigInt(call.fromAmount),
+                callData: call.toContractCallData,
+                requiresDeposit: false,
+              })),
+              toAddress,
+            ],
+          ),
         ],
-      };
-      return c.json({
-        type: "lifi",
-        id: crypto.randomUUID(),
-        tool: tool.key,
-        toolDetails: tool,
-        action,
-        estimate,
-        includedSteps: [
-          {
-            id: crypto.randomUUID(),
-            type: fromChain === toChain ? "swap" : "cross",
-            tool: tool.key,
-            toolDetails: tool,
-            action,
-            estimate,
-          },
-        ],
-        transactionRequest: { from: fromAddress, to: swapperAddress, chainId: fromChain, data, value: "0x0" },
       });
+      return c.json(
+        await route({
+          fromChain,
+          toChain,
+          fromAddress,
+          toAddress,
+          fromAmount: toAmount,
+          toAmount,
+          from,
+          to,
+          eth,
+          data,
+          slippage: body.slippage ?? 0,
+          fastest: false,
+        }),
+      );
     })
     .get("/v1/status", async (c) => {
       const txHash = c.req.query("txHash") as Hash;

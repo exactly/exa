@@ -178,6 +178,7 @@ export default async function setup() {
   await forge("script/ExaPreviewer.s.sol");
   await forge("script/ExaPlugin.s.sol");
   await forge("script/ExaAccountFactory.s.sol");
+  await forge("script/Depositor.s.sol");
 
   const bob = privateKeyToAddress(padHex("0xb0b"));
   await Promise.all([
