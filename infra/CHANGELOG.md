@@ -1,5 +1,19 @@
 # @exactly/infra
 
+## 0.4.0
+
+### Minor Changes
+
+- [#1667](https://github.com/exactly/exa/pull/1667) [`9c2700c`](https://github.com/exactly/exa/commit/9c2700c161447a92e1b6cbd278903d8cb8b5bf27) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🧱 add read-only preview identity
+
+- [#1657](https://github.com/exactly/exa/pull/1657) [`e7bc74d`](https://github.com/exactly/exa/commit/e7bc74d93a0fda319b9629f1da5112ab77251154) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🧱 disable modules per stack
+
+### Patch Changes
+
+- [#1389](https://github.com/exactly/exa/pull/1389) [`ad4f372`](https://github.com/exactly/exa/commit/ad4f37287afc3a68a39b2fcfdc33d7c1da680721) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🧱 support disabling business
+
+- [#1657](https://github.com/exactly/exa/pull/1657) [`7241e7d`](https://github.com/exactly/exa/commit/7241e7d094dc3f266ac50c27b2572d1d4d6ca970) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 keep base sepolia's meta resources in its own runs
+
 ## 0.3.2
 
 ### Patch Changes

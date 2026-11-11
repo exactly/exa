@@ -1,5 +1,29 @@
 # @exactly/mobile
 
+## 1.2.42
+
+### Patch Changes
+
+- [#1725](https://github.com/exactly/exa/pull/1725) [`1c33e3c`](https://github.com/exactly/exa/commit/1c33e3cb58d313e4fb2a0f8b89ade4a4031a13d2) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ⬆️ upgrade tamagui to v3
+
+- [#1665](https://github.com/exactly/exa/pull/1665) [`2bcc834`](https://github.com/exactly/exa/commit/2bcc834f52729acaa036a60ea02acef325ffc7ef) Thanks [@franm91](https://github.com/franm91)! - ✨ add business onboarding
+
+- [#1814](https://github.com/exactly/exa/pull/1814) [`202aa1f`](https://github.com/exactly/exa/commit/202aa1f39143cdbd31a78c7ddf4f9cbba46e33d6) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 📈 disable watchdog termination tracking
+
+- [#1809](https://github.com/exactly/exa/pull/1809) [`06e5304`](https://github.com/exactly/exa/commit/06e5304d6c6be85df172662bf0240d860d476557) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix clipped amount input
+
+- [#1143](https://github.com/exactly/exa/pull/1143) [`11c02ee`](https://github.com/exactly/exa/commit/11c02ee8b2c7af9fd2aebc6ed7eea734177943b8) Thanks [@aguxez](https://github.com/aguxez)! - ✨ use credential salt for derivation
+
+- [#1390](https://github.com/exactly/exa/pull/1390) [`5975e4b`](https://github.com/exactly/exa/commit/5975e4b136ee2e1dbf81af052beabc61a6ff0b50) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🩹 reject non-persona kyc token responses
+
+- [#1811](https://github.com/exactly/exa/pull/1811) [`4559027`](https://github.com/exactly/exa/commit/455902742c46ce71493aead6601f336086581dcc) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 report dev errors only with explicit dsn
+
+- [#1814](https://github.com/exactly/exa/pull/1814) [`b11a419`](https://github.com/exactly/exa/commit/b11a419b9e448dfeda7df92ff6d7984f109de31d) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 📈 remove session replay
+
+- Updated dependencies [[`0a920a7`](https://github.com/exactly/exa/commit/0a920a7680213e9b20352162e6071bd3b1de5dc9), [`c16bdfb`](https://github.com/exactly/exa/commit/c16bdfb96507ab4175a888cb57226eb52bf0faaa), [`b30b911`](https://github.com/exactly/exa/commit/b30b911fb9a0f19763221ad2a4668d500569136c), [`48ff784`](https://github.com/exactly/exa/commit/48ff7843a2633285abc4f21da430f8e365dba631), [`b15a060`](https://github.com/exactly/exa/commit/b15a06035c5736eb403b590e54688067343bd6f6), [`ec3d14e`](https://github.com/exactly/exa/commit/ec3d14ecff1d9ac22ba5e129b285645b1ed2554b), [`dfac360`](https://github.com/exactly/exa/commit/dfac3603e5af1e7d9171aa7c99025e9ab37c6804), [`1f23991`](https://github.com/exactly/exa/commit/1f23991c549f00913fcba7480b0b3ec63d670ded), [`2b1d9e3`](https://github.com/exactly/exa/commit/2b1d9e3f2a70ef3d779ab376aa6c4e1aec986bd7), [`b008709`](https://github.com/exactly/exa/commit/b00870976728042bd87d557b1f3b96f057b0b439), [`37f887e`](https://github.com/exactly/exa/commit/37f887e28df7f0af3dd9d04a3371e38af89062c0), [`4cba1e3`](https://github.com/exactly/exa/commit/4cba1e30eac743e405b7c801ef7d3a0c9f01a65f), [`3489f54`](https://github.com/exactly/exa/commit/3489f54e615df05cf5859a2aa6a24c109f6ccdc2), [`03a0b54`](https://github.com/exactly/exa/commit/03a0b544c030d40ad3c97307f4d621963ad4c5d5), [`7178a7a`](https://github.com/exactly/exa/commit/7178a7a68aca7b0b981a02c7458a28b4d0894efc)]:
+  - @exactly/server@0.3.0
+  - @exactly/common@0.0.25
+
 ## 1.2.41
 
 ### Patch Changes

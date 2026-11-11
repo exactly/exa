@@ -1,5 +1,39 @@
 # @exactly/server
 
+## 0.3.0
+
+### Minor Changes
+
+- [#1663](https://github.com/exactly/exa/pull/1663) [`2b1d9e3`](https://github.com/exactly/exa/commit/2b1d9e3f2a70ef3d779ab376aa6c4e1aec986bd7) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ add bridge business
+
+### Patch Changes
+
+- [#1389](https://github.com/exactly/exa/pull/1389) [`0a920a7`](https://github.com/exactly/exa/commit/0a920a7680213e9b20352162e6071bd3b1de5dc9) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ support tenants
+
+- [#1389](https://github.com/exactly/exa/pull/1389) [`c16bdfb`](https://github.com/exactly/exa/commit/c16bdfb96507ab4175a888cb57226eb52bf0faaa) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🚩 gate tenants behind business module
+
+- [#1657](https://github.com/exactly/exa/pull/1657) [`b30b911`](https://github.com/exactly/exa/commit/b30b911fb9a0f19763221ad2a4668d500569136c) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚩 disable modules per instance
+
+- [#1808](https://github.com/exactly/exa/pull/1808) [`48ff784`](https://github.com/exactly/exa/commit/48ff7843a2633285abc4f21da430f8e365dba631) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 fix sentry account association
+
+- [#1821](https://github.com/exactly/exa/pull/1821) [`b15a060`](https://github.com/exactly/exa/commit/b15a06035c5736eb403b590e54688067343bd6f6) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 answer unknown pages with the not found page
+
+- [#1808](https://github.com/exactly/exa/pull/1808) [`ec3d14e`](https://github.com/exactly/exa/commit/ec3d14ecff1d9ac22ba5e129b285645b1ed2554b) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 notify native coins on every chain
+
+- [#1143](https://github.com/exactly/exa/pull/1143) [`dfac360`](https://github.com/exactly/exa/commit/dfac3603e5af1e7d9171aa7c99025e9ab37c6804) Thanks [@aguxez](https://github.com/aguxez)! - ✨ add credential salt responses
+
+- [#1663](https://github.com/exactly/exa/pull/1663) [`b008709`](https://github.com/exactly/exa/commit/b00870976728042bd87d557b1f3b96f057b0b439) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🔧 add base bridge public key
+
+- [#1811](https://github.com/exactly/exa/pull/1811) [`37f887e`](https://github.com/exactly/exa/commit/37f887e28df7f0af3dd9d04a3371e38af89062c0) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 skip capture of known rebroadcasts
+
+- [#1390](https://github.com/exactly/exa/pull/1390) [`4cba1e3`](https://github.com/exactly/exa/commit/4cba1e30eac743e405b7c801ef7d3a0c9f01a65f) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🚩 gate business verification behind business module
+
+- [#1663](https://github.com/exactly/exa/pull/1663) [`3489f54`](https://github.com/exactly/exa/commit/3489f54e615df05cf5859a2aa6a24c109f6ccdc2) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ support bridge on base
+
+- [#1390](https://github.com/exactly/exa/pull/1390) [`03a0b54`](https://github.com/exactly/exa/commit/03a0b544c030d40ad3c97307f4d621963ad4c5d5) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ add panda business
+
+- [#1808](https://github.com/exactly/exa/pull/1808) [`7178a7a`](https://github.com/exactly/exa/commit/7178a7a68aca7b0b981a02c7458a28b4d0894efc) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 accept native coins other than eth
+
 ## 0.2.134
 
 ### Patch Changes

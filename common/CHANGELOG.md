@@ -1,5 +1,11 @@
 # @exactly/common
 
+## 0.0.25
+
+### Patch Changes
+
+- [#1143](https://github.com/exactly/exa/pull/1143) [`1f23991`](https://github.com/exactly/exa/commit/1f23991c549f00913fcba7480b0b3ec63d670ded) Thanks [@aguxez](https://github.com/aguxez)! - ✨ add credential salt contract
+
 ## 0.0.24
 
 ### Patch Changes
