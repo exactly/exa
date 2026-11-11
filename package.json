@@ -12,7 +12,7 @@
     "web": "expo start --web",
     "build": "EXPO_NO_TELEMETRY=1 expo export --platform web --no-minify --source-maps && test -s dist/index.html",
     "prepare": "GITHUB_STEP_SUMMARY= NX_DAEMON=false NX_ISOLATE_PLUGINS=false nx run-many -t prepare",
-    "prepare:generated": "mkdir -p src/generated",
+    "prepare:generated": "nx prepare:generated mobile",
     "generate:expo": "expo customize tsconfig.json",
     "generate:icons": "rm -rf src/generated/icons && tamagui icons add $(grep -rhoE --include='*.ts' --include='*.tsx' --exclude-dir=generated 'generated/icons/[A-Za-z0-9]+' src | cut -d/ -f3) --from node_modules/lucide-static/icons --out src/generated/icons",
     "generate:release": "echo \"module.exports = /** @type {const} */ ('$(git describe --tags --abbrev=7 --match '@exactly/mobile@*' | sed 's/@exactly\\///')')\" > src/generated/release.js",
@@ -244,7 +244,11 @@
         ],
         "executor": "nx:noop"
       },
+      "prepare:generated": {
+        "command": "mkdir -p src/generated"
+      },
       "generate:expo": {
+        "command": "pnpm run generate:expo",
         "dependsOn": [
           "generate:version"
         ],
@@ -269,6 +273,7 @@
         ]
       },
       "generate:release": {
+        "command": "pnpm run generate:release",
         "dependsOn": [
           "prepare:generated",
           {
@@ -289,6 +294,7 @@
         ]
       },
       "generate:version": {
+        "command": "pnpm run generate:version",
         "dependsOn": [
           "prepare:generated",
           {

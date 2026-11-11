@@ -47,12 +47,16 @@
         "executor": "nx:noop"
       },
       "generate:camera": {
+        "command": "pnpm run generate:camera",
         "inputs": [
           "{projectRoot}/camera.ts"
         ],
         "outputs": [
           "{projectRoot}/generated"
-        ]
+        ],
+        "options": {
+          "cwd": "{projectRoot}"
+        }
       },
       "build": {
         "executor": "@nx/esbuild:esbuild",
