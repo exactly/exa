@@ -63,6 +63,7 @@ export default function persona(key: string, url: string) {
     getFailedInquiries,
     getInquiry,
     getInquiryById,
+    getLatestInquiry,
     getPendingInquiryTemplate,
     getUnknownAccount,
     getValidDocumentForManteca,
@@ -307,6 +308,9 @@ export default function persona(key: string, url: string) {
       10_000,
     );
     if (approvedInquiries[0]) return approvedInquiries[0];
+    return getLatestInquiry(referenceId, templateId);
+  }
+  async function getLatestInquiry(referenceId: string, templateId: string) {
     const { data: inquiries } = await request(
       GetInquiriesResponse,
       `/inquiries?page[size]=1&filter[reference-id]=${referenceId}&filter[inquiry-template-id]=${templateId}`,
@@ -538,6 +542,14 @@ export const BridgeAccount = object({
       ...AccountBasicFields.entries,
       bridge_enable: nullish(object({ value: nullable(boolean()) })),
     }),
+  }),
+});
+
+export const BridgeRequirements = object({
+  attributes: object({
+    "country-code": string(),
+    "social-security-number": nullish(string()),
+    fields: object({ documents: AccountBasicFields.entries.documents }),
   }),
 });
 

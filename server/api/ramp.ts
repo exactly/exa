@@ -23,7 +23,7 @@ import { Address } from "@exactly/common/validation";
 
 import { credentials } from "../database/schema";
 import { BusinessApplicationError } from "../utils/panda";
-import { ADDRESS_TEMPLATE, MANTECA_TEMPLATE_EXTRA_FIELDS } from "../utils/persona";
+import { ADDRESS_TEMPLATE, MANTECA_TEMPLATE_EXTRA_FIELDS, PANDA_TEMPLATE } from "../utils/persona";
 import * as Bridge from "../utils/ramps/bridge";
 import * as Manteca from "../utils/ramps/manteca";
 import ServiceError from "../utils/ServiceError";
@@ -369,6 +369,7 @@ export default function route({
                       credentialId,
                       MANTECA_TEMPLATE_EXTRA_FIELDS,
                       persona,
+                      await persona.getInquiry(credentialId, MANTECA_TEMPLATE_EXTRA_FIELDS),
                     );
                     return c.json({ code: error.message, inquiryId, sessionToken }, 400);
                   }
@@ -391,7 +392,9 @@ export default function route({
               );
             } catch (error) {
               if (error instanceof BusinessApplicationError) return c.json({ code: error.code }, 400);
-              captureException(error, { level: "error", contexts: { credential } });
+              if (!(error instanceof Error && error.message === Bridge.ErrorCodes.MISSING_FIELDS)) {
+                captureException(error, { level: "error", contexts: { credential } });
+              }
               if (error instanceof ServiceError && error.status === 422)
                 return c.json({ code: ErrorCodes.NOT_SUPPORTED }, 400);
               if (error instanceof Error && Object.values(Bridge.ErrorCodes).includes(error.message)) {
@@ -408,6 +411,20 @@ export default function route({
                       credentialId,
                       ADDRESS_TEMPLATE,
                       persona,
+                      await persona.getInquiry(credentialId, ADDRESS_TEMPLATE),
+                    );
+                    return c.json({ code: error.message, inquiryId, sessionToken }, 400);
+                  }
+                  case Bridge.ErrorCodes.MISSING_FIELDS: {
+                    const inquiry = await persona.getLatestInquiry(credentialId, PANDA_TEMPLATE);
+                    if (inquiry?.attributes.status === "completed" || inquiry?.attributes.status === "needs_review") {
+                      return c.json({ code: "pending" }, 200);
+                    }
+                    const { inquiryId, sessionToken } = await getOrCreateInquiry(
+                      credentialId,
+                      PANDA_TEMPLATE,
+                      persona,
+                      inquiry,
                     );
                     return c.json({ code: error.message, inquiryId, sessionToken }, 400);
                   }
@@ -543,8 +560,12 @@ export default function route({
     );
 }
 
-async function getOrCreateInquiry(credentialId: string, template: string, persona: ReturnType<typeof createPersona>) {
-  const existing = await persona.getInquiry(credentialId, template);
+async function getOrCreateInquiry(
+  credentialId: string,
+  template: string,
+  persona: ReturnType<typeof createPersona>,
+  existing: Awaited<ReturnType<ReturnType<typeof createPersona>["getInquiry"]>>,
+) {
   const { data: inquiry } =
     existing?.attributes.status === "created" ||
     existing?.attributes.status === "pending" ||

@@ -2321,6 +2321,152 @@ describe("bridge utils", () => {
         });
       });
 
+      it("returns NOT_STARTED when enabled account misses fields", async () => {
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({ data: [incompletePersonaAccount] });
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
+
+        await expect(bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" })).resolves.toStrictEqual({
+          status: "NOT_STARTED",
+          tosLink: "https://tos.link/agree",
+          onramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
+          offramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
+        });
+        expect(captureException).not.toHaveBeenCalled();
+        expect(setContext).not.toHaveBeenCalled();
+      });
+
+      it("returns NOT_STARTED when incomplete account has no documents", async () => {
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({
+          data: [
+            {
+              ...incompletePersonaAccount,
+              attributes: {
+                ...incompletePersonaAccount.attributes,
+                fields: { ...incompletePersonaAccount.attributes.fields, documents: { value: null } },
+              },
+            },
+          ],
+        });
+        vi.spyOn(persona, "getDocumentForBridge");
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
+
+        await expect(bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" })).resolves.toStrictEqual({
+          status: "NOT_STARTED",
+          tosLink: "https://tos.link/agree",
+          onramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
+          offramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
+        });
+        expect(persona.getDocumentForBridge).not.toHaveBeenCalled();
+        expect(captureException).not.toHaveBeenCalled();
+        expect(setContext).not.toHaveBeenCalled();
+      });
+
+      it("returns NOT_AVAILABLE when incomplete account has unsupported id class", async () => {
+        const fetchSpy = vi.spyOn(globalThis, "fetch");
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({ data: [incompletePersonaAccount] });
+        vi.spyOn(persona, "getDocumentForBridge").mockReturnValueOnce({
+          ...identityDocument,
+          id_class: { value: "wp" },
+        });
+
+        await expect(bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" })).resolves.toStrictEqual({
+          onramp: { currencies: [] },
+          offramp: { currencies: [] },
+          status: "NOT_AVAILABLE",
+        });
+        expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("bridge not found identification class"), {
+          contexts: { bridge: { credentialId: "cred-1", idClass: "wp" } },
+          level: "warning",
+        });
+        expect(fetchSpy).not.toHaveBeenCalled();
+      });
+
+      it("throws when incomplete US account has no SSN", async () => {
+        const fetchSpy = vi.spyOn(globalThis, "fetch");
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({
+          data: [
+            {
+              ...incompletePersonaAccount,
+              attributes: { ...incompletePersonaAccount.attributes, "country-code": "US" },
+            },
+          ],
+        });
+
+        await expect(bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" })).rejects.toThrow(
+          bridge.ErrorCodes.NO_SOCIAL_SECURITY_NUMBER,
+        );
+        expect(fetchSpy).not.toHaveBeenCalled();
+        expect(captureException).not.toHaveBeenCalled();
+        expect(setContext).not.toHaveBeenCalled();
+      });
+
+      it("throws when incomplete US account has no SSN nor documents", async () => {
+        const fetchSpy = vi.spyOn(globalThis, "fetch");
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({
+          data: [
+            {
+              ...incompletePersonaAccount,
+              attributes: {
+                ...incompletePersonaAccount.attributes,
+                "country-code": "US",
+                fields: { ...incompletePersonaAccount.attributes.fields, documents: { value: null } },
+              },
+            },
+          ],
+        });
+
+        await expect(bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" })).rejects.toThrow(
+          bridge.ErrorCodes.NO_SOCIAL_SECURITY_NUMBER,
+        );
+        expect(fetchSpy).not.toHaveBeenCalled();
+        expect(captureException).not.toHaveBeenCalled();
+        expect(setContext).not.toHaveBeenCalled();
+      });
+
+      it("throws when incomplete account has invalid country nor documents", async () => {
+        const fetchSpy = vi.spyOn(globalThis, "fetch");
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({
+          data: [
+            {
+              ...incompletePersonaAccount,
+              attributes: {
+                ...incompletePersonaAccount.attributes,
+                "country-code": "XX",
+                fields: { ...incompletePersonaAccount.attributes.fields, documents: { value: null } },
+              },
+            },
+          ],
+        });
+
+        await expect(bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" })).rejects.toThrow(
+          bridge.ErrorCodes.NO_COUNTRY_ALPHA3,
+        );
+        expect(fetchSpy).not.toHaveBeenCalled();
+        expect(captureException).not.toHaveBeenCalled();
+        expect(setContext).not.toHaveBeenCalled();
+      });
+
+      it("returns NOT_STARTED when incomplete account has no country", async () => {
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({
+          data: [
+            {
+              ...incompletePersonaAccount,
+              attributes: { ...incompletePersonaAccount.attributes, "country-code": null },
+            },
+          ],
+        });
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
+
+        await expect(bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" })).resolves.toStrictEqual({
+          status: "NOT_STARTED",
+          tosLink: "https://tos.link/agree",
+          onramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
+          offramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
+        });
+        expect(captureException).not.toHaveBeenCalled();
+        expect(setContext).not.toHaveBeenCalled();
+      });
+
       it("returns ONBOARDING when account lacks basic fields", async () => {
         const fetchSpy = vi.spyOn(globalThis, "fetch");
         vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({
@@ -2761,6 +2907,44 @@ describe("bridge utils", () => {
           acceptedTermsId: "terms-1",
         }),
       ).rejects.toThrow(bridge.ErrorCodes.NO_PERSONA_ACCOUNT);
+    });
+
+    it("throws MISSING_FIELDS when account misses fields", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(Response.json({ data: [incompletePersonaAccount] }));
+
+      await expect(
+        bridge.onboarding({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: null,
+          acceptedTermsId: "terms-1",
+        }),
+      ).rejects.toThrow(bridge.ErrorCodes.MISSING_FIELDS);
+      expect(fetchSpy).toHaveBeenCalledOnce();
+      expect(fetchSpy.mock.calls[0]?.[0]).toMatch(/\/accounts\?page\[size\]=1&filter\[reference-id\]=cred-1$/);
+      expect(captureException).not.toHaveBeenCalled();
+    });
+
+    it("throws validation error when account fields are invalid", async () => {
+      vi.spyOn(persona, "getAccount").mockImplementationOnce(() =>
+        Promise.resolve().then(() =>
+          parse(Persona.BridgeAccount, {
+            ...enabledPersonaAccount,
+            attributes: { ...enabledPersonaAccount.attributes, "name-first": 3 },
+          }),
+        ),
+      );
+
+      await expect(
+        bridge.onboarding({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: null,
+          acceptedTermsId: "terms-1",
+        }),
+      ).rejects.toThrow(ValiError);
     });
 
     it("throws when no valid document found", async () => {
@@ -6212,6 +6396,18 @@ const enabledPersonaAccount = {
   attributes: {
     ...personaAccount.attributes,
     fields: { ...personaAccount.attributes.fields, bridge_enable: { value: true } },
+  },
+};
+
+const incompletePersonaAccount = {
+  ...enabledPersonaAccount,
+  attributes: {
+    ...enabledPersonaAccount.attributes,
+    fields: {
+      ...enabledPersonaAccount.attributes.fields,
+      economic_activity: { value: null },
+      annual_salary: { value: null },
+    },
   },
 };
 

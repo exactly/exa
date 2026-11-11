@@ -240,6 +240,8 @@ describe("createInquiry", () => {
 });
 
 describe("getInquiry", () => {
+  afterEach(() => vi.restoreAllMocks());
+
   it("prefers an approved business inquiry", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       Response.json({
@@ -254,6 +256,57 @@ describe("getInquiry", () => {
       id: "inquiry-1",
     });
     expect(fetchSpy.mock.calls[0]?.[0]).toContain("filter[status]=approved");
+  });
+
+  it("falls back to the latest inquiry when none is approved", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({ data: [] }))
+      .mockResolvedValueOnce(
+        Response.json({
+          data: [
+            { id: "inquiry-2", type: "inquiry", attributes: { status: "pending", "reference-id": "reference-id" } },
+          ],
+        }),
+      );
+
+    await expect(persona.getInquiry("reference-id", persona.PANDA_TEMPLATE)).resolves.toStrictEqual({
+      id: "inquiry-2",
+      type: "inquiry",
+      attributes: { status: "pending", "reference-id": "reference-id" },
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(fetchSpy.mock.calls[1]?.[0]).toBe(
+      `https://persona.test/inquiries?page[size]=1&filter[reference-id]=reference-id&filter[inquiry-template-id]=${persona.PANDA_TEMPLATE}`,
+    );
+  });
+});
+
+describe("getLatestInquiry", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("returns the latest inquiry for the template", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({
+        data: [{ id: "inquiry-1", type: "inquiry", attributes: { status: "created", "reference-id": "reference-id" } }],
+      }),
+    );
+
+    await expect(persona.getLatestInquiry("reference-id", persona.PANDA_TEMPLATE)).resolves.toStrictEqual({
+      id: "inquiry-1",
+      type: "inquiry",
+      attributes: { status: "created", "reference-id": "reference-id" },
+    });
+    expect(fetchSpy).toHaveBeenCalledExactlyOnceWith(
+      `https://persona.test/inquiries?page[size]=1&filter[reference-id]=reference-id&filter[inquiry-template-id]=${persona.PANDA_TEMPLATE}`,
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("returns undefined without inquiries", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json({ data: [] }));
+
+    await expect(persona.getLatestInquiry("reference-id", persona.PANDA_TEMPLATE)).resolves.toBeUndefined();
   });
 });
 

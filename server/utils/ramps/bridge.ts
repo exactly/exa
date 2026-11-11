@@ -1072,28 +1072,28 @@ export default function bridge(key: string, url: string) {
     }
 
     const result = safeParse(Persona.BridgeAccount, account);
-    if (!result.success) {
+    if (!result.success && !result.issues.every((issue) => Persona.isMissingOrNull(issue))) {
       setContext("validation", { ...result, flatten: flatten(result.issues) });
       throw new ValiError(result.issues);
     }
-    const personaAccount = result.output;
-    const countryCode = personaAccount.attributes["country-code"];
-    const validDocument = persona.getDocumentForBridge(personaAccount.attributes.fields.documents.value);
-    if (!validDocument) throw new Error(ErrorCodes.NO_DOCUMENT);
-    const idClass = safeParse(picklist(Persona.IdentificationClasses), validDocument.id_class.value);
-    const bridgeIdType = idClass.success && Persona.IdClassToBridge[idClass.output];
-    if (!bridgeIdType) {
-      captureException(new Error("bridge not found identification class"), {
-        contexts: { bridge: { credentialId: params.credentialId, idClass: validDocument.id_class.value } },
-        level: "warning",
-      });
-      return { onramp: { currencies: [] }, offramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
+    const countryCode = account.attributes["country-code"];
+    const requirements = safeParse(Persona.BridgeRequirements, account);
+    if (requirements.success) {
+      const { attributes } = requirements.output;
+      const validDocument = persona.getDocumentForBridge(attributes.fields.documents.value);
+      if (!validDocument) throw new Error(ErrorCodes.NO_DOCUMENT);
+      const idClass = safeParse(picklist(Persona.IdentificationClasses), validDocument.id_class.value);
+      const bridgeIdType = idClass.success && Persona.IdClassToBridge[idClass.output];
+      if (!bridgeIdType) {
+        captureException(new Error("bridge not found identification class"), {
+          contexts: { bridge: { credentialId: params.credentialId, idClass: validDocument.id_class.value } },
+          level: "warning",
+        });
+        return { onramp: { currencies: [] }, offramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
+      }
     }
-
-    const country = alpha2ToAlpha3(countryCode);
-    if (!country) throw new Error(ErrorCodes.NO_COUNTRY_ALPHA3);
-
-    if (countryCode === "US" && !personaAccount.attributes["social-security-number"]) {
+    if (countryCode && !alpha2ToAlpha3(countryCode)) throw new Error(ErrorCodes.NO_COUNTRY_ALPHA3);
+    if (countryCode === "US" && !account.attributes["social-security-number"]) {
       throw new Error(ErrorCodes.NO_SOCIAL_SECURITY_NUMBER);
     }
 
@@ -1398,7 +1398,15 @@ export default function bridge(key: string, url: string) {
         break;
       }
       case "consumer": {
-        const personaAccount = await persona.getAccount(params.credentialId, "bridge");
+        const personaAccount = await persona.getAccount(params.credentialId, "bridge").catch((error: unknown) => {
+          if (
+            error instanceof ValiError &&
+            error.issues.every((issue: BaseIssue<unknown>) => Persona.isMissingOrNull(issue))
+          ) {
+            throw new Error(ErrorCodes.MISSING_FIELDS);
+          }
+          throw error;
+        });
         if (!personaAccount) throw new Error(ErrorCodes.NO_PERSONA_ACCOUNT);
 
         const countryCode = personaAccount.attributes["country-code"];
@@ -2599,6 +2607,7 @@ export const ErrorCodes = {
   INVALID_ADDRESS: "invalid address",
   INVALID_BANK_NAME: "invalid bank name",
   INVALID_DEPOSIT_ADDRESS: "invalid deposit address",
+  MISSING_FIELDS: "missing fields",
   MISSING_STELLAR_MEMO: "missing stellar memo",
   NO_COUNTRY_ALPHA3: "no country alpha3",
   NO_DOCUMENT: "no document",

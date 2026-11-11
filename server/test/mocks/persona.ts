@@ -35,6 +35,8 @@ const mock = vi.hoisted(() => {
         current().getFailedInquiries(...parameters),
       getInquiry: (...parameters: Parameters<Persona["getInquiry"]>) => current().getInquiry(...parameters),
       getInquiryById: (...parameters: Parameters<Persona["getInquiryById"]>) => current().getInquiryById(...parameters),
+      getLatestInquiry: (...parameters: Parameters<Persona["getLatestInquiry"]>) =>
+        current().getLatestInquiry(...parameters),
       getPendingInquiryTemplate: (...parameters: Parameters<Persona["getPendingInquiryTemplate"]>) =>
         current().getPendingInquiryTemplate(...parameters),
       getUnknownAccount: (...parameters: Parameters<Persona["getUnknownAccount"]>) =>
