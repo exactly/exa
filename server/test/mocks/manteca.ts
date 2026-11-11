@@ -21,11 +21,17 @@ const mock = vi.hoisted(() => {
       convertBalanceToUsdc: (...parameters: Parameters<Manteca["convertBalanceToUsdc"]>) =>
         current().convertBalanceToUsdc(...parameters),
       createOrder: (...parameters: Parameters<Manteca["createOrder"]>) => current().createOrder(...parameters),
+      executeQrPayment: (...parameters: Parameters<Manteca["executeQrPayment"]>) =>
+        current().executeQrPayment(...parameters),
       getDepositDetails: (...parameters: Parameters<Manteca["getDepositDetails"]>) =>
         current().getDepositDetails(...parameters),
       getLimits: (...parameters: Parameters<Manteca["getLimits"]>) => current().getLimits(...parameters),
+      getPaymentLock: (...parameters: Parameters<Manteca["getPaymentLock"]>) => current().getPaymentLock(...parameters),
       getProvider: (...parameters: Parameters<Manteca["getProvider"]>) => current().getProvider(...parameters),
       getQuote: (...parameters: Parameters<Manteca["getQuote"]>) => current().getQuote(...parameters),
+      getSettlement: (...parameters: Parameters<Manteca["getSettlement"]>) => current().getSettlement(...parameters),
+      getSettlements: (...parameters: Parameters<Manteca["getSettlements"]>) => current().getSettlements(...parameters),
+      getSynthetic: (...parameters: Parameters<Manteca["getSynthetic"]>) => current().getSynthetic(...parameters),
       getUser: (...parameters: Parameters<Manteca["getUser"]>) => current().getUser(...parameters),
       initiateOnboarding: (...parameters: Parameters<Manteca["initiateOnboarding"]>) =>
         current().initiateOnboarding(...parameters),
