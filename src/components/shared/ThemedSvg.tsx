@@ -2,9 +2,7 @@ import React, { useId, useMemo } from "react";
 import type { SvgProps } from "react-native-svg";
 import { SvgCss } from "react-native-svg/css";
 
-import { useTheme } from "tamagui";
-
-import { isBase } from "@exactly/common/generated/chain";
+import { useTheme, useThemeName } from "tamagui";
 
 const fallbackHue = 222;
 const tealMin = 140;
@@ -14,11 +12,15 @@ export default function ThemedSvg({ xml, ...properties }: SvgProps & { xml: unkn
   const theme = useTheme();
   const elementId = useId().replaceAll(":", "");
   const brandHue = hueOf(theme.iconBrandDefault.val);
-  const themed = useMemo(() => inject(xml as string, elementId, brandHue), [xml, elementId, brandHue]);
+  const isBaseTheme = useThemeName() === "light_base";
+  const themed = useMemo(
+    () => inject(xml as string, elementId, brandHue, isBaseTheme),
+    [xml, elementId, brandHue, isBaseTheme],
+  );
   return <SvgCss xml={themed} override={properties} />;
 }
 
-function inject(xml: string, prefix: string, brandHue: number) {
+function inject(xml: string, prefix: string, brandHue: number, isBaseTheme: boolean) {
   const scoped = xml
     .replaceAll(/\bid="([^"]+)"/g, (_, id) => `id="${prefix}${id}"`)
     .replaceAll(/url\(#([^)]+)\)/g, (_, id) => `url(#${prefix}${id})`)
@@ -26,7 +28,7 @@ function inject(xml: string, prefix: string, brandHue: number) {
   const hexes = new Set<string>();
   for (const [, hex] of scoped.matchAll(/var\(--s([0-9a-f]{6}),/g)) if (hex) hexes.add(hex);
   if (hexes.size === 0) return scoped;
-  const variables = [...hexes].map((hex) => `--s${hex}:${isBase ? recolor(hex, brandHue) : `#${hex}`}`).join(";");
+  const variables = [...hexes].map((hex) => `--s${hex}:${isBaseTheme ? recolor(hex, brandHue) : `#${hex}`}`).join(";");
   return scoped.replace(/<svg\b[^>]*>/, (svg) => `${svg}<style>:root{${variables}}</style>`);
 }
 

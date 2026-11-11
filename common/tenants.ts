@@ -15,3 +15,5 @@ const tenants: Record<string, Address> = {
 };
 
 export default tenants;
+
+export const tenantScript = `if (${JSON.stringify(Object.keys(tenants))}.includes(location.origin)) document.documentElement.dataset.tenant = "";`;

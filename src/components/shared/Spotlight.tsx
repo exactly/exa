@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import SVG, { Defs, Mask, Rect } from "react-native-svg";
 
-import { Theme, View, YStack, type ScrollView, type TamaguiElement } from "tamagui";
+import { Theme, useThemeName, View, YStack, type ScrollView, type TamaguiElement } from "tamagui";
 
 import Text from "./Text";
 
@@ -33,6 +33,7 @@ export default function Spotlight({
   targetRef: React.RefObject<null | RNView | TamaguiElement>;
 }) {
   const { t } = useTranslation();
+  const theme = useThemeName();
   const { width: screenWidth, height: windowHeight } = useWindowDimensions();
   const statusBarHeight = Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0;
   const screenHeight = windowHeight + statusBarHeight;
@@ -119,7 +120,7 @@ export default function Spotlight({
           onDismiss();
         }}
       />
-      <Theme name="light">
+      <Theme name={theme === "dark" ? "light" : null}>
         <YStack
           position="absolute"
           top={tooltipTop}

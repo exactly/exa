@@ -39,13 +39,13 @@ import { use as configI18n } from "i18next";
 import { WagmiProvider } from "wagmi";
 
 import domain from "@exactly/common/domain";
-import chain, { isBase } from "@exactly/common/generated/chain";
+import chain from "@exactly/common/generated/chain";
 
 import SplineSansRegular from "../assets/fonts/SplineSans-Regular.otf";
 import SplineSansSemiBold from "../assets/fonts/SplineSans-SemiBold.otf";
 import SplineSansMonoMedium from "../assets/fonts/SplineSansMono-Medium.otf";
 import AppIcon from "../assets/icon.png";
-import ThemeProvider from "../components/context/ThemeProvider";
+import ThemeProvider, { isBaseTheme } from "../components/context/ThemeProvider";
 import Error from "../components/shared/Error";
 import release from "../generated/release";
 import en from "../i18n/en.json";
@@ -116,7 +116,7 @@ const userFeedback = feedbackIntegration({
       width: "100%",
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: isBase ? "#0000FF" : "#12A594",
+      backgroundColor: isBaseTheme ? "#0000FF" : "#12A594",
     },
     cancelButton: {
       height: 50,

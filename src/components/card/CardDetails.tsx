@@ -89,17 +89,17 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
                     ) : (
                       <>
                         <View position="absolute" top="s4" left="s5">
-                          {theme === "light" ? (
-                            <ExaLogoLight height={20} width={63} />
-                          ) : (
+                          {theme === "dark" ? (
                             <ExaLogoDark height={20} width={63} />
+                          ) : (
+                            <ExaLogoLight height={20} width={63} />
                           )}
                         </View>
                         <View position="absolute" bottom="s4" right="s5">
-                          {theme === "light" ? (
-                            <VisaLogoLight height={40} width={72} />
-                          ) : (
+                          {theme === "dark" ? (
                             <VisaLogoDark height={40} width={72} />
+                          ) : (
+                            <VisaLogoLight height={40} width={72} />
                           )}
                         </View>
                       </>

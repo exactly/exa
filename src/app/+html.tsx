@@ -4,6 +4,7 @@ import { ScrollViewStyleReset } from "expo-router/html";
 
 import domain from "@exactly/common/domain";
 import { isBase } from "@exactly/common/generated/chain";
+import { tenantScript } from "@exactly/common/tenants";
 
 import appMetadata from "../../package.json";
 
@@ -29,30 +30,37 @@ export default function HTML({ children }: { children: ReactNode }) {
         <meta name="base:app_id" content="69a9d841964308b7af99b1aa" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
-        <meta name="color-scheme" content={isBase ? "light" : "light dark"} />
+        <meta name="color-scheme" content="light dark" />
         <link rel="manifest" href="/manifest.json" />
         <ScrollViewStyleReset />
         <style>
           {css`
             /* #region variables */
             :root {
-              color-scheme: ${isBase ? "light" : "light dark"};
-              --loader-background: ${isBase ? "#ffffff" : "#fbfdfc"};
-              --loader-track: ${isBase ? "rgba(0, 0, 255, 0.25)" : "rgba(18, 165, 148, 0.25)"};
-              --loader-active: ${isBase ? "#0000ff" : "#12a594"};
+              color-scheme: light dark;
+              --loader-background: #fbfdfc;
+              --loader-track: rgba(18, 165, 148, 0.25);
+              --loader-active: #12a594;
+            }
+
+            @media (prefers-color-scheme: dark) {
+              :root {
+                --loader-background: #171918;
+                --loader-track: rgba(87, 246, 225, 0.2);
+                --loader-active: #57f6e1;
+              }
             }
 
             ${isBase
-              ? ""
-              : css`
-                  @media (prefers-color-scheme: dark) {
-                    :root {
-                      --loader-background: #171918;
-                      --loader-track: rgba(87, 246, 225, 0.2);
-                      --loader-active: #57f6e1;
-                    }
+              ? css`
+                  :root:not([data-tenant]) {
+                    color-scheme: light;
+                    --loader-background: #ffffff;
+                    --loader-track: rgba(0, 0, 255, 0.25);
+                    --loader-active: #0000ff;
                   }
-                `}
+                `
+              : ""}
             /* #endregion */
 
             /* #region layout */
@@ -142,6 +150,10 @@ export default function HTML({ children }: { children: ReactNode }) {
             /* #endregion */
           `}
         </style>
+        {isBase && (
+          // eslint-disable-next-line @eslint-react/dom/no-dangerously-set-innerhtml -- cspell:ignore innerhtml
+          <script dangerouslySetInnerHTML={{ __html: tenantScript }} />
+        )}
       </head>
       <body>
         <div id="app-loader">
