@@ -4,6 +4,13 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     file: ../subflows/mint.yaml
     env: { asset: USDC, to: "${output.account}", amount: "420" }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Swap } }
+- tapOn: { id: Select token, index: 0 }
+- tapOn: Search by token name or address
+- inputText: weth
+- assertVisible: No tokens found
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
 - runFlow:
     file: ../subflows/mint.yaml
     env: { asset: ETH, to: "${output.account}", amount: "0.1" }
