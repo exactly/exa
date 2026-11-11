@@ -7,7 +7,7 @@ import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { toast } from "@tamagui/toast";
 import { ScrollView, Spinner, YStack } from "tamagui";
 
-import { useQuery } from "@tanstack/react-query";
+import { skipToken, useQuery } from "@tanstack/react-query";
 
 import BridgeDisclaimer from "./BridgeDisclaimer";
 import MantecaDisclaimer from "./MantecaDisclaimer";
@@ -19,6 +19,7 @@ import { ArrowLeft } from "../../generated/icons/ArrowLeft";
 import { ArrowRight } from "../../generated/icons/ArrowRight";
 import { Headset } from "../../generated/icons/Headset";
 import { X } from "../../generated/icons/X";
+import completeOnboarding from "../../utils/completeOnboarding";
 import { isValidCurrency } from "../../utils/currencies";
 import { newMessage } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
@@ -36,7 +37,8 @@ export default function Status() {
   const { t } = useTranslation();
   const router = useRouter();
 
-  const { currency, network, status, pending, provider, direction } = useLocalSearchParams<{
+  const { currency, network, status, pending, provider, direction, acceptedTermsId } = useLocalSearchParams<{
+    acceptedTermsId?: string;
     currency?: string;
     direction?: string;
     network?: string;
@@ -58,6 +60,26 @@ export default function Status() {
     const timeout = setTimeout(() => setTimedOut(true), 5000);
     return () => clearTimeout(timeout);
   }, [isPending]);
+
+  // eslint-disable-next-line @tanstack/query/exhaustive-deps -- router is stable
+  useQuery({
+    queryKey: ["ramp", "onboarding", "bridge", acceptedTermsId, currency, network, offramp],
+    queryFn:
+      acceptedTermsId && currency && timedOut
+        ? async ({ signal }) =>
+            (await completeOnboarding(
+              router,
+              currency,
+              "bridge",
+              acceptedTermsId,
+              network,
+              offramp ? "offramp" : "onramp",
+              { poll: true, signal },
+            )) ?? null
+        : skipToken,
+    refetchInterval: ({ state }) =>
+      state.data === "pending" ? Math.min(5000 * 2 ** state.dataUpdateCount, 60_000) : false,
+  });
 
   const { data: countryCode } = useQuery<string>({ queryKey: ["user", "country"] });
   const redirectURL = `${origin}/${offramp ? "send-funds" : "add-funds"}`;

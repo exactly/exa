@@ -11,6 +11,7 @@ export default async function completeOnboarding(
   acceptedTermsId?: string,
   network?: string,
   direction: "offramp" | "onramp" = "onramp",
+  { poll, signal }: { poll?: boolean; signal?: AbortSignal } = {},
 ) {
   const offramp = direction === "offramp";
   try {
@@ -19,6 +20,7 @@ export default async function completeOnboarding(
       provider === "bridge" ? { provider: "bridge", acceptedTermsId: acceptedTermsId ?? "" } : { provider: "manteca" };
     const result = await startRampOnboarding(onboarding);
     queryClient.invalidateQueries({ queryKey: ["ramp", "providers"] }).catch(reportError);
+    if (signal?.aborted) return;
     if ("inquiryId" in result) {
       queryClient.setQueryData(["ramp", "kyc-tokens", provider, direction], {
         inquiryId: result.inquiryId,
@@ -30,12 +32,22 @@ export default async function completeOnboarding(
       });
       return;
     }
+    if (poll && result.code === "pending") return "pending";
     router.replace({
       pathname: offramp ? "/send-funds/status" : "/add-funds/status",
-      params: { status: "ONBOARDING", currency, provider, pending: "true", network, direction },
+      params: {
+        status: "ONBOARDING",
+        currency,
+        provider,
+        pending: "true",
+        network,
+        direction,
+        acceptedTermsId: result.code === "pending" ? acceptedTermsId : undefined,
+      },
     });
   } catch (error) {
     reportError(error);
+    if (signal?.aborted) return;
     router.replace({
       pathname: offramp ? "/send-funds/status" : "/add-funds/status",
       params: { status: "error", currency, provider, network, direction },

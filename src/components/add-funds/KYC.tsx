@@ -40,6 +40,7 @@ export default function KYC() {
     provider,
     directionKey,
   ]);
+  const update = !!storedTokens && kycCode !== "missing fields";
 
   const { mutateAsync: handleContinue, isPending } = useMutation({
     mutationKey: ["kyc", "complete", provider],
@@ -110,14 +111,14 @@ export default function KYC() {
                 </View>
                 <YStack gap="s4" alignSelf="center">
                   <Text title emphasized textAlign="center" color="interactiveTextBrandDefault">
-                    {storedTokens
+                    {update
                       ? isAddress
                         ? t("Your address needs to be verified")
                         : t("Your ID needs to be updated")
                       : t("We need more information about you")}
                   </Text>
                   <Text color="uiNeutralPlaceholder" footnote textAlign="center">
-                    {storedTokens
+                    {update
                       ? isAddress
                         ? t("There was an issue with your address. Please update your information to continue.")
                         : t("There was an issue with your tax ID. Please update your information to continue.")
@@ -131,7 +132,7 @@ export default function KYC() {
         {isBridge ? <BridgeDisclaimer /> : <MantecaDisclaimer />}
         <Button onPress={handlePress} primary disabled={isPending} loading={isPending}>
           <Button.Text>
-            {isPending ? t("Starting...") : storedTokens ? t("Update information") : t("Continue verification")}
+            {isPending ? t("Starting...") : update ? t("Update information") : t("Continue verification")}
           </Button.Text>
           <Button.Icon>
             <ArrowRight />

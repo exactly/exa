@@ -470,7 +470,7 @@ export async function startRampOnboarding(onboarding: InferRequestType<typeof ap
   const response = await api.ramp.$post({ json: onboarding });
   if (!response.ok) {
     const body = await response.json();
-    if (body.code === "invalid legal id" || body.code === "invalid address") {
+    if (body.code === "invalid legal id" || body.code === "invalid address" || body.code === "missing fields") {
       const { inquiryId, sessionToken } = parse(object({ inquiryId: string(), sessionToken: string() }), body);
       return { code: body.code, inquiryId, sessionToken };
     }
