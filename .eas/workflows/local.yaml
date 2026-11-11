@@ -271,7 +271,16 @@ jobs:
       - uses: eas/repack
         id: repack
         with: { platform: ios, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
+      - id: simulator
+        name: create simulator # cspell:ignore assetsd assetsubscriptiond callservicesd cloudd healthappd healthd intelligencetasksd knowledgeconstructiond mobileassetd modelcatalogd telephonyutilities triald udid
+        run: |
+          udid=$(xcrun simctl create e2e "iPhone 17")
+          dir="/private/var/tmp/com.apple.CoreSimulator.SimDevice.$udid"
+          mkdir -p -m 700 "$dir"
+          printf '<plist version="1.0"><dict>%s</dict></plist>' "$(printf '<key>com.apple.%s</key><true/>' PosterBoard assetsd assetsubscriptiond cloudd healthappd healthd intelligencetasksd knowledgeconstructiond mobileassetd modelcatalogd telephonyutilities.callservicesd triald)" > "$dir/disabled.plist"
+          set-output udid "$udid"
       - uses: eas/start_ios_simulator
+        with: { device_identifier: "${{ steps.simulator.outputs.udid }}" }
       - name: prepare device
         run: |
           xcrun simctl spawn booted defaults write com.apple.Accessibility ReduceMotionEnabled -bool true
