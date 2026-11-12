@@ -1,5 +1,18 @@
 # @exactly/mobile
 
+## 1.2.43
+
+### Patch Changes
+
+- [#1818](https://github.com/exactly/exa/pull/1818) [`898f96d`](https://github.com/exactly/exa/commit/898f96da1544e9f3003512df6637f750bb8ee60e) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 send native assets via wrapper
+
+- [#1825](https://github.com/exactly/exa/pull/1825) [`a6089eb`](https://github.com/exactly/exa/commit/a6089eb48c82b4d67a5b246cd8f96c44850e2242) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 keep base theme off business
+
+- [#1816](https://github.com/exactly/exa/pull/1816) [`ad23109`](https://github.com/exactly/exa/commit/ad23109f14675534e0d35948233c15d7e7c63d30) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ centralize cross-chain gas payment in wallet
+
+- Updated dependencies [[`319c868`](https://github.com/exactly/exa/commit/319c868e0fba547408a7bb16cb64a6b810a9e9f9), [`13ea954`](https://github.com/exactly/exa/commit/13ea95465e78aa25ec8209694d97a041c1925e15), [`0a46635`](https://github.com/exactly/exa/commit/0a46635e44f993cc268973517056edad24735d86), [`b7ce84c`](https://github.com/exactly/exa/commit/b7ce84c45bfd17d922782c8d011e54f86598be7f), [`722c044`](https://github.com/exactly/exa/commit/722c044bc2c37cd932a60f26c8470e5d7ba4c840), [`510b366`](https://github.com/exactly/exa/commit/510b366fe66b8e8567f5a6f16da78a2a6da3c484)]:
+  - @exactly/server@0.3.1
+
 ## 1.2.42
 
 ### Patch Changes

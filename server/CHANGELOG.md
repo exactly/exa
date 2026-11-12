@@ -1,5 +1,21 @@
 # @exactly/server
 
+## 0.3.1
+
+### Patch Changes
+
+- [#1827](https://github.com/exactly/exa/pull/1827) [`319c868`](https://github.com/exactly/exa/commit/319c868e0fba547408a7bb16cb64a6b810a9e9f9) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 fix stale web html cache
+
+- [#1836](https://github.com/exactly/exa/pull/1836) [`13ea954`](https://github.com/exactly/exa/commit/13ea95465e78aa25ec8209694d97a041c1925e15) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 scope bridge pairing to tenant
+
+- [#1838](https://github.com/exactly/exa/pull/1838) [`0a46635`](https://github.com/exactly/exa/commit/0a46635e44f993cc268973517056edad24735d86) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔧 add partner card art
+
+- [#1836](https://github.com/exactly/exa/pull/1836) [`b7ce84c`](https://github.com/exactly/exa/commit/b7ce84c45bfd17d922782c8d011e54f86598be7f) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 stop bridge pairing retries
+
+- [#1838](https://github.com/exactly/exa/pull/1838) [`722c044`](https://github.com/exactly/exa/commit/722c044bc2c37cd932a60f26c8470e5d7ba4c840) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 👔 reject business card creation
+
+- [#1825](https://github.com/exactly/exa/pull/1825) [`510b366`](https://github.com/exactly/exa/commit/510b366fe66b8e8567f5a6f16da78a2a6da3c484) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔒 only allow hashed inline scripts
+
 ## 0.3.0
 
 ### Minor Changes

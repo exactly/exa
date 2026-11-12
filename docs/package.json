@@ -1,6 +1,6 @@
 {
   "name": "@exactly/docs",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "private": true,
   "scripts": {
     "generate:astro": "astro sync",
@@ -18,7 +18,7 @@
     "@astrojs/starlight": "^0.41.3",
     "@eslint/markdown": "^8.0.3",
     "@exactly/common": "workspace:^0.0.25",
-    "@exactly/server": "workspace:^0.3.0",
+    "@exactly/server": "workspace:^0.3.1",
     "astro": "^7.3.8",
     "astro-mermaid": "^2.1.0",
     "eslint": "catalog:",

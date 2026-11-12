@@ -356,7 +356,7 @@ importers:
         specifier: ^0.1.0
         version: 0.1.0
       '@exactly/server':
-        specifier: workspace:^0.3.0
+        specifier: workspace:^0.3.1
         version: link:server
       '@expo/metro-runtime':
         specifier: ~55.0.6
@@ -962,7 +962,7 @@ importers:
         specifier: workspace:^0.0.25
         version: link:../common
       '@exactly/server':
-        specifier: workspace:^0.3.0
+        specifier: workspace:^0.3.1
         version: link:../server
       astro:
         specifier: ^7.3.8

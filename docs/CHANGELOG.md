@@ -1,5 +1,11 @@
 # @exactly/docs
 
+## 0.1.7
+
+### Patch Changes
+
+- [#1353](https://github.com/exactly/exa/pull/1353) [`3d87522`](https://github.com/exactly/exa/commit/3d87522ee55341290073ec9dc4086144864d81c2) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 📝 add webhook api migration guide
+
 ## 0.1.6
 
 ### Patch Changes
