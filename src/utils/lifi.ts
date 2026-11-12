@@ -1,3 +1,5 @@
+import { AppState } from "react-native";
+
 import {
   ChainType,
   config,
@@ -674,10 +676,12 @@ async function* getWalletBalances(account: Address, lifiTokens: Token[], chains:
   const getEthBalance = encodeFunctionData({ abi: multicall3Abi, functionName: "getEthBalance", args: [account] });
   const tokensByChain: Partial<Record<number, Token[]>> = {};
   for (const token of lifiTokens) (tokensByChain[token.chainId] ??= []).push(token);
-  const failures: { error: unknown; id: number }[] = [];
+  const failures: { active: boolean; error: unknown; id: number }[] = [];
+  let scanned = 0;
   const pending = new Set(
     chains.map(async ({ chainType, diamondAddress, id, mainnet, multicallAddress }) => {
       if (!mainnet || chainType !== ChainType.EVM || !diamondAddress || !multicallAddress) return;
+      if (id !== chain.id) scanned++;
       const url = alchemyURLs[id];
       try {
         if (url) {
@@ -733,7 +737,7 @@ async function* getWalletBalances(account: Address, lifiTokens: Token[], chains:
         ).then((results) => [id, results.flat()] as const);
       } catch (error) {
         if (id === chain.id) throw error;
-        failures.push({ error, id });
+        failures.push({ active: AppState.currentState === "active", error, id });
         return [id, []] as const;
       }
     }),
@@ -748,14 +752,49 @@ async function* getWalletBalances(account: Address, lifiTokens: Token[], chains:
     pending.delete(settled);
     if (result) yield result;
   }
-  if (!signal.aborted) {
-    for (const { error, id } of failures) {
-      const { fingerprint } = classifyError(error);
+  if (signal.aborted) return;
+  const groups = new Map<
+    string,
+    { active: boolean; error: unknown; failed: typeof failures; fingerprint: string[]; network: boolean }
+  >();
+  for (const failure of failures) {
+    const { fingerprint = ["{{ default }}"], network } = classifyError(failure.error);
+    const key = JSON.stringify([failure.active, fingerprint]);
+    const group = groups.get(key) ?? {
+      active: failure.active,
+      error: failure.error,
+      failed: [],
+      fingerprint,
+      network: network !== undefined,
+    };
+    group.failed.push(failure);
+    groups.set(key, group);
+  }
+  for (const { active, error, failed, fingerprint, network } of groups.values()) {
+    const failedChains = failed
+      .map(({ id }) => id)
+      .sort((a, b) => a - b)
+      .join(",");
+    if (!active) {
       reportError(error, {
-        level: "warning",
-        tags: { chain: id },
-        fingerprint: [...(fingerprint ?? ["{{ default }}"]), String(id)],
+        level: "info",
+        tags: { chains: failedChains },
+        fingerprint: [...fingerprint, "background"],
       });
+    } else if (failed.length === scanned) {
+      reportError(error, {
+        level: network ? "info" : "warning",
+        tags: { chains: failedChains },
+        fingerprint: [...fingerprint, "every chain"],
+      });
+    } else {
+      for (const failure of failed) {
+        reportError(failure.error, {
+          level: "warning",
+          tags: { chain: failure.id },
+          fingerprint: [...fingerprint, String(failure.id)],
+        });
+      }
     }
   }
 }
