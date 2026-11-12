@@ -161,15 +161,19 @@ export async function createCard() {
 export async function setCardStatus(status: "ACTIVE" | "DELETED" | "FROZEN") {
   await auth();
   const response = await api.card.$patch({ json: { status } });
-  if (!response.ok) throw new APIError("PATCH", response, stringOrLegacy(await response.json()));
-  return response.json();
+  if (response.ok) return response.json();
+  const body = await response.json();
+  if ("code" in body && body.code === "already set") return { status };
+  throw new APIError("PATCH", response, stringOrLegacy(body));
 }
 
 async function setCardMode(mode: number) {
   await auth();
   const response = await api.card.$patch({ json: { mode } });
-  if (!response.ok) throw new APIError("PATCH", response, stringOrLegacy(await response.json()));
-  return response.json();
+  if (response.ok) return response.json();
+  const body = await response.json();
+  if ("code" in body && body.code === "already set") return { mode };
+  throw new APIError("PATCH", response, stringOrLegacy(body));
 }
 export const cardModeMutationOptions = {
   mutationKey: ["card", "mode"] as const,
