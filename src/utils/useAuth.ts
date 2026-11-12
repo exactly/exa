@@ -78,6 +78,13 @@ function handleError(error: unknown, onDomainError: () => void, t: TFunction, au
     error.message.startsWith("The operation couldn’t be completed. Application with identifier")
   ) {
     onDomainError();
+  } else if (error instanceof Error && error.message === "NoCredentials") {
+    toast.error(
+      t(
+        "No passkey found on this device. Use the device or password manager where you created your account, or sign up",
+      ),
+      { duration: 3000 },
+    );
   } else {
     toast.error(t("Something went wrong. Please try again."), { duration: 1000 });
   }

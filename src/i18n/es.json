@@ -549,6 +549,7 @@
   "No assets with balance available to bridge.": "No hay activos con saldo disponible para transferir.",
   "No available assets.": "No hay activos disponibles.",
   "No external assets detected": "No se detectaron activos externos",
+  "No passkey found on this device. Use the device or password manager where you created your account, or sign up": "No se encontró una llave de acceso en este dispositivo. Usa el dispositivo o gestor de contraseñas donde creaste tu cuenta, o regístrate",
   "No payments due": "No hay pagos por vencer",
   "No payments made yet": "Todavía no hay pagos realizados",
   "No payments pending": "Sin pagos pendientes",
