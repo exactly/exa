@@ -190,7 +190,9 @@ export default function hook({
                   and(
                     eq(credentials.id, referenceId),
                     isNull(credentials.bridgeId),
-                    isBusiness ? sql`lower(${credentials.salt}) = ${business.toLowerCase()}` : undefined,
+                    isBusiness
+                      ? sql`lower(${credentials.salt}) = ${business.toLowerCase()}`
+                      : sql`lower(${credentials.salt}) <> ${business.toLowerCase()}`,
                   ),
                 )
                 .returning({ account: credentials.account, source: credentials.source })

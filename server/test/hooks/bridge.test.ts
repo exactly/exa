@@ -46,6 +46,7 @@ describe("bridge hook", () => {
   const fallbackOwner = privateKeyToAddress(padHex("0xfa11"));
   const conflictOwner = privateKeyToAddress(padHex("0xc0f1"));
   const businessOwner = privateKeyToAddress(padHex("0xb12"));
+  const unpairedBusinessOwner = privateKeyToAddress(padHex("0xb13"));
   const consumerOwner = privateKeyToAddress(padHex("0xc12"));
   const factory = exaAccountFactoryAddress;
   const account = deriveAddress(factory, { x: padHex(owner), y: zeroHash });
@@ -79,6 +80,13 @@ describe("bridge hook", () => {
         id: "business-test",
         publicKey: new Uint8Array(hexToBytes(businessOwner)),
         account: businessAccount,
+        factory,
+        salt: business,
+      },
+      {
+        id: "unpaired-business-test",
+        publicKey: new Uint8Array(hexToBytes(unpairedBusinessOwner)),
+        account: deriveAddress(factory, { x: padHex(unpairedBusinessOwner), y: zeroHash, salt: business }),
         factory,
         salt: business,
       },
@@ -425,6 +433,39 @@ describe("bridge hook", () => {
       expect.objectContaining({ message: "credential not found" }),
       { level: "error", contexts: { details: { bridgeId: "business-orphan-bridge-id" } } },
     );
+  });
+
+  it("does not pair consumer customer with a business credential", async () => {
+    vi.spyOn(bridge, "getCustomer").mockResolvedValue({
+      id: "consumer-business-bridge-id",
+      email: "consumer-business@example.com",
+      status: "active",
+      endorsements: [],
+    });
+    vi.spyOn(persona, "searchAccounts").mockResolvedValue([
+      { attributes: { "reference-id": "unpaired-business-test" } },
+    ]);
+    const payload = {
+      ...statusTransitioned,
+      event_object: { ...statusTransitioned.event_object, id: "consumer-business-bridge-id" },
+    };
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(payload) },
+      json: payload as never,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "credential not found" });
+    expect(captureEvent).not.toHaveBeenCalled();
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ message: "credential not found" }),
+      { level: "error", contexts: { details: { bridgeId: "consumer-business-bridge-id" } } },
+    );
+    const unpaired = await database.query.credentials.findFirst({
+      columns: { bridgeId: true },
+      where: eq(credentials.id, "unpaired-business-test"),
+    });
+    expect(unpaired?.bridgeId).toBeNull();
   });
 
   it("returns credential not found when fallback credential already paired", async () => {
