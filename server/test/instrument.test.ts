@@ -65,6 +65,58 @@ describe("instrument", () => {
     ]);
   });
 
+  it("moves synthetic message stacks to threads", () => {
+    const stacktrace = { frames: [{ filename: "hooks/panda.ts", lineno: 546 }] };
+    const event = {
+      level: "warning",
+      message: "unknown panda decline reason",
+      exception: {
+        values: [
+          { value: "unknown panda decline reason", stacktrace, mechanism: { type: "generic", synthetic: true } },
+        ],
+      },
+    };
+
+    const result = config.beforeSend?.(event as never, {});
+
+    expect(result).toStrictEqual({
+      level: "warning",
+      message: "unknown panda decline reason",
+      exception: undefined,
+      threads: { values: [{ stacktrace, crashed: false, current: true }] },
+    });
+  });
+
+  it("keeps synthetic message exceptions without stacks", () => {
+    const event = {
+      message: "failed",
+      exception: { values: [{ value: "failed", mechanism: { type: "generic", synthetic: true } }] },
+    };
+
+    const result = config.beforeSend?.(event as never, {});
+
+    expect(result).toBe(event);
+    expect(event).toStrictEqual({
+      message: "failed",
+      exception: { values: [{ value: "failed", mechanism: { type: "generic", synthetic: true } }] },
+    });
+  });
+
+  it("keeps message events with real exceptions", () => {
+    const event = {
+      message: "failed",
+      exception: { values: [{ type: "Error", value: "boom", mechanism: { type: "generic", handled: true } }] },
+    };
+
+    const result = config.beforeSend?.(event as never, {});
+
+    expect(result).toBe(event);
+    expect(event).toStrictEqual({
+      message: "failed",
+      exception: { values: [{ type: "Error", value: "boom", mechanism: { type: "generic", handled: true } }] },
+    });
+  });
+
   it("adds the cloud run service to transaction names", () => {
     vi.stubEnv("K_SERVICE", "sandbox-chat");
     const transaction = { transaction: "POST /" };

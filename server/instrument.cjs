@@ -60,6 +60,11 @@ const config = {
         break;
       }
     }
+    const synthetic = event.exception?.values?.[0];
+    if (event.message && synthetic?.mechanism?.synthetic && synthetic.stacktrace) {
+      event.threads = { values: [{ stacktrace: synthetic.stacktrace, crashed: false, current: true }] };
+      event.exception = undefined;
+    }
     return event;
   },
   beforeSendTransaction: (transaction) => {
