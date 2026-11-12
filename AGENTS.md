@@ -150,7 +150,7 @@ extracting a value into a variable and extracting logic into a function are the 
 - **run tests for one project**: `pnpm nx test <project>` (e.g., `pnpm nx test server`).
 - **run a specific test target**: `pnpm nx <target> <project>` (e.g., `pnpm nx test:ts server`, `pnpm nx test:vi server`).
 - **note**: `pnpm test` at the root only runs `mobile:test`, not all workspace tests. always use `pnpm nx run-many -t test` for the full suite.
-- **environment**: all tests run without `.env` files or external services.
+- **environment**: no `.env` files. tests are deterministic: the code under test never reaches a live service, so mock it. reading upstream data is fine when it is pinned (a fork at a fixed block) or when comparing the repo against it is the point of the test (dependency advisories, generated network lists).
 
 **test targets** (`test:ts` and `test:eslint` exist in all ts projects):
 
