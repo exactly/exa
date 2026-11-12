@@ -45,6 +45,21 @@ const config = {
         }
       }
     }
+    for (
+      let error = /** @type {{ cause?: unknown; query?: unknown } | undefined} */ (hint.originalException);
+      error;
+      error = /** @type {{ cause?: unknown; query?: unknown } | undefined} */ (error.cause)
+    ) {
+      if (typeof error.query === "string" && error.cause instanceof Error) {
+        for (const value of event.exception?.values ?? []) {
+          if (value.value?.startsWith("Failed query: ")) {
+            value.type = "DrizzleQueryError";
+            value.value = error.cause.message;
+          }
+        }
+        break;
+      }
+    }
     return event;
   },
   beforeSendTransaction: (transaction) => {
