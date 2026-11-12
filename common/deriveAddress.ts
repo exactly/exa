@@ -2,8 +2,8 @@ import { parse } from "valibot";
 import {
   encodeAbiParameters,
   encodePacked,
+  getContractAddress,
   keccak256,
-  slice,
   zeroAddress,
   type Hash,
   type Address as ViemAddress,
@@ -29,38 +29,30 @@ export default function deriveAddress(
 ) {
   return parse(
     Address,
-    slice(
-      keccak256(
-        encodePacked(
-          ["uint8", "address", "bytes32", "bytes32"],
+    getContractAddress({
+      opcode: "CREATE2",
+      from: factory,
+      salt: keccak256(
+        encodeAbiParameters(
+          [{ type: "uint256" }, { type: "bytes" }],
           [
-            0xff,
-            factory,
-            keccak256(
-              encodeAbiParameters(
-                [{ type: "uint256" }, { type: "bytes" }],
-                [
-                  BigInt(salt),
-                  encodeAbiParameters(
-                    [
-                      {
-                        type: "tuple[]",
-                        components: [
-                          { name: "x", type: "bytes32" },
-                          { name: "y", type: "bytes32" },
-                        ],
-                      },
-                    ],
-                    [[{ x, y }]],
-                  ),
-                ],
-              ),
+            BigInt(salt),
+            encodeAbiParameters(
+              [
+                {
+                  type: "tuple[]",
+                  components: [
+                    { name: "x", type: "bytes32" },
+                    { name: "y", type: "bytes32" },
+                  ],
+                },
+              ],
+              [[{ x, y }]],
             ),
-            initCodeHashERC1967,
           ],
         ),
       ),
-      12,
-    ),
+      bytecodeHash: initCodeHashERC1967,
+    }),
   );
 }
