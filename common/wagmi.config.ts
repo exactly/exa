@@ -92,21 +92,29 @@ export default defineConfig([
             [optimism.id]: "optimism",
             [optimismSepolia.id]: "optimismSepolia",
           }[chainId];
+          const testnet =
+            chainId === anvil.id || Boolean([...networks.keys()].find(({ id }) => id === chainId)?.testnet);
+          const sameSide = [...networks].filter(([current]) => Boolean(current.testnet) === testnet);
           const markets = Object.fromEntries(
-            [...networks]
-              .filter(
-                ([{ testnet }]) =>
-                  Boolean(testnet) ===
-                  (chainId === anvil.id || Boolean([...networks.keys()].find(({ id }) => id === chainId)?.testnet)),
-              )
-              .map(([{ id }, network]) => [
-                id,
-                readdirSync(`node_modules/@exactly/protocol/deployments/${network}`)
-                  .flatMap((file) => /^Market([A-Za-z.]+)\.json$/.exec(file)?.[1] ?? [])
-                  .filter((asset) => asset !== "ETHRouter")
-                  .map((asset) => getAddress(loadDeployment(asset, true, id).address)),
-              ]),
+            sameSide.map(([{ id }, network]) => [
+              id,
+              readdirSync(`node_modules/@exactly/protocol/deployments/${network}`)
+                .flatMap((file) => /^Market([A-Za-z.]+)\.json$/.exec(file)?.[1] ?? [])
+                .filter((asset) => asset !== "ETHRouter")
+                .map((asset) => getAddress(loadDeployment(asset, true, id).address)),
+            ]),
           );
+          const chainContracts = (chain ? sameSide.map(([{ id }]) => id) : [anvil.id, moonbeamDev.id]).map((id) => {
+            const exaPreviewer = loadBroadcast("ExaPreviewer", id).transactions[0]?.contractAddress;
+            if (!exaPreviewer) throw new Error(`missing exaPreviewer on ${id}`);
+            return [
+              id,
+              {
+                auditor: getAddress(loadDeployment("Auditor", true, id).address),
+                exaPreviewer: getAddress(exaPreviewer),
+              },
+            ] as const;
+          });
           const stocks = Object.keys(deploy.proposalManager.allowlist[base.id])
             .filter((address) => address.slice(0, 5).toLowerCase() === "0xb20")
             .map((address) => address.toLowerCase());
@@ -161,6 +169,15 @@ export default defineConfig([
           }
           const source = alchemyChains.find(({ id }) => id === chainId)?.source;
           if (chain && !source) throw new Error("missing alchemy chain");
+          function chainMap(entries: readonly (readonly [number, Record<string, unknown>])[]) {
+            return `new Map([${entries
+              .map(([id, fields]) => {
+                const s = id === chainId ? "chain" : alchemyChains.find((c) => c.id === id)?.source;
+                if (!s) throw new Error(`missing alchemy chain ${id}`);
+                return `[${id}, { ${s.startsWith("{") ? s.slice(1, -1).trim() : `...${s}`}, ${JSON.stringify(fields).slice(1, -1)} }]`;
+              })
+              .join(", ")}])`;
+          }
           return {
             imports: [
               'import { defineChain } from "viem"',
@@ -183,8 +200,7 @@ export default defineConfig([
                 usdc: loadDeployment("USDC").address,
                 weth: loadDeployment("WETH").address,
                 simple7702Account: "0x4Cd241E8d1510e30b2076397afc7508Ae59C66c9",
-                swapper:
-                  (deploy.accounts.swapper as Record<string, string>)[chainId] ?? deploy.accounts.swapper.default,
+                swapper: perChain(deploy.accounts.swapper),
                 exaAccountFactory:
                   chainId === base.id || chainId === baseSepolia.id || chainId === anvil.id
                     ? /== return ==\n0: address (0x[\da-f]{40})/i.exec(
@@ -236,6 +252,7 @@ export default defineConfig([
               `export const alchemyChains: ReadonlyMap<number, AlchemyChain> = new Map<number, AlchemyChain>([${alchemyChains
                 .map(({ id, source: s }) => `[${id}, ${id === chainId ? "chain" : s}]`)
                 .join(", ")}])`,
+              `export const chains: ReadonlyMap<number, AlchemyChain & Readonly<Record<"auditor" | "exaPreviewer", \`0x\${string}\`>>> = ${chainMap(chainContracts)}`,
               `export const isBase: boolean = ${chainId === base.id || chainId === baseSepolia.id}`,
               `export const lifiURL: string | undefined = ${JSON.stringify({ [anvil.id]: "http://localhost:3000/e2e/lifi/v1", [base.id]: "https://li.quest/v1", [optimism.id]: "https://li.quest/v1" }[chainId])}`,
               `export default chain as Chain & { smartAccount: true; contracts: { multicall3: { address: \`0x\${string}\` } }; rpcUrls: { alchemy: { http: readonly [string] } } }`,
@@ -252,23 +269,22 @@ function loadDeployment<R extends boolean = true>(
   required = true as R,
   id = chainId,
 ): R extends true ? Deployment : Deployment | undefined {
-  if (id === anvil.id) {
-    const address =
-      loadBroadcast("Protocol").transactions[
-        {
-          Auditor: 1,
-          Balancer2Vault: 23,
-          DebtManager: 24,
-          Firewall: 33,
-          MarketUSDC: 11,
-          MarketWETH: 18,
-          IntegrationPreviewer: 29,
-          Previewer: 28,
-          RatePreviewer: 30,
-          USDC: 9,
-          WETH: 16,
-        }[contract] ?? Infinity
-      ]?.contractAddress;
+  if (id === anvil.id || id === moonbeamDev.id) {
+    const address = loadBroadcast("Protocol", id).transactions[
+      {
+        Auditor: 1,
+        Balancer2Vault: 23,
+        DebtManager: 24,
+        Firewall: 33,
+        MarketUSDC: 11,
+        MarketWETH: 18,
+        IntegrationPreviewer: 29,
+        Previewer: 28,
+        RatePreviewer: 30,
+        USDC: 9,
+        WETH: 16,
+      }[contract] ?? Infinity
+    ]?.contractAddress;
     if (!address && required) throw new Error(`unknown contract: ${contract}`);
     return { address } as R extends true ? Deployment : Deployment | undefined;
   }
@@ -284,10 +300,17 @@ function loadDeployment<R extends boolean = true>(
   }
 }
 
-function loadBroadcast(script: string) {
+function loadBroadcast(script: string, id = chainId) {
   return JSON.parse(
-    readFileSync(`node_modules/@exactly/plugin/broadcast/${script}.s.sol/${chainId}/run-latest.json`, "utf8"),
+    readFileSync(
+      `node_modules/@exactly/plugin/broadcast/${script}.s.sol/${id === moonbeamDev.id ? anvil.id : id}/run-latest.json`,
+      "utf8",
+    ),
   ) as { transactions: { contractAddress: string }[] };
+}
+
+function perChain(values: Record<string, string> & { default: string }, id = chainId) {
+  return values[id] ?? values.default;
 }
 
 type Deployment = {
