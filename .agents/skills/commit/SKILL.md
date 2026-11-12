@@ -103,7 +103,8 @@ never commit a message that keeps the `# Conflicts:` list or other comment lines
 💥 server: remove deprecated passkey metadata api
 
 # observability
-📈 server: fingerprint validator errors by code
+🥅 app: group unexpected errors by endpoint
+📈 app: add wallet context to sentry
 🔊 server: log authorization rejections
 🔇 server: remove colored debug logs
 
