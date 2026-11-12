@@ -254,6 +254,7 @@ frontend.use(
       styleSrc: ["'self'", "'unsafe-inline'", "https://onesignal.com"],
       scriptSrc: [
         "'self'",
+        "'wasm-unsafe-eval'",
         ...[tenantScript, "globalThis.__EXPO_ROUTER_HYDRATE__=true;"].map(
           (script) => `'sha256-${createHash("sha256").update(script).digest("base64")}'`,
         ),
@@ -262,7 +263,6 @@ frontend.use(
         "https://cdn.segment.com", // https://www.twilio.com/docs/segment/connections/sources/catalog/libraries/website/javascript/faq#does-segment-support-using-strict-content-security-policy-csp-on-the-page
         "https://www.googletagmanager.com", // https://developers.google.com/tag-platform/security/guides/csp#google_analytics
         // #region intercom https://www.intercom.com/help/en/articles/3894-using-intercom-with-content-security-policy
-        "'unsafe-eval'",
         "https://app.intercom.io",
         "https://widget.intercom.io",
         "https://js.intercomcdn.com",
