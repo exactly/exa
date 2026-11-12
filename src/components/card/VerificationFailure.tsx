@@ -6,7 +6,7 @@ import { ScrollView, YStack } from "tamagui";
 import verifyIdentity from "../../assets/images/verify-identity.webp";
 import { ArrowRight } from "../../generated/icons/ArrowRight";
 import { X } from "../../generated/icons/X";
-import { present } from "../../utils/intercom";
+import { newMessage } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
 import IconButton from "../shared/IconButton";
 import Image from "../shared/Image";
@@ -47,7 +47,7 @@ export default function VerificationFailure({ open, onClose }: { onClose: () => 
                   primary
                   width="100%"
                   onPress={() => {
-                    present().catch(reportError);
+                    newMessage(t("My identity verification failed. Can you help me?")).catch(reportError);
                   }}
                 >
                   <Button.Text>{t("Contact support")}</Button.Text>

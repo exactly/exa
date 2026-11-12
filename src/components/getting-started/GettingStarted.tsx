@@ -14,7 +14,7 @@ import Step from "./Step";
 import { ArrowDownToLine } from "../../generated/icons/ArrowDownToLine";
 import { ArrowLeft } from "../../generated/icons/ArrowLeft";
 import { IdCard } from "../../generated/icons/IdCard";
-import { present, presentArticle } from "../../utils/intercom";
+import { newMessage, presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useBeginKYC from "../../utils/useBeginKYC";
@@ -89,7 +89,10 @@ export default function GettingStarted() {
                           : t("To enable the Exa Card we need to verify that you are you."),
                     action: status === "failed" ? t("Contact support") : t("Learn more about KYC process"),
                     onPress: () => {
-                      (status === "failed" ? present() : presentArticle("9448693")).catch(reportError);
+                      (status === "failed"
+                        ? newMessage(t("My identity verification failed. Can you help me?"))
+                        : presentArticle("9448693")
+                      ).catch(reportError);
                     },
                   })}
                   {...(id === "add-funds" && {
