@@ -426,6 +426,12 @@ function alchemy(chain: (typeof chains)[number]) {
           method?: string;
           params?: [unknown];
         };
+        if (method === "alchemy_getTokenBalances" && chain.id !== anvil.id) {
+          outgoing
+            .writeHead(400, { "content-type": "application/json" })
+            .end(JSON.stringify({ jsonrpc: "2.0", id, error: { code: -32_600, message: "unsupported method" } }));
+          return;
+        }
         if (method === "alchemy_getTokenBalances" && params) {
           const owner = parse(Address, params[0]);
           const tokens = await client.getContractEvents({
