@@ -59,6 +59,7 @@ export default function persona(key: string, url: string) {
     getDocument,
     getDocumentForBridge,
     getDocumentForManteca,
+    getFailedInquiries,
     getInquiry,
     getInquiryById,
     getPendingInquiryTemplate,
@@ -113,6 +114,7 @@ export default function persona(key: string, url: string) {
     templateId: string,
     redirectURI?: string,
     fields?: { "name-first": string; "name-last": string },
+    idempotencyKey?: string,
   ) {
     return request(
       CreateInquiryResponse,
@@ -129,6 +131,7 @@ export default function persona(key: string, url: string) {
       },
       "POST",
       10_000,
+      idempotencyKey === undefined ? {} : { "Idempotency-Key": idempotencyKey },
     );
   }
   async function evaluateAccount(
@@ -284,6 +287,16 @@ export default function persona(key: string, url: string) {
     if (!allowedIds) return undefined;
     return getValidDocumentForManteca(documents, allowedIds);
   }
+  async function getFailedInquiries(referenceId: string, templateId: string, size: number) {
+    const { data } = await request(
+      GetInquiriesResponse,
+      `/inquiries?page[size]=${size}&filter[reference-id]=${referenceId}&filter[inquiry-template-id]=${templateId}&filter[status]=failed`,
+      undefined,
+      "GET",
+      10_000,
+    );
+    return data;
+  }
   async function getInquiry(referenceId: string, templateId: string) {
     const { data: approvedInquiries } = await request(
       GetInquiriesResponse,
@@ -348,10 +361,12 @@ export default function persona(key: string, url: string) {
     body?: unknown,
     method: "GET" | "PATCH" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
     timeout = 10_000,
+    headers: Record<string, string> = {},
   ) {
     const response = await fetch(`${url}${path}`, {
       method,
       headers: {
+        ...headers,
         authorization: `Bearer ${key}`,
         accept: "application/json",
         "content-type": "application/json",

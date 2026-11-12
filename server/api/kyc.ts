@@ -65,9 +65,12 @@ import type { Auth } from "../middleware/auth";
 import type createPanda from "../utils/panda";
 import type createPersona from "../utils/persona";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Redis } from "ioredis";
 
 const debug = createDebug("exa:kyc");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
+
+const MAX_FAILED_INQUIRIES = 3;
 
 const canonicalize = import("canonicalize").then(({ default: serialize }) => serialize);
 
@@ -102,12 +105,14 @@ export default function route({
   database,
   panda,
   persona,
+  redis,
 }: {
   auth: Auth;
   business: boolean;
   database: NodePgDatabase<typeof schema>;
   panda: ReturnType<typeof createPanda>;
   persona: ReturnType<typeof createPersona>;
+  redis: Redis;
 }) {
   const Scope = pipe(
     picklist(["basic", "bridge", "business", "cardLimit", "manteca", "panda-business"]),
@@ -268,7 +273,12 @@ export default function route({
           return c.json({ code: "ok", legacy: "ok" }, 200);
         }
         const inquiry = await persona.getInquiry(credentialId, inquiryTemplateId);
-        if (!inquiry || (inquiry.attributes.status === "failed" && scope !== "business")) {
+        if (
+          !inquiry ||
+          (inquiry.attributes.status === "failed" &&
+            scope !== "business" &&
+            (await canRetry(credentialId, inquiryTemplateId, persona)))
+        ) {
           return c.json({ code: "not started", legacy: "kyc not started" }, 400);
         }
         switch (inquiry.attributes.status) {
@@ -580,8 +590,27 @@ export default function route({
         }
 
         const inquiry = await persona.getInquiry(credentialId, inquiryTemplateId);
-        if (!inquiry || (inquiry.attributes.status === "failed" && scope !== "business")) {
-          const { data } = await persona.createInquiry(credentialId, inquiryTemplateId, redirectURI);
+        if (
+          !inquiry ||
+          (inquiry.attributes.status === "failed" &&
+            scope !== "business" &&
+            (await canRetry(credentialId, inquiryTemplateId, persona)))
+        ) {
+          const attempt = `${credentialId}:${inquiryTemplateId}:${inquiry?.id ?? "initial"}`;
+          const key = `kyc:inquiry:${attempt}`;
+          if (!(await redis.set(key, "", "EX", 60, "NX"))) {
+            const createdId = await redis.get(key);
+            if (!createdId) return c.json({ code: "processing" }, 409);
+            return c.json(await generateInquiryTokens(createdId, persona), 200);
+          }
+          const { data } = await persona.createInquiry(
+            credentialId,
+            inquiryTemplateId,
+            redirectURI,
+            undefined,
+            attempt,
+          );
+          await redis.set(key, data.id, "EX", 86_400);
           return c.json(await generateInquiryTokens(data.id, persona), 200);
         }
 
@@ -1027,6 +1056,11 @@ async function isLegacy(
 
     return legacyKYC?.attributes.status === "approved" && !inquiry;
   });
+}
+
+async function canRetry(credentialId: string, templateId: string, persona: ReturnType<typeof createPersona>) {
+  const failed = await persona.getFailedInquiries(credentialId, templateId, MAX_FAILED_INQUIRIES);
+  return failed.length < MAX_FAILED_INQUIRIES;
 }
 
 async function generateInquiryTokens(inquiryId: string, persona: ReturnType<typeof createPersona>) {

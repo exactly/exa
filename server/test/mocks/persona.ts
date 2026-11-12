@@ -31,6 +31,8 @@ const mock = vi.hoisted(() => {
         current().getDocumentForBridge(...parameters),
       getDocumentForManteca: (...parameters: Parameters<Persona["getDocumentForManteca"]>) =>
         current().getDocumentForManteca(...parameters),
+      getFailedInquiries: (...parameters: Parameters<Persona["getFailedInquiries"]>) =>
+        current().getFailedInquiries(...parameters),
       getInquiry: (...parameters: Parameters<Persona["getInquiry"]>) => current().getInquiry(...parameters),
       getInquiryById: (...parameters: Parameters<Persona["getInquiryById"]>) => current().getInquiryById(...parameters),
       getPendingInquiryTemplate: (...parameters: Parameters<Persona["getPendingInquiryTemplate"]>) =>

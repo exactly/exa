@@ -191,11 +191,27 @@ describe("createInquiry", () => {
     expect(fetchSpy).toHaveBeenCalledOnce();
     expect(fetchSpy.mock.calls[0]?.[0]).toBe("https://persona.test/inquiries");
     expect(fetchSpy.mock.calls[0]?.[1]?.method).toBe("POST");
+    expect(fetchSpy.mock.calls[0]?.[1]?.headers).not.toHaveProperty("Idempotency-Key");
     const body = fetchSpy.mock.calls[0]?.[1]?.body;
     if (typeof body !== "string") throw new Error("missing request body");
     expect(JSON.parse(body)).toStrictEqual({
       data: { attributes: { "inquiry-template-id": "template-id", "redirect-uri": `${appOrigin}/card` } },
       meta: { "auto-create-account": true, "auto-create-account-reference-id": "reference-id" },
+    });
+  });
+
+  it("sends the idempotency key", async () => {
+    await expect(
+      persona.createInquiry("reference-id", "template-id", undefined, undefined, "attempt-key"),
+    ).resolves.toStrictEqual({ data: inquiry });
+
+    expect(fetchSpy).toHaveBeenCalledOnce();
+    expect(fetchSpy.mock.calls[0]?.[1]?.headers).toStrictEqual({
+      "Idempotency-Key": "attempt-key",
+      authorization: "Bearer persona",
+      accept: "application/json",
+      "content-type": "application/json",
+      "persona-version": "2023-01-05",
     });
   });
 
@@ -238,6 +254,26 @@ describe("getInquiry", () => {
       id: "inquiry-1",
     });
     expect(fetchSpy.mock.calls[0]?.[0]).toContain("filter[status]=approved");
+  });
+});
+
+describe("getFailedInquiries", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("lists failed inquiries for the template", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({
+        data: [{ id: "inquiry-1", type: "inquiry", attributes: { status: "failed", "reference-id": "reference-id" } }],
+      }),
+    );
+
+    await expect(persona.getFailedInquiries("reference-id", persona.PANDA_TEMPLATE, 3)).resolves.toStrictEqual([
+      { id: "inquiry-1", type: "inquiry", attributes: { status: "failed", "reference-id": "reference-id" } },
+    ]);
+    expect(fetchSpy).toHaveBeenCalledOnce();
+    expect(fetchSpy.mock.calls[0]?.[0]).toBe(
+      `https://persona.test/inquiries?page[size]=3&filter[reference-id]=reference-id&filter[inquiry-template-id]=${persona.PANDA_TEMPLATE}&filter[status]=failed`,
+    );
   });
 });
 

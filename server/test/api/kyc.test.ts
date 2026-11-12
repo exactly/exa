@@ -29,6 +29,7 @@ import createPanda, * as Panda from "../../utils/panda";
 import createPersona, * as Persona from "../../utils/persona";
 import { scopeValidationErrors } from "../../utils/persona";
 import publicClient from "../../utils/publicClient";
+import redis from "../../utils/redis";
 import ServiceError from "../../utils/ServiceError";
 
 import type * as v from "valibot";
@@ -54,6 +55,7 @@ const app = route({
   database,
   panda,
   persona,
+  redis,
 });
 const appClient = testClient(app);
 
@@ -64,7 +66,13 @@ describe("authenticated", () => {
     await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
   });
 
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    const keys = await Promise.all(
+      ["bob", "bob-business", "bob-panda-business"].map((id) => redis.keys(`kyc:inquiry:${id}:*`)),
+    );
+    await Promise.all(keys.flat().map((key) => redis.del(key)));
+  });
 
   describe("basic scope", () => {
     describe("getting kyc", () => {
@@ -272,6 +280,9 @@ describe("authenticated", () => {
           ...personaTemplate,
           attributes: { ...personaTemplate.attributes, status: "failed" },
         });
+        const getFailedInquiries = vi
+          .spyOn(persona, "getFailedInquiries")
+          .mockResolvedValueOnce([failedInquiry, failedInquiry]);
 
         const response = await appClient.index.$get(
           { query: { scope: "basic" } },
@@ -280,7 +291,33 @@ describe("authenticated", () => {
 
         expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "basic");
         expect(getInquiry).toHaveBeenCalledWith("bob", persona.PANDA_TEMPLATE);
+        expect(getFailedInquiries).toHaveBeenCalledWith("bob", persona.PANDA_TEMPLATE, 3);
         await expect(response.json()).resolves.toStrictEqual({ code: "not started", legacy: "kyc not started" });
+        expect(response.status).toBe(400);
+      });
+
+      it("returns bad kyc when inquiry failed three times", async () => {
+        await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
+        const getPendingInquiryTemplate = vi
+          .spyOn(persona, "getPendingInquiryTemplate")
+          .mockResolvedValueOnce(persona.PANDA_TEMPLATE);
+        const getInquiry = vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+          ...personaTemplate,
+          attributes: { ...personaTemplate.attributes, status: "failed" },
+        });
+        const getFailedInquiries = vi
+          .spyOn(persona, "getFailedInquiries")
+          .mockResolvedValueOnce([failedInquiry, failedInquiry, failedInquiry]);
+
+        const response = await appClient.index.$get(
+          { query: { scope: "basic" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "basic");
+        expect(getInquiry).toHaveBeenCalledWith("bob", persona.PANDA_TEMPLATE);
+        expect(getFailedInquiries).toHaveBeenCalledWith("bob", persona.PANDA_TEMPLATE, 3);
+        await expect(response.json()).resolves.toStrictEqual({ code: "bad kyc", legacy: "kyc not approved" });
         expect(response.status).toBe(400);
       });
 
@@ -390,7 +427,13 @@ describe("authenticated", () => {
         );
 
         expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "basic");
-        expect(createInquiry).toHaveBeenCalledWith("bob", persona.PANDA_TEMPLATE, undefined);
+        expect(createInquiry).toHaveBeenCalledWith(
+          "bob",
+          persona.PANDA_TEMPLATE,
+          undefined,
+          undefined,
+          `bob:${persona.PANDA_TEMPLATE}:initial`,
+        );
         await expect(response.json()).resolves.toStrictEqual({
           type: "persona",
           sessionToken,
@@ -488,19 +531,22 @@ describe("authenticated", () => {
 
       it("returns session token when creating inquiry after failed inquiry", async () => {
         const sessionToken = "persona-session-token";
+        const failedId = `failed-${crypto.randomUUID()}`;
+        const retryId = `retry-${crypto.randomUUID()}`;
 
         vi.spyOn(persona, "resumeInquiry").mockResolvedValueOnce({
           ...resumeTemplate,
+          data: { ...resumeTemplate.data, id: retryId },
           meta: { ...resumeTemplate.meta, "session-token": sessionToken },
         });
         const getPendingInquiryTemplate = vi
           .spyOn(persona, "getPendingInquiryTemplate")
           .mockResolvedValueOnce(persona.PANDA_TEMPLATE);
-        const getInquiry = vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
-          ...personaTemplate,
-          attributes: { ...personaTemplate.attributes, status: "failed" },
-        });
-        const createInquiry = vi.spyOn(persona, "createInquiry").mockResolvedValueOnce(inquiry);
+        const getInquiry = vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({ ...failedInquiry, id: failedId });
+        const getFailedInquiries = vi.spyOn(persona, "getFailedInquiries").mockResolvedValueOnce([failedInquiry]);
+        const createInquiry = vi
+          .spyOn(persona, "createInquiry")
+          .mockResolvedValueOnce({ data: { ...inquiry.data, id: retryId } });
 
         const response = await appClient.index.$post(
           { json: { scope: "basic" } },
@@ -509,13 +555,200 @@ describe("authenticated", () => {
 
         expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "basic");
         expect(getInquiry).toHaveBeenCalledWith("bob", persona.PANDA_TEMPLATE);
-        expect(createInquiry).toHaveBeenCalledWith("bob", persona.PANDA_TEMPLATE, undefined);
-        await expect(response.json()).resolves.toStrictEqual({
-          type: "persona",
-          sessionToken,
-          inquiryId: resumeTemplate.data.id,
-        });
+        expect(getFailedInquiries).toHaveBeenCalledWith("bob", persona.PANDA_TEMPLATE, 3);
+        expect(createInquiry.mock.calls).toStrictEqual([
+          ["bob", persona.PANDA_TEMPLATE, undefined, undefined, `bob:${persona.PANDA_TEMPLATE}:${failedId}`],
+        ]);
+        await expect(response.json()).resolves.toStrictEqual({ type: "persona", sessionToken, inquiryId: retryId });
         expect(response.status).toBe(200);
+        await expect(redis.get(`kyc:inquiry:bob:${persona.PANDA_TEMPLATE}:${failedId}`)).resolves.toBe(retryId);
+        await expect(redis.ttl(`kyc:inquiry:bob:${persona.PANDA_TEMPLATE}:${failedId}`)).resolves.toBeGreaterThan(60);
+      });
+
+      it("creates one inquiry when retrying a failed inquiry concurrently", async () => {
+        const failedId = `failed-${crypto.randomUUID()}`;
+        const retryId = `retry-${crypto.randomUUID()}`;
+        const attempts = 10;
+        let settled = 0;
+        let created!: () => void;
+        const losers = new Promise<void>((resolve) => {
+          created = resolve;
+        });
+
+        vi.spyOn(persona, "getPendingInquiryTemplate").mockResolvedValue(persona.PANDA_TEMPLATE);
+        vi.spyOn(persona, "getInquiry").mockResolvedValue({ ...failedInquiry, id: failedId });
+        vi.spyOn(persona, "getFailedInquiries").mockResolvedValue([failedInquiry, failedInquiry]);
+        const resumeInquiry = vi
+          .spyOn(persona, "resumeInquiry")
+          .mockResolvedValue({ ...resumeTemplate, data: { ...resumeTemplate.data, id: retryId } });
+        const createInquiry = vi.spyOn(persona, "createInquiry").mockImplementation(async () => {
+          await losers;
+          return { data: { ...inquiry.data, id: retryId } };
+        });
+
+        const responses = await Promise.all(
+          Array.from({ length: attempts }, () =>
+            appClient.index
+              .$post({ json: { scope: "basic" } }, { headers: { "test-credential-id": "bob" } })
+              .then(async (response) => ({ status: response.status, body: (await response.json()) as unknown }))
+              .finally(() => {
+                if (++settled === attempts - 1) created();
+              }),
+          ),
+        );
+        const later = await appClient.index.$post(
+          { json: { scope: "basic" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(createInquiry.mock.calls).toStrictEqual([
+          ["bob", persona.PANDA_TEMPLATE, undefined, undefined, `bob:${persona.PANDA_TEMPLATE}:${failedId}`],
+        ]);
+        expect(responses.filter(({ status }) => status === 409)).toStrictEqual(
+          Array.from({ length: attempts - 1 }, () => ({ status: 409, body: { code: "processing" } })),
+        );
+        expect(responses.filter(({ status }) => status === 200)).toStrictEqual([
+          {
+            status: 200,
+            body: { type: "persona", sessionToken: resumeTemplate.meta["session-token"], inquiryId: retryId },
+          },
+        ]);
+        await expect(later.json()).resolves.toStrictEqual({
+          type: "persona",
+          sessionToken: resumeTemplate.meta["session-token"],
+          inquiryId: retryId,
+        });
+        expect(later.status).toBe(200);
+        expect(resumeInquiry).toHaveBeenCalledTimes(2);
+        expect(resumeInquiry).toHaveBeenNthCalledWith(2, retryId);
+      });
+
+      it("retries a failed inquiry creation with the same attempt", async () => {
+        const failedId = `failed-${crypto.randomUUID()}`;
+        const retryId = `retry-${crypto.randomUUID()}`;
+        const key = `kyc:inquiry:bob:${persona.PANDA_TEMPLATE}:${failedId}`;
+        const attempt = [
+          "bob",
+          persona.PANDA_TEMPLATE,
+          undefined,
+          undefined,
+          `bob:${persona.PANDA_TEMPLATE}:${failedId}`,
+        ];
+        vi.spyOn(persona, "getPendingInquiryTemplate").mockResolvedValue(persona.PANDA_TEMPLATE);
+        vi.spyOn(persona, "getInquiry").mockResolvedValue({ ...failedInquiry, id: failedId });
+        vi.spyOn(persona, "getFailedInquiries").mockResolvedValue([failedInquiry]);
+        const createInquiry = vi
+          .spyOn(persona, "createInquiry")
+          .mockRejectedValueOnce(new Error("persona timeout"))
+          .mockResolvedValueOnce({ data: { ...inquiry.data, id: retryId } });
+        const resumeInquiry = vi
+          .spyOn(persona, "resumeInquiry")
+          .mockResolvedValueOnce({ ...resumeTemplate, data: { ...resumeTemplate.data, id: retryId } });
+
+        const response = await appClient.index.$post(
+          { json: { scope: "basic" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+        const pending = await appClient.index.$post(
+          { json: { scope: "basic" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+        await expect(redis.get(key)).resolves.toBe("");
+        await expect(redis.ttl(key)).resolves.toBeLessThanOrEqual(60);
+        await redis.expire(key, 0);
+        const retry = await appClient.index.$post(
+          { json: { scope: "basic" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(response.status).toBe(500);
+        await expect(response.text()).resolves.toBe("Internal Server Error");
+        expect(pending.status).toBe(409);
+        await expect(pending.json()).resolves.toStrictEqual({ code: "processing" });
+        expect(retry.status).toBe(200);
+        await expect(retry.json()).resolves.toStrictEqual({
+          type: "persona",
+          sessionToken: resumeTemplate.meta["session-token"],
+          inquiryId: retryId,
+        });
+        expect(createInquiry.mock.calls).toStrictEqual([attempt, attempt]);
+        expect(resumeInquiry).toHaveBeenCalledExactlyOnceWith(retryId);
+        expect(captureException).not.toHaveBeenCalled();
+        await expect(redis.get(key)).resolves.toBe(retryId);
+      });
+
+      it("creates one first inquiry when posting concurrently", async () => {
+        const createdId = `created-${crypto.randomUUID()}`;
+        const attempts = 10;
+        let settled = 0;
+        let created!: () => void;
+        const losers = new Promise<void>((resolve) => {
+          created = resolve;
+        });
+
+        vi.spyOn(persona, "getPendingInquiryTemplate").mockResolvedValue(persona.PANDA_TEMPLATE);
+        vi.spyOn(persona, "getInquiry").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        const getFailedInquiries = vi.spyOn(persona, "getFailedInquiries");
+        const resumeInquiry = vi
+          .spyOn(persona, "resumeInquiry")
+          .mockResolvedValue({ ...resumeTemplate, data: { ...resumeTemplate.data, id: createdId } });
+        const createInquiry = vi.spyOn(persona, "createInquiry").mockImplementation(async () => {
+          await losers;
+          return { data: { ...inquiry.data, id: createdId } };
+        });
+
+        const responses = await Promise.all(
+          Array.from({ length: attempts }, () =>
+            appClient.index
+              .$post({ json: { scope: "basic" } }, { headers: { "test-credential-id": "bob" } })
+              .then(async (response) => ({ status: response.status, body: (await response.json()) as unknown }))
+              .finally(() => {
+                if (++settled === attempts - 1) created();
+              }),
+          ),
+        );
+
+        expect(createInquiry.mock.calls).toStrictEqual([
+          ["bob", persona.PANDA_TEMPLATE, undefined, undefined, `bob:${persona.PANDA_TEMPLATE}:initial`],
+        ]);
+        expect(responses.filter(({ status }) => status === 409)).toStrictEqual(
+          Array.from({ length: attempts - 1 }, () => ({ status: 409, body: { code: "processing" } })),
+        );
+        expect(responses.filter(({ status }) => status === 200)).toStrictEqual([
+          {
+            status: 200,
+            body: { type: "persona", sessionToken: resumeTemplate.meta["session-token"], inquiryId: createdId },
+          },
+        ]);
+        expect(resumeInquiry).toHaveBeenCalledExactlyOnceWith(createdId);
+        expect(getFailedInquiries).not.toHaveBeenCalled();
+        await expect(redis.get(`kyc:inquiry:bob:${persona.PANDA_TEMPLATE}:initial`)).resolves.toBe(createdId);
+      });
+
+      it("returns failed kyc when inquiry failed three times", async () => {
+        const getPendingInquiryTemplate = vi
+          .spyOn(persona, "getPendingInquiryTemplate")
+          .mockResolvedValueOnce(persona.PANDA_TEMPLATE);
+        const getInquiry = vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+          ...personaTemplate,
+          attributes: { ...personaTemplate.attributes, status: "failed" },
+        });
+        const getFailedInquiries = vi
+          .spyOn(persona, "getFailedInquiries")
+          .mockResolvedValueOnce([failedInquiry, failedInquiry, failedInquiry]);
+        const createInquiry = vi.spyOn(persona, "createInquiry");
+
+        const response = await appClient.index.$post(
+          { json: { scope: "basic" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "basic");
+        expect(getInquiry).toHaveBeenCalledWith("bob", persona.PANDA_TEMPLATE);
+        expect(getFailedInquiries).toHaveBeenCalledWith("bob", persona.PANDA_TEMPLATE, 3);
+        expect(createInquiry).not.toHaveBeenCalled();
+        await expect(response.json()).resolves.toStrictEqual({ code: "failed", legacy: "kyc failed" });
+        expect(response.status).toBe(400);
       });
 
       it("returns failed kyc when inquiry is declined", async () => {
@@ -952,7 +1185,13 @@ describe("authenticated", () => {
         );
 
         expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "manteca");
-        expect(createInquiry).toHaveBeenCalledWith("bob", persona.MANTECA_TEMPLATE_EXTRA_FIELDS, undefined);
+        expect(createInquiry).toHaveBeenCalledWith(
+          "bob",
+          persona.MANTECA_TEMPLATE_EXTRA_FIELDS,
+          undefined,
+          undefined,
+          `bob:${persona.MANTECA_TEMPLATE_EXTRA_FIELDS}:initial`,
+        );
         await expect(response.json()).resolves.toStrictEqual({
           type: "persona",
           sessionToken,
@@ -983,7 +1222,13 @@ describe("authenticated", () => {
         );
 
         expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "manteca");
-        expect(createInquiry).toHaveBeenCalledWith("bob", persona.MANTECA_TEMPLATE_WITH_ID_CLASS, undefined);
+        expect(createInquiry).toHaveBeenCalledWith(
+          "bob",
+          persona.MANTECA_TEMPLATE_WITH_ID_CLASS,
+          undefined,
+          undefined,
+          `bob:${persona.MANTECA_TEMPLATE_WITH_ID_CLASS}:initial`,
+        );
         await expect(response.json()).resolves.toStrictEqual({
           type: "persona",
           sessionToken,
@@ -1260,7 +1505,13 @@ describe("authenticated", () => {
         );
 
         expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "bridge");
-        expect(createInquiry).toHaveBeenCalledWith("bob", persona.PANDA_TEMPLATE, undefined);
+        expect(createInquiry).toHaveBeenCalledWith(
+          "bob",
+          persona.PANDA_TEMPLATE,
+          undefined,
+          undefined,
+          `bob:${persona.PANDA_TEMPLATE}:initial`,
+        );
         await expect(response.json()).resolves.toStrictEqual({
           type: "persona",
           sessionToken,
@@ -1873,7 +2124,7 @@ describe("authenticated", () => {
     it.each(["business", "panda-business"] as const)(
       "rejects the %s scope when business is disabled",
       async (scope) => {
-        const client = testClient(route({ auth: authenticate(""), business: false, database, panda, persona }));
+        const client = testClient(route({ auth: authenticate(""), business: false, database, panda, persona, redis }));
         const headers = { "test-credential-id": businessId, SessionID: "fakeSession", "do-connecting-ip": "127.0.0.1" };
         const getCompanyApplication = vi.spyOn(panda, "getCompanyApplication");
         const getInquiry = vi.spyOn(persona, "getInquiry");
@@ -2889,7 +3140,13 @@ describe("authenticated", () => {
 
         const tokens = await submit("business");
         expect(tokens.status).toBe(200);
-        expect(createInquiry).toHaveBeenCalledWith(businessId, persona.BUSINESS_TEMPLATE, undefined);
+        expect(createInquiry).toHaveBeenCalledWith(
+          businessId,
+          persona.BUSINESS_TEMPLATE,
+          undefined,
+          undefined,
+          `${businessId}:${persona.BUSINESS_TEMPLATE}:initial`,
+        );
         await expect(tokens.json()).resolves.toStrictEqual({
           inquiryId: resumeTemplate.data.id,
           sessionToken: resumeTemplate.meta["session-token"],
@@ -4320,6 +4577,10 @@ const resumeTemplate = {
   },
 } as const;
 
+const failedInquiry = {
+  ...personaTemplate,
+  attributes: { ...personaTemplate.attributes, status: "failed" as const },
+};
 const inquiry = {
   data: {
     id: "test-id",
