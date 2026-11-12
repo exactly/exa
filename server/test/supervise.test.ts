@@ -7,6 +7,7 @@ import { exit } from "node:process";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import supervise, { own } from "../supervise";
+import ServiceError from "../utils/ServiceError";
 
 import type * as Process from "node:process";
 
@@ -129,18 +130,13 @@ describe("supervise", () => {
   });
 
   it.each([
-    ["status", new Error("500"), ["{{ default }}", "500"]],
-    ["leading whitespace", new Error("   400"), ["{{ default }}", "400"]],
-    ["empty body", new Error("500 "), ["{{ default }}", "500"]],
-    ["text body", new Error("503 unavailable"), ["{{ default }}", "503", "unavailable"]],
-    ["nested error", new Error("502 upstream Error: failed"), ["{{ default }}", "502", "upstream Error: failed"]],
-    ["json code", new Error('409 {"code":"conflict"}'), ["{{ default }}", "409", "conflict"]],
-    ["json message", new Error('422 {"message":"invalid"}'), ["{{ default }}", "422", "invalid"]],
-    ["json error", new Error('401 {"message":1,"error":"unauthorized"}'), ["{{ default }}", "401", "unauthorized"]],
-    ["json fallback", new Error('400 {"message":1,"error":2}'), ["{{ default }}", "400", '{"message":1,"error":2}']],
-    ["invalid separator", new Error("500x"), undefined],
-    ["invalid status", new Error("bad"), undefined],
-    ["invalid format", new Error("failure"), undefined],
+    ["service", new ServiceError("Panda", 400, '{"message":"void card"}'), ["{{ default }}", "Panda400", "void card"]],
+    [
+      "typed service",
+      new ServiceError("Panda", 404, '{"error":"NotFoundError"}'),
+      ["{{ default }}", "PandaNotFound", "404"],
+    ],
+    ["plain", new Error("500 unavailable"), undefined],
   ])("captures and responds for %s errors", async (_, error, fingerprint) => {
     const app = new Hono().get("/", () => Promise.reject(error));
     const close = supervise("test", Promise.resolve({ ...createHandle(), app }));

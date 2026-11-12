@@ -53,6 +53,7 @@ import appOrigin from "../utils/appOrigin";
 import ensClient from "../utils/ensClient";
 import publicClient from "../utils/publicClient";
 import revertFingerprint from "../utils/revertFingerprint";
+import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
 import createWallet from "../utils/wallet";
 
@@ -635,7 +636,7 @@ async function initializeAlchemy(alchemy: ReturnType<typeof createAlchemy>, sign
       `https://dashboard.alchemy.com/api/dashboard-webhook-graphql-query?webhook_id=${currentHook.id}`,
       { headers: alchemy.headers },
     );
-    if (!queryResponse.ok) throw new Error(`${queryResponse.status} ${await queryResponse.text()}`);
+    if (!queryResponse.ok) throw new ServiceError("Alchemy", queryResponse.status, await queryResponse.text());
     const { data: query } = (await queryResponse.json()) as { data: { graphql_query: string } };
     visit(parse(query.graphql_query), {
       Field(node) {
@@ -704,7 +705,7 @@ async function initializeAlchemy(alchemy: ReturnType<typeof createAlchemy>, sign
       `https://dashboard.alchemy.com/api/delete-webhook?webhook_id=${currentHook.id}`,
       { headers: alchemy.headers, method: "DELETE" },
     );
-    if (!deleteResponse.ok) throw new Error(`${deleteResponse.status} ${await deleteResponse.text()}`);
+    if (!deleteResponse.ok) throw new ServiceError("Alchemy", deleteResponse.status, await deleteResponse.text());
     await setTimeout(5000);
     signingKeys.delete(currentHook.signing_key);
   }

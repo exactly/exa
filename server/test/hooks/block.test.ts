@@ -109,9 +109,34 @@ describe("initialization", () => {
     await expect(currentHook.ready).resolves.toBeDefined();
     expect(createWebhook).not.toHaveBeenCalled();
     expect(headerValidator).toHaveBeenLastCalledWith(new Set([existing.signing_key]));
-    expect(captureException).toHaveBeenCalledWith(expect.objectContaining({ message: "404 not found" }), {
-      level: "warning",
-    });
+    expect(captureException).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Alchemy404", message: "not found", status: 404 }),
+      { level: "warning" },
+    );
+  });
+
+  it("keeps both keys when the old webhook deletion fails", async () => {
+    const existing: NonNullable<Awaited<ReturnType<typeof findWebhook>>> = {
+      id: "stale",
+      is_active: true,
+      network: "ANVIL",
+      signing_key: "stale-signing-key",
+      webhook_type: "GRAPHQL",
+      webhook_url: "http://localhost:8081/hooks/block",
+    };
+    vi.mocked(findWebhook).mockResolvedValueOnce(existing);
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(Response.json({ data: { graphql_query: "{ block { timestamp } }" } }))
+      .mockResolvedValueOnce(new Response("unavailable", { status: 503 }));
+    const currentHook = createBlockHook(defaults);
+
+    await expect(currentHook.ready).resolves.toBeDefined();
+    expect(createWebhook).toHaveBeenCalledOnce();
+    expect(headerValidator).toHaveBeenLastCalledWith(new Set([existing.signing_key, "mock-signing-key"]));
+    expect(captureException).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Alchemy503", message: "unavailable", status: 503 }),
+      { level: "warning" },
+    );
   });
 
   it("fails without a signing key when initialization fails", async () => {
