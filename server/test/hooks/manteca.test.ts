@@ -620,6 +620,40 @@ describe("manteca hook", () => {
       await expect(response.json()).resolves.toStrictEqual({ code: "credential not found" });
     });
 
+    it("logs company events without touching balances", async () => {
+      vi.spyOn(manteca, "convertBalanceToUsdc").mockResolvedValue();
+      vi.spyOn(segment, "track").mockReturnValue();
+      vi.mocked(captureEvent).mockReturnValueOnce("");
+      const payload = {
+        event: "DEPOSIT_DETECTED",
+        data: {
+          id: "deposit123",
+          asset: "ARS",
+          amount: "1000",
+          userExternalId: "Exactly-argentina",
+          userNumberId: "456",
+          userLegalId: "12345678",
+          network: "ARG_FIAT_TRANSFER",
+        },
+      };
+      const response = await appClient.index.$post({
+        header: { "md-webhook-signature": createSignature(payload) },
+        json: payload as never,
+      });
+
+      expect(response.status).toBe(200);
+      expect(manteca.convertBalanceToUsdc).not.toHaveBeenCalled();
+      expect(captureException).not.toHaveBeenCalled();
+      expect(segment.track).not.toHaveBeenCalled();
+      expect(sendPushNotificationMock).not.toHaveBeenCalled();
+      expect(captureEvent).toHaveBeenCalledWith({
+        message: "MantecaCompanyEvent",
+        level: "info",
+        contexts: { details: { event: "DEPOSIT_DETECTED", ...payload.data } },
+      });
+      await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    });
+
     it("returns ok if account address is invalid", async () => {
       vi.spyOn(manteca, "convertBalanceToUsdc").mockResolvedValue();
       const payload = {
@@ -641,6 +675,10 @@ describe("manteca hook", () => {
 
       expect(response.status).toBe(200);
       expect(manteca.convertBalanceToUsdc).not.toHaveBeenCalled();
+      expect(captureException).toHaveBeenCalledWith(new Error("invalid account address"), {
+        level: "error",
+        contexts: { details: { rawAccount: "0xinvalid" } }, // cspell:ignore xinvalid
+      });
       await expect(response.json()).resolves.toStrictEqual({ code: "invalid account address" });
     });
 
@@ -779,6 +817,44 @@ describe("manteca hook", () => {
       expect(manteca.withdrawBalance).toHaveBeenCalledWith("456", "USDC", account);
     });
 
+    it("captures a completed order of the company without withdrawing", async () => {
+      vi.spyOn(manteca, "withdrawBalance").mockResolvedValue();
+      vi.spyOn(manteca, "convertBalanceToUsdc").mockResolvedValue();
+      vi.spyOn(segment, "track").mockReturnValue();
+      const payload = {
+        event: "ORDER_STATUS_UPDATE",
+        data: {
+          id: "6af4a2b5f66675b8af775fc4",
+          against: "ARS",
+          asset: "USDC",
+          assetAmount: "5.92562980",
+          effectivePrice: "696.65",
+          exchange: "ARGENTINA",
+          status: "COMPLETED",
+          userExternalId: "Exactly-argentina",
+          userNumberId: "100114168",
+        },
+      };
+      const response = await appClient.index.$post({
+        header: { "md-webhook-signature": createSignature(payload) },
+        json: payload as never,
+      });
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+      expect(captureEvent).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          message: "MantecaCompanyEvent",
+          level: "info",
+          contexts: expect.objectContaining({ details: { event: "ORDER_STATUS_UPDATE", ...payload.data } }), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+        }),
+      );
+      expect(captureException).not.toHaveBeenCalled();
+      expect(segment.track).not.toHaveBeenCalled();
+      expect(manteca.withdrawBalance).not.toHaveBeenCalled();
+      expect(manteca.convertBalanceToUsdc).not.toHaveBeenCalled();
+    });
+
     it("returns ok for pending order status", async () => {
       const payload = {
         event: "ORDER_STATUS_UPDATE",
@@ -873,6 +949,50 @@ describe("manteca hook", () => {
       await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
     });
 
+    it("returns ok for cancelled company withdrawal without retrying", async () => {
+      vi.spyOn(manteca, "withdrawBalance").mockResolvedValue();
+      const payload = {
+        event: "WITHDRAW_STATUS_UPDATE",
+        data: {
+          id: "64b2c3d4e5f6a7b8c9d0e1f2",
+          numberId: "318",
+          externalId: "withdraw-ref-00441",
+          status: "CANCELLED",
+          statusMessage: null,
+          asset: "USDT",
+          amount: "250.000000",
+          destination: "0xABCDEF1234567890abcdef1234567890ABCDEF12",
+          network: "POLYGON",
+          networkId: "0xa1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2",
+        },
+      };
+      const response = await appClient.index.$post({
+        header: { "md-webhook-signature": createSignature(payload) },
+        json: payload as never,
+      });
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+      expect(captureEvent).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          message: "MantecaCompanyEvent",
+          level: "info",
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          contexts: expect.objectContaining({
+            details: {
+              event: "WITHDRAW_STATUS_UPDATE",
+              id: "64b2c3d4e5f6a7b8c9d0e1f2",
+              externalId: "withdraw-ref-00441",
+              asset: "USDT",
+              amount: "250.000000",
+              status: "CANCELLED",
+            },
+          }),
+        }),
+      );
+      expect(captureException).not.toHaveBeenCalled();
+      expect(manteca.withdrawBalance).not.toHaveBeenCalled();
+    });
     it("rejects a withdrawal of a user without destination", async () => {
       vi.spyOn(manteca, "withdrawBalance").mockResolvedValue();
       const payload = {
@@ -899,17 +1019,31 @@ describe("manteca hook", () => {
   });
 
   describe("when a merchant withdrawal status is updated", () => {
-    it("captures a withdrawal of the company as an error without retrying", async () => {
+    it("captures the qr destination as a company event without retrying", async () => {
       vi.spyOn(manteca, "withdrawBalance").mockResolvedValue();
+      const destination =
+        "ARS-.-4128.09-.-Jorge hanne-.-ARG-.-20608344401-.-qr3refund-.-eyJzZW5kZXIiOnsic2VuZGVyIjp7ImV4Y2hhbmdlIjoiQVJHRU5USU5BIiwibmFtZSI6Ikp1YW4iLCJsZWdhbElkIjoiMzAxMjM0NTYiLCJzdXJuYW1lIjoiUGVyZXoifX0sInBheW1lbnRJbmZvQ29kZSI6ImQyMWM1M2YzLWUzOTgtNDE3Zi1hODkwLTdlZTJmMjhkODM0MiJ9-.-PLUSBILLETERA"; // cspell:ignore hanne eyJzZW5kZXIiOnsic2VuZGVyIjp7ImV4Y2hhbmdlIjoiQVJHRU5USU5BIiwibmFtZSI6Ikp1YW4iLCJsZWdhbElkIjoiMzAxMjM0NTYiLCJzdXJuYW1lIjoiUGVyZXoifX0sInBheW1lbnRJbmZvQ29kZSI6ImQyMWM1M2YzLWUzOTgtNDE3Zi1hODkwLTdlZTJmMjhkODM0MiJ9 PLUSBILLETERA
       const payload = {
         event: "WITHDRAW_STATUS_UPDATE",
         data: {
           amount: "4128.09",
           asset: "ARS",
+          creationTime: "2026-11-11T14:15:33.690-03:00",
+          destination,
           externalId: userOpHash,
+          filledAmount: "0.00",
           id: "6af4a2b5f66675b8af775fd8",
+          legalEntity: "WALLET_ARG",
+          network: "QR3",
+          networkId: "e49507ed-33f0-4189-a67c-f232f446d33f",
+          numberId: "100069655",
+          sender: '{"exchange":"ARGENTINA","legalId":"24301234569","name":"Juan","surname":"Perez"}',
           status: "CANCELLED",
+          updatedAt: "2026-11-11T14:16:04.112-03:00",
           userExternalId: "Exactly-argentina",
+          userId: "6adff39f0ee31861fc20cdaf",
+          userLegalId: "30123456789",
+          userNumberId: "100114168",
         },
       };
       const response = await appClient.index.$post({
@@ -918,20 +1052,69 @@ describe("manteca hook", () => {
       });
 
       expect(response.status).toBe(200);
-      await expect(response.json()).resolves.toStrictEqual({ code: "invalid account address" });
-      expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("invalid account address"), {
-        level: "error",
-        contexts: {
-          details: {
-            event: "WITHDRAW_STATUS_UPDATE",
-            id: "6af4a2b5f66675b8af775fd8",
-            externalId: userOpHash,
-            asset: "ARS",
-            amount: "4128.09",
-            status: "CANCELLED",
-          },
+      await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+      expect(captureEvent).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          message: "MantecaCompanyEvent",
+          level: "info",
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          contexts: expect.objectContaining({
+            details: {
+              event: "WITHDRAW_STATUS_UPDATE",
+              id: "6af4a2b5f66675b8af775fd8",
+              externalId: userOpHash,
+              asset: "ARS",
+              amount: "4128.09",
+              status: "CANCELLED",
+            },
+          }),
+        }),
+      );
+      expect(captureException).not.toHaveBeenCalled();
+      expect(manteca.withdrawBalance).not.toHaveBeenCalled();
+    });
+
+    it("captures a refund withdrawal of the company without retrying", async () => {
+      vi.spyOn(manteca, "withdrawBalance").mockResolvedValue();
+      const payload = {
+        event: "WITHDRAW_STATUS_UPDATE",
+        data: {
+          id: "6af4a7c2f66675b8af7760a1",
+          asset: "USDC",
+          amount: "5.92",
+          userExternalId: "Exactly-argentina",
+          status: "CANCELLED",
+          userNumberId: "100114168",
+          destination: account,
         },
+      };
+      const response = await appClient.index.$post({
+        header: { "md-webhook-signature": createSignature(payload) },
+        json: payload as never,
       });
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+      expect(captureEvent).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          message: "MantecaCompanyEvent",
+          level: "info",
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          contexts: expect.objectContaining({
+            details: {
+              event: "WITHDRAW_STATUS_UPDATE",
+              id: "6af4a7c2f66675b8af7760a1",
+              asset: "USDC",
+              amount: "5.92",
+              userExternalId: "Exactly-argentina",
+              status: "CANCELLED",
+              userNumberId: "100114168",
+              destination: account,
+            },
+          }),
+        }),
+      );
+      expect(captureException).not.toHaveBeenCalled();
       expect(manteca.withdrawBalance).not.toHaveBeenCalled();
     });
   });
