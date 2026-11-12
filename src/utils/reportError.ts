@@ -113,10 +113,14 @@ function parseError(error: unknown) {
     error instanceof BaseError &&
     error.walk((r) => r instanceof ContractFunctionRevertedError) !== null;
   const reason = revertReason(error, { fallback: "unknown" });
-  return { code, message, name, reason, revert, rpc, status };
+  const endpoint =
+    typeof root === "object" && root !== null && "endpoint" in root && typeof root.endpoint === "string"
+      ? root.endpoint
+      : undefined;
+  return { code, endpoint, message, name, reason, revert, rpc, status };
 }
 
-function classify({ code, message, name, reason, revert, rpc, status }: ParsedError) {
+function classify({ code, endpoint, message, name, reason, revert, rpc, status }: ParsedError) {
   const passkeyNotAllowed =
     name === "NotAllowedError" || (message !== undefined && authPrefixes.some((prefix) => message.startsWith(prefix)));
   const passkeyCancelled =
@@ -147,7 +151,9 @@ function classify({ code, message, name, reason, revert, rpc, status }: ParsedEr
     (name === "APIError" && status !== undefined
       ? message === undefined || message.endsWith("[object Object]")
         ? [status]
-        : [status, message]
+        : status === "555" && endpoint
+          ? [status, message, endpoint]
+          : [status, message]
       : undefined) ??
     (revert ? [reason] : undefined) ??
     (authKnown ? [code ?? message ?? "unknown"] : undefined) ??

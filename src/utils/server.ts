@@ -56,7 +56,7 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
       { json },
       sessionId ? { headers: { "x-session-id": sessionId } } : undefined,
     );
-    if (!post.ok) throw new APIError(post.status, stringOrLegacy(await post.json()));
+    if (!post.ok) throw new APIError("POST", post, stringOrLegacy(await post.json()));
     const { expires, intercomToken, credentialId, factory, x, y, salt } = await post.json();
     queryClient.setQueryData(["credential"], { credentialId, factory, x, y, salt });
     await loginIntercom(deriveAddress(factory, { x, y, salt }), intercomToken, expires);
@@ -93,7 +93,7 @@ async function getCard(sessionid?: string) {
     const { code } = await response.json();
     if (response.status === 404 && code === "no card") return null;
     if (response.status === 403 && code === "no panda") return null;
-    throw new APIError(response.status, code);
+    throw new APIError("GET", response, code);
   }
   const card = await response.json();
   if (card.mode > 0) queryClient.setQueryData(["settings", "installments"], card.mode);
@@ -149,21 +149,21 @@ export type CardWithPIN = Awaited<ReturnType<typeof getPIN>>;
 export async function createCard() {
   await auth();
   const response = await api.card.$post();
-  if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
+  if (!response.ok) throw new APIError("POST", response, stringOrLegacy(await response.json()));
   return response.json();
 }
 
 export async function setCardStatus(status: "ACTIVE" | "DELETED" | "FROZEN") {
   await auth();
   const response = await api.card.$patch({ json: { status } });
-  if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
+  if (!response.ok) throw new APIError("PATCH", response, stringOrLegacy(await response.json()));
   return response.json();
 }
 
 async function setCardMode(mode: number) {
   await auth();
   const response = await api.card.$patch({ json: { mode } });
-  if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
+  if (!response.ok) throw new APIError("PATCH", response, stringOrLegacy(await response.json()));
   return response.json();
 }
 export const cardModeMutationOptions = {
@@ -192,7 +192,7 @@ export async function setCardPIN(pin: string) {
   await auth();
   const json = await encryptPIN(pin);
   const response = await api.card.$patch({ json });
-  if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
+  if (!response.ok) throw new APIError("PATCH", response, stringOrLegacy(await response.json()));
 }
 
 export async function getKYCTokens(
@@ -203,7 +203,7 @@ export async function getKYCTokens(
   const response = await api.kyc.$post({ json: { scope, redirectURI } });
   if (!response.ok) {
     const { code } = await response.json();
-    throw new APIError(response.status, code);
+    throw new APIError("POST", response, code);
   }
   const result = await response.json();
   if (result.type !== "persona") throw new Error("panda inquiry returns no tokens");
@@ -219,7 +219,7 @@ export async function getKYCStatus(
   const response = await api.kyc.$get({ query });
   if (!response.ok) {
     const { code } = await response.json();
-    throw new APIError(response.status, code);
+    throw new APIError("GET", response, code);
   }
   if (includeCountryCode) {
     const country = response.headers.get("User-Country");
@@ -280,7 +280,7 @@ queryClient.setQueryDefaults(["kyc", "panda-business"], {
 export async function startApplication() {
   await auth();
   const response = await api.kyc.$post({ json: { scope: "panda-business" } });
-  if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
+  if (!response.ok) throw new APIError("POST", response, stringOrLegacy(await response.json()));
   return response.json();
 }
 
@@ -319,7 +319,7 @@ export async function createCredential() {
     },
     sessionId ? { headers: { "x-session-id": sessionId } } : undefined,
   );
-  if (!post.ok) throw new APIError(post.status, stringOrLegacy(await post.json()));
+  if (!post.ok) throw new APIError("POST", post, stringOrLegacy(await post.json()));
   const { auth: expires, intercomToken, ...credential } = await post.json();
   await loginIntercom(
     deriveAddress(credential.factory, { x: credential.x, y: credential.y, salt: credential.salt }),
@@ -350,7 +350,7 @@ async function getActivity(
   const response = await api.activity.$get(parameters === undefined ? undefined : { query: parameters }, {
     headers: { accept: accept ?? "application/json" },
   });
-  if (!response.ok) throw new APIError(response.status, stringOrLegacy(await response.json()));
+  if (!response.ok) throw new APIError("GET", response, stringOrLegacy(await response.json()));
   if (accept === "application/pdf") {
     if (!response.headers.get("content-type")?.startsWith("application/pdf")) throw new Error("bad activity response");
     return new Uint8Array(await response.arrayBuffer());
@@ -410,7 +410,7 @@ export async function getRampProviders(countryCode?: string, redirectURL?: strin
   const response = await api.ramp.$get({ query });
   if (!response.ok) {
     const { code } = await response.json();
-    throw new APIError(response.status, code);
+    throw new APIError("GET", response, code);
   }
   return response.json();
 }
@@ -420,7 +420,7 @@ export async function getRampQuote(query: NonNullable<Parameters<typeof api.ramp
   const response = await api.ramp.quote.$get({ query });
   if (!response.ok) {
     const { code } = await response.json();
-    throw new APIError(response.status, code);
+    throw new APIError("GET", response, code);
   }
   return response.json();
 }
@@ -434,7 +434,7 @@ export async function startRampOnboarding(onboarding: InferRequestType<typeof ap
       const { inquiryId, sessionToken } = parse(object({ inquiryId: string(), sessionToken: string() }), body);
       return { code: body.code, inquiryId, sessionToken };
     }
-    throw new APIError(response.status, body.code);
+    throw new APIError("POST", response, body.code);
   }
   return response.json();
 }
@@ -444,7 +444,7 @@ export async function listExternalAccounts() {
   const response = await api.ramp["external-account"].$get();
   if (!response.ok) {
     const { code } = await response.json();
-    throw new APIError(response.status, code);
+    throw new APIError("GET", response, code);
   }
   return response.json();
 }
@@ -456,7 +456,7 @@ export async function createExternalAccount(
   const response = await api.ramp["external-account"].$post({ json: input });
   if (!response.ok) {
     const { code } = await response.json();
-    throw new APIError(response.status, code);
+    throw new APIError("POST", response, code);
   }
   return response.json();
 }
@@ -469,7 +469,7 @@ export async function updateExternalAccount(
   const response = await api.ramp["external-account"][":id"].$patch({ param: { id }, json: input });
   if (!response.ok) {
     const { code } = await response.json();
-    throw new APIError(response.status, code);
+    throw new APIError("PATCH", response, code);
   }
   return response.json();
 }
@@ -479,7 +479,7 @@ export async function deleteExternalAccount(id: string) {
   const response = await api.ramp["external-account"][":id"].$delete({ param: { id } });
   if (!response.ok) {
     const { code } = await response.json();
-    throw new APIError(response.status, code);
+    throw new APIError("DELETE", response, code);
   }
   return response.json();
 }

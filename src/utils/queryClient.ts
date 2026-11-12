@@ -334,10 +334,12 @@ export default queryClient;
 
 export class APIError extends Error {
   code: number;
+  endpoint: string;
   text: string;
-  constructor(code: number, text: string) {
-    super(`${code} ${text}`);
-    this.code = code;
+  constructor(method: string, response: { status: number; url: string }, text: string) {
+    super(`${response.status} ${text}`);
+    this.code = response.status;
+    this.endpoint = `${method} ${response.url.replaceAll(/^[a-z]+:\/\/[^/]+|[?#].*$/gi, "").replaceAll(/\/[^/]*\d[^/]*/g, "/:id")}`;
     this.text = text;
     this.name = "APIError";
   }
