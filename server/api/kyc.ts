@@ -268,7 +268,9 @@ export default function route({
           return c.json({ code: "ok", legacy: "ok" }, 200);
         }
         const inquiry = await persona.getInquiry(credentialId, inquiryTemplateId);
-        if (!inquiry) return c.json({ code: "not started", legacy: "kyc not started" }, 400);
+        if (!inquiry || (inquiry.attributes.status === "failed" && scope !== "business")) {
+          return c.json({ code: "not started", legacy: "kyc not started" }, 400);
+        }
         switch (inquiry.attributes.status) {
           case "approved":
             captureException(new Error("inquiry approved but account not updated"), {
@@ -578,7 +580,7 @@ export default function route({
         }
 
         const inquiry = await persona.getInquiry(credentialId, inquiryTemplateId);
-        if (!inquiry) {
+        if (!inquiry || (inquiry.attributes.status === "failed" && scope !== "business")) {
           const { data } = await persona.createInquiry(credentialId, inquiryTemplateId, redirectURI);
           return c.json(await generateInquiryTokens(data.id, persona), 200);
         }

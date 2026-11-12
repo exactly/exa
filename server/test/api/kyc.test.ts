@@ -263,7 +263,7 @@ describe("authenticated", () => {
         expect(response.status).toBe(400);
       });
 
-      it("returns bad kyc when inquiry failed", async () => {
+      it("returns not started when inquiry failed", async () => {
         await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
         const getPendingInquiryTemplate = vi
           .spyOn(persona, "getPendingInquiryTemplate")
@@ -271,6 +271,27 @@ describe("authenticated", () => {
         const getInquiry = vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
           ...personaTemplate,
           attributes: { ...personaTemplate.attributes, status: "failed" },
+        });
+
+        const response = await appClient.index.$get(
+          { query: { scope: "basic" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "basic");
+        expect(getInquiry).toHaveBeenCalledWith("bob", persona.PANDA_TEMPLATE);
+        await expect(response.json()).resolves.toStrictEqual({ code: "not started", legacy: "kyc not started" });
+        expect(response.status).toBe(400);
+      });
+
+      it("returns bad kyc when inquiry is declined", async () => {
+        await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
+        const getPendingInquiryTemplate = vi
+          .spyOn(persona, "getPendingInquiryTemplate")
+          .mockResolvedValueOnce(persona.PANDA_TEMPLATE);
+        const getInquiry = vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+          ...personaTemplate,
+          attributes: { ...personaTemplate.attributes, status: "declined" },
         });
 
         const response = await appClient.index.$get(
@@ -465,7 +486,13 @@ describe("authenticated", () => {
         expect(response.status).toBe(200);
       });
 
-      it("returns failed kyc when inquiry failed", async () => {
+      it("returns session token when creating inquiry after failed inquiry", async () => {
+        const sessionToken = "persona-session-token";
+
+        vi.spyOn(persona, "resumeInquiry").mockResolvedValueOnce({
+          ...resumeTemplate,
+          meta: { ...resumeTemplate.meta, "session-token": sessionToken },
+        });
         const getPendingInquiryTemplate = vi
           .spyOn(persona, "getPendingInquiryTemplate")
           .mockResolvedValueOnce(persona.PANDA_TEMPLATE);
@@ -473,6 +500,7 @@ describe("authenticated", () => {
           ...personaTemplate,
           attributes: { ...personaTemplate.attributes, status: "failed" },
         });
+        const createInquiry = vi.spyOn(persona, "createInquiry").mockResolvedValueOnce(inquiry);
 
         const response = await appClient.index.$post(
           { json: { scope: "basic" } },
@@ -481,8 +509,13 @@ describe("authenticated", () => {
 
         expect(getPendingInquiryTemplate).toHaveBeenCalledWith("bob", "basic");
         expect(getInquiry).toHaveBeenCalledWith("bob", persona.PANDA_TEMPLATE);
-        await expect(response.json()).resolves.toStrictEqual({ code: "failed", legacy: "kyc failed" });
-        expect(response.status).toBe(400);
+        expect(createInquiry).toHaveBeenCalledWith("bob", persona.PANDA_TEMPLATE, undefined);
+        await expect(response.json()).resolves.toStrictEqual({
+          type: "persona",
+          sessionToken,
+          inquiryId: resumeTemplate.data.id,
+        });
+        expect(response.status).toBe(200);
       });
 
       it("returns failed kyc when inquiry is declined", async () => {
@@ -856,14 +889,14 @@ describe("authenticated", () => {
         expect(response.status).toBe(400);
       });
 
-      it("returns bad kyc when manteca inquiry failed", async () => {
+      it("returns bad kyc when manteca inquiry is declined", async () => {
         await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
         const getPendingInquiryTemplate = vi
           .spyOn(persona, "getPendingInquiryTemplate")
           .mockResolvedValueOnce(persona.MANTECA_TEMPLATE_EXTRA_FIELDS);
         vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
           ...personaTemplate,
-          attributes: { ...personaTemplate.attributes, status: "failed" },
+          attributes: { ...personaTemplate.attributes, status: "declined" },
         });
 
         const response = await appClient.index.$get(
@@ -989,13 +1022,13 @@ describe("authenticated", () => {
         expect(response.status).toBe(200);
       });
 
-      it("returns failed when manteca inquiry failed", async () => {
+      it("returns failed when manteca inquiry is declined", async () => {
         const getPendingInquiryTemplate = vi
           .spyOn(persona, "getPendingInquiryTemplate")
           .mockResolvedValueOnce(persona.MANTECA_TEMPLATE_EXTRA_FIELDS);
         const getInquiry = vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
           ...personaTemplate,
-          attributes: { ...personaTemplate.attributes, status: "failed" },
+          attributes: { ...personaTemplate.attributes, status: "declined" },
         });
 
         const response = await appClient.index.$post(
@@ -1150,14 +1183,14 @@ describe("authenticated", () => {
         expect(response.status).toBe(400);
       });
 
-      it("returns bad kyc when inquiry failed", async () => {
+      it("returns bad kyc when bridge inquiry is declined", async () => {
         await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
         const getPendingInquiryTemplate = vi
           .spyOn(persona, "getPendingInquiryTemplate")
           .mockResolvedValueOnce(persona.PANDA_TEMPLATE);
         vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
           ...personaTemplate,
-          attributes: { ...personaTemplate.attributes, status: "failed" },
+          attributes: { ...personaTemplate.attributes, status: "declined" },
         });
 
         const response = await appClient.index.$get(
@@ -1266,13 +1299,13 @@ describe("authenticated", () => {
         expect(response.status).toBe(200);
       });
 
-      it("returns failed when bridge inquiry failed", async () => {
+      it("returns failed when bridge inquiry is declined", async () => {
         const getPendingInquiryTemplate = vi
           .spyOn(persona, "getPendingInquiryTemplate")
           .mockResolvedValueOnce(persona.PANDA_TEMPLATE);
         const getInquiry = vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
           ...personaTemplate,
-          attributes: { ...personaTemplate.attributes, status: "failed" },
+          attributes: { ...personaTemplate.attributes, status: "declined" },
         });
 
         const response = await appClient.index.$post(
@@ -3891,6 +3924,31 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
 
         expect(response.status).toBe(400);
         await expect(response.json()).resolves.toStrictEqual({ code: "processing", legacy: "kyc not approved" });
+      });
+
+      it("keeps a failed business inquiry final", async () => {
+        vi.spyOn(persona, "getPendingInquiryTemplate").mockResolvedValue(persona.BUSINESS_TEMPLATE);
+        vi.spyOn(persona, "getInquiry").mockResolvedValue({
+          id: "inquiry-id",
+          type: "inquiry",
+          attributes: { status: "failed", "reference-id": businessId, fields: {} },
+        });
+        const createInquiry = vi.spyOn(persona, "createInquiry");
+
+        const status = await appClient.index.$get(
+          { query: { scope: "business" } },
+          { headers: { "test-credential-id": businessId, SessionID: "fakeSession" } },
+        );
+        const submit = await appClient.index.$post(
+          { json: { scope: "business" } },
+          { headers: { "test-credential-id": businessId, SessionID: "fakeSession" } },
+        );
+
+        expect(status.status).toBe(400);
+        await expect(status.json()).resolves.toStrictEqual({ code: "bad kyc", legacy: "kyc not approved" });
+        expect(submit.status).toBe(400);
+        await expect(submit.json()).resolves.toStrictEqual({ code: "failed", legacy: "kyc failed" });
+        expect(createInquiry).not.toHaveBeenCalled();
       });
 
       it("returns ok once the business inquiry is approved", async () => {
