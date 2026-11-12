@@ -244,7 +244,12 @@ queryClient.setQueryDefaults(["kyc", "status"], {
     const business = isBusiness();
     return getKYCStatus(business ? "business" : "basic", true).catch((error: unknown) => {
       const status = kycFallback(error);
-      if (status.code === "bad kyc" || status.code === "processing") reportError(error, { level: "warning" });
+      if (
+        (status.code === "bad kyc" || status.code === "processing") &&
+        queryClient.getQueryData<KYCStatus>(["kyc", "status"])?.code !== status.code
+      ) {
+        reportError(error, { level: "warning" });
+      }
       return status;
     });
   },
