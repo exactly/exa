@@ -1,5 +1,25 @@
 # @exactly/mobile
 
+## 1.2.44
+
+### Patch Changes
+
+- [#1805](https://github.com/exactly/exa/pull/1805) [`12ba71a`](https://github.com/exactly/exa/commit/12ba71ab97ee25dd45b5a8f9cb35ea5ad65c4a69) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ scan balances through alchemy on every network
+
+- [#1719](https://github.com/exactly/exa/pull/1719) [`3b977e8`](https://github.com/exactly/exa/commit/3b977e84922ee49cca050bc624383f083852c33b) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 keep sheets above system bars and keyboard
+
+- [#1800](https://github.com/exactly/exa/pull/1800) [`dad1b34`](https://github.com/exactly/exa/commit/dad1b34c04199dfa6529e214d416adbddefb2535) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ♻️ use design tokens for hardcoded styles
+
+- [#1834](https://github.com/exactly/exa/pull/1834) [`0d84da6`](https://github.com/exactly/exa/commit/0d84da65e57bb5f6dc99233769b71b544825ced8) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 catch non-json api errors
+
+- [#1840](https://github.com/exactly/exa/pull/1840) [`7363cf9`](https://github.com/exactly/exa/commit/7363cf9a22e9f75dc8886d810d2e2abb76e66e2c) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 fingerprint rpc errors by kind
+
+- [#1840](https://github.com/exactly/exa/pull/1840) [`dce58c2`](https://github.com/exactly/exa/commit/dce58c24af1235ecd412f4f48e7ac84378cff3bb) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 group unexpected errors by endpoint
+
+- Updated dependencies [[`f1969f2`](https://github.com/exactly/exa/commit/f1969f22a57be7bc308c921982a4970289ab54bc), [`b249db5`](https://github.com/exactly/exa/commit/b249db5bf2812fc2cf298d96bdacc1f96b6386b5), [`d3dfade`](https://github.com/exactly/exa/commit/d3dfade29b4ec3aa54d7b9b3fd2ba44c14ec3f34), [`d059aba`](https://github.com/exactly/exa/commit/d059abaa43ff3974aa7374e48f4de75a03709637), [`9ed373b`](https://github.com/exactly/exa/commit/9ed373baddd50d8c0b34575cc5c83cb6ae3a201f), [`6442fc3`](https://github.com/exactly/exa/commit/6442fc3f0af5226545d85cd1fb1c6f4e79eec0f5), [`cd85fed`](https://github.com/exactly/exa/commit/cd85fed4f7f12f4cdc3b0b28a3e11412b2273a18)]:
+  - @exactly/server@0.3.2
+  - @exactly/common@0.0.26
+
 ## 1.2.43
 
 ### Patch Changes

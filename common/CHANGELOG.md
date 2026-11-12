@@ -1,5 +1,13 @@
 # @exactly/common
 
+## 0.0.26
+
+### Patch Changes
+
+- [#1840](https://github.com/exactly/exa/pull/1840) [`9ed373b`](https://github.com/exactly/exa/commit/9ed373baddd50d8c0b34575cc5c83cb6ae3a201f) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 add rpc error fingerprint
+
+- [#1805](https://github.com/exactly/exa/pull/1805) [`6442fc3`](https://github.com/exactly/exa/commit/6442fc3f0af5226545d85cd1fb1c6f4e79eec0f5) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ generate alchemy networks
+
 ## 0.0.25
 
 ### Patch Changes

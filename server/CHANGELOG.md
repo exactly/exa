@@ -1,5 +1,19 @@
 # @exactly/server
 
+## 0.3.2
+
+### Patch Changes
+
+- [#1840](https://github.com/exactly/exa/pull/1840) [`f1969f2`](https://github.com/exactly/exa/commit/f1969f22a57be7bc308c921982a4970289ab54bc) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 fingerprint service errors
+
+- [#1840](https://github.com/exactly/exa/pull/1840) [`b249db5`](https://github.com/exactly/exa/commit/b249db5bf2812fc2cf298d96bdacc1f96b6386b5) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 keep message titles with stacks
+
+- [#1805](https://github.com/exactly/exa/pull/1805) [`d3dfade`](https://github.com/exactly/exa/commit/d3dfade29b4ec3aa54d7b9b3fd2ba44c14ec3f34) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🛂 allow expected frontend third parties
+
+- [#1805](https://github.com/exactly/exa/pull/1805) [`d059aba`](https://github.com/exactly/exa/commit/d059abaa43ff3974aa7374e48f4de75a03709637) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔒️ send no referrer from frontend
+
+- [#1840](https://github.com/exactly/exa/pull/1840) [`cd85fed`](https://github.com/exactly/exa/commit/cd85fed4f7f12f4cdc3b0b28a3e11412b2273a18) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 title queries by database cause
+
 ## 0.3.1
 
 ### Patch Changes
