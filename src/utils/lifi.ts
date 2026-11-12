@@ -704,14 +704,13 @@ async function* getWalletBalances(account: Address, lifiTokens: Token[], chains:
           }
         }
         const listed = tokensByChain[id] ?? [];
-        const client = await config.getRPCUrls().then((urls) =>
-          createPublicClient({
-            transport: fallback(
-              (urls[id as ChainId] ?? []).map((rpcUrl) => http(rpcUrl, { timeout: 5000, fetchOptions: { signal } })),
-              { retryCount: 3, retryDelay: 300 },
-            ),
-          }),
-        );
+        const rpcUrls = url ? [url] : await config.getRPCUrls().then((urls) => urls[id as ChainId] ?? []);
+        const client = createPublicClient({
+          transport: fallback(
+            rpcUrls.map((rpcUrl) => http(rpcUrl, { timeout: 5000, fetchOptions: { signal } })),
+            { retryCount: 3, retryDelay: 300 },
+          ),
+        });
         return await Promise.all(
           Array.from({ length: Math.ceil(listed.length / 200) }, (_, chunk) =>
             listed.slice(chunk * 200, chunk * 200 + 200),
