@@ -240,6 +240,8 @@ describe("manteca hook", () => {
 
     it("logs company events without touching balances", async () => {
       vi.spyOn(manteca, "convertBalanceToUsdc").mockResolvedValue();
+      vi.spyOn(segment, "track").mockReturnValue();
+      vi.mocked(captureEvent).mockReturnValueOnce("");
       const payload = {
         event: "DEPOSIT_DETECTED",
         data: {
@@ -260,14 +262,13 @@ describe("manteca hook", () => {
       expect(response.status).toBe(200);
       expect(manteca.convertBalanceToUsdc).not.toHaveBeenCalled();
       expect(captureException).not.toHaveBeenCalled();
-      expect(captureEvent).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: "MantecaCompanyEvent",
-          level: "info",
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-          contexts: expect.objectContaining({ details: { event: "DEPOSIT_DETECTED", ...payload.data } }),
-        }),
-      );
+      expect(segment.track).not.toHaveBeenCalled();
+      expect(sendPushNotificationMock).not.toHaveBeenCalled();
+      expect(captureEvent).toHaveBeenCalledWith({
+        message: "MantecaCompanyEvent",
+        level: "info",
+        contexts: { details: { event: "DEPOSIT_DETECTED", ...payload.data } },
+      });
       await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
     });
 
@@ -294,7 +295,7 @@ describe("manteca hook", () => {
       expect(manteca.convertBalanceToUsdc).not.toHaveBeenCalled();
       expect(captureException).toHaveBeenCalledWith(new Error("invalid account address"), {
         level: "error",
-        contexts: { details: { rawAccount: "0xinvalid" } },
+        contexts: { details: { rawAccount: "0xinvalid" } }, // cspell:ignore xinvalid
       });
       await expect(response.json()).resolves.toStrictEqual({ code: "invalid account address" });
     });
