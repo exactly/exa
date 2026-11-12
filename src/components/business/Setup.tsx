@@ -146,7 +146,7 @@ export default function Setup() {
     );
   }
   return (
-    <SafeView fullScreen backgroundColor="backgroundSoft" paddingBottom={0}>
+    <SafeView fullScreen backgroundColor="backgroundSoft" paddingBottom="s0">
       <ScrollView flex={1} showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1 }}>
         <YStack flexGrow={1} padding="s4" paddingBottom="s6" gap="s6">
           <XStack>

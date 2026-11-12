@@ -125,8 +125,8 @@ export default function PortfolioSummary({
               <View
                 backgroundColor="backgroundMild"
                 borderRadius="r_0"
-                width={32}
-                height={32}
+                width="s6"
+                height="s6"
                 alignItems="center"
                 justifyContent="center"
               >

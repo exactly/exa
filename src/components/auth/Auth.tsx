@@ -124,7 +124,7 @@ export default function Auth() {
   return (
     <SafeView fullScreen backgroundColor="backgroundSoft">
       {!loadingContext && !embeddingContext && (
-        <View padded paddingBottom={0} flexDirection="row" justifyContent="flex-end" alignSelf="stretch" zIndex={1}>
+        <View padded paddingBottom="s0" flexDirection="row" justifyContent="flex-end" alignSelf="stretch" zIndex={1}>
           <IconButton
             icon={Headphones}
             color="uiNeutralSecondary"
@@ -172,8 +172,8 @@ export default function Auth() {
                   fontSize={title.size}
                   lineHeight={`${title.size * 1.3}px`}
                   position="absolute"
-                  left={0}
-                  right={0}
+                  left="s0"
+                  right="s0"
                   opacity={0}
                   pointerEvents="none"
                   aria-hidden
@@ -211,8 +211,8 @@ export default function Auth() {
                   secondary
                   centered
                   position="absolute"
-                  left={0}
-                  right={0}
+                  left="s0"
+                  right="s0"
                   opacity={0}
                   pointerEvents="none"
                   aria-hidden

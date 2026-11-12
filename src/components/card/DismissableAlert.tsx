@@ -41,8 +41,8 @@ export default function DismissableAlert({ text, onDismiss }: { onDismiss: () =>
             style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
           >
             <View
-              width={24}
-              height={24}
+              width="s5"
+              height="s5"
               borderRadius="r_0"
               backgroundColor="interactiveBaseInformationSoftDefault"
               justifyContent="center"

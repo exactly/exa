@@ -114,8 +114,8 @@ export default function Network() {
     navigate(chainId, symbol);
   }
   return (
-    <SafeView fullScreen backgroundColor="backgroundMild" paddingBottom={0}>
-      <View gap="s6" fullScreen padded paddingBottom={0}>
+    <SafeView fullScreen backgroundColor="backgroundMild" paddingBottom="s0">
+      <View gap="s6" fullScreen padded paddingBottom="s0">
         <XStack gap="s3_5" justifyContent="space-between" alignItems="center">
           <IconButton
             icon={ArrowLeft}

@@ -103,8 +103,8 @@ export default function SendFunds() {
   }
 
   return (
-    <SafeView fullScreen backgroundColor="backgroundMild" paddingBottom={0}>
-      <View gap="s6" fullScreen padded paddingBottom={0}>
+    <SafeView fullScreen backgroundColor="backgroundMild" paddingBottom="s0">
+      <View gap="s6" fullScreen padded paddingBottom="s0">
         <YStack gap="s4_5">
           <XStack flexDirection="row" gap="s3_5" justifyContent="space-between" alignItems="center">
             <IconButton

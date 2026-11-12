@@ -121,8 +121,8 @@ export default function RepayAmountSelector({
               aria-label={t("Repay amount")}
               alignSelf="center"
               backgroundColor="backgroundSoft"
-              borderBottomLeftRadius={0}
-              borderBottomRightRadius={0}
+              borderBottomLeftRadius="r0"
+              borderBottomRightRadius="r0"
               borderWidth={0}
               color="uiNeutralPrimary"
               cursor="pointer"
@@ -165,11 +165,11 @@ export default function RepayAmountSelector({
             <Slider.Thumb
               circular
               index={0}
-              width={20}
+              width="s4_5"
               backgroundColor="uiBrandSecondary hover:uiBrandSecondary press:uiBrandSecondary"
               borderColor="borderBrandStrong hover:borderBrandStrong press:borderBrandStrong"
               hitSlop={10}
-              height={20}
+              height="s4_5"
               aria-label={t("Repay amount slider")}
               aria-valuetext={`${(Number(clampedValue) / 1e6).toLocaleString(language, {
                 minimumFractionDigits: 2,

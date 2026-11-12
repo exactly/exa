@@ -61,8 +61,8 @@ export default function Banner({
         gap="s4"
       >
         <View
-          width={40}
-          height={40}
+          width="s7"
+          height="s7"
           borderRadius="r3"
           alignItems="center"
           justifyContent="center"

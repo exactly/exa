@@ -198,13 +198,13 @@ export default function TokenSelectModal({
   return (
     <>
       <ModalSheet open={open} onClose={close} disableDrag heightPercent={85}>
-        <SafeView paddingTop={0} paddingBottom={0} fullScreen borderTopLeftRadius="r4" borderTopRightRadius="r4">
+        <SafeView paddingTop="s0" paddingBottom="s0" fullScreen borderTopLeftRadius="r4" borderTopRightRadius="r4">
           <View paddingTop="s6" fullScreen flex={1} gap="s4_5">
             <XStack alignItems="center" justifyContent="center" marginHorizontal="s4">
               <Text fontSize={20} fontWeight="bold" textAlign="center" paddingHorizontal="s6">
                 {title ?? t("Select token")}
               </Text>
-              <IconButton position="absolute" right={0} icon={X} aria-label={t("Close")} onPress={close} />
+              <IconButton position="absolute" right="s0" icon={X} aria-label={t("Close")} onPress={close} />
             </XStack>
             <XStack
               alignItems="center"

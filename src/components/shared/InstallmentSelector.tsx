@@ -100,8 +100,8 @@ function Installment({
       <XStack gap="s3_5" alignItems="center" flex={1}>
         <XStack
           backgroundColor={selected ? "interactiveBaseBrandDefault" : "backgroundStrong"}
-          width={16}
-          height={16}
+          width="s4"
+          height="s4"
           padding="s2"
           borderRadius="r_0"
           alignItems="center"

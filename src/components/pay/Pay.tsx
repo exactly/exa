@@ -134,7 +134,7 @@ export default function Pay() {
   return (
     <SafeView fullScreen tab backgroundColor="backgroundSoft">
       <View fullScreen backgroundColor={empty ? "backgroundSoft" : "backgroundMild"}>
-        <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="backgroundSoft" />
+        <View position="absolute" top="s0" left="s0" right="s0" height="50%" backgroundColor="backgroundSoft" />
         <ScrollView
           ref={scrollRef}
           backgroundColor="transparent"
@@ -400,7 +400,7 @@ function FirstMaturityCard({
       shadowColor="uiNeutralSecondary"
       shadowOffset={{ width: 0, height: 2 }}
       shadowOpacity={0.15}
-      shadowRadius={8}
+      shadowRadius="s3"
     >
       <YStack padding="s4" gap="s1">
         <XStack gap="s3" alignItems="center">

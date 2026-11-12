@@ -207,7 +207,7 @@ export default function Review() {
     if (markets && amount > borrowAvailable)
       return <Redirect href={{ pathname: "/loan/amount", params: { market, amount: String(amount) } }} />;
     return (
-      <SafeView fullScreen paddingBottom={0}>
+      <SafeView fullScreen paddingBottom="s0">
         <View
           padded
           flexDirection="row"
@@ -427,7 +427,7 @@ export default function Review() {
           />
           <XStack justifyContent="center" alignItems="center">
             <Square
-              size={80}
+              size="s10"
               borderRadius="r4"
               backgroundColor={
                 error

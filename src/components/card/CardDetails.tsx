@@ -46,7 +46,7 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
   const banner = corporate || card?.productId === SIGNATURE_PRODUCT_ID || card?.productId === BASE_PRODUCT_ID;
   return (
     <ModalSheet open={open} onClose={onClose}>
-      <SafeView paddingTop={0} fullScreen borderTopLeftRadius="r4" borderTopRightRadius="r4">
+      <SafeView paddingTop="s0" fullScreen borderTopLeftRadius="r4" borderTopRightRadius="r4">
         <ScrollView>
           <View fullScreen flex={1} alignItems="center" width="100%">
             <View gap="s5" flex={1} padded alignItems="center" width="100%">

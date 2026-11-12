@@ -152,8 +152,8 @@ export default function TokenInput({
             onPress={onTokenSelect}
             cursor="pointer"
             hitSlop={20}
-            width={40}
-            height={40}
+            width="s7"
+            height="s7"
           >
             {token ? (
               <AssetLogo
@@ -195,7 +195,7 @@ export default function TokenInput({
                     aria-hidden={loading}
                   />
                   {loading && (
-                    <YStack position="absolute" top={0} bottom={0} left={0} right={0} justifyContent="center">
+                    <YStack position="absolute" top="s0" bottom="s0" left="s0" right="s0" justifyContent="center">
                       <Skeleton height={28} width="100%" />
                     </YStack>
                   )}

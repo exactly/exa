@@ -46,9 +46,9 @@ export default function Failure({
       <StyledGradient
         locations={[0.5, 1]}
         position="absolute"
-        top={0}
-        left={0}
-        right={0}
+        top="s0"
+        left="s0"
+        right="s0"
         height={220}
         opacity={0.2}
         colors={[theme.uiErrorSecondary.val, theme.backgroundSoft.val]}
@@ -66,7 +66,7 @@ export default function Failure({
               }}
             />
             <XStack justifyContent="center" alignItems="center">
-              <Square borderRadius="r4" backgroundColor="interactiveBaseErrorSoftDefault" size={80}>
+              <Square borderRadius="r4" backgroundColor="interactiveBaseErrorSoftDefault" size="s10">
                 <X size={48} color="uiErrorSecondary" strokeWidth={2} />
               </Square>
             </XStack>

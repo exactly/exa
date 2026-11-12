@@ -54,7 +54,7 @@ export default function PayModeSheet({ onClose, open }: { onClose: () => void; o
               <XStack
                 backgroundColor="cardDebitInteractive"
                 borderRadius="r_0"
-                height={40}
+                height="s7"
                 alignItems="center"
                 justifyContent="center"
                 gap="s3"
@@ -83,7 +83,7 @@ export default function PayModeSheet({ onClose, open }: { onClose: () => void; o
               <XStack
                 backgroundColor="cardCreditInteractive"
                 borderRadius="r_0"
-                height={40}
+                height="s7"
                 alignItems="center"
                 justifyContent="center"
                 gap="s3"

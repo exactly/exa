@@ -47,7 +47,7 @@ export default function ErrorDialog({
             shadowOffset: { width: 0, height: 12 },
             elevation: 24,
           })}
-          padding={0}
+          padding="s0"
           x="0 enter:0 exit:0"
           y="0 enter:-20px exit:10px"
           scale="1 enter:0.9 exit:0.95"

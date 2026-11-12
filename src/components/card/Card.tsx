@@ -281,7 +281,7 @@ export default function Card() {
   return (
     <SafeView fullScreen tab backgroundColor="backgroundSoft">
       <View fullScreen backgroundColor="backgroundMild">
-        <View position="absolute" top={0} left={0} right={0} height="50%" backgroundColor="backgroundSoft" />
+        <View position="absolute" top="s0" left="s0" right="s0" height="50%" backgroundColor="backgroundSoft" />
         <ScrollView
           ref={scrollRef}
           backgroundColor="transparent"
@@ -428,9 +428,9 @@ export default function Card() {
                         }}
                       >
                         <XStack alignItems="center" gap="s3">
-                          <Square size={24}>
+                          <Square size="s5">
                             {isSettingCardStatus ? (
-                              <Spinner width={24} color="interactiveBaseBrandDefault" alignSelf="flex-start" />
+                              <Spinner width="s5" color="interactiveBaseBrandDefault" alignSelf="flex-start" />
                             ) : (
                               <Snowflake size={24} color="interactiveBaseBrandDefault" fontWeight="bold" />
                             )}
@@ -517,7 +517,7 @@ export default function Card() {
                   activity={purchases}
                   title={t("Latest purchases")}
                   emptyComponent={
-                    <YStack alignItems="center" justifyContent="center" gap="s4_5" padding="s4" paddingTop={0}>
+                    <YStack alignItems="center" justifyContent="center" gap="s4_5" padding="s4" paddingTop="s0">
                       <Text textAlign="center" color="uiNeutralSecondary" emphasized title>
                         💳
                       </Text>

@@ -197,8 +197,8 @@ function Step({ index, text }: { index: number; text: string }) {
   return (
     <XStack gap="s3_5" alignItems="center">
       <View
-        width={24}
-        height={24}
+        width="s5"
+        height="s5"
         borderRadius="r_0"
         backgroundColor="interactiveBaseBrandSoftDefault"
         alignItems="center"

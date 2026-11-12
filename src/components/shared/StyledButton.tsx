@@ -44,7 +44,7 @@ const ButtonFrame = styled(XStack, {
   userSelect: "none",
   gap: "s3",
   paddingHorizontal: "s4",
-  minHeight: 64,
+  minHeight: "s9",
   variants: {
     primary: {
       true: {

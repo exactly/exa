@@ -216,8 +216,8 @@ export default function AssetSelection() {
   if (typeof receiver !== "string" || !receiver) return <Redirect href="/send-funds/receiver" />;
 
   return (
-    <SafeView fullScreen paddingBottom={0}>
-      <View gap="s4_5" fullScreen padded paddingBottom={0}>
+    <SafeView fullScreen paddingBottom="s0">
+      <View gap="s4_5" fullScreen padded paddingBottom="s0">
         <XStack gap="s3_5" justifyContent="space-between" alignItems="center">
           <IconButton
             icon={ArrowLeft}

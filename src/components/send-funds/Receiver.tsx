@@ -110,8 +110,8 @@ export default function ReceiverSelection() {
   }
 
   return (
-    <SafeView fullScreen paddingBottom={0}>
-      <View gap="s4_5" fullScreen padded paddingBottom={0}>
+    <SafeView fullScreen paddingBottom="s0">
+      <View gap="s4_5" fullScreen padded paddingBottom="s0">
         <XStack gap="s3_5" justifyContent="space-between" alignItems="center">
           <IconButton
             icon={ArrowLeft}
@@ -169,8 +169,8 @@ export default function ReceiverSelection() {
                         />
                         {name && resolving ? (
                           <View
-                            width={40}
-                            height={40}
+                            width="s7"
+                            height="s7"
                             backgroundColor="backgroundMild"
                             alignItems="center"
                             justifyContent="center"

@@ -229,8 +229,8 @@ export default function NewRecipient() {
               <View
                 // eslint-disable-next-line @eslint-react/no-array-index-key -- stable order, fixed length
                 key={index}
-                width={48}
-                height={4}
+                width="s8"
+                height="s2"
                 borderRadius="r1"
                 backgroundColor={index + 1 <= step ? "interactiveBaseBrandDefault" : "borderNeutralSoft"}
               />

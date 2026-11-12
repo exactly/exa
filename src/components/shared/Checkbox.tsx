@@ -9,7 +9,7 @@ const CheckboxFrame = styled(TamaguiCheckbox, {
   pointerEvents: "none",
   width: "s4_5",
   height: "s4_5",
-  padding: 0,
+  padding: "s0",
   alignItems: "center",
   justifyContent: "center",
   borderWidth: 1,

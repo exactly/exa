@@ -371,8 +371,8 @@ export function OptionField({
               </XStack>
             </YStack>
             <View
-              width={24}
-              height={24}
+              width="s5"
+              height="s5"
               borderRadius="r_0"
               borderWidth={1}
               borderColor={selected ? "borderBrandStrong" : "borderNeutralSoft"}
@@ -380,7 +380,7 @@ export function OptionField({
               justifyContent="center"
             >
               {selected && (
-                <View width={12} height={12} borderRadius="r_0" backgroundColor="interactiveBaseBrandDefault" />
+                <View width="s3_5" height="s3_5" borderRadius="r_0" backgroundColor="interactiveBaseBrandDefault" />
               )}
             </View>
           </XStack>

@@ -78,8 +78,8 @@ export default function AssetSelectSheet({
 
   return (
     <ModalSheet open={open} onClose={handleClose} heightPercent={85}>
-      <SafeView paddingTop={0} fullScreen borderTopLeftRadius="r4" borderTopRightRadius="r4">
-        <View padded paddingTop="s4" paddingBottom={0} flex={1} gap="s4_5">
+      <SafeView paddingTop="s0" fullScreen borderTopLeftRadius="r4" borderTopRightRadius="r4">
+        <View padded paddingTop="s4" paddingBottom="s0" flex={1} gap="s4_5">
           <Text fontSize={15} fontWeight="bold" textAlign="center">
             {displayLabel}
           </Text>
@@ -105,7 +105,7 @@ export default function AssetSelectSheet({
                   borderWidth={0}
                   borderColor="transparent focus:transparent focus-visible:transparent"
                   backgroundColor="transparent focus:transparent"
-                  padding={0}
+                  padding="s0"
                   minHeight={44}
                   color="uiNeutralPrimary"
                   outlineWidth="focus-visible:0px"
@@ -129,8 +129,8 @@ export default function AssetSelectSheet({
               <YStack
                 position="absolute"
                 top="100%"
-                left={0}
-                right={0}
+                left="s0"
+                right="s0"
                 marginTop="s2"
                 backgroundColor="backgroundSoft"
                 borderRadius="r3"

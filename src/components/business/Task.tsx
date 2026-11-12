@@ -64,7 +64,7 @@ export default function Task({
             {action}
           </Text>
           {loading ? (
-            <Spinner width={16} height={16} color="interactiveBaseBrandDefault" />
+            <Spinner width="s4" height="s4" color="interactiveBaseBrandDefault" />
           ) : (
             <ChevronRight size={16} color={onPress ? "interactiveBaseBrandDefault" : "interactiveOnDisabled"} />
           )}
