@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PixelRatio, Pressable, Share } from "react-native";
 import QRCode from "react-native-qrcode-styled";
+import { LinearTransition } from "react-native-reanimated";
 
 import { setStringAsync } from "expo-clipboard";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
@@ -30,6 +31,7 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { getRampProviders, getRampQuote, origin } from "../../utils/server";
 import useIsBusiness from "../../utils/useIsBusiness";
+import AnimatedView from "../shared/AnimatedView";
 import IconButton from "../shared/IconButton";
 import InfoAlert from "../shared/InfoAlert";
 import ModalSheet, { Inset } from "../shared/ModalSheet";
@@ -222,57 +224,61 @@ export default function Ramp() {
                   onPress={() => setVerifying(true)}
                 />
               )}
-              <YStack gap="s4" alignSelf="center">
-                <Text emphasized title3>
-                  {typedCurrency} {t("Account details")}
-                </Text>
-                {typedProvider === "manteca" && (
-                  <Text color="uiNeutralPlaceholder" subHeadline>
-                    {t("Transfer {{currency}} from bank accounts under your name to receive USDC in your Exa App.", {
-                      currency: typedCurrency,
-                    })}
+              <AnimatedView layout={LinearTransition} gap="s5">
+                <YStack gap="s4" alignSelf="center">
+                  <Text emphasized title3>
+                    {typedCurrency} {t("Account details")}
                   </Text>
-                )}
-                {typedProvider === "bridge" && (
-                  <Text color="uiNeutralPlaceholder" subHeadline>
-                    {t("Copy and share your account details to receive transfers into your Exa account in USDC.")}
-                  </Text>
-                )}
-              </YStack>
-              {deposit && <DepositCard copyToClipboard={copyToClipboard} deposit={deposit} isLoading={isPending} />}
-              {feeWarning && (
-                <XStack
-                  gap="s4"
-                  alignItems="center"
-                  backgroundColor="interactiveBaseWarningSoftDefault"
-                  borderRadius="r3"
-                  paddingHorizontal="s4"
-                  paddingVertical="s3"
-                >
-                  <TriangleAlert size={16} color="uiWarningSecondary" />
-                  <Text caption2 color="uiWarningSecondary" flex={1} aria-live="polite">
-                    {feeWarning}
-                  </Text>
-                </XStack>
-              )}
-              {isPending && !deposit && (
-                <YStack gap="s4" backgroundColor="backgroundSoft" padding="s4_5" borderRadius="r3">
-                  <Skeleton width="100%" height={40} />
-                  <Skeleton width="100%" height={40} />
+                  {typedProvider === "manteca" && (
+                    <Text color="uiNeutralPlaceholder" subHeadline>
+                      {t("Transfer {{currency}} from bank accounts under your name to receive USDC in your Exa App.", {
+                        currency: typedCurrency,
+                      })}
+                    </Text>
+                  )}
+                  {typedProvider === "bridge" && (
+                    <Text color="uiNeutralPlaceholder" subHeadline>
+                      {t("Copy and share your account details to receive transfers into your Exa account in USDC.")}
+                    </Text>
+                  )}
                 </YStack>
-              )}
-              {isError && !data && <InfoAlert title={t("Error loading account details. Please try again later.")} />}
-              {qrCode && (
-                <Button primary width="100%" onPress={() => setQRSheetOpen(true)}>
-                  <Button.Text>{t("Show QR Code")}</Button.Text>
-                  <Button.Icon>
-                    <QrCode />
-                  </Button.Icon>
-                </Button>
-              )}
-              {typedProvider === "manteca" && (
-                <InfoAlert title={t("All deposits must be from bank accounts under your name.")} />
-              )}
+                {deposit && <DepositCard copyToClipboard={copyToClipboard} deposit={deposit} isLoading={isPending} />}
+                {feeWarning && (
+                  <XStack
+                    gap="s4"
+                    alignItems="center"
+                    backgroundColor="interactiveBaseWarningSoftDefault"
+                    borderRadius="r3"
+                    paddingHorizontal="s4"
+                    paddingVertical="s3"
+                  >
+                    <TriangleAlert size={16} color="uiWarningSecondary" />
+                    <Text caption2 color="uiWarningSecondary" flex={1} aria-live="polite">
+                      {feeWarning}
+                    </Text>
+                  </XStack>
+                )}
+                {isPending && !deposit && (
+                  <YStack gap="s4" backgroundColor="backgroundSoft" padding="s4_5" borderRadius="r3">
+                    <Skeleton width="100%" height={40} />
+                    <Skeleton width="100%" height={40} />
+                  </YStack>
+                )}
+                {isError && !data && (
+                  <InfoAlert exiting={null} title={t("Error loading account details. Please try again later.")} />
+                )}
+                {qrCode && (
+                  <Button primary width="100%" onPress={() => setQRSheetOpen(true)}>
+                    <Button.Text>{t("Show QR Code")}</Button.Text>
+                    <Button.Icon>
+                      <QrCode />
+                    </Button.Icon>
+                  </Button>
+                )}
+                {typedProvider === "manteca" && (
+                  <InfoAlert title={t("All deposits must be from bank accounts under your name.")} />
+                )}
+              </AnimatedView>
             </YStack>
           </View>
         </ScrollView>

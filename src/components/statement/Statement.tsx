@@ -134,6 +134,7 @@ export default function Statement() {
           <YStack paddingHorizontal="s5">
             <InfoAlert
               variant="error"
+              exiting={null}
               title={t("Couldn't load your statement. Please try again.")}
               actionText={t("Retry")}
               loading={isFetching}

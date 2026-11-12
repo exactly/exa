@@ -1,11 +1,12 @@
 import React, { use, useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { View as RNView } from "react-native";
+import { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 
 import { useFocusEffect, useRouter } from "expo-router";
 
 import { toast } from "@tamagui/toast";
-import { AnimatePresence, ScrollView, YStack } from "tamagui";
+import { ScrollView, YStack } from "tamagui";
 
 import { TimeToFullDisplay } from "@sentry/react-native";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -59,6 +60,7 @@ import OverduePayments from "../pay/OverduePayments";
 import PaymentSheet from "../pay/PaymentSheet";
 import RolloverIntroSheet from "../pay/RolloverIntroSheet";
 import UpcomingPayments from "../pay/UpcomingPayments";
+import AnimatedView from "../shared/AnimatedView";
 import FundingAlert from "../shared/FundingAlert";
 import InfoAlert from "../shared/InfoAlert";
 import LatestActivity from "../shared/LatestActivity";
@@ -263,37 +265,39 @@ export default function Home() {
               )}
               <PluginUpgrade />
               {current && (
-                <Banner
-                  step={current.step}
-                  title={
-                    current.id === "profile"
-                      ? t("Business profile")
-                      : current.id === "card"
-                        ? t("Get a business Exa Card")
-                        : t("Enable bank transfers")
-                  }
-                  description={
-                    current.step === "pending"
-                      ? current.id === "card" && requirement === "terms"
-                        ? t("Your business is approved. Accept the terms to continue.")
-                        : current.id === "card" && requirement === "representative"
-                          ? t("Add the details of the person who will use the card.")
-                          : t("Verify your business")
-                      : current.step === "review"
-                        ? current.id === "card" && approved
-                          ? t("We’re reviewing the card user. Your card will be issued once approved.")
-                          : t("Review takes 3 to 5 business days.")
-                        : current.step === "failed" || current.step === "unavailable"
-                          ? t("Contact support to continue.")
-                          : t("We need more information before we can continue.")
-                  }
-                  onPress={() => {
-                    router.push("/business");
-                  }}
-                />
+                <AnimatedView entering={FadeIn} exiting={FadeOut}>
+                  <Banner
+                    step={current.step}
+                    title={
+                      current.id === "profile"
+                        ? t("Business profile")
+                        : current.id === "card"
+                          ? t("Get a business Exa Card")
+                          : t("Enable bank transfers")
+                    }
+                    description={
+                      current.step === "pending"
+                        ? current.id === "card" && requirement === "terms"
+                          ? t("Your business is approved. Accept the terms to continue.")
+                          : current.id === "card" && requirement === "representative"
+                            ? t("Add the details of the person who will use the card.")
+                            : t("Verify your business")
+                        : current.step === "review"
+                          ? current.id === "card" && approved
+                            ? t("We’re reviewing the card user. Your card will be issued once approved.")
+                            : t("Review takes 3 to 5 business days.")
+                          : current.step === "failed" || current.step === "unavailable"
+                            ? t("Contact support to continue.")
+                            : t("We need more information before we can continue.")
+                    }
+                    onPress={() => {
+                      router.push("/business");
+                    }}
+                  />
+                </AnimatedView>
               )}
               <FundingAlert />
-              <YStack gap="s5">
+              <AnimatedView layout={LinearTransition} gap="s5">
                 <PortfolioSummary
                   collateralUSD={collateralUSD}
                   averageRate={averageRate}
@@ -301,52 +305,50 @@ export default function Home() {
                   totalBalanceUSD={totalBalanceUSD}
                 />
                 <HomeActions />
-              </YStack>
+              </AnimatedView>
             </YStack>
             {(card ?? (!business && isKYCFetched && (!isKYCApproved || !bytecode))) && (
               <View paddingHorizontal="s4" gap="s5">
-                <AnimatePresence>
-                  {card && (
-                    <CardStatus
-                      collateral={collateralUSD}
-                      creditLimit={markets ? borrowLimit(markets, marketUSDCAddress) : 0n}
-                      spotlightRef={spotlightRef}
-                      mode={card.mode}
-                      onCardPress={() => {
-                        router.push("/card");
-                      }}
-                      onCreditLimitInfoPress={() => {
-                        setCreditLimitSheetOpen(true);
-                      }}
-                      onDetailsPress={() => {
-                        if (card.displayName) {
-                          setCardDetailsOpen(true);
-                          return;
-                        }
-                        refetchCard()
-                          .then(({ data }) => {
-                            if (data?.displayName) {
-                              setCardDetailsOpen(true);
-                              return;
-                            }
-                            toast.error(t("An error occurred. Please try again later."), { duration: 1000 });
-                          })
-                          .catch(reportError);
-                      }}
-                      onInstallmentsPress={() => {
-                        setInstallmentsSheetOpen(true);
-                      }}
-                      onLearnMorePress={() => {
-                        setPayModeSheetOpen(true);
-                      }}
-                      onModeChange={handleModeChange}
-                      onSpendingLimitInfoPress={() => {
-                        setSpendingLimitSheetOpen(true);
-                      }}
-                      spendingLimit={markets ? withdrawLimit(markets, marketUSDCAddress) : 0n}
-                    />
-                  )}
-                </AnimatePresence>
+                {card && (
+                  <CardStatus
+                    collateral={collateralUSD}
+                    creditLimit={markets ? borrowLimit(markets, marketUSDCAddress) : 0n}
+                    spotlightRef={spotlightRef}
+                    mode={card.mode}
+                    onCardPress={() => {
+                      router.push("/card");
+                    }}
+                    onCreditLimitInfoPress={() => {
+                      setCreditLimitSheetOpen(true);
+                    }}
+                    onDetailsPress={() => {
+                      if (card.displayName) {
+                        setCardDetailsOpen(true);
+                        return;
+                      }
+                      refetchCard()
+                        .then(({ data }) => {
+                          if (data?.displayName) {
+                            setCardDetailsOpen(true);
+                            return;
+                          }
+                          toast.error(t("An error occurred. Please try again later."), { duration: 1000 });
+                        })
+                        .catch(reportError);
+                    }}
+                    onInstallmentsPress={() => {
+                      setInstallmentsSheetOpen(true);
+                    }}
+                    onLearnMorePress={() => {
+                      setPayModeSheetOpen(true);
+                    }}
+                    onModeChange={handleModeChange}
+                    onSpendingLimitInfoPress={() => {
+                      setSpendingLimitSheetOpen(true);
+                    }}
+                    spendingLimit={markets ? withdrawLimit(markets, marketUSDCAddress) : 0n}
+                  />
+                )}
                 {card?.productId === PLATINUM_PRODUCT_ID && (
                   <VisaSignatureBanner
                     onPress={() => {
@@ -354,11 +356,9 @@ export default function Home() {
                     }}
                   />
                 )}
-                <AnimatePresence>
-                  {!business && isKYCFetched && (!isKYCApproved || !bytecode) && (
-                    <GettingStarted isDeployed={!!bytecode} kyc={kycStatus} />
-                  )}
-                </AnimatePresence>
+                {!business && isKYCFetched && (!isKYCApproved || !bytecode) && (
+                  <GettingStarted isDeployed={!!bytecode} kyc={kycStatus} />
+                )}
               </View>
             )}
             {isKYCFetched && (
@@ -370,12 +370,12 @@ export default function Home() {
                 onStocksPress={stocksAvailable ? openStocks : undefined}
               />
             )}
-            <View paddingHorizontal="s4" gap="s5">
+            <AnimatedView layout={LinearTransition} paddingHorizontal="s4" gap="s5">
               <OverduePayments onSelect={(m) => router.setParams({ maturity: String(m) })} />
               <UpcomingPayments showEmpty onSelect={(m) => router.setParams({ maturity: String(m) })} />
               <LatestActivity activity={activity} />
               <HomeDisclaimer />
-            </View>
+            </AnimatedView>
           </View>
           <CardDetailsSheet
             open={cardDetailsOpen}
