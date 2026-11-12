@@ -2,6 +2,8 @@ import { captureException, withScope } from "@sentry/react-native";
 import { BaseError, ContractFunctionRevertedError } from "viem";
 
 import revertReason from "@exactly/common/revertReason";
+import rpcFingerprint from "@exactly/common/rpcFingerprint";
+import stableMessage from "@exactly/common/stableMessage";
 
 export default function reportError(error: unknown, hint?: Parameters<typeof captureException>[1]) {
   const parsed = parseError(error);
@@ -105,12 +107,16 @@ function parseError(error: unknown) {
             root.message.length > 0
           ? normalizeMessage(root.message)
           : undefined;
-  const revert = error instanceof BaseError && error.walk((r) => r instanceof ContractFunctionRevertedError) !== null;
+  const rpc = rpcFingerprint(error);
+  const revert =
+    rpc === undefined &&
+    error instanceof BaseError &&
+    error.walk((r) => r instanceof ContractFunctionRevertedError) !== null;
   const reason = revertReason(error, { fallback: "unknown" });
-  return { code, message, name, reason, revert, status };
+  return { code, message, name, reason, revert, rpc, status };
 }
 
-function classify({ code, message, name, reason, revert, status }: ParsedError) {
+function classify({ code, message, name, reason, revert, rpc, status }: ParsedError) {
   const passkeyNotAllowed =
     name === "NotAllowedError" || (message !== undefined && authPrefixes.some((prefix) => message.startsWith(prefix)));
   const passkeyCancelled =
@@ -145,11 +151,12 @@ function classify({ code, message, name, reason, revert, status }: ParsedError) 
       : undefined) ??
     (revert ? [reason] : undefined) ??
     (authKnown ? [code ?? message ?? "unknown"] : undefined) ??
+    (rpc && network === undefined ? rpc : undefined) ??
     (code === undefined || code === "ERR_UNKNOWN"
       ? network === undefined
         ? message === undefined
           ? undefined
-          : ["{{ default }}", message]
+          : ["{{ default }}", stableMessage(message)]
         : [network]
       : [code]);
   return {

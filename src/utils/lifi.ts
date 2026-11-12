@@ -73,7 +73,7 @@ import { WAD } from "@exactly/lib";
 
 import publicClient from "./publicClient";
 import queryClient, { isServer } from "./queryClient";
-import reportError from "./reportError";
+import reportError, { classifyError } from "./reportError";
 
 export const chainTypes = [ChainType.EVM, ChainType.MVM, ChainType.SVM, ChainType.TVM, ChainType.UTXO]; // cspell:ignore UTXO
 
@@ -674,7 +674,7 @@ async function* getWalletBalances(account: Address, lifiTokens: Token[], chains:
   const getEthBalance = encodeFunctionData({ abi: multicall3Abi, functionName: "getEthBalance", args: [account] });
   const tokensByChain: Partial<Record<number, Token[]>> = {};
   for (const token of lifiTokens) (tokensByChain[token.chainId] ??= []).push(token);
-  const failures = new Map<string, { error: unknown; ids: number[] }>();
+  const failures: { error: unknown; id: number }[] = [];
   const pending = new Set(
     chains.map(async ({ chainType, diamondAddress, id, mainnet, multicallAddress }) => {
       if (!mainnet || chainType !== ChainType.EVM || !diamondAddress || !multicallAddress) return;
@@ -735,10 +735,7 @@ async function* getWalletBalances(account: Address, lifiTokens: Token[], chains:
         ).then((results) => [id, results.flat()] as const);
       } catch (error) {
         if (id === chain.id) throw error;
-        const key = String(error);
-        const failure = failures.get(key) ?? { ids: [], error };
-        failure.ids.push(id);
-        failures.set(key, failure);
+        failures.push({ error, id });
         return [id, []] as const;
       }
     }),
@@ -753,7 +750,16 @@ async function* getWalletBalances(account: Address, lifiTokens: Token[], chains:
     pending.delete(settled);
     if (result) yield result;
   }
-  if (!signal.aborted) for (const { error, ids } of failures.values()) reportError(error, { extra: { chains: ids } });
+  if (!signal.aborted) {
+    for (const { error, id } of failures) {
+      const { fingerprint } = classifyError(error);
+      reportError(error, {
+        level: "warning",
+        tags: { chain: id },
+        fingerprint: [...(fingerprint ?? ["{{ default }}"]), String(id)],
+      });
+    }
+  }
 }
 
 async function rpc(url: string, method: string, params: unknown[], signal: AbortSignal) {
