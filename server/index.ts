@@ -4,12 +4,14 @@ import { isoBase64URL } from "@simplewebauthn/server/helpers";
 import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
 import { trimTrailingSlash } from "hono/trailing-slash";
+import { createHash } from "node:crypto";
 import { env } from "node:process";
 import { array, nonEmpty, optional, parse, picklist, pipe, string, transform } from "valibot";
 import { base } from "viem/chains";
 
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
+import { tenantScript } from "@exactly/common/tenants";
 
 import createApi from "./api";
 import database from "./database";
@@ -254,7 +256,9 @@ frontend.use(
       styleSrc: ["'self'", "'unsafe-inline'", "https://onesignal.com"],
       scriptSrc: [
         "'self'",
-        "'unsafe-inline'",
+        ...[tenantScript, "globalThis.__EXPO_ROUTER_HYDRATE__=true;"].map(
+          (script) => `'sha256-${createHash("sha256").update(script).digest("base64")}'`,
+        ),
         "https://api.onesignal.com",
         "https://cdn.onesignal.com",
         // #region intercom https://www.intercom.com/help/en/articles/3894-using-intercom-with-content-security-policy
