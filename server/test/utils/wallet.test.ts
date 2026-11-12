@@ -260,21 +260,28 @@ describe("fault tolerance", () => {
       { onHash },
     );
 
+    const blocked = Promise.withResolvers<boolean>();
     const mockWaitForTransactionReceipt = vi
       .spyOn(publicClient, "waitForTransactionReceipt")
-      .mockImplementation((parameters) => waitForTransactionReceipt({ ...parameters, timeout: 320 }));
+      .mockImplementation(async (parameters) => {
+        await blocked.promise;
+        return waitForTransactionReceipt({ ...parameters, timeout: 320 });
+      });
 
     const blockedHashes: Hex[] = [];
+    const onBlockedHash = (hash: Hex) => {
+      if (blockedHashes.push(hash) === 2) blocked.resolve(true);
+    };
     const first = keeper.exaSend(
       { name: "test transfer", op: "test.transfer" },
       { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
-      { onHash: (hash) => blockedHashes.push(hash) },
+      { onHash: onBlockedHash },
     );
     await vi.waitUntil(() => blockedHashes.length === 1);
     const second = keeper.exaSend(
       { name: "test transfer", op: "test.transfer" },
       { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
-      { onHash: (hash) => blockedHashes.push(hash) },
+      { onHash: onBlockedHash },
     );
     const sendBlocked = await Promise.allSettled([first, second]);
 
@@ -317,20 +324,27 @@ describe("fault tolerance", () => {
       { onHash: (hash) => hashes.push(hash) },
     );
 
+    const blocked = Promise.withResolvers<boolean>();
     const mockWaitForTransactionReceipt = vi
       .spyOn(publicClient, "waitForTransactionReceipt")
-      .mockImplementation((parameters) => waitForTransactionReceipt({ ...parameters, timeout: 320 }));
+      .mockImplementation(async (parameters) => {
+        await blocked.promise;
+        return waitForTransactionReceipt({ ...parameters, timeout: 320 });
+      });
+    const onBlockedHash = (hash: Hex) => {
+      if (hashes.push(hash) === 101) blocked.resolve(true);
+    };
 
     const first = keeper.exaSend(
       { name: "test transfer 0", op: "test.transfer[0]" },
       { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
-      { onHash: (hash) => hashes.push(hash) },
+      { onHash: onBlockedHash },
     );
     await setImmediate();
     const second = keeper.exaSend(
       { name: "test transfer 1", op: "test.transfer[1]" },
       { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
-      { onHash: (hash) => hashes.push(hash) },
+      { onHash: onBlockedHash },
     );
     await setImmediate();
     const sendBlocked = await Promise.allSettled([
@@ -340,7 +354,7 @@ describe("fault tolerance", () => {
         keeper.exaSend(
           { name: `test transfer ${index + 2}`, op: `test.transfer[${index + 2}]` },
           { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
-          { onHash: (hash) => hashes.push(hash) },
+          { onHash: onBlockedHash },
         ),
       ),
     ]);
