@@ -2,7 +2,7 @@ name: maestro
 on:
   push:
     branches: [main]
-    paths: [.maestro/package.json, .maestro/patches/*.patch]
+    paths: [.maestro/patches/build.sh, .maestro/patches/*.patch]
 jobs:
   maestro:
     runs-on: ubuntu-latest

@@ -173,7 +173,7 @@ jobs:
         with: { version: v1.7.1, cache: false }
       - id: script
         name: hash
-        run: echo "hash=$(node -p 'require("./.maestro/package.json").scripts.maestro' | cat - .maestro/patches/*.patch | git hash-object --stdin)" >> "$GITHUB_OUTPUT"
+        run: echo "hash=$(cat .maestro/patches/build.sh .maestro/patches/*.patch | git hash-object --stdin)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache/restore@v6
         id: dependencies
         with:

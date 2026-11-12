@@ -93,7 +93,7 @@ jobs:
         run: flock /tmp/apt.lock pnpm nx e2e server > server.log 2>&1 &
       - id: script
         name: hash
-        run: set-output hash "$(node -p 'require("./.maestro/package.json").scripts.maestro' | git hash-object --stdin)"
+        run: set-output hash "$(git hash-object .maestro/patches/build.sh)"
       - uses: eas/restore_cache
         id: maestro
         with:
@@ -236,7 +236,7 @@ jobs:
         run: pnpm nx e2e server > server.log 2>&1 &
       - id: script
         name: hash
-        run: set-output hash "$(node -p 'require("./.maestro/package.json").scripts.maestro' | git hash-object --stdin)"
+        run: set-output hash "$(git hash-object .maestro/patches/build.sh)"
       - uses: eas/restore_cache
         id: maestro
         with:
