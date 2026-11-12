@@ -580,6 +580,7 @@ export default function Card() {
           open={disclaimerShown}
           onActionPress={() => {
             setDisclaimerShown(false);
+            if (queryClient.isMutating({ mutationKey: ["card", "create"] })) return;
             generateCard().catch(reportError);
           }}
           onClose={() => {
