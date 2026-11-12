@@ -3,7 +3,7 @@ import sendPushNotificationMock from "../mocks/onesignal";
 import * as segment from "../mocks/segment";
 import "../mocks/sentry";
 
-import { captureException } from "@sentry/core";
+import { captureEvent, captureException } from "@sentry/core";
 import { testClient } from "hono/testing";
 import { createHmac } from "node:crypto";
 import { hexToBytes, padHex, zeroHash } from "viem";
@@ -238,6 +238,39 @@ describe("manteca hook", () => {
       await expect(response.json()).resolves.toStrictEqual({ code: "credential not found" });
     });
 
+    it("logs company events without touching balances", async () => {
+      vi.spyOn(manteca, "convertBalanceToUsdc").mockResolvedValue();
+      const payload = {
+        event: "DEPOSIT_DETECTED",
+        data: {
+          id: "deposit123",
+          asset: "ARS",
+          amount: "1000",
+          userExternalId: "Exactly-argentina",
+          userNumberId: "456",
+          userLegalId: "12345678",
+          network: "ARG_FIAT_TRANSFER",
+        },
+      };
+      const response = await appClient.index.$post({
+        header: { "md-webhook-signature": createSignature(payload) },
+        json: payload as never,
+      });
+
+      expect(response.status).toBe(200);
+      expect(manteca.convertBalanceToUsdc).not.toHaveBeenCalled();
+      expect(captureException).not.toHaveBeenCalled();
+      expect(captureEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: "MantecaCompanyEvent",
+          level: "info",
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          contexts: expect.objectContaining({ details: { event: "DEPOSIT_DETECTED", ...payload.data } }),
+        }),
+      );
+      await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    });
+
     it("returns ok if account address is invalid", async () => {
       vi.spyOn(manteca, "convertBalanceToUsdc").mockResolvedValue();
       const payload = {
@@ -259,6 +292,10 @@ describe("manteca hook", () => {
 
       expect(response.status).toBe(200);
       expect(manteca.convertBalanceToUsdc).not.toHaveBeenCalled();
+      expect(captureException).toHaveBeenCalledWith(new Error("invalid account address"), {
+        level: "error",
+        contexts: { details: { rawAccount: "0xinvalid" } },
+      });
       await expect(response.json()).resolves.toStrictEqual({ code: "invalid account address" });
     });
 
