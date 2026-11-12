@@ -164,10 +164,18 @@ export default function Home() {
     },
   });
 
+  function changeMode(mode: number) {
+    const pending = queryClient
+      .getMutationCache()
+      .findAll({ mutationKey: cardModeMutationOptions.mutationKey, status: "pending" });
+    if (pending.at(-1)?.state.variables === mode) return;
+    mutateMode(mode);
+  }
+
   const { data: manualRepaymentAcknowledged } = useQuery<boolean>({ queryKey: ["manual-repayment-acknowledged"] });
   function handleModeChange(mode: number) {
     if (mode === 0 || manualRepaymentAcknowledged || (card?.mode ?? 0) > 0) {
-      mutateMode(mode);
+      changeMode(mode);
       return;
     }
     pendingModeRef.current = mode;
@@ -417,7 +425,7 @@ export default function Home() {
             }}
             onActionPress={() => {
               queryClient.setQueryData(["manual-repayment-acknowledged"], true);
-              if (card?.mode !== pendingModeRef.current) mutateMode(pendingModeRef.current);
+              if (card?.mode !== pendingModeRef.current) changeMode(pendingModeRef.current);
               setManualRepaymentSheetOpen(false);
               if (pendingSheetOpenRef.current) {
                 pendingSheetOpenRef.current = false;

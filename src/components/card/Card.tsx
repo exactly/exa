@@ -417,7 +417,7 @@ export default function Card() {
                         alignItems="center"
                         cursor="pointer"
                         onPress={() => {
-                          if (isFetchingCard || isSettingCardStatus) return;
+                          if (isFetchingCard || queryClient.isMutating({ mutationKey: ["card", "status"] })) return;
                           selectionAsync().catch(reportError);
                           if (cardDetails.status === "FROZEN") {
                             changeCardStatus("ACTIVE");
@@ -600,6 +600,7 @@ export default function Card() {
           }}
           onConfirm={() => {
             setFreezeConfirmOpen(false);
+            if (queryClient.isMutating({ mutationKey: ["card", "status"] })) return;
             changeCardStatus("FROZEN");
           }}
         />

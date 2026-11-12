@@ -221,7 +221,7 @@ export default function CardStatus({
                 alignItems="center"
                 cursor="pointer"
                 onPress={() => {
-                  if (isSettingCardStatus) return;
+                  if (queryClient.isMutating({ mutationKey: ["card", "status"] })) return;
                   selectionAsync().catch(reportError);
                   changeCardStatus("ACTIVE");
                 }}
