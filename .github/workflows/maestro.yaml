@@ -15,7 +15,10 @@ jobs:
       - uses: actions/setup-node@v7
         with: { node-version: "^24.14.1" }
       - uses: oras-project/setup-oras@v2 # cspell:ignore oras
-      - run: corepack enable
+      - run: |
+          corepack enable
+          for delay in 5 10; do corepack install && exit; sleep "$delay"; done
+          corepack install
         name: corepack
       - run: pnpm install --frozen-lockfile --ignore-scripts
         name: install

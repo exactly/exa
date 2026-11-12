@@ -35,7 +35,10 @@ jobs:
         with: { node-version: 24, check-latest: true, package-manager-cache: false }
       - uses: foundry-rs/foundry-toolchain@v1
         with: { version: v1.7.1, cache: false }
-      - run: corepack enable
+      - run: |
+          corepack enable
+          for delay in 5 10; do corepack install && exit; sleep "$delay"; done
+          corepack install
         name: corepack
       - run: pnpm install --frozen-lockfile
         name: install
