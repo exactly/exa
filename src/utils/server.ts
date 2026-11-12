@@ -79,10 +79,15 @@ const api = hc<ExaAPI>(new URL(origin).hostname === "localhost" ? "http://localh
   fetch: async (input: Request | string | URL, init?: RequestInit) => {
     const headers = new Headers(init?.headers);
     if (Platform.OS === "ios") headers.set("Client-Platform", Platform.OS);
-    if (!(await sdk.isInMiniApp())) return fetch(input, { ...init, headers });
-    const { client } = await sdk.context;
-    headers.set("Client-Fid", String(client.clientFid));
-    return fetch(input, { ...init, headers });
+    if (await sdk.isInMiniApp()) {
+      const { client } = await sdk.context;
+      headers.set("Client-Fid", String(client.clientFid));
+    }
+    const response = await fetch(input, { ...init, headers });
+    if (!response.ok && !response.headers.get("content-type")?.startsWith("application/json")) {
+      throw new APIError(init?.method ?? "GET", response, response.statusText);
+    }
+    return response;
   },
 });
 

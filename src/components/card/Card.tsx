@@ -170,11 +170,10 @@ export default function Card() {
       }
       if (isRevealing || beginKYC.isPending) return;
       try {
-        const data = await queryClient
-          .fetchQuery<CardSecrets>({ queryKey: ["card", "secrets", cardDetails?.cardId], staleTime: 0 })
-          .catch((error: unknown) => {
-            if (!(error instanceof APIError) || error.code === 500) throw error;
-          });
+        const data = await queryClient.fetchQuery<CardSecrets>({
+          queryKey: ["card", "secrets", cardDetails?.cardId],
+          staleTime: 0,
+        });
         if (data) {
           queryClient.setQueryData(["card-details-open"], true);
           return;
@@ -248,7 +247,7 @@ export default function Card() {
     submittedAt: generateSubmittedAt,
   } = useMutation({
     mutationKey: ["card", "create"],
-    retry: (_, error) => error instanceof APIError && !error.text.includes("already created"),
+    retry: (_, error) => error instanceof APIError && error.code !== 504 && !error.text.includes("already created"),
     retryDelay: (failureCount, error) => (error instanceof APIError ? failureCount * 5000 : 1000),
     mutationFn: async () => {
       if (!credential) return;
