@@ -92,21 +92,32 @@ export default defineConfig([
             [optimism.id]: "optimism",
             [optimismSepolia.id]: "optimismSepolia",
           }[chainId];
+          const testnet =
+            chainId === anvil.id || Boolean([...networks.keys()].find(({ id }) => id === chainId)?.testnet);
+          const sameSide = [...networks].filter(([current]) => Boolean(current.testnet) === testnet);
           const markets = Object.fromEntries(
-            [...networks]
-              .filter(
-                ([{ testnet }]) =>
-                  Boolean(testnet) ===
-                  (chainId === anvil.id || Boolean([...networks.keys()].find(({ id }) => id === chainId)?.testnet)),
-              )
-              .map(([{ id }, network]) => [
-                id,
-                readdirSync(`node_modules/@exactly/protocol/deployments/${network}`)
-                  .flatMap((file) => /^Market([A-Za-z.]+)\.json$/.exec(file)?.[1] ?? [])
-                  .filter((asset) => asset !== "ETHRouter")
-                  .map((asset) => getAddress(loadDeployment(asset, true, id).address)),
-              ]),
+            sameSide.map(([{ id }, network]) => [
+              id,
+              readdirSync(`node_modules/@exactly/protocol/deployments/${network}`)
+                .flatMap((file) => /^Market([A-Za-z.]+)\.json$/.exec(file)?.[1] ?? [])
+                .filter((asset) => asset !== "ETHRouter")
+                .map((asset) => getAddress(loadDeployment(asset, true, id).address)),
+            ]),
           );
+          const networkContracts = (chain ? sameSide.map(([{ id }]) => id) : [anvil.id, moonbeamDev.id]).map((id) => {
+            const exaPreviewer = loadBroadcast("ExaPreviewer", id).transactions[0]?.contractAddress;
+            if (!exaPreviewer) throw new Error(`missing exaPreviewer on ${id}`);
+            return [
+              id,
+              {
+                auditor: getAddress(loadDeployment("Auditor", true, id).address),
+                exaPreviewer: getAddress(exaPreviewer),
+                swapper: getAddress(
+                  (deploy.accounts.swapper as Record<string, string>)[id] ?? deploy.accounts.swapper.default,
+                ),
+              },
+            ];
+          });
           const stocks = Object.keys(deploy.proposalManager.allowlist[base.id])
             .filter((address) => address.slice(0, 5).toLowerCase() === "0xb20")
             .map((address) => address.toLowerCase());
@@ -219,6 +230,7 @@ export default defineConfig([
               )}`,
               `export const appPreviewerCode: \`0x\${string}\` = "${AppPreviewer.bytecode.object}"`,
               `export const exaPreviewerCode: \`0x\${string}\` = "${ExaPreviewer.bytecode.object}"`,
+              `export const networks: ReadonlyMap<number, Readonly<Record<"auditor" | "exaPreviewer" | "swapper", \`0x\${string}\`>>> = new Map(${JSON.stringify(networkContracts)})`,
               `export const pricePreviewerCode: \`0x\${string}\` = "${PricePreviewer.bytecode.object}"`,
               `export const stocks: ReadonlySet<string> = new Set(${JSON.stringify(stocks)})`,
               'type AlchemyChain = ((Chain & { smartAccount: true }) | (Omit<Chain, "nativeCurrency"> & { nativeCurrency?: Chain["nativeCurrency"]; smartAccount?: never })) & { rpcUrls: { alchemy: { http: readonly [string] } } }',
@@ -252,23 +264,22 @@ function loadDeployment<R extends boolean = true>(
   required = true as R,
   id = chainId,
 ): R extends true ? Deployment : Deployment | undefined {
-  if (id === anvil.id) {
-    const address =
-      loadBroadcast("Protocol").transactions[
-        {
-          Auditor: 1,
-          Balancer2Vault: 23,
-          DebtManager: 24,
-          Firewall: 33,
-          MarketUSDC: 11,
-          MarketWETH: 18,
-          IntegrationPreviewer: 29,
-          Previewer: 28,
-          RatePreviewer: 30,
-          USDC: 9,
-          WETH: 16,
-        }[contract] ?? Infinity
-      ]?.contractAddress;
+  if (id === anvil.id || id === moonbeamDev.id) {
+    const address = loadBroadcast("Protocol", id).transactions[
+      {
+        Auditor: 1,
+        Balancer2Vault: 23,
+        DebtManager: 24,
+        Firewall: 33,
+        MarketUSDC: 11,
+        MarketWETH: 18,
+        IntegrationPreviewer: 29,
+        Previewer: 28,
+        RatePreviewer: 30,
+        USDC: 9,
+        WETH: 16,
+      }[contract] ?? Infinity
+    ]?.contractAddress;
     if (!address && required) throw new Error(`unknown contract: ${contract}`);
     return { address } as R extends true ? Deployment : Deployment | undefined;
   }
@@ -284,9 +295,12 @@ function loadDeployment<R extends boolean = true>(
   }
 }
 
-function loadBroadcast(script: string) {
+function loadBroadcast(script: string, id = chainId) {
   return JSON.parse(
-    readFileSync(`node_modules/@exactly/plugin/broadcast/${script}.s.sol/${chainId}/run-latest.json`, "utf8"),
+    readFileSync(
+      `node_modules/@exactly/plugin/broadcast/${script}.s.sol/${id === moonbeamDev.id ? anvil.id : id}/run-latest.json`,
+      "utf8",
+    ),
   ) as { transactions: { contractAddress: string }[] };
 }
 
