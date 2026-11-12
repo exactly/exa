@@ -3,8 +3,12 @@ run_name: ${{ inputs.profile }}
 on: { workflow_dispatch: { inputs: { profile: { type: choice, options: [beta, development], default: beta } } } }
 defaults: { tools: { node: "24.14.1" }, hooks: { before_install_node_modules: [{ run: corepack enable }] } }
 jobs:
+  approval:
+    type: require-approval
+
   android_build:
     type: build
+    needs: [approval]
     params: { platform: android, profile: "${{ inputs.profile }}" }
 
   android_submit:
@@ -15,6 +19,7 @@ jobs:
 
   ios_build:
     type: build
+    needs: [approval]
     image: sdk-55
     params: { platform: ios, profile: "${{ inputs.profile }}" }
 
