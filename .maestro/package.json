@@ -178,7 +178,10 @@
           "brave"
         ],
         "options": {
-          "cwd": "{projectRoot}"
+          "cwd": "{projectRoot}",
+          "env": {
+            "SE_SKIP_DRIVER_IN_PATH": "true"
+          }
         },
         "cache": true,
         "inputs": [
