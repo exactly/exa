@@ -175,7 +175,6 @@ export default function hook({
       }
 
       if (payload.data.userExternalId.startsWith("Exactly-")) {
-        // principal accounts manteca creates for the company, not users
         captureEvent({
           message: "MantecaCompanyEvent",
           level: "info",
