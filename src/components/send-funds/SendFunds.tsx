@@ -48,7 +48,7 @@ export default function SendFunds() {
     },
     staleTime: (query) => (query.state.data ? Infinity : 0),
     retry: false,
-    enabled: !business,
+    enabled: !business && isKYCApproved,
   });
   const { transfers: step, locked, profile } = useBusiness();
   const transfers = locked ? profile : step;
