@@ -10,7 +10,13 @@ concurrency:
   cancel_in_progress: "${{ github.ref_name != 'main' }}"
   group: "${{ workflow.filename }}-${{ github.ref }}"
 jobs:
+  approval:
+    if: ${{ github.event_name == 'pull_request' }}
+    type: require-approval
+
   fingerprint:
+    after: [approval]
+    if: ${{ after.approval.status != 'failure' }}
     environment: development
     env: { APP_DOMAIN: localhost }
     outputs:
