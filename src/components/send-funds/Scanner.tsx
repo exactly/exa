@@ -1,17 +1,20 @@
 import React, { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Linking, StyleSheet } from "react-native";
+import { Linking, Platform, StyleSheet } from "react-native";
 
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useFocusEffect } from "expo-router";
 
 import { useWindowDimensions, XStack, YStack } from "tamagui";
 
+import { useQuery } from "@tanstack/react-query";
+
 import { ArrowLeft } from "../../generated/icons/ArrowLeft";
 import { BoxSelect } from "../../generated/icons/BoxSelect";
 import { SwitchCamera } from "../../generated/icons/SwitchCamera";
 import reportError from "../../utils/reportError";
 import useInsets from "../../utils/useInsets";
+import zxing from "../../utils/zxing";
 import IconButton from "../shared/IconButton";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -24,6 +27,17 @@ export default function Scanner({ onClose, onScan }: { onClose: () => void; onSc
   const [active, setActive] = useState(true);
   const [cameraFacing, setCameraFacing] = useState<"back" | "front">("back");
   const [permission, requestPermission] = useCameraPermissions();
+  const {
+    isSuccess: ready,
+    isError,
+    refetch,
+  } = useQuery({
+    queryKey: ["zxing"],
+    queryFn: zxing,
+    initialData: Platform.OS === "web" ? undefined : null,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
   const { t } = useTranslation();
   const lastRef = useRef<string>(undefined);
 
@@ -99,17 +113,38 @@ export default function Scanner({ onClose, onScan }: { onClose: () => void; onSc
       {active && (
         <CameraView
           barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-          onBarcodeScanned={({ data }) => {
-            if (lastRef.current === data) return;
-            lastRef.current = data;
-            if (onScan(data)) setActive(false);
-          }}
+          onBarcodeScanned={
+            ready
+              ? ({ data }) => {
+                  if (lastRef.current === data) return;
+                  lastRef.current = data;
+                  if (onScan(data)) setActive(false);
+                }
+              : undefined
+          }
           facing={cameraFacing}
           style={styles.cameraView}
         />
       )}
       <View position="absolute" fullScreen justifyContent="center" alignItems="center">
-        <BoxSelect size={Math.min(width, height) * 0.5} color="white" />
+        {isError ? (
+          <YStack gap="s4" padding="s4">
+            <Text subHeadline color="white" textAlign="center">
+              {t("An error occurred. Please try again later.")}
+            </Text>
+            <Button
+              secondary
+              alignSelf="center"
+              onPress={() => {
+                refetch().catch(reportError);
+              }}
+            >
+              <Button.Text>{t("Try again")}</Button.Text>
+            </Button>
+          </YStack>
+        ) : (
+          <BoxSelect size={Math.min(width, height) * 0.5} color="white" />
+        )}
       </View>
       <Button
         primary
