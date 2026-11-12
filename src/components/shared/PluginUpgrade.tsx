@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { toast } from "@tamagui/toast";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { readContract, waitForCallsStatus } from "@wagmi/core/actions";
 import {
   decodeErrorResult,
@@ -37,6 +37,7 @@ import {
 import InfoAlert from "./InfoAlert";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
+import useSingleMutation from "../../utils/useSingleMutation";
 import exa from "../../utils/wagmi/exa";
 
 import type { Credential } from "@exactly/common/validation";
@@ -58,7 +59,7 @@ export default function PluginUpgrade() {
   const { data: pluginManifest } = useReadExaPluginPluginManifest({ address: exaPluginAddress, chainId: chain.id });
   const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
   const isReady = !!bytecode && !!installedPlugins?.[0] && !!pluginManifest && !isLatestPlugin;
-  const { mutate: updatePlugin, isPending: isUpdating } = useMutation({
+  const { mutate: updatePlugin, isPending: isUpdating } = useSingleMutation({
     mutationFn: async () => {
       if (!address) throw new Error("no account address");
       if (!installedPlugins?.[0]) throw new Error("no installed plugin");

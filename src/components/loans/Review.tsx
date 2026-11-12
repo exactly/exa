@@ -5,7 +5,7 @@ import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { ScrollView, Separator, Square, XStack, YStack } from "tamagui";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { waitForCallsStatus } from "@wagmi/core/actions";
 import { parse } from "valibot";
 import { encodeAbiParameters, encodeFunctionData, maxUint256, type Address, type Hex } from "viem";
@@ -37,6 +37,7 @@ import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useInsets from "../../utils/useInsets";
 import useInstallments from "../../utils/useInstallments";
+import useSingleMutation from "../../utils/useSingleMutation";
 import exa from "../../utils/wagmi/exa";
 import AssetLogo from "../shared/AssetLogo";
 import GradientScrollView from "../shared/GradientScrollView";
@@ -108,7 +109,7 @@ export default function Review() {
     isSuccess: isProposingBorrowInstallmentsSuccess,
     error: proposeBorrowInstallmentsError,
     reset: resetProposal,
-  } = useMutation({
+  } = useSingleMutation({
     async mutationFn() {
       if (!address) throw new Error("no account");
       if (!market) throw new Error("no market");

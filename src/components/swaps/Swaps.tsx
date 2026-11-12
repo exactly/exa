@@ -7,7 +7,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { toast } from "@tamagui/toast";
 import { ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
 
-import { useMutation, useQueries, useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { useQueries, useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { readContract } from "@wagmi/core/actions";
 import { parse, safeParse } from "valibot";
 import {
@@ -86,6 +86,7 @@ import useMarkets from "../../utils/useMarkets";
 import usePortfolio from "../../utils/usePortfolio";
 import useSend from "../../utils/useSend";
 import useSimulateProposal from "../../utils/useSimulateProposal";
+import useSingleMutation from "../../utils/useSingleMutation";
 import exaConfig from "../../utils/wagmi/exa";
 import Checkbox from "../shared/Checkbox";
 import IconButton from "../shared/IconButton";
@@ -721,7 +722,7 @@ export default function Swaps() {
     isSuccess: isSwapSuccess,
     error: writeContractError,
     reset: resetSwap,
-  } = useMutation({
+  } = useSingleMutation({
     mutationFn() {
       if (!route) throw new Error("no route");
       const calls = (() => {

@@ -7,7 +7,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { toast } from "@tamagui/toast";
 import { ScrollView, Spinner, Square, XStack, YStack } from "tamagui";
 
-import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { switchChain } from "@wagmi/core";
 import { is, literal, object } from "valibot";
 import {
@@ -58,6 +58,7 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import usePortfolio from "../../utils/usePortfolio";
+import useSingleMutation from "../../utils/useSingleMutation";
 import exaConfig from "../../utils/wagmi/exa";
 import ownerConfig from "../../utils/wagmi/owner";
 import AssetLogo from "../shared/AssetLogo";
@@ -497,7 +498,7 @@ export default function Bridge() {
     isSuccess: isBridgeSuccess,
     isError: isBridgeError,
     reset: resetBridgeMutation,
-  } = useMutation<unknown, unknown, RouteFrom>({
+  } = useSingleMutation<unknown, unknown, RouteFrom>({
     retry: false,
     mutationKey: ["bridge", "execute"],
     onMutate: (route) => {
@@ -600,7 +601,7 @@ export default function Bridge() {
     isSuccess: isTransferSuccess,
     isError: isTransferError,
     reset: resetTransferMutation,
-  } = useMutation<unknown, unknown>({
+  } = useSingleMutation<unknown, unknown>({
     retry: false,
     mutationKey: ["bridge", "transfer"],
     onMutate: () => {

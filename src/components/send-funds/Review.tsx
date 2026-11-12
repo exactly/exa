@@ -7,7 +7,7 @@ import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { toast } from "@tamagui/toast";
 import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { waitForCallsStatus } from "@wagmi/core/actions";
 import { safeParse } from "valibot";
 import { encodeFunctionData, formatUnits } from "viem";
@@ -33,6 +33,7 @@ import reportError from "../../utils/reportError";
 import { APIError, getRampQuote, listExternalAccounts } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import useSimulateProposal from "../../utils/useSimulateProposal";
+import useSingleMutation from "../../utils/useSingleMutation";
 import exa from "../../utils/wagmi/exa";
 import AssetLogo from "../shared/AssetLogo";
 import IconButton from "../shared/IconButton";
@@ -102,7 +103,7 @@ export default function Review() {
   });
 
   const { mutateAsync: mutateSendCalls } = useSendCalls();
-  const transfer = useMutation({
+  const transfer = useSingleMutation({
     mutationFn: async () => {
       if (!proposeSimulation) throw new Error("propose not ready");
       const { address: to, abi, functionName, args } = proposeSimulation;

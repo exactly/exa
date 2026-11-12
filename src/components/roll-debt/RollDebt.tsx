@@ -6,7 +6,6 @@ import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { toast } from "@tamagui/toast";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
-import { useMutation } from "@tanstack/react-query";
 import { waitForCallsStatus } from "@wagmi/core/actions";
 import { digits, nonEmpty, pipe, safeParse, string, transform } from "valibot";
 import { encodeDeployData, encodeFunctionData } from "viem";
@@ -35,6 +34,7 @@ import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useInsets from "../../utils/useInsets";
 import useSimulateProposal from "../../utils/useSimulateProposal";
+import useSingleMutation from "../../utils/useSingleMutation";
 import exa from "../../utils/wagmi/exa";
 import Skeleton from "../shared/Skeleton";
 import ExaSpinner from "../shared/Spinner";
@@ -280,7 +280,7 @@ function RolloverButton({
     isPending: isProposeRollDebtPending,
     isError,
     reset: resetProposeRollDebt,
-  } = useMutation({
+  } = useSingleMutation({
     async mutationFn() {
       if (!address) throw new Error("no address");
       if (!proposeSimulation) throw new Error("no propose roll debt simulation");

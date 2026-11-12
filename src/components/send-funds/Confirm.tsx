@@ -10,7 +10,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { AnimatePresence, ScrollView, Separator, Square, XStack, YStack } from "tamagui";
 
 import { ChainType } from "@lifi/sdk";
-import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { readContract } from "@wagmi/core/actions";
 import { parse, safeParse } from "valibot";
 import {
@@ -64,6 +64,7 @@ import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useSend from "../../utils/useSend";
 import useSimulateProposal from "../../utils/useSimulateProposal";
+import useSingleMutation from "../../utils/useSingleMutation";
 import exa from "../../utils/wagmi/exa";
 import AnimatedView from "../shared/AnimatedView";
 import AssetLogo from "../shared/AssetLogo";
@@ -501,7 +502,7 @@ export default function Confirm() {
     isError: sendError,
     submittedAt,
     reset,
-  } = useMutation({
+  } = useSingleMutation({
     onMutate() {
       setEnableSimulations(false);
     },

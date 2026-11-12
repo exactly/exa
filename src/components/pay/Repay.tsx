@@ -5,7 +5,7 @@ import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
-import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { waitForCallsStatus } from "@wagmi/core/actions";
 import { digits, nonEmpty, parse, pipe, safeParse, string, transform } from "valibot";
 import { ContractFunctionExecutionError, ContractFunctionRevertedError, encodeFunctionData, erc20Abi } from "viem";
@@ -41,6 +41,7 @@ import useAsset from "../../utils/useAsset";
 import useInsets from "../../utils/useInsets";
 import usePortfolio from "../../utils/usePortfolio";
 import useSimulateProposal from "../../utils/useSimulateProposal";
+import useSingleMutation from "../../utils/useSingleMutation";
 import exa from "../../utils/wagmi/exa";
 import AssetLogo from "../shared/AssetLogo";
 import Failure from "../shared/Failure";
@@ -292,7 +293,7 @@ export default function Repay() {
     isSuccess: isRepaySuccess,
     error: writeContractError,
     reset: resetRepay,
-  } = useMutation({
+  } = useSingleMutation({
     async mutationFn() {
       if (!repayMarket) throw new Error("no repay market");
       const amount = withUSDC ? repayAssets : route?.fromAmount;
@@ -353,7 +354,7 @@ export default function Repay() {
     isSuccess: isExternalRepaySuccess,
     error: externalRepayError,
     reset: resetExternalRepay,
-  } = useMutation({
+  } = useSingleMutation({
     async mutationFn() {
       if (!account) throw new Error("no account");
       if (!maturity) throw new Error("no maturity");
