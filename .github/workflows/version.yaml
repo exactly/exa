@@ -51,9 +51,3 @@ jobs:
           if [ "$status" = ahead ]; then gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/heads/beta" -f sha="$GITHUB_SHA"; fi
         name: beta
         env: { GH_TOKEN: "${{ steps.github.outputs.token }}" }
-      - run: |
-          status=$(gh api "repos/$GITHUB_REPOSITORY/compare/base...$GITHUB_SHA" --jq .status)
-          if [ "$status" = ahead ]; then gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/heads/base" -f sha="$GITHUB_SHA"; fi
-        name: base
-        if: steps.changesets.outputs.published == 'true' && contains(fromJSON(steps.changesets.outputs.publishedPackages).*.name, '@exactly/server')
-        env: { GH_TOKEN: "${{ steps.github.outputs.token }}" }

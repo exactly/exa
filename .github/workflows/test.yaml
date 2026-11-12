@@ -6,7 +6,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   test:
-    if: (github.ref_name != 'beta' && github.ref_name != 'base') || github.event.head_commit.distinct
+    if: github.ref_name != 'beta' || github.event.head_commit.distinct
     permissions: { contents: read, pull-requests: read }
     environment: test
     runs-on: ubuntu-latest
@@ -140,7 +140,7 @@ jobs:
           include-hidden-files: true
 
   e2e:
-    if: (github.ref_name != 'beta' && github.ref_name != 'base') || github.event.head_commit.distinct
+    if: github.ref_name != 'beta' || github.event.head_commit.distinct
     permissions: { actions: read, contents: read, pull-requests: read }
     environment: test
     runs-on: ubuntu-latest

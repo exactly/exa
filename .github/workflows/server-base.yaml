@@ -1,6 +1,6 @@
 name: server/base
 on:
-  push: { branches: [base] }
+  push: { tags: ["@exactly/server@*"] }
 jobs:
   build:
     uses: ./.github/workflows/server-build.yaml
