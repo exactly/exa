@@ -339,9 +339,18 @@ export class APIError extends Error {
   constructor(method: string, response: { status: number; url: string }, text: string) {
     super(`${response.status} ${text}`);
     this.code = response.status;
-    this.endpoint = `${method} ${response.url.replaceAll(/^[a-z]+:\/\/[^/]+|[?#].*$/gi, "").replaceAll(/\/[^/]*\d[^/]*/g, "/:id")}`;
+    this.endpoint = endpoint(method, response.url);
     this.text = text;
     this.name = "APIError";
+  }
+}
+
+export class NetworkError extends Error {
+  endpoint: string;
+  constructor(method: string, url: string, cause: unknown) {
+    super(cause instanceof Error ? cause.message : String(cause), { cause });
+    this.endpoint = endpoint(method, url);
+    this.name = "NetworkError";
   }
 }
 
@@ -354,4 +363,8 @@ declare module "@tanstack/react-query" {
       warnError?: (error: unknown) => boolean | undefined;
     };
   }
+}
+
+function endpoint(method: string, url: string) {
+  return `${method} ${url.replaceAll(/^[a-z]+:\/\/[^/]+|[?#].*$/gi, "").replaceAll(/\/[^/]*\d[^/]*/g, "/:id")}`;
 }

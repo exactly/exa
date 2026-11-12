@@ -1,5 +1,5 @@
 import { captureException, withScope } from "@sentry/react-native";
-import { BaseError, ContractFunctionRevertedError } from "viem";
+import { BaseError, ContractFunctionRevertedError, HttpRequestError, RpcRequestError, TimeoutError } from "viem";
 
 import revertReason from "@exactly/common/revertReason";
 import rpcFingerprint from "@exactly/common/rpcFingerprint";
@@ -29,6 +29,17 @@ export default function reportError(error: unknown, hint?: Parameters<typeof cap
       else if (info) scope.setLevel("info");
       if (value !== undefined) scope.setFingerprint(value);
       else if (warning || info) scope.setFingerprint(["{{ default }}", title ?? "unknown"]);
+      const { endpoint } = parsed;
+      if (endpoint !== undefined) {
+        scope.setTag("endpoint", endpoint);
+        if (parsed.name === "APIError") {
+          scope.addEventProcessor((event) => {
+            const current = event.exception?.values?.[0];
+            if (current) current.value = `${current.value?.trim()} (${endpoint})`;
+            return event;
+          });
+        }
+      }
       if ((warning || info) && title) {
         scope.addEventProcessor((event) => {
           const current = event.exception?.values?.[0];
@@ -81,21 +92,22 @@ function parseError(error: unknown) {
       ? root.code
       : undefined;
   let status: string | undefined;
+  let route: string | undefined;
   for (
     let cause: unknown = error;
-    cause != null && typeof cause === "object";
+    cause != null && typeof cause === "object" && (status === undefined || route === undefined);
     cause = (cause as { cause?: unknown }).cause
   ) {
-    if ("code" in cause && typeof cause.code === "number" && Number.isFinite(cause.code)) {
+    if (status === undefined && "code" in cause && typeof cause.code === "number" && Number.isFinite(cause.code)) {
       status = String(cause.code);
-      break;
     }
+    if (route === undefined && "endpoint" in cause && typeof cause.endpoint === "string") route = cause.endpoint;
   }
   const name =
     typeof root === "object" && root !== null && "name" in root && typeof root.name === "string" && root.name.length > 0
       ? root.name
       : undefined;
-  const message =
+  const raw =
     root instanceof Error
       ? normalizeMessage(root.message)
       : typeof root === "string"
@@ -107,16 +119,28 @@ function parseError(error: unknown) {
             root.message.length > 0
           ? normalizeMessage(root.message)
           : undefined;
+  const fetchFailure = raw?.match(
+    /^(Failed to fetch|Load failed|NetworkError when attempting to fetch resource\.) \(([^)]+)\)$/,
+  );
+  const message = fetchFailure?.[1] ?? raw;
   const rpc = rpcFingerprint(error);
   const revert =
     rpc === undefined &&
     error instanceof BaseError &&
     error.walk((r) => r instanceof ContractFunctionRevertedError) !== null;
   const reason = revertReason(error, { fallback: "unknown" });
+  const request =
+    error instanceof BaseError
+      ? error.walk(
+          (cause) =>
+            cause instanceof HttpRequestError || cause instanceof RpcRequestError || cause instanceof TimeoutError,
+        )
+      : null;
   const endpoint =
-    typeof root === "object" && root !== null && "endpoint" in root && typeof root.endpoint === "string"
-      ? root.endpoint
-      : undefined;
+    route ??
+    (request instanceof HttpRequestError || request instanceof RpcRequestError || request instanceof TimeoutError
+      ? `${/"method":"([^"]+)"/.exec(request.metaMessages?.join(" ") ?? "")?.[1] ?? "rpc"} ${/^[a-z]+:\/\/([^/?#]+)/i.exec(request.url)?.[1] ?? "unknown"}`
+      : fetchFailure?.[2]);
   return { code, endpoint, message, name, reason, revert, rpc, status };
 }
 
@@ -149,11 +173,10 @@ function classify({ code, endpoint, message, name, reason, revert, rpc, status }
   const known = knownWarning || knownInfo;
   const value =
     (name === "APIError" && status !== undefined
-      ? message === undefined || message.endsWith("[object Object]")
-        ? [status]
-        : status === "555" && endpoint
-          ? [status, message, endpoint]
-          : [status, message]
+      ? [
+          ...(message === undefined || message.endsWith("[object Object]") ? [status] : [status, message]),
+          ...(endpoint === undefined ? [] : [endpoint]),
+        ]
       : undefined) ??
     (revert ? [reason] : undefined) ??
     (authKnown ? [code ?? message ?? "unknown"] : undefined) ??

@@ -13,7 +13,7 @@ import { Credential } from "@exactly/common/validation";
 
 import { login as loginIntercom } from "./intercom";
 import { decrypt, decryptPIN, encryptPIN, session } from "./panda";
-import queryClient, { APIError, isServer, type AuthMethod } from "./queryClient";
+import queryClient, { APIError, isServer, NetworkError, type AuthMethod } from "./queryClient";
 import reportError, { classifyError } from "./reportError";
 import { isBusiness } from "./useIsBusiness";
 import ownerConfig from "./wagmi/owner";
@@ -83,9 +83,12 @@ const api = hc<ExaAPI>(new URL(origin).hostname === "localhost" ? "http://localh
       const { client } = await sdk.context;
       headers.set("Client-Fid", String(client.clientFid));
     }
-    const response = await fetch(input, { ...init, headers });
+    const method = init?.method ?? "GET";
+    const response = await fetch(input, { ...init, headers }).catch((error: unknown) => {
+      throw new NetworkError(method, input instanceof Request ? input.url : String(input), error);
+    });
     if (!response.ok && !response.headers.get("content-type")?.startsWith("application/json")) {
-      throw new APIError(init?.method ?? "GET", response, response.statusText);
+      throw new APIError(method, response, response.statusText);
     }
     return response;
   },
