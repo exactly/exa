@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "lib": [],
+    "lib": ["ES2021.String"],
     "target": "ESNext",
     "module": "ESNext",
     "moduleDetection": "force",
