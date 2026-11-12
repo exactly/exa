@@ -396,7 +396,8 @@ describe("bridge hook", () => {
       json: payload as never,
     });
 
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "credential not found" });
     expect(searchAccounts).not.toHaveBeenCalled();
     expect(captureEvent).not.toHaveBeenCalled();
     const consumer = await database.query.credentials.findFirst({
@@ -426,7 +427,7 @@ describe("bridge hook", () => {
     );
   });
 
-  it("returns 500 when fallback credential already paired", async () => {
+  it("returns credential not found when fallback credential already paired", async () => {
     vi.spyOn(
       Reflect.getPrototypeOf(database.query.credentials) as typeof database.query.credentials,
       "findFirst",
@@ -447,9 +448,13 @@ describe("bridge hook", () => {
       json: payload as never,
     });
 
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "credential not found" });
     expect(captureEvent).not.toHaveBeenCalled();
-    expect(captureException).not.toHaveBeenCalled();
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ message: "credential not found" }),
+      { level: "error", contexts: { details: { bridgeId: "conflict-bridge-id" } } },
+    );
   });
 
   it("returns credential not found when multiple persona accounts found on status_transitioned fallback", async () => {
@@ -505,7 +510,7 @@ describe("bridge hook", () => {
     );
   });
 
-  it("returns 500 when fallback reference-id has no credential", async () => {
+  it("returns credential not found when fallback reference-id has no credential", async () => {
     vi.spyOn(bridge, "getCustomer").mockResolvedValue({
       id: "orphan-bridge-id",
       email: "orphan@example.com",
@@ -524,9 +529,13 @@ describe("bridge hook", () => {
       json: payload as never,
     });
 
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "credential not found" });
     expect(captureEvent).not.toHaveBeenCalled();
-    expect(captureException).not.toHaveBeenCalled();
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ message: "credential not found" }),
+      { level: "error", contexts: { details: { bridgeId: "orphan-bridge-id" } } },
+    );
   });
 
   it("tracks RampAccount and sends notification on status_transitioned to active", async () => {

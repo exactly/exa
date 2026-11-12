@@ -195,7 +195,7 @@ export default function hook({
                 )
                 .returning({ account: credentials.account, source: credentials.source })
                 .then(([updated]) => {
-                  if (!updated) throw new Error("no match found when pairing bridge id");
+                  if (!updated) return;
                   captureEvent({
                     message: "bridge credential paired",
                     level: "warning",
