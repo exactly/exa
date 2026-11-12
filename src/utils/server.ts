@@ -1,4 +1,4 @@
-import { Platform } from "react-native";
+import { AppState, Platform } from "react-native";
 import { get as assert, create } from "react-native-passkeys";
 
 import { sdk } from "@farcaster/miniapp-sdk";
@@ -254,6 +254,19 @@ queryClient.setQueryDefaults(["kyc", "status"], {
     });
   },
 });
+if (Platform.OS !== "web") {
+  AppState.addEventListener("change", (state) => {
+    if (state !== "active" || !safeParse(Auth, queryClient.getQueryData(["auth"])).success) return;
+    queryClient
+      .refetchQueries({
+        queryKey: ["kyc", "status"],
+        exact: true,
+        stale: true,
+        predicate: ({ state: { data } }) => (data as KYCStatus | undefined)?.code === "processing",
+      })
+      .catch(reportError);
+  });
+}
 queryClient.setQueryDefaults(["kyc", "cardLimit"], {
   staleTime: 5 * 60_000,
   gcTime: isServer ? Infinity : 60 * 60_000,
