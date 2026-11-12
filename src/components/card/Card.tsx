@@ -241,7 +241,7 @@ export default function Card() {
   });
 
   const {
-    mutateAsync: generateCard,
+    mutate: generateCard,
     isPending: isGeneratingCard,
     failureCount: generateCardFailures,
     submittedAt: generateSubmittedAt,
@@ -581,7 +581,7 @@ export default function Card() {
           onActionPress={() => {
             setDisclaimerShown(false);
             if (queryClient.isMutating({ mutationKey: ["card", "create"] })) return;
-            generateCard().catch(reportError);
+            generateCard();
           }}
           onClose={() => {
             setDisclaimerShown(false);
