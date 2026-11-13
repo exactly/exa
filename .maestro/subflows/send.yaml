@@ -100,6 +100,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     when: { true: "${!!destination}" }
     commands: [{ runFlow: { file: scrollTo.yaml, env: { element: "~2 min" } } }]
+- runScript: ../dist/block.js
 - runFlow:
     when: { true: "${maestro.platform != 'web'}" }
     commands: [{ longPressOn: "Hold to send ${asset}" }]
@@ -120,7 +121,7 @@ appId: ${APP_ID ?? "app.exactly"}
     commands:
       - runScript:
           file: ../dist/bridge.js
-          env: { destination: "${destination}", to: "${to}", amount: "${amount}" }
+          env: { destination: "${destination}", after: "${output.block}", to: "${to}", amount: "${amount}" }
       - assertVisible: Funds delivered on ${destination}
 - runFlow: { file: tapAria.yaml, env: { aria: Close } }
 - tapOn: Home
