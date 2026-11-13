@@ -60,7 +60,7 @@ import type * as schema from "../database/schema";
 import type { Auth } from "../middleware/auth";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
-const ActivityTypes = picklist(["card", "received", "repay", "sent", "loan", "rollover", "swap"]);
+const ActivityTypes = picklist(["card", "received", "repay", "sent", "loan", "rollover", "swap", "liquidation"]);
 const legacyTypes = new Set<InferInput<typeof ActivityTypes>>(["card", "received", "repay", "sent"]);
 
 const fromToken = alias(indexer.tokens, "from_token");
@@ -235,7 +235,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
             )
             .where(and(eq(indexer.swaps.chainId, chain.id), eq(indexer.swaps.account, owner)));
 
-      const [deposits, repays, withdraws, borrows, loans, rollovers, swapped] = await Promise.all([
+      const [deposits, repays, withdraws, borrows, loans, rollovers, swapped, liquidated] = await Promise.all([
         ignore("received")
           ? []
           : Promise.all([
@@ -363,6 +363,28 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
         ignore("swap")
           ? []
           : swapPromise.then((rows) => rows.map(({ swap, from, to }) => parse(SwapActivity, { ...swap, from, to }))),
+        ignore("liquidation")
+          ? []
+          : database
+              .select()
+              .from(indexer.liquidations)
+              .where(
+                and(
+                  eq(indexer.liquidations.chainId, chain.id),
+                  eq(indexer.liquidations.account, owner),
+                  inArray(indexer.liquidations.market, [...markets.keys()]),
+                  inArray(indexer.liquidations.seizeMarket, [...markets.keys()]),
+                ),
+              )
+              .then((rows) =>
+                rows.map((row) =>
+                  parse(LiquidationActivity, {
+                    ...row,
+                    market: market(row.market, row.usdPrice),
+                    seizeMarket: market(row.seizeMarket, row.seizeUsdPrice),
+                  }),
+                ),
+              ),
       ]);
       const purchases =
         !ignore("card") && borrows && maturity !== undefined
@@ -526,6 +548,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
         ...loans,
         ...rollovers,
         ...swapped,
+        ...liquidated,
       ]
         .filter(<T>(value: T | undefined): value is T => value !== undefined)
         .toSorted((a, b) => b.timestamp.localeCompare(a.timestamp) || collator.compare(b.id, a.id));
@@ -972,6 +995,18 @@ export const RolloverActivity = pipe(
   }),
 );
 
+export const LiquidationActivity = pipe(
+  object({ ...OnchainActivity.entries, seizeMarket: OnchainActivity.entries.market, seizedAssets: bigint() }),
+  transform(({ seizeMarket, seizedAssets, ...activity }) => {
+    const { currency, amount, usdAmount } = transformActivity({
+      ...activity,
+      assets: seizedAssets,
+      market: seizeMarket,
+    });
+    return { ...transformActivity(activity), seize: { currency, amount, usdAmount }, type: "liquidation" as const };
+  }),
+);
+
 const Token = object({ symbol: string(), decimals: number() });
 
 export const SwapActivity = pipe(
@@ -1021,6 +1056,7 @@ export type CreditActivity = InferOutput<typeof CreditActivity>;
 export type DebitActivity = InferOutput<typeof DebitActivity>;
 export type DepositActivity = InferOutput<typeof DepositActivity>;
 export type InstallmentsActivity = InferOutput<typeof InstallmentsActivity>;
+export type LiquidationActivity = InferOutput<typeof LiquidationActivity>;
 export type LoanActivity = InferOutput<typeof LoanActivity>;
 export type OnchainActivity = InferOutput<typeof OnchainActivity>;
 export type PandaActivity = InferOutput<typeof PandaActivity>;

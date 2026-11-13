@@ -951,6 +951,58 @@ describe.concurrent("authenticated", () => {
       expect(json.some(({ type }) => type === "loan")).toBe(false);
     });
 
+    it("returns liquidations", async () => {
+      const liquidated = deriveAddress(exaAccountFactoryAddress, {
+        x: padHex(privateKeyToAddress(padHex("0x11a"))),
+        y: zeroHash,
+      });
+      await database.insert(credentials).values({
+        id: "liquidated",
+        publicKey: new Uint8Array(),
+        account: liquidated,
+        factory: exaAccountFactoryAddress,
+      });
+      const logs = await anvilClient.getContractEvents({
+        abi: marketAbi,
+        eventName: "Liquidate",
+        args: { borrower: liquidated },
+        fromBlock: 0n,
+        strict: true,
+      });
+      expect(logs.length).toBeGreaterThanOrEqual(1);
+      const expected = await Promise.all(
+        logs.map(async ({ address, args, blockNumber, logIndex, transactionHash, transactionIndex }) => {
+          const [{ timestamp }, repaid, seized] = await Promise.all([
+            anvilClient.getBlock({ blockNumber }),
+            marketMetadata(address, blockNumber),
+            marketMetadata(args.seizeMarket, blockNumber),
+          ]);
+          return {
+            id: `${chain.id}:${blockNumber}:${transactionIndex}:${logIndex}`,
+            type: "liquidation",
+            currency: repaid.symbol,
+            amount: Number(args.assets) / 10 ** repaid.decimals,
+            usdAmount: Number((args.assets * repaid.usdPrice) / WAD) / 10 ** repaid.decimals,
+            seize: {
+              currency: seized.symbol,
+              amount: Number(args.seizedAssets) / 10 ** seized.decimals,
+              usdAmount: Number((args.seizedAssets * seized.usdPrice) / WAD) / 10 ** seized.decimals,
+            },
+            transactionHash,
+            timestamp: new Date(Number(timestamp) * 1000).toISOString(),
+          };
+        }),
+      );
+
+      const response = await appClient.index.$get(
+        { query: { include: "liquidation" } },
+        { headers: { "test-credential-id": "liquidated" } },
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual(expected.toReversed());
+    });
+
     it("returns swaps", async () => {
       const logs = await anvilClient
         .getContractEvents({
@@ -1632,4 +1684,25 @@ async function assetPrice(asset: Hex, blockNumber: bigint) {
     args: [priceFeed],
     blockNumber,
   });
+}
+
+async function marketMetadata(market: Hex, blockNumber: bigint) {
+  const [symbol, decimals, priceFeed] = await Promise.all([
+    anvilClient.readContract({ address: market, abi: marketAbi, functionName: "symbol" }),
+    anvilClient.readContract({ address: market, abi: marketAbi, functionName: "decimals" }),
+    anvilClient
+      .readContract({ address: auditorAddress, abi: auditorAbi, functionName: "markets", args: [market] })
+      .then((data) => data[4]),
+  ]);
+  return {
+    symbol: symbol.slice(3),
+    decimals,
+    usdPrice: await anvilClient.readContract({
+      address: auditorAddress,
+      abi: auditorAbi,
+      functionName: "assetPrice",
+      args: [priceFeed],
+      blockNumber,
+    }),
+  };
 }
