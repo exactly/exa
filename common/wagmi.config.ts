@@ -122,6 +122,8 @@ export default defineConfig([
               {
                 auditor: getAddress(loadDeployment("Auditor", true, id).address),
                 exaPreviewer: getAddress(exaPreviewer),
+                previewer: getAddress(loadDeployment("Previewer", true, id).address),
+                ratePreviewer: getAddress(loadDeployment("RatePreviewer", true, id).address),
               },
             ] as const;
           });
@@ -332,7 +334,7 @@ export default defineConfig([
               `export const alchemyChains: ReadonlyMap<number, AlchemyChain> = new Map<number, AlchemyChain>([${alchemyChains
                 .map(({ id, source: s }) => `[${id}, ${id === chainId ? "chain" : s}]`)
                 .join(", ")}])`,
-              `export const chains: ReadonlyMap<number, AlchemyChain & Readonly<Record<"auditor" | "exaPreviewer" | "swapper", \`0x\${string}\`>>> = ${chainMap(chainContracts)}`,
+              `export const chains: ReadonlyMap<number, AlchemyChain & Readonly<Record<"auditor" | "exaPreviewer" | "previewer" | "ratePreviewer" | "swapper", \`0x\${string}\`>>> = ${chainMap(chainContracts)}`,
               `export const factoryChains: ReadonlyMap<number, AlchemyChain & Readonly<{ startBlock: number; swapper: \`0x\${string}\` }>> = ${chainMap(factoryChains.map(({ id, startBlock }) => [id, { startBlock }] as const))}`,
               `export const isBase: boolean = ${chainId === base.id || chainId === baseSepolia.id}`,
               `export const lifiURL: string | undefined = ${JSON.stringify({ [anvil.id]: "http://localhost:3000/e2e/lifi/v1", [base.id]: "https://li.quest/v1", [optimism.id]: "https://li.quest/v1" }[chainId])}`,
