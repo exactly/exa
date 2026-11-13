@@ -3,7 +3,7 @@ import { argv, env } from "node:process";
 import { setTimeout } from "node:timers/promises";
 import pg from "pg";
 
-const dropped = new Set<string>();
+const dropped = new Set<string>(["markets.usd_price"]);
 
 const [schema] = argv.slice(2);
 if (!schema) throw new Error("usage: node promote.ts <schema>");
