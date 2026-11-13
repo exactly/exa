@@ -7,6 +7,7 @@ const Statement = ({
   cards,
   maturity,
   payments,
+  timeZone,
 }: {
   account: string;
   cards: {
@@ -21,6 +22,7 @@ const Statement = ({
   }[];
   maturity: number;
   payments: { amount: number; id: string; positionAmount: number; timestamp: string }[];
+  timeZone?: string;
 }) => {
   const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
@@ -32,8 +34,9 @@ const Statement = ({
   );
   const totalPayments = payments.reduce((sum, p) => sum + p.positionAmount, 0);
   const dueBalance = totalSpent - totalPayments;
-  const periodStart = format((maturity - MATURITY_INTERVAL) * 1000);
-  const periodEnd = format(maturity * 1000);
+  const periodStart = format((maturity - MATURITY_INTERVAL) * 1000, timeZone);
+  const periodEnd = format(maturity * 1000, timeZone);
+  const dueDate = format(maturity * 1000);
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -89,7 +92,7 @@ const Statement = ({
           </View>
           <View style={styles.infoCellBorder}>
             <Text style={styles.infoLabel}>Due date</Text>
-            <Text style={styles.infoValue}>{periodEnd}</Text>
+            <Text style={styles.infoValue}>{dueDate}</Text>
           </View>
           <View style={styles.infoCellBorder}>
             <Text style={styles.infoLabel}>Total spent</Text>
@@ -139,7 +142,7 @@ const Statement = ({
               </View>
               {card.purchases.map((purchase) => (
                 <View key={purchase.id} style={styles.tableRow}>
-                  <Text style={styles.colDate}>{format(purchase.timestamp)}</Text>
+                  <Text style={styles.colDate}>{format(purchase.timestamp, timeZone)}</Text>
                   <Text style={styles.colDesc}>{purchase.description}</Text>
                   <Text style={styles.colInst}>
                     {purchase.installments
@@ -175,7 +178,7 @@ const Statement = ({
                   : ((payment.positionAmount - payment.amount) / payment.positionAmount) * 100;
               return (
                 <View key={payment.id} style={styles.tableRow}>
-                  <Text style={styles.colDate}>{format(payment.timestamp)}</Text>
+                  <Text style={styles.colDate}>{format(payment.timestamp, timeZone)}</Text>
                   <View style={styles.colDescRow}>
                     <Text style={styles.descText}>Payment</Text>
                     {percent >= 0.01 && (
@@ -211,9 +214,9 @@ const Statement = ({
 
 export default Statement;
 
-export function format(value: number | string) {
+export function format(value: number | string, timeZone = "UTC") {
   return new Date(value).toLocaleDateString("en-US", {
-    timeZone: "UTC",
+    timeZone,
     month: "short",
     day: "2-digit",
     year: "numeric",
