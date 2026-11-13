@@ -415,7 +415,10 @@ queryClient.setQueryDefaults(["activity", "card"], {
 });
 
 export async function getStatement(maturity: number) {
-  return getActivity({ maturity: String(maturity) }, "application/pdf");
+  return getActivity(
+    { maturity: String(maturity), timezone: new Intl.DateTimeFormat().resolvedOptions().timeZone },
+    "application/pdf",
+  );
 }
 
 export async function getStatementActivity(maturity: number) {
