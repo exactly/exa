@@ -69,7 +69,8 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     when: { true: "${!pay}" }
     commands:
-      - inputText: "9999"
+      - inputText: "009999"
+      - assertVisible: "9999"
       - assertVisible: Insufficient balance. Try a different amount.
       - eraseText: 4
 - inputText: ${amount}
