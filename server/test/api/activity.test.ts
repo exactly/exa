@@ -977,6 +977,35 @@ describe.concurrent("authenticated", () => {
       expect(json.filter(({ type }) => type === "repay")).toHaveLength(4);
     });
 
+    it("keeps rollover repays on statements", async () => {
+      const repay = await anvilClient
+        .getContractEvents({
+          abi: marketAbi,
+          eventName: "RepayAtMaturity",
+          address: marketUSDCAddress,
+          args: { borrower: account },
+          toBlock: "latest",
+          fromBlock: 0n,
+          strict: true,
+        })
+        .then((logs) => logs.find(({ args }) => args.caller === debtManagerAddress));
+      assert.ok(repay, "expected a rollover repay");
+
+      const response = await appClient.index.$get(
+        { query: { maturity: String(repay.args.maturity) } },
+        { headers: { "test-credential-id": "bob" } },
+      );
+
+      expect(response.status).toBe(200);
+      const json = (await response.json()) as { id: string; type: string }[];
+      expect(json).toContainEqual(
+        expect.objectContaining({
+          id: `${chain.id}:${repay.blockNumber}:${repay.transactionIndex}:${repay.logIndex}`,
+          type: "repay",
+        }),
+      );
+    });
+
     it("leaves loans out by default", async () => {
       const response = await appClient.index.$get({}, { headers: { "test-credential-id": "bob" } });
 
