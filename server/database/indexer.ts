@@ -161,6 +161,20 @@ export const swaps = indexer
   })
   .existing();
 
+export const bridges = indexer
+  .view("bridges", {
+    ...log(),
+    account: text("account").$type<Hex>(),
+    transactionId: text("transaction_id").$type<Hex>().notNull(),
+    bridge: text("bridge").notNull(),
+    asset: text("asset").$type<Hex>().notNull(),
+    amount: numeric("amount", { mode: "bigint" }).notNull(),
+    receiver: text("receiver").$type<Hex>().notNull(),
+    destinationChainId: numeric("destination_chain_id", { mode: "bigint" }).notNull(),
+    usdPrice: numeric("usd_price", { mode: "bigint" }),
+  })
+  .existing();
+
 function log() {
   return {
     id: text("id").notNull(),

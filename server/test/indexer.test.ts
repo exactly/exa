@@ -1,6 +1,16 @@
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import assert from "node:assert";
-import { createPublicClient, erc20Abi, http, padHex, zeroHash, type Hex } from "viem";
+import {
+  createPublicClient,
+  erc20Abi,
+  http,
+  keccak256,
+  padHex,
+  toHex,
+  zeroHash,
+  type Hex,
+  type PublicClient,
+} from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { anvil } from "viem/chains";
 import { describe, expect, it, vi } from "vitest";
@@ -23,7 +33,17 @@ import {
 import { chains } from "./anvil";
 import anvilClient from "./anvilClient";
 import database from "../database";
-import { accounts, collectors, delays, exaPlugins, markets, plugins, swaps, tokens } from "../database/indexer";
+import {
+  accounts,
+  bridges,
+  collectors,
+  delays,
+  exaPlugins,
+  markets,
+  plugins,
+  swaps,
+  tokens,
+} from "../database/indexer";
 
 const account = deriveAddress(exaAccountFactoryAddress, {
   x: padHex(privateKeyToAddress(padHex("0xb0b"))),
@@ -255,19 +275,100 @@ describe("indexer", () => {
       ).then((rows) => rows.toSorted((a, b) => a.symbol.localeCompare(b.symbol))),
     );
   });
+
+  it("indexes exa app bridges sent by exa accounts", async () => {
+    const [started] = await anvilClient.getContractEvents({
+      address: swapperAddress,
+      abi: mockSwapperAbi,
+      eventName: "LiFiTransferStarted",
+      fromBlock: 0n,
+      strict: true,
+    });
+    assert.ok(started, "expected a LiFiTransferStarted event");
+    const { timestamp } = await anvilClient.getBlock({ blockNumber: started.blockNumber });
+
+    await expect(
+      database
+        .select()
+        .from(bridges)
+        .where(and(eq(bridges.chainId, anvil.id), eq(bridges.account, account.toLowerCase() as Hex))),
+    ).resolves.toStrictEqual([
+      {
+        id: expect.any(String), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+        chainId: anvil.id,
+        hash: started.transactionHash,
+        block: started.blockNumber,
+        timestamp,
+        transactionIndex: started.transactionIndex,
+        logIndex: started.logIndex,
+        account: account.toLowerCase(),
+        transactionId: keccak256(toHex("bob")),
+        bridge: "mock",
+        asset: started.args.bridgeData.sendingAssetId.toLowerCase(),
+        amount: 30n * 10n ** 18n,
+        receiver: privateKeyToAddress(padHex("0xb0b")).toLowerCase(),
+        destinationChainId: 1281n,
+        usdPrice: await assetPrice(started.args.bridgeData.sendingAssetId, started.blockNumber),
+      },
+    ]);
+  });
+  it("indexes exa app bridges received by exa accounts from other networks", async () => {
+    const chain = chains[1];
+    assert.ok(chain, "expected a second chain");
+    const client = createPublicClient({ chain, transport: http() });
+    const [started] = await client
+      .getContractEvents({
+        address: swapperAddress,
+        abi: mockSwapperAbi,
+        eventName: "LiFiTransferStarted",
+        fromBlock: 0n,
+        strict: true,
+      })
+      .then((logs) => logs.filter(({ args }) => args.bridgeData.receiver === account));
+    assert.ok(started, "expected a LiFiTransferStarted event");
+    const { timestamp } = await client.getBlock({ blockNumber: started.blockNumber });
+    const asset = started.args.bridgeData.sendingAssetId;
+
+    await expect(
+      database
+        .select()
+        .from(bridges)
+        .where(
+          and(eq(bridges.destinationChainId, BigInt(anvil.id)), eq(bridges.receiver, account.toLowerCase() as Hex)),
+        ),
+    ).resolves.toStrictEqual([
+      {
+        id: expect.any(String), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+        chainId: chain.id,
+        hash: started.transactionHash,
+        block: started.blockNumber,
+        timestamp,
+        transactionIndex: started.transactionIndex,
+        logIndex: started.logIndex,
+        account: null,
+        transactionId: keccak256(toHex("bob in")),
+        bridge: "mock",
+        asset: asset.toLowerCase(),
+        amount: 25n * 10n ** 6n,
+        receiver: account.toLowerCase(),
+        destinationChainId: BigInt(anvil.id),
+        usdPrice: await assetPrice(asset, started.blockNumber, client),
+      },
+    ]);
+  });
 });
 
-async function assetPrice(asset: Hex, blockNumber: bigint) {
-  const all = await anvilClient.readContract({ address: auditorAddress, abi: auditorAbi, functionName: "allMarkets" });
+async function assetPrice(asset: Hex, blockNumber: bigint, client: PublicClient = anvilClient) {
+  const all = await client.readContract({ address: auditorAddress, abi: auditorAbi, functionName: "allMarkets" });
   const assets = await Promise.all(
-    all.map((address) => anvilClient.readContract({ address, abi: marketAbi, functionName: "asset" })),
+    all.map((address) => client.readContract({ address, abi: marketAbi, functionName: "asset" })),
   );
   const market = all[assets.indexOf(asset)];
   if (!market) return null;
-  const priceFeed = await anvilClient
+  const priceFeed = await client
     .readContract({ address: auditorAddress, abi: auditorAbi, functionName: "markets", args: [market] })
     .then((data) => data[4]);
-  return anvilClient.readContract({
+  return client.readContract({
     address: auditorAddress,
     abi: auditorAbi,
     functionName: "assetPrice",

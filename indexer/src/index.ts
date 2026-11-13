@@ -3,6 +3,7 @@ import { ponder, type Context } from "ponder:registry";
 import {
   accounts,
   borrows,
+  bridges,
   collectors,
   delays,
   deposits,
@@ -16,7 +17,8 @@ import {
   tokens,
   withdraws,
 } from "ponder:schema";
-import { erc20Abi, getAbiItem, toFunctionSelector, zeroAddress, type Hex } from "viem";
+import { erc20Abi, getAbiItem, isAddressEqual, parseEventLogs, toFunctionSelector, zeroAddress, type Hex } from "viem";
+import { entryPoint06Abi, entryPoint06Address } from "viem/account-abstraction";
 
 import exaChain, {
   alchemyChains,
@@ -212,6 +214,62 @@ ponder.on("Swapper:LiFiGenericSwapCompleted", async ({ event, context }) => {
     toUsdPrice,
   });
 });
+
+ponder.on("Swapper:LiFiTransferStarted", async ({ event, context }) => {
+  const { bridgeData } = event.args;
+  if (bridgeData.integrator !== integrator) return;
+  const [account, usd] = await Promise.all([
+    sender(context, event.transaction.hash, event.log, bridgeData.sendingAssetId),
+    assetPrice(context, bridgeData.sendingAssetId),
+    token(context, bridgeData.sendingAssetId),
+  ]);
+  await context.db.insert(bridges).values({
+    ...log(event, context),
+    account,
+    transactionId: bridgeData.transactionId,
+    bridge: bridgeData.bridge,
+    asset: bridgeData.sendingAssetId,
+    amount: bridgeData.minAmount,
+    receiver: bridgeData.receiver,
+    destinationChainId: bridgeData.destinationChainId,
+    usdPrice: usd,
+  });
+});
+
+async function sender(
+  context: Context,
+  hash: Hex,
+  { address, logIndex }: { address: Hex; logIndex: number },
+  asset: Hex,
+) {
+  if (!networks.has(context.chain.id)) return null;
+  const { logs } = await context.client.getTransactionReceipt({ hash });
+  const operations = parseEventLogs({
+    abi: entryPoint06Abi,
+    eventName: "UserOperationEvent",
+    logs: logs.filter((entry) => isAddressEqual(entry.address, entryPoint06Address)),
+  });
+  const operation = operations.find((userOperation) => userOperation.logIndex > logIndex);
+  const floor = Math.max(
+    -1,
+    ...operations.map((userOperation) => userOperation.logIndex).filter((index) => index < logIndex),
+  );
+  const candidates = [
+    ...(operation ? [operation.args.sender] : []),
+    ...parseEventLogs({
+      abi: erc20Abi,
+      eventName: "Transfer",
+      logs: logs.filter((entry) => isAddressEqual(entry.address, asset)),
+      args: { to: address },
+    })
+      .filter((transfer) => transfer.logIndex > floor && transfer.logIndex < logIndex)
+      .map(({ args }) => args.from),
+  ];
+  for (const candidate of candidates) {
+    if (await context.db.find(accounts, { chainId: context.chain.id, address: candidate })) return candidate; // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
+  }
+  return null;
+}
 
 async function usdPrice(context: Context, market: Hex) {
   const found = await context.db.find(markets, { chainId: context.chain.id, address: market }); // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store

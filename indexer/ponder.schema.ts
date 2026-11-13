@@ -174,6 +174,25 @@ export const swaps = onchainTable(
   (table) => ({ account: index().on(table.chainId, table.account) }),
 );
 
+export const bridges = onchainTable(
+  "bridges",
+  (t) => ({
+    ...log(t),
+    account: t.hex(),
+    transactionId: t.hex().notNull(),
+    bridge: t.text().notNull(),
+    asset: t.hex().notNull(),
+    amount: t.bigint().notNull(),
+    receiver: t.hex().notNull(),
+    destinationChainId: t.bigint().notNull(),
+    usdPrice: t.bigint(),
+  }),
+  (table) => ({
+    account: index().on(table.chainId, table.account),
+    receiver: index().on(table.destinationChainId, table.receiver),
+  }),
+);
+
 function log(t: PgColumnsBuilders) {
   return {
     id: t.text().primaryKey(),
