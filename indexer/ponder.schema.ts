@@ -71,6 +71,17 @@ export const markets = onchainTable(
   (table) => ({ pk: primaryKey({ columns: [table.chainId, table.address] }) }),
 );
 
+export const tokens = onchainTable(
+  "tokens",
+  (t) => ({
+    chainId: t.integer().notNull(),
+    address: t.hex().notNull(),
+    symbol: t.text().notNull(),
+    decimals: t.integer().notNull(),
+  }),
+  (table) => ({ pk: primaryKey({ columns: [table.chainId, table.address] }) }),
+);
+
 export const deposits = onchainTable(
   "deposits",
   (t) => ({
@@ -143,6 +154,22 @@ export const proposals = onchainTable(
     amount: t.bigint().notNull(),
     data: t.hex().notNull(),
     unlock: t.bigint().notNull(),
+  }),
+  (table) => ({ account: index().on(table.chainId, table.account) }),
+);
+
+export const swaps = onchainTable(
+  "swaps",
+  (t) => ({
+    ...log(t),
+    account: t.hex().notNull(),
+    transactionId: t.hex().notNull(),
+    fromAsset: t.hex().notNull(),
+    toAsset: t.hex().notNull(),
+    fromAmount: t.bigint().notNull(),
+    toAmount: t.bigint().notNull(),
+    fromUsdPrice: t.bigint(),
+    toUsdPrice: t.bigint(),
   }),
   (table) => ({ account: index().on(table.chainId, table.account) }),
 );

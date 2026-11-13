@@ -1,3 +1,4 @@
+import { and, eq } from "ponder";
 import { ponder, type Context } from "ponder:registry";
 import {
   accounts,
@@ -11,13 +12,23 @@ import {
   proposalManagers,
   proposals,
   repays,
+  swaps,
+  tokens,
   withdraws,
 } from "ponder:schema";
-import { getAbiItem, toFunctionSelector, type Hex } from "viem";
+import { erc20Abi, getAbiItem, toFunctionSelector, zeroAddress, type Hex } from "viem";
 
-import { auditorAbi, exaPluginAbi, marketAbi, networks } from "@exactly/common/generated/chain";
+import exaChain, {
+  alchemyChains,
+  auditorAbi,
+  exaPluginAbi,
+  marketAbi,
+  networks,
+} from "@exactly/common/generated/chain";
 
 const executeProposal = toFunctionSelector(getAbiItem({ abi: exaPluginAbi, name: "executeProposal" }));
+const integrator = "exa_app";
+const native = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 
 ponder.on("ExaAccountFactory:ExaAccountInitialized", async ({ event, context }) => {
   await context.db.insert(accounts).values({
@@ -180,6 +191,28 @@ ponder.on("ProposalManager:Proposed", async ({ event, context }) => {
   });
 });
 
+ponder.on("Swapper:LiFiGenericSwapCompleted", async ({ event, context }) => {
+  if (event.args.integrator !== integrator) return;
+  if (!(await context.db.find(accounts, { chainId: context.chain.id, address: event.args.receiver }))) return; // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
+  const [fromUsdPrice, toUsdPrice] = await Promise.all([
+    assetPrice(context, event.args.fromAssetId),
+    assetPrice(context, event.args.toAssetId),
+    token(context, event.args.fromAssetId),
+    token(context, event.args.toAssetId),
+  ]);
+  await context.db.insert(swaps).values({
+    ...log(event, context),
+    account: event.args.receiver,
+    transactionId: event.args.transactionId,
+    fromAsset: event.args.fromAssetId,
+    toAsset: event.args.toAssetId,
+    fromAmount: event.args.fromAmount,
+    toAmount: event.args.toAmount,
+    fromUsdPrice,
+    toUsdPrice,
+  });
+});
+
 async function usdPrice(context: Context, market: Hex) {
   const found = await context.db.find(markets, { chainId: context.chain.id, address: market }); // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
   const auditor = networks.get(context.chain.id)?.auditor;
@@ -190,6 +223,34 @@ async function usdPrice(context: Context, market: Hex) {
     functionName: "assetPrice",
     args: [found.priceFeed],
   });
+}
+
+async function assetPrice(context: Context, asset: Hex) {
+  const [market] = await context.db.sql
+    .select({ address: markets.address })
+    .from(markets)
+    .where(and(eq(markets.chainId, context.chain.id), eq(markets.asset, asset.toLowerCase() as Hex)))
+    .limit(1);
+  return market ? usdPrice(context, market.address) : null;
+}
+
+async function token(context: Context, address: Hex) {
+  const key = { chainId: context.chain.id, address };
+  if (await context.db.find(tokens, key)) return; // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
+  if (address === zeroAddress || address.toLowerCase() === native) {
+    const network = context.chain.id === exaChain.id ? exaChain : alchemyChains.get(context.chain.id);
+    if (!network?.nativeCurrency) throw new Error(`unknown chain ${context.chain.id}`);
+    const { symbol, decimals } = network.nativeCurrency;
+    await context.db.insert(tokens).values({ ...key, symbol, decimals });
+    return;
+  }
+  const metadata = await Promise.all([
+    context.client.readContract({ address, abi: erc20Abi, functionName: "symbol" }),
+    context.client.readContract({ address, abi: erc20Abi, functionName: "decimals" }),
+  ]).catch(() => undefined);
+  if (!metadata) return;
+  const [symbol, decimals] = metadata;
+  await context.db.insert(tokens).values({ ...key, symbol, decimals });
 }
 
 function log(

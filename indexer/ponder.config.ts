@@ -11,19 +11,21 @@ import chain, {
   exaPluginAbi,
   factories,
   marketAbi,
+  mockSwapperAbi,
   networks,
   proposalManagerAbi,
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
 
 const addresses = [...factories.versions, ...factories.legacy];
-const sources = [...networks].map(([id, { auditor }]) => {
+const sources = [...networks].map(([id, { auditor, swapper }]) => {
   const network = id === chain.id ? chain : alchemyChains.get(id);
   const rpc = network?.rpcUrls.alchemy.http[0];
   if (!network || !rpc) throw new Error(`missing network ${id}`);
   return {
     auditor,
     network,
+    swapper,
     rpc: `${rpc}/${alchemyAPIKey}`,
     startBlock: { [optimism.id]: 123_125_164, [base.id]: 38_143_182 }[id],
   };
@@ -92,6 +94,12 @@ export default createConfig({
             startBlock,
           },
         ]),
+      ),
+    },
+    Swapper: {
+      abi: mockSwapperAbi,
+      chain: Object.fromEntries(
+        sources.map(({ network, startBlock, swapper }) => [network.name, { address: swapper, startBlock }]),
       ),
     },
     ProposalManager: {
