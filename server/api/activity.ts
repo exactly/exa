@@ -117,6 +117,13 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
               database
                 .select({ plugin: indexer.plugins.address })
                 .from(indexer.plugins)
+                .innerJoin(
+                  indexer.exaPlugins,
+                  and(
+                    eq(indexer.exaPlugins.chainId, indexer.plugins.chainId),
+                    eq(indexer.exaPlugins.address, indexer.plugins.address),
+                  ),
+                )
                 .where(and(eq(indexer.plugins.chainId, chain.id), eq(indexer.plugins.account, owner))),
             ]).then(([owners, installed]) => new Set([...owners, ...installed].flatMap(({ plugin }) => plugin ?? [])))
           : Promise.resolve(forbid(new Set<Hex>())),
