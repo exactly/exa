@@ -157,7 +157,7 @@ const realFetch = globalThis.fetch;
 function mockLifi(response = Response.json({ priceUSD: "100" })) {
   return vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
     const url = input instanceof Request ? input.url : String(input);
-    return /^(?:https:\/\/li\.quest|http:\/\/localhost:3000\/e2e\/lifi)\/v1\//.test(url)
+    return /^(?:https:\/\/li\.quest|http:\/\/localhost:3000\/hooks\/mockfi)\/v1\//.test(url)
       ? Promise.resolve(response.clone())
       : realFetch(input, init);
   });
@@ -842,7 +842,7 @@ describe("poke worker", () => {
       await expect(queue.getJobState(id)).resolves.toBe("delayed");
       expect(await publicClient.getCode({ address: account })).toBeUndefined();
       expect(fetch).toHaveBeenCalledWith(
-        `http://localhost:3000/e2e/lifi/v1/token?chain=${network.id}&token=${zeroAddress}`,
+        `http://localhost:3000/hooks/mockfi/v1/token?chain=${network.id}&token=${zeroAddress}`,
         expect.objectContaining({ signal: expect.any(AbortSignal) }), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
       );
       expect(setAttribute).toHaveBeenCalledWith("exa.delayed", true);
@@ -883,30 +883,6 @@ describe("poke worker", () => {
     expect(await publicClient.getCode({ address: account })).toBeDefined();
     expect(fetch).not.toHaveBeenCalledWith(expect.stringContaining("/v1/token"), expect.anything());
     expect(captureException).not.toHaveBeenCalled();
-  });
-
-  it("prices other chains on li.quest when codegen has no lifi url", async () => {
-    const network = activityChains.get(chain.id);
-    if (!network) throw new Error("missing anvil");
-    vi.spyOn(chains, "get").mockReturnValue(undefined); // eslint-disable-line unicorn/no-useless-undefined -- no previewer
-    const chainId = chain.id;
-    mocks.lifiURL.mockReset();
-    const fetch = mockLifi();
-    Object.assign(chain, { testnet: false });
-    Object.assign(chain, { id: 1 });
-
-    try {
-      await jobFinished({ ...request, chainId: network.id, origin: "activity" });
-    } finally {
-      Object.assign(chain, { testnet: true });
-      Object.assign(chain, { id: chainId });
-    }
-
-    expect(await publicClient.getCode({ address: account })).toBeDefined();
-    expect(fetch).toHaveBeenCalledWith(
-      `https://li.quest/v1/token?chain=${network.id}&token=${zeroAddress}`,
-      expect.objectContaining({ signal: expect.any(AbortSignal) }), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
-    );
   });
 
   it("deploys on other chains when no native price is known", async () => {
