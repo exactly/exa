@@ -1,5 +1,14 @@
 # @exactly/mobile
 
+## 1.2.48
+
+### Patch Changes
+
+- [#1817](https://github.com/exactly/exa/pull/1817) [`2e8543c`](https://github.com/exactly/exa/commit/2e8543c951d1e6bbee92d3214ccc9a0741cae696) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 collect missing fields on bridge onboarding
+
+- Updated dependencies [[`91be6be`](https://github.com/exactly/exa/commit/91be6be6bf8453b0757400ae6fb70f38fee642c5), [`7491ef0`](https://github.com/exactly/exa/commit/7491ef00c9dd534d79d8623d0e1eed556b7e756a), [`e89f5c8`](https://github.com/exactly/exa/commit/e89f5c8b6a434d73310ac1d842b4958324597273), [`ab9b1a6`](https://github.com/exactly/exa/commit/ab9b1a6360a3e67ce32b48ba988eb44d3f8799e5), [`4bcb08d`](https://github.com/exactly/exa/commit/4bcb08d2240db33e4a32cc6c02a5841d67ffb68e), [`de13cfb`](https://github.com/exactly/exa/commit/de13cfbab6b4e530303dac9d81180cf6a2c9cf68)]:
+  - @exactly/server@0.3.6
+
 ## 1.2.47
 
 ### Patch Changes

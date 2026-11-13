@@ -1,5 +1,21 @@
 # @exactly/server
 
+## 0.3.6
+
+### Patch Changes
+
+- [#1876](https://github.com/exactly/exa/pull/1876) [`91be6be`](https://github.com/exactly/exa/commit/91be6be6bf8453b0757400ae6fb70f38fee642c5) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 gate missing fields onboarding
+
+- [#1874](https://github.com/exactly/exa/pull/1874) [`7491ef0`](https://github.com/exactly/exa/commit/7491ef00c9dd534d79d8623d0e1eed556b7e756a) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 👽️ accept panda company webhooks
+
+- [#1813](https://github.com/exactly/exa/pull/1813) [`e89f5c8`](https://github.com/exactly/exa/commit/e89f5c8b6a434d73310ac1d842b4958324597273) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🩹 route incomplete accounts to bridge onboarding
+
+- [#1817](https://github.com/exactly/exa/pull/1817) [`ab9b1a6`](https://github.com/exactly/exa/commit/ab9b1a6360a3e67ce32b48ba988eb44d3f8799e5) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 collect missing fields on bridge onboarding
+
+- [#1813](https://github.com/exactly/exa/pull/1813) [`4bcb08d`](https://github.com/exactly/exa/commit/4bcb08d2240db33e4a32cc6c02a5841d67ffb68e) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 parse only country code for kyc header
+
+- [#1813](https://github.com/exactly/exa/pull/1813) [`de13cfb`](https://github.com/exactly/exa/commit/de13cfbab6b4e530303dac9d81180cf6a2c9cf68) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ⚡️ fetch persona account once for kyc
+
 ## 0.3.5
 
 ### Patch Changes
