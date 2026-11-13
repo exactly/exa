@@ -1404,7 +1404,7 @@ describe.concurrent("authenticated", () => {
     it("returns statement pdf", async () => {
       expect.hasAssertions();
       const response = await appClient.index.$get(
-        { query: { maturity } },
+        { query: { maturity, timezone: "America/Argentina/Buenos_Aires" } },
         { headers: { "test-credential-id": "bob", accept: "application/pdf" } },
       );
 
@@ -1415,6 +1415,17 @@ describe.concurrent("authenticated", () => {
       const directory = path.join("node_modules/@exactly/.runtime");
       await mkdir(directory, { recursive: true });
       await writeFile(path.join(directory, `statement-${Date.now()}.pdf`), new Uint8Array(body)); // eslint-disable-line security/detect-non-literal-fs-filename -- test artifact path includes timestamp
+    });
+
+    it("returns statement pdf with unknown timezone", async () => {
+      expect.hasAssertions();
+      const response = await appClient.index.$get(
+        { query: { maturity, timezone: "Mars/Olympus" } },
+        { headers: { "test-credential-id": "bob", accept: "application/pdf" } },
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe("application/pdf");
     });
 
     it("returns statement pdf with mixed borrow operations", async () => {
