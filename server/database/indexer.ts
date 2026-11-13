@@ -22,6 +22,8 @@ export const plugins = indexer
     address: text("address").$type<Hex>().notNull(),
     block: numeric("block", { mode: "bigint" }).notNull(),
     timestamp: numeric("timestamp", { mode: "bigint" }).notNull(),
+    logIndex: integer("log_index").notNull(),
+    uninstalled: numeric("uninstalled", { mode: "bigint" }),
   })
   .existing();
 
