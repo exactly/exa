@@ -121,6 +121,8 @@ export default defineConfig([
               {
                 auditor: getAddress(loadDeployment("Auditor", true, id).address),
                 exaPreviewer: getAddress(exaPreviewer),
+                previewer: getAddress(loadDeployment("Previewer", true, id).address),
+                ratePreviewer: getAddress(loadDeployment("RatePreviewer", true, id).address),
                 swapper: getAddress(deployed(deploy.accounts.swapper, id)),
               },
             ];
@@ -265,7 +267,7 @@ export default defineConfig([
               `export const factories: Readonly<Record<"legacy" | "versions", readonly \`0x\${string}\`[]>> = ${JSON.stringify(factories)}`,
               `export const factoryChains: ReadonlyMap<number, Readonly<Record<"swapper", \`0x\${string}\`>>> = new Map(${JSON.stringify(factoryChains)})`,
               `export const issuerCheckerPreviewerCode: \`0x\${string}\` = "${IssuerCheckerPreviewer.deployedBytecode.object}"`,
-              `export const networks: ReadonlyMap<number, Readonly<Record<"auditor" | "exaPreviewer" | "swapper", \`0x\${string}\`>>> = new Map(${JSON.stringify(networkContracts)})`,
+              `export const networks: ReadonlyMap<number, Readonly<Record<"auditor" | "exaPreviewer" | "previewer" | "ratePreviewer" | "swapper", \`0x\${string}\`>>> = new Map(${JSON.stringify(networkContracts)})`,
               `export const pricePreviewerCode: \`0x\${string}\` = "${PricePreviewer.bytecode.object}"`,
               'type AlchemyChain = ((Chain & { smartAccount: true }) | (Omit<Chain, "nativeCurrency"> & { nativeCurrency?: Chain["nativeCurrency"]; smartAccount?: never })) & { rpcUrls: { alchemy: { http: readonly [string] } } }',
               ...(chain
