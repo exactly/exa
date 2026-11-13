@@ -71,6 +71,7 @@ const debug = createDebug("exa:kyc");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
 
 const MAX_FAILED_INQUIRIES = 3;
+const UNSETTLED_STATUSES = new Set([401, 408, 409, 429, 502, 503, 504]);
 
 const canonicalize = import("canonicalize").then(({ default: serialize }) => serialize);
 
@@ -603,13 +604,15 @@ export default function route({
             if (!createdId) return c.json({ code: "processing" }, 409);
             return c.json(await generateInquiryTokens(createdId, persona), 200);
           }
-          const { data } = await persona.createInquiry(
-            credentialId,
-            inquiryTemplateId,
-            redirectURI,
-            undefined,
-            attempt,
-          );
+          const generation = Number(await redis.getex(`${key}:generation`, "EX", 86_400)); // cspell:ignore getex
+          const { data } = await persona
+            .createInquiry(credentialId, inquiryTemplateId, redirectURI, undefined, `${attempt}:${generation}`)
+            .catch(async (error: unknown) => {
+              if (error instanceof ServiceError && !UNSETTLED_STATUSES.has(error.status)) {
+                await redis.multi().incr(`${key}:generation`).expire(`${key}:generation`, 86_400).del(key).exec();
+              }
+              throw error;
+            });
           await redis.set(key, data.id, "EX", 86_400);
           return c.json(await generateInquiryTokens(data.id, persona), 200);
         }

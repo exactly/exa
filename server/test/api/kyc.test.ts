@@ -432,7 +432,7 @@ describe("authenticated", () => {
           persona.PANDA_TEMPLATE,
           undefined,
           undefined,
-          `bob:${persona.PANDA_TEMPLATE}:initial`,
+          `bob:${persona.PANDA_TEMPLATE}:initial:0`,
         );
         await expect(response.json()).resolves.toStrictEqual({
           type: "persona",
@@ -557,7 +557,7 @@ describe("authenticated", () => {
         expect(getInquiry).toHaveBeenCalledWith("bob", persona.PANDA_TEMPLATE);
         expect(getFailedInquiries).toHaveBeenCalledWith("bob", persona.PANDA_TEMPLATE, 3);
         expect(createInquiry.mock.calls).toStrictEqual([
-          ["bob", persona.PANDA_TEMPLATE, undefined, undefined, `bob:${persona.PANDA_TEMPLATE}:${failedId}`],
+          ["bob", persona.PANDA_TEMPLATE, undefined, undefined, `bob:${persona.PANDA_TEMPLATE}:${failedId}:0`],
         ]);
         await expect(response.json()).resolves.toStrictEqual({ type: "persona", sessionToken, inquiryId: retryId });
         expect(response.status).toBe(200);
@@ -602,7 +602,7 @@ describe("authenticated", () => {
         );
 
         expect(createInquiry.mock.calls).toStrictEqual([
-          ["bob", persona.PANDA_TEMPLATE, undefined, undefined, `bob:${persona.PANDA_TEMPLATE}:${failedId}`],
+          ["bob", persona.PANDA_TEMPLATE, undefined, undefined, `bob:${persona.PANDA_TEMPLATE}:${failedId}:0`],
         ]);
         expect(responses.filter(({ status }) => status === 409)).toStrictEqual(
           Array.from({ length: attempts - 1 }, () => ({ status: 409, body: { code: "processing" } })),
@@ -623,7 +623,11 @@ describe("authenticated", () => {
         expect(resumeInquiry).toHaveBeenNthCalledWith(2, retryId);
       });
 
-      it("retries a failed inquiry creation with the same attempt", async () => {
+      it.each([
+        ["a timeout", new Error("persona timeout")],
+        ["a rate limit", new ServiceError("Persona", 429, "too many requests")],
+        ["a gateway error", new ServiceError("Persona", 503, "service unavailable")],
+      ])("retries with the same attempt after %s", async (_, error) => {
         const failedId = `failed-${crypto.randomUUID()}`;
         const retryId = `retry-${crypto.randomUUID()}`;
         const key = `kyc:inquiry:bob:${persona.PANDA_TEMPLATE}:${failedId}`;
@@ -632,14 +636,14 @@ describe("authenticated", () => {
           persona.PANDA_TEMPLATE,
           undefined,
           undefined,
-          `bob:${persona.PANDA_TEMPLATE}:${failedId}`,
+          `bob:${persona.PANDA_TEMPLATE}:${failedId}:0`,
         ];
         vi.spyOn(persona, "getPendingInquiryTemplate").mockResolvedValue(persona.PANDA_TEMPLATE);
         vi.spyOn(persona, "getInquiry").mockResolvedValue({ ...failedInquiry, id: failedId });
         vi.spyOn(persona, "getFailedInquiries").mockResolvedValue([failedInquiry]);
         const createInquiry = vi
           .spyOn(persona, "createInquiry")
-          .mockRejectedValueOnce(new Error("persona timeout"))
+          .mockRejectedValueOnce(error)
           .mockResolvedValueOnce({ data: { ...inquiry.data, id: retryId } });
         const resumeInquiry = vi
           .spyOn(persona, "resumeInquiry")
@@ -655,6 +659,7 @@ describe("authenticated", () => {
         );
         await expect(redis.get(key)).resolves.toBe("");
         await expect(redis.ttl(key)).resolves.toBeLessThanOrEqual(60);
+        await expect(redis.exists(`${key}:generation`)).resolves.toBe(0);
         await redis.expire(key, 0);
         const retry = await appClient.index.$post(
           { json: { scope: "basic" } },
@@ -675,6 +680,79 @@ describe("authenticated", () => {
         expect(resumeInquiry).toHaveBeenCalledExactlyOnceWith(retryId);
         expect(captureException).not.toHaveBeenCalled();
         await expect(redis.get(key)).resolves.toBe(retryId);
+      });
+
+      it("retries with a new attempt after persona rejects the inquiry creation", async () => {
+        const failedId = `failed-${crypto.randomUUID()}`;
+        const retryId = `retry-${crypto.randomUUID()}`;
+        const key = `kyc:inquiry:bob:${persona.PANDA_TEMPLATE}:${failedId}`;
+        vi.spyOn(persona, "getPendingInquiryTemplate").mockResolvedValue(persona.PANDA_TEMPLATE);
+        vi.spyOn(persona, "getInquiry").mockResolvedValue({ ...failedInquiry, id: failedId });
+        vi.spyOn(persona, "getFailedInquiries").mockResolvedValue([failedInquiry]);
+        const createInquiry = vi
+          .spyOn(persona, "createInquiry")
+          .mockRejectedValueOnce(new ServiceError("Persona", 500, "internal error"))
+          .mockResolvedValueOnce({ data: { ...inquiry.data, id: retryId } });
+        const resumeInquiry = vi
+          .spyOn(persona, "resumeInquiry")
+          .mockResolvedValueOnce({ ...resumeTemplate, data: { ...resumeTemplate.data, id: retryId } });
+
+        const response = await appClient.index.$post(
+          { json: { scope: "basic" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+        await expect(redis.exists(key)).resolves.toBe(0);
+        await expect(redis.get(`${key}:generation`)).resolves.toBe("1");
+        await expect(redis.ttl(`${key}:generation`)).resolves.toBeGreaterThan(60);
+        const retry = await appClient.index.$post(
+          { json: { scope: "basic" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(response.status).toBe(500);
+        await expect(response.text()).resolves.toBe("Internal Server Error");
+        expect(retry.status).toBe(200);
+        await expect(retry.json()).resolves.toStrictEqual({
+          type: "persona",
+          sessionToken: resumeTemplate.meta["session-token"],
+          inquiryId: retryId,
+        });
+        expect(createInquiry.mock.calls).toStrictEqual([
+          ["bob", persona.PANDA_TEMPLATE, undefined, undefined, `bob:${persona.PANDA_TEMPLATE}:${failedId}:0`],
+          ["bob", persona.PANDA_TEMPLATE, undefined, undefined, `bob:${persona.PANDA_TEMPLATE}:${failedId}:1`],
+        ]);
+        expect(resumeInquiry).toHaveBeenCalledExactlyOnceWith(retryId);
+        expect(captureException).not.toHaveBeenCalled();
+        await expect(redis.get(key)).resolves.toBe(retryId);
+      });
+
+      it("renews the attempt generation when reusing it", async () => {
+        const failedId = `failed-${crypto.randomUUID()}`;
+        const retryId = `retry-${crypto.randomUUID()}`;
+        const key = `kyc:inquiry:bob:${persona.PANDA_TEMPLATE}:${failedId}`;
+        await redis.set(`${key}:generation`, "1", "EX", 1);
+        vi.spyOn(persona, "getPendingInquiryTemplate").mockResolvedValue(persona.PANDA_TEMPLATE);
+        vi.spyOn(persona, "getInquiry").mockResolvedValue({ ...failedInquiry, id: failedId });
+        vi.spyOn(persona, "getFailedInquiries").mockResolvedValue([failedInquiry]);
+        const createInquiry = vi
+          .spyOn(persona, "createInquiry")
+          .mockResolvedValueOnce({ data: { ...inquiry.data, id: retryId } });
+        vi.spyOn(persona, "resumeInquiry").mockResolvedValueOnce({
+          ...resumeTemplate,
+          data: { ...resumeTemplate.data, id: retryId },
+        });
+
+        const response = await appClient.index.$post(
+          { json: { scope: "basic" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(response.status).toBe(200);
+        expect(createInquiry.mock.calls).toStrictEqual([
+          ["bob", persona.PANDA_TEMPLATE, undefined, undefined, `bob:${persona.PANDA_TEMPLATE}:${failedId}:1`],
+        ]);
+        await expect(redis.get(`${key}:generation`)).resolves.toBe("1");
+        await expect(redis.ttl(`${key}:generation`)).resolves.toBeGreaterThan(60);
       });
 
       it("creates one first inquiry when posting concurrently", async () => {
@@ -709,7 +787,7 @@ describe("authenticated", () => {
         );
 
         expect(createInquiry.mock.calls).toStrictEqual([
-          ["bob", persona.PANDA_TEMPLATE, undefined, undefined, `bob:${persona.PANDA_TEMPLATE}:initial`],
+          ["bob", persona.PANDA_TEMPLATE, undefined, undefined, `bob:${persona.PANDA_TEMPLATE}:initial:0`],
         ]);
         expect(responses.filter(({ status }) => status === 409)).toStrictEqual(
           Array.from({ length: attempts - 1 }, () => ({ status: 409, body: { code: "processing" } })),
@@ -1190,7 +1268,7 @@ describe("authenticated", () => {
           persona.MANTECA_TEMPLATE_EXTRA_FIELDS,
           undefined,
           undefined,
-          `bob:${persona.MANTECA_TEMPLATE_EXTRA_FIELDS}:initial`,
+          `bob:${persona.MANTECA_TEMPLATE_EXTRA_FIELDS}:initial:0`,
         );
         await expect(response.json()).resolves.toStrictEqual({
           type: "persona",
@@ -1227,7 +1305,7 @@ describe("authenticated", () => {
           persona.MANTECA_TEMPLATE_WITH_ID_CLASS,
           undefined,
           undefined,
-          `bob:${persona.MANTECA_TEMPLATE_WITH_ID_CLASS}:initial`,
+          `bob:${persona.MANTECA_TEMPLATE_WITH_ID_CLASS}:initial:0`,
         );
         await expect(response.json()).resolves.toStrictEqual({
           type: "persona",
@@ -1510,7 +1588,7 @@ describe("authenticated", () => {
           persona.PANDA_TEMPLATE,
           undefined,
           undefined,
-          `bob:${persona.PANDA_TEMPLATE}:initial`,
+          `bob:${persona.PANDA_TEMPLATE}:initial:0`,
         );
         await expect(response.json()).resolves.toStrictEqual({
           type: "persona",
@@ -3145,7 +3223,7 @@ describe("authenticated", () => {
           persona.BUSINESS_TEMPLATE,
           undefined,
           undefined,
-          `${businessId}:${persona.BUSINESS_TEMPLATE}:initial`,
+          `${businessId}:${persona.BUSINESS_TEMPLATE}:initial:0`,
         );
         await expect(tokens.json()).resolves.toStrictEqual({
           inquiryId: resumeTemplate.data.id,
