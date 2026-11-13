@@ -21,6 +21,7 @@ describe("hook", () => {
     ["block", () => import("../../hooks/block")],
     ["bridge", () => import("../../hooks/bridge")],
     ["chat", () => import("../../hooks/chat")],
+    ["mockfi", () => import("../../hooks/mockfi")],
     ["manteca", () => import("../../hooks/manteca")],
     ["panda", () => import("../../hooks/panda")],
     ["persona", () => import("../../hooks/persona")],
