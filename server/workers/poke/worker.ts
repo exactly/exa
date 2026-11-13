@@ -261,7 +261,7 @@ const WETH = parse(Address, wethAddress);
 const accountAbi = [...exaPluginAbi, ...upgradeableModularAccountAbi, ...auditorAbi, ...marketAbi];
 
 async function nativePrice(chainId: number) {
-  const response = await fetch(`${lifiURL ?? "https://li.quest/v1"}/token?chain=${chainId}&token=${zeroAddress}`, {
+  const response = await fetch(`${lifiURL}/token?chain=${chainId}&token=${zeroAddress}`, {
     signal: AbortSignal.timeout(5000),
   });
   if (!response.ok) throw new Error(`lifi token ${response.status}`);
