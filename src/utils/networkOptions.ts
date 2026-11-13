@@ -22,7 +22,6 @@ export default function networkOptions(account: Address | undefined, chainId: nu
     queryFn: account
       ? async () => {
           const tokens = queryClient.getQueryData(lifiTokensOptions.queryKey);
-          const contracts = chains.get(chainId);
           const { wallet, protocol } = await readContract(exaConfig, {
             chainId,
             abi: appPreviewerAbi,
@@ -42,9 +41,7 @@ export default function networkOptions(account: Address | undefined, chainId: nu
                   ].map((target) => target.toLowerCase() as Address),
                 ),
               ],
-              contracts
-                ? { auditor: contracts.auditor, previewer: contracts.previewer, ratePreviewer: contracts.ratePreviewer }
-                : { auditor: zeroAddress, previewer: zeroAddress, ratePreviewer: zeroAddress },
+              protocolOf(chainId),
             ],
             stateOverride: [{ address: appPreviewerAddress, code: appPreviewerDeployedCode }],
           });
@@ -71,6 +68,24 @@ export default function networkOptions(account: Address | undefined, chainId: nu
     gcTime: Infinity,
     refetchInterval: ({ state }) => (state.status === "error" ? 60_000 : false),
   });
+}
+
+export function withFlags<T extends { isCollateral: boolean }>(
+  market: T,
+  flags: undefined | { isFrozen: boolean; nonCollateral: boolean },
+) {
+  return {
+    ...market,
+    isCollateral: market.isCollateral && !flags?.nonCollateral,
+    isFrozen: !!flags?.isFrozen,
+    nonCollateral: !!flags?.nonCollateral,
+  };
+}
+
+export function protocolOf(chainId: number) {
+  const contracts = chains.get(chainId);
+  if (!contracts) return { auditor: zeroAddress, previewer: zeroAddress, ratePreviewer: zeroAddress };
+  return { auditor: contracts.auditor, previewer: contracts.previewer, ratePreviewer: contracts.ratePreviewer };
 }
 
 const appPreviewerAddress = getContractAddress({
