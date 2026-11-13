@@ -6,12 +6,14 @@ import { setStringAsync } from "expo-clipboard";
 import { toast } from "@tamagui/toast";
 import { getTokens, Separator, XStack, YStack } from "tamagui";
 
+import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 
 import chain from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 
 import { Copy } from "../../../generated/icons/Copy";
+import { lifiChainsOptions } from "../../../utils/lifi";
 import openBrowser from "../../../utils/openBrowser";
 import reportError from "../../../utils/reportError";
 import ChainLogo from "../../shared/ChainLogo";
@@ -26,6 +28,15 @@ export default function TransactionDetails({
   item: ActivityItem | CreditActivity | DebitActivity | InstallmentsActivity;
 }) {
   const { t } = useTranslation();
+  const chainId = item.type === "bridge" ? item.sourceChainId : chain.id;
+  const { data: source } = useQuery({
+    ...lifiChainsOptions,
+    select: (chains) => chains.find(({ id }) => id === chainId),
+  });
+  const network =
+    chainId === chain.id
+      ? { name: chain.name, explorer: chain.blockExplorers?.default.url }
+      : { name: source?.name ?? String(chainId), explorer: source?.metamask.blockExplorerUrls[0]?.replace(/\/$/, "") };
   return (
     <YStack gap="s4">
       <YStack gap="s4">
@@ -49,9 +60,9 @@ export default function TransactionDetails({
           </Text>
           <XStack gap="s3" alignItems="center">
             <Text callout color="uiNeutralPrimary" alignContent="center">
-              {chain.name}
+              {network.name}
             </Text>
-            <ChainLogo size={20} />
+            <ChainLogo chainId={chainId} size={20} />
           </XStack>
         </XStack>
         {item.type === "sent" && (
@@ -109,9 +120,8 @@ export default function TransactionDetails({
                 color="uiNeutralPrimary"
                 cursor="pointer"
                 onPress={() => {
-                  const explorerUrl = chain.blockExplorers?.default.url;
-                  if (!explorerUrl) return;
-                  openBrowser(`${explorerUrl}/tx/${item.transactionHash}`).catch(reportError);
+                  if (!network.explorer) return;
+                  openBrowser(`${network.explorer}/tx/${item.transactionHash}`).catch(reportError);
                 }}
               >
                 {shortenHex(item.transactionHash)}
@@ -119,9 +129,8 @@ export default function TransactionDetails({
               <XStack
                 cursor="pointer"
                 onPress={() => {
-                  const explorerUrl = chain.blockExplorers?.default.url;
-                  if (!explorerUrl) return;
-                  setStringAsync(`${explorerUrl}/tx/${item.transactionHash}`)
+                  if (!network.explorer) return;
+                  setStringAsync(`${network.explorer}/tx/${item.transactionHash}`)
                     .then(() => {
                       toast.success(t("Link copied!"), { duration: 1000 });
                     })

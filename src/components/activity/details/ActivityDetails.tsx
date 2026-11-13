@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import CardActivity from "./CardActivity";
 import DeclinedActivity from "./DeclinedActivity";
+import OnchainActivity from "./OnchainActivity";
 import ReceivedActivity from "./ReceivedActivity";
 import RepayActivity from "./RepayActivity";
 import SentActivity from "./SentActivity";
@@ -80,6 +81,11 @@ export default function ActivityDetails() {
       {item.type === "received" && <ReceivedActivity item={item} />}
       {item.type === "repay" && <RepayActivity item={item} />}
       {item.type === "sent" && <SentActivity item={item} />}
+      {(item.type === "loan" ||
+        item.type === "rollover" ||
+        item.type === "swap" ||
+        item.type === "liquidation" ||
+        item.type === "bridge") && <OnchainActivity item={item} />}
       {item.type === "panda" &&
         (item.status === "declined" ? <DeclinedActivity item={item} /> : <CardActivity item={item} />)}
       <Button
