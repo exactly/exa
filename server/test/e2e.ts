@@ -39,9 +39,8 @@ import { describe, expect, it, vi } from "vitest";
 import domain from "@exactly/common/domain";
 import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 
-import { chains } from "./anvil";
-import lifi from "./lifi";
 import database, { cards as cardsTable, credentials } from "../database";
+import mockfi from "../hooks/mockfi";
 import auth from "../middleware/auth";
 import createAlchemy from "../utils/alchemy";
 import appOrigin, { origins, related } from "../utils/appOrigin";
@@ -307,7 +306,7 @@ describe("e2e", () => {
             return c.json({ code: "ok" });
           });
           app.get("/e2e/session", auth(authSecret), (c) => c.json(c.req.valid("cookie")));
-          app.route("/e2e/lifi", lifi(chains));
+          app.route("/hooks/mockfi", mockfi({ database, testnets: Boolean(env.MOCKFI_PRIVATE_KEY) }).app);
           app.get("/e2e/credential", async (c) => {
             const credential = await database.query.credentials.findFirst({
               columns: { id: true },
