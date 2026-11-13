@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable } from "react-native";
 
 import { useRouter } from "expo-router";
 
@@ -11,10 +10,8 @@ import { useQuery } from "@tanstack/react-query";
 import chain, { allowlists } from "@exactly/common/generated/chain";
 
 import AddFundsOption from "./AddFundsOption";
-import EducationSheet from "./EducationSheet";
 import { ArrowLeft } from "../../generated/icons/ArrowLeft";
 import { CircleHelp } from "../../generated/icons/CircleHelp";
-import { Info } from "../../generated/icons/Info";
 import { Search } from "../../generated/icons/Search";
 import { presentArticle } from "../../utils/intercom";
 import { lifiTokensOptions, tokenCorrelation } from "../../utils/lifi";
@@ -35,8 +32,6 @@ export default function Assets() {
   const { t } = useTranslation();
   const { markets, supportedAssets, isPending } = useMarkets();
   const { data: tokens } = useQuery(lifiTokensOptions);
-  const [collateralShown, setCollateralShown] = useState(false);
-  const [otherShown, setOtherShown] = useState(false);
   const [moreShown, setMoreShown] = useState(false);
   const assets = useMemo(() => {
     if (!markets) return [];
@@ -107,14 +102,17 @@ export default function Assets() {
         >
           <YStack gap="s7">
             <YStack gap="s4">
-              <XStack gap="s2" alignItems="center">
+              <YStack gap="s2">
                 <Text emphasized primary headline>
-                  {t("Supported assets")}
+                  {t("Collateral assets")}
                 </Text>
-                <Pressable hitSlop={15} onPress={() => setCollateralShown(true)}>
-                  <Info size={16} color="uiBrandSecondary" />
-                </Pressable>
-              </XStack>
+                <Text footnote secondary>
+                  {t(
+                    "Assets on {{chain}} that can be used with your Exa Card. They serve as collateral, earn yield and increase your credit limit.",
+                    { chain: chain.name },
+                  )}
+                </Text>
+              </YStack>
               <YStack gap="s3_5">
                 {isPending
                   ? Array.from({ length: 5 }, (_, index) => <Skeleton key={index} width="100%" height={82} />)
@@ -133,14 +131,16 @@ export default function Assets() {
             </YStack>
             {others.length > 0 && (
               <YStack gap="s4">
-                <XStack gap="s2" alignItems="center">
+                <YStack gap="s2">
                   <Text emphasized primary headline>
                     {t("Other assets")}
                   </Text>
-                  <Pressable hitSlop={15} onPress={() => setOtherShown(true)}>
-                    <Info size={16} color="uiBrandSecondary" />
-                  </Pressable>
-                </XStack>
+                  <Text footnote secondary>
+                    {t(
+                      "Assets that can’t be used with your Exa Card. Once they arrive, swap or bridge them in-app to a collateral asset above.",
+                    )}
+                  </Text>
+                </YStack>
                 <YStack gap="s3_5">
                   {visibleOthers.map((token) => (
                     <AddFundsOption
@@ -165,48 +165,6 @@ export default function Assets() {
             )}
           </YStack>
         </ScrollView>
-        <EducationSheet
-          open={collateralShown}
-          onClose={() => {
-            setCollateralShown(false);
-          }}
-          title={t("Supported assets")}
-          article="8950805"
-        >
-          <XStack
-            backgroundColor="backgroundMild"
-            borderRadius="r4"
-            padding="s4_5"
-            justifyContent="center"
-            flexWrap="wrap"
-            gap="s3_5"
-          >
-            {isPending
-              ? Array.from({ length: 5 }, (_, index) => <Skeleton key={index} height={40} width={40} radius="round" />)
-              : supportedAssets.map((symbol) => <AssetLogo key={symbol} symbol={symbol} width={40} height={40} />)}
-          </XStack>
-          <Text subHeadline secondary>
-            {t(
-              "Only {{assets}} on {{chain}} serve as collateral, earn yield while held, and increase your Exa Card credit limit.",
-              { assets: supportedAssets.join(", "), chain: chain.name },
-            )}
-          </Text>
-        </EducationSheet>
-        <EducationSheet
-          open={otherShown}
-          onClose={() => {
-            setOtherShown(false);
-          }}
-          title={t("Other assets")}
-          article="8950805"
-        >
-          <Text subHeadline secondary>
-            {t(
-              "You can hold these assets, but they don't earn yield or increase your Exa Card credit limit. Go to your Portfolio to swap or bridge them to a supported asset on {{chain}}.",
-              { chain: chain.name },
-            )}
-          </Text>
-        </EducationSheet>
         <TokenSelectModal
           open={moreShown}
           tokens={others}

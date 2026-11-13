@@ -1,8 +1,8 @@
-import React, { use, useRef, useState } from "react";
+import React, { use, useEffect, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 
 import { selectionAsync } from "expo-haptics";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { toast } from "@tamagui/toast";
 import { ScrollView, Separator, Spinner, Square, XStack, YStack } from "tamagui";
@@ -55,7 +55,6 @@ import useMarkets from "../../utils/useMarkets";
 import useTabPress from "../../utils/useTabPress";
 import Banner from "../business/Banner";
 import TabBarContext from "../context/TabBarContext";
-import FundingAlert from "../shared/FundingAlert";
 import IconButton from "../shared/IconButton";
 import InfoAlert from "../shared/InfoAlert";
 import LatestActivity from "../shared/LatestActivity";
@@ -73,6 +72,7 @@ export default function Card() {
   const business = useIsBusiness();
   const [displayPIN, setDisplayPIN] = useState(false);
   const router = useRouter();
+  const { activate } = useLocalSearchParams();
   const {
     t,
     i18n: { language },
@@ -95,6 +95,7 @@ export default function Card() {
     data: cardDetails,
     refetch: refetchCard,
     isFetching: isFetchingCard,
+    isPending: isCardPending,
   } = useQuery<CardDetailsData>({ queryKey: ["card", "details"], retry: false, gcTime: 0, staleTime: 0 });
 
   const { increase, limit, spent, pending, processing } = useCardLimit(cardDetails?.limit.amount, spendingLimitsOpen);
@@ -150,6 +151,7 @@ export default function Card() {
   } = useMutation({
     mutationKey: ["card", "reveal"],
     mutationFn: async function handleReveal() {
+      if (queryClient.isMutating({ mutationKey: ["card", "create"] })) return;
       if (business && !cardDetails) {
         const { data, isSuccess } = await refetchCard();
         if (data) queryClient.setQueryData(["card-details-open"], true);
@@ -168,7 +170,6 @@ export default function Card() {
           return;
         }
       }
-      if (isRevealing || beginKYC.isPending) return;
       try {
         const data = await queryClient.fetchQuery<CardSecrets>({
           queryKey: ["card", "secrets", cardDetails?.cardId],
@@ -223,6 +224,12 @@ export default function Card() {
       });
     },
   });
+
+  useEffect(() => {
+    if (activate !== "true" || isCardPending) return;
+    router.setParams({ activate: undefined });
+    revealCard().catch(reportError);
+  }, [activate, isCardPending, revealCard, router]);
 
   const {
     mutate: changeCardStatus,
@@ -357,7 +364,6 @@ export default function Card() {
                       }}
                     />
                   )}
-                <FundingAlert />
                 <PluginUpgrade />
                 <ExaCard
                   revealing={isRevealing || isGeneratingCard || beginKYC.isPending}
@@ -390,6 +396,7 @@ export default function Card() {
                     justifyContent="space-between"
                     cursor="pointer"
                     onPress={() => {
+                      if (isRevealing || beginKYC.isPending) return;
                       selectionAsync().catch(reportError);
                       revealCard().catch(reportError);
                     }}
