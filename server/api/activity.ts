@@ -40,8 +40,6 @@ import fixedRate from "@exactly/common/fixedRate";
 import chain, {
   debtManagerAddress,
   exaPluginAbi,
-  exaPreviewerAbi,
-  exaPreviewerAddress,
   marketUSDCAddress,
   marketWETHAddress,
 } from "@exactly/common/generated/chain";
@@ -53,7 +51,6 @@ import * as indexer from "../database/indexer";
 import { cards, credentials, transactions } from "../database/schema";
 import { collectors as cryptomateCollectors } from "../utils/cryptomate";
 import { declineMessage, collectors as pandaCollectors } from "../utils/panda";
-import publicClient from "../utils/publicClient";
 import Statement from "../utils/Statement";
 import validatorHook from "../utils/validatorHook";
 
@@ -105,9 +102,15 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
 
       const owner = account.toLowerCase() as Hex;
       const [markets, plugins] = await Promise.all([
-        publicClient
-          .readContract({ address: exaPreviewerAddress, functionName: "markets", abi: exaPreviewerAbi })
-          .then((p) => new Map<Hex, (typeof p)[number]>(p.map((m) => [m.market.toLowerCase() as Hex, m]))),
+        database
+          .select({
+            address: indexer.markets.address,
+            symbol: indexer.markets.symbol,
+            decimals: indexer.markets.decimals,
+          })
+          .from(indexer.markets)
+          .where(eq(indexer.markets.chainId, chain.id))
+          .then((rows) => new Map(rows.map(({ address, ...m }) => [address, m]))),
         !ignore("repay") || !ignore("sent") || !ignore("received")
           ? Promise.all([
               database
@@ -129,10 +132,10 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
           : Promise.resolve(forbid(new Set<Hex>())),
       ]);
 
-      const market = (address: Hex) => {
+      const market = (address: Hex, usdPrice: bigint) => {
         const found = markets.get(address.toLowerCase() as Hex);
         if (!found) throw new Error("market not found");
-        return found;
+        return { ...found, usdPrice };
       };
 
       const repayPromise =
@@ -171,14 +174,14 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
             ]).then(([deposit, repay]) =>
               deposit
                 .filter(({ hash }) => !repay.some(({ hash: repayHash }) => repayHash === hash))
-                .map((row) => parse(DepositActivity, { ...row, market: market(row.market) })),
+                .map((row) => parse(DepositActivity, { ...row, market: market(row.market, row.usdPrice) })),
             ),
         ignore("repay")
           ? []
           : repayPromise.then((rows) =>
               rows
                 .filter((row) => maturity === undefined || Number(row.maturity) === maturity)
-                .map((row) => parse(RepayActivity, { ...row, market: market(row.market) })),
+                .map((row) => parse(RepayActivity, { ...row, market: market(row.market, row.usdPrice) })),
             ),
         ignore("sent")
           ? []
@@ -220,7 +223,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                   return { ...row, receiver: decodeWithdraw(proposal.data), assets: proposal.amount };
                 })
                 .filter((row) => !!row)
-                .map((row) => parse(WithdrawActivity, { ...row, market: market(row.market) })),
+                .map((row) => parse(WithdrawActivity, { ...row, market: market(row.market, row.usdPrice) })),
             ),
         ignore("card")
           ? undefined
@@ -453,7 +456,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
             })),
           payments: response
             .filter((item) => item.type === "repay")
-            .filter((repay) => repay.currency === market(marketUSDCAddress).symbol)
+            .filter((repay) => repay.currency === markets.get(marketUSDCAddress.toLowerCase() as Hex)?.symbol)
             .map(({ id, timestamp, amount, positionAmount }) => ({
               id,
               timestamp,

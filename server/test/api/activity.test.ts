@@ -39,7 +39,6 @@ import chain, {
   exaAccountFactoryAddress,
   exaPluginAbi,
   exaPluginAddress,
-  exaPreviewerAddress,
   factories,
   marketAbi,
   marketUSDCAddress,
@@ -1325,9 +1324,7 @@ describe("plugin 1.0.0", () => {
         }),
       ),
     );
-    expect(readContract.mock.calls.map(([{ address, functionName }]) => [address, functionName])).toStrictEqual([
-      [exaPreviewerAddress, "markets"],
-    ]);
+    expect(readContract).not.toHaveBeenCalled();
     expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account100 });
     expect(captureException).not.toHaveBeenCalled();
   });
