@@ -156,7 +156,7 @@ export function useFeed(token?: { address: string; chainId: number; symbol: stri
     },
   });
   if (!token) return null;
-  if ((chainId === chain.id && markets.isPending) || feeds.isPending) return;
+  if ((chainId === chain.id && !markets.isFetched) || !feeds.isFetched) return;
   const address = getAddress(token.address);
   const market = chainId === chain.id ? markets.data?.find(({ asset }) => asset === address)?.feed : undefined;
   if (address !== zeroAddress && !market && !allowlists[chainId]?.includes(address)) return null;
