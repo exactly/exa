@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { KeyboardAvoidingView } from "react-native";
+import { KeyboardAvoidingView, Platform } from "react-native";
 
 import { selectionAsync } from "expo-haptics";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
@@ -55,7 +55,7 @@ export default function Amount() {
   const destinationChain = typeof toChain === "string" ? Number(toChain) : chain.id;
 
   const inputRef = useRef<null | TamaguiElement>(null);
-  const [entry, setEntry] = useState<{ mode: "token" | "usd"; text: string }>({ mode: "usd", text: "" });
+  const [entry, setEntry] = useState<{ mode: "max" | "token" | "usd"; text: string }>({ mode: "usd", text: "" });
   const [mode, setMode] = useState<"token" | "usd">("usd");
   const [room, setRoom] = useState(0);
   const [digits, setDigits] = useState(0);
@@ -180,16 +180,18 @@ export default function Amount() {
     !!payDelivered &&
     (destinationChain !== payChain || destination.address.toLowerCase() !== payDelivered.toLowerCase());
 
+  const max = entry.mode === "max";
   const destinationDecimals = destination?.decimals ?? 18;
   const destinationUnit = 10n ** BigInt(destinationDecimals);
-  const amount = parseAmount(entry.text, entry.mode === "usd" ? 18 : destinationDecimals);
-  const usdAmount = entry.mode === "usd" ? amount : (amount * (destination?.price ?? 0n)) / destinationUnit;
+  const amount = max ? available : parseAmount(entry.text, entry.mode === "usd" ? 18 : destinationDecimals);
+  const token = max ? !routed : entry.mode === "token";
+  const usdAmount = max && routed ? payUSD : token ? (amount * (destination?.price ?? 0n)) / destinationUnit : amount;
   const destinationAmount =
-    !destination || (entry.mode === "usd" && destination.price <= 0n)
+    !destination || (!token && destination.price <= 0n)
       ? 0n
-      : entry.mode === "token"
+      : token
         ? amount
-        : (amount * destinationUnit) / destination.price;
+        : (usdAmount * destinationUnit) / destination.price;
   const [whole = "0", part = ""] = formatUnits(
     mode === "usd" ? usdAmount : destinationAmount,
     mode === "usd" ? 18 : destinationDecimals,
@@ -198,12 +200,14 @@ export default function Amount() {
   while (converted.includes(".") && (converted.endsWith("0") || converted.endsWith("."))) {
     converted = converted.slice(0, -1);
   }
-  const value = mode === entry.mode || entry.text === "" ? entry.text : converted;
-  const fromAmount = routed
-    ? payPrice > 0n
-      ? (usdAmount * 10n ** BigInt(payDecimals)) / payPrice
-      : 0n
-    : destinationAmount;
+  const value = !max && (mode === entry.mode || entry.text === "") ? entry.text : converted;
+  const fromAmount = max
+    ? available
+    : routed
+      ? payPrice > 0n
+        ? (usdAmount * 10n ** BigInt(payDecimals)) / payPrice
+        : 0n
+      : destinationAmount;
   const exceeds = !!pay && fromAmount > available;
   const unpriced = !!destination && destination.price <= 0n && (mode === "usd" || entry.mode === "usd" || routed);
   const unpricedPay = !unpriced && routed && !!paySymbol && payPrice <= 0n;
@@ -334,6 +338,7 @@ export default function Amount() {
                   aria-label={t("Amount")}
                   value={value}
                   decimals={mode === "usd" ? 2 : destinationDecimals}
+                  clearOnType={max}
                   onChangeText={change}
                   placeholder="0"
                   fontSize={size}
@@ -429,6 +434,41 @@ export default function Amount() {
                         </>
                       )}
                     </XStack>
+                    {!!pay && (
+                      <View
+                        alignSelf="stretch"
+                        justifyContent="center"
+                        paddingRight={advanced ? "s2" : "s4"}
+                        cursor="pointer"
+                        role="button"
+                        accessible
+                        opacity="press:0.85"
+                        {...(Platform.OS === "web" && {
+                          onMouseDown: (event: { preventDefault: () => void }) => {
+                            event.preventDefault();
+                          },
+                        })}
+                        onPress={() => {
+                          selectionAsync().catch(reportError);
+                          setEntry({ mode: "max", text: "" });
+                        }}
+                      >
+                        <View
+                          paddingVertical="s2"
+                          paddingHorizontal="s3"
+                          borderRadius="r2"
+                          backgroundColor={max ? "interactiveBaseBrandDefault" : "interactiveBaseBrandSoftDefault"}
+                        >
+                          <Text
+                            emphasized
+                            footnote
+                            color={max ? "interactiveOnBaseBrandDefault" : "interactiveOnBaseBrandSoft"}
+                          >
+                            {t("MAX")}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
                     {advanced && (
                       <View
                         aria-hidden
