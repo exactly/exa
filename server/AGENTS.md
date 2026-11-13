@@ -25,6 +25,13 @@
 - **relations**: define relations explicitly in the schema file. this enables typed query results with related entities.
 - **database client**: created once at startup and passed into route and hook factories as `database`, like every other client.
 
+## activity
+
+- **facts in the indexer, meaning in the server**: the indexer keeps raw onchain events (deposits, borrows, repays, swaps, bridges, liquidations) with the usd price at their block in append-only tables, and `api/activity.ts` turns them into activity (card purchases, loans, rollovers). a new kind of activity adds indexer tables or nullable columns, never a change to the server database schema.
+- **opt-in types**: without `include`, the route returns only the legacy types (`card`, `received`, `repay`, `sent`), so app versions that predate a type never see it. the app asks for every type it renders.
+- **prices**: usd amounts use the auditor price the indexer read at the event block. a token without a market has no usd amount.
+- **bridges**: the indexer keeps every exa app lifi bridge on the networks where the exa factories live (`factoryChains`: every production network on production, every testnet and anvil elsewhere), so an account sees what it sent to other networks and what it received from them.
+
 ## authentication & authorization
 
 - **middleware-driven**: all auth logic must be implemented in hono middleware.
