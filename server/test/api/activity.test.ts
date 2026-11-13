@@ -372,6 +372,36 @@ describe.concurrent("authenticated", () => {
       expect(panda.output.status).toBe("pending");
     });
 
+    it("returns refunds settled in usd with usd currency", () => {
+      const panda = safeParse(PandaActivity, {
+        type: "panda",
+        hashes: [zeroHash],
+        borrows: [null],
+        bodies: [
+          {
+            action: "completed",
+            resource: "transaction",
+            createdAt: new Date(0).toISOString(),
+            body: {
+              id: "refund",
+              type: "spend",
+              spend: {
+                ...spendTemplate,
+                amount: -1053,
+                authorizedAmount: -1053,
+                localAmount: -1053,
+                status: "completed",
+              },
+            },
+          },
+        ],
+      });
+
+      expect(panda.success).toBe(true);
+      if (!panda.success) return;
+      expect(panda.output).toMatchObject({ currency: "USD", amount: -10.53, usdAmount: -10.53 });
+    });
+
     it("reports bad transaction", async () => {
       await database
         .insert(transactions)
