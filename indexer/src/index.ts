@@ -9,6 +9,7 @@ import {
   deposits,
   exaPlugins,
   executions,
+  liquidations,
   markets,
   plugins,
   proposalManagers,
@@ -243,6 +244,22 @@ ponder.on("ProposalManager:ProposalNonceSet", async ({ event, context }) => {
     .insert(executions)
     .values({ ...key, ...execution })
     .onConflictDoUpdate(execution);
+});
+
+ponder.on("Market:Liquidate", async ({ event, context }) => {
+  if (!(await context.db.find(accounts, { chainId: context.chain.id, address: event.args.borrower }))) return; // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
+  await context.db.insert(liquidations).values({
+    ...log(event, context),
+    account: event.args.borrower,
+    liquidator: event.args.receiver,
+    market: event.log.address,
+    assets: event.args.assets,
+    lendersAssets: event.args.lendersAssets,
+    seizeMarket: event.args.seizeMarket,
+    seizedAssets: event.args.seizedAssets,
+    usdPrice: await usdPrice(context, event.log.address),
+    seizeUsdPrice: await usdPrice(context, event.args.seizeMarket),
+  });
 });
 
 ponder.on("Swapper:LiFiGenericSwapCompleted", async ({ event, context }) => {
