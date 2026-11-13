@@ -1,6 +1,6 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
-- assertTrue: ${asset && to && amount && !Number.isNaN(Number(amount))}
+- assertTrue: ${asset && to && amount && (amount === "max" || !Number.isNaN(Number(amount)))}
 - runFlow: ../subflows/readPortfolio.yaml
 - evalScript: ${output.portfolioBefore = output.portfolio}
 - runFlow: { file: scrollTo.yaml, env: { element: Send, center: true } }
@@ -73,7 +73,12 @@ appId: ${APP_ID ?? "app.exactly"}
       - assertVisible: "9999"
       - assertVisible: Insufficient balance. Try a different amount.
       - eraseText: 4
-- inputText: ${amount}
+- runFlow:
+    when: { true: "${amount === 'max'}" }
+    commands: [{ tapOn: MAX }]
+- runFlow:
+    when: { true: "${amount !== 'max'}" }
+    commands: [{ inputText: "${amount}" }]
 - tapOn: "^Send .+ on .+$"
 - runFlow:
     when: { true: "${!pay}" }
@@ -112,7 +117,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: getAccount.yaml
 - runScript:
     file: ../dist/hookProposals.js
-    env: { account: "${output.account}" }
+    env: { account: "${output.account}", max: "${amount === 'max' ? 'true' : ''}" }
 - runFlow:
     when: { true: "${!pay}" }
     commands: [{ assertVisible: Sent to .* }]
@@ -129,4 +134,4 @@ appId: ${APP_ID ?? "app.exactly"}
     file: ../subflows/tapWhileAria.yaml
     env: { aria: Pending proposals, tap: Home }
 - runFlow: ../subflows/readPortfolio.yaml
-- assertTrue: ${!!destination || output.portfolioBefore - output.portfolio === Number(amount) || (!!pay && pay !== asset && output.portfolioBefore - output.portfolio > Number(amount))}
+- assertTrue: ${!!destination || amount === "max" || output.portfolioBefore - output.portfolio === Number(amount) || (!!pay && pay !== asset && output.portfolioBefore - output.portfolio > Number(amount))}

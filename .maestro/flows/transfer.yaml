@@ -1,7 +1,7 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
 - runFlow: ../subflows/launch.yaml
-- runFlow: ../subflows/transfer.yaml
+- runFlow: { file: ../subflows/transfer.yaml, env: { max: "true" } }
 - tapOn: Send
 - tapOn: Digital assets
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Scan QR code } }

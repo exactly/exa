@@ -29,6 +29,7 @@ declare const amount: string | undefined;
 declare const beneficiary: string | undefined;
 declare const count: string | undefined;
 declare const market: string | undefined;
+declare const max: string | undefined;
 declare const receiver: string | undefined;
 
 if (!account || !isHex(account)) throw new Error("bad account");
@@ -65,6 +66,12 @@ for (
   toBlock = anvil("eth_blockNumber", [])
 ) {
   if (Date.now() >= deadline) throw new Error("timeout waiting for proposals");
+}
+if (max) {
+  for (const { market: address } of proposals) {
+    const shares = readContract({ address, functionName: "balanceOf", abi: erc20Abi, args: [account] });
+    if (shares !== 0n) throw new Error(`expected no shares left in ${address}, got ${shares}`);
+  }
 }
 const transfer = toEventSelector(getAbiItem({ abi: erc20Abi, name: "Transfer" }));
 const logs = anvil("eth_getLogs", [{ fromBlock, toBlock, topics: [transfer, null, pad(account)] }]);
