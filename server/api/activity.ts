@@ -1,7 +1,7 @@
 import { renderToBuffer } from "@react-pdf/renderer";
 
 import { captureException, setUser } from "@sentry/node";
-import { and, arrayOverlaps, eq, inArray } from "drizzle-orm";
+import { and, arrayOverlaps, eq, getViewSelectedFields, gt, inArray, min } from "drizzle-orm";
 import { Hono } from "hono";
 import { accepts } from "hono/accepts";
 import { validator as vValidator } from "hono-openapi/valibot";
@@ -58,7 +58,7 @@ import type * as schema from "../database/schema";
 import type { Auth } from "../middleware/auth";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
-const ActivityTypes = picklist(["card", "received", "repay", "sent", "loan"]);
+const ActivityTypes = picklist(["card", "received", "repay", "sent", "loan", "rollover"]);
 const legacyTypes = new Set<InferInput<typeof ActivityTypes>>(["card", "received", "repay", "sent"]);
 
 const collectors = new Set([...cryptomateCollectors, ...pandaCollectors()].map((a) => a.toLowerCase() as Hex));
@@ -156,7 +156,62 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
               .orderBy(indexer.repays.block, indexer.repays.logIndex)
           : Promise.resolve(forbid([]));
 
-      const [deposits, repays, withdraws, borrows, loans] = await Promise.all([
+      const nextBorrow = database
+        .select({
+          chainId: indexer.borrows.chainId,
+          account: indexer.borrows.account,
+          hash: indexer.borrows.hash,
+          market: indexer.borrows.market,
+          caller: indexer.borrows.caller,
+          logIndex: indexer.borrows.logIndex,
+        })
+        .from(indexer.borrows)
+        .as("next_borrow");
+      const rolloverPromise = ignore("rollover")
+        ? Promise.resolve(forbid([]))
+        : database
+            .select({
+              repay: getViewSelectedFields(indexer.repays),
+              borrow: {
+                maturity: indexer.borrows.maturity,
+                assets: indexer.borrows.assets,
+                fee: indexer.borrows.fee,
+              },
+            })
+            .from(indexer.repays)
+            .innerJoin(
+              indexer.borrows,
+              and(
+                eq(indexer.borrows.chainId, indexer.repays.chainId),
+                eq(indexer.borrows.hash, indexer.repays.hash),
+                eq(
+                  indexer.borrows.logIndex,
+                  database
+                    .select({ logIndex: min(nextBorrow.logIndex) })
+                    .from(nextBorrow)
+                    .where(
+                      and(
+                        eq(nextBorrow.chainId, indexer.repays.chainId),
+                        eq(nextBorrow.account, indexer.repays.account),
+                        eq(nextBorrow.hash, indexer.repays.hash),
+                        eq(nextBorrow.market, indexer.repays.market),
+                        eq(nextBorrow.caller, indexer.repays.caller),
+                        gt(nextBorrow.logIndex, indexer.repays.logIndex),
+                      ),
+                    ),
+                ),
+              ),
+            )
+            .where(
+              and(
+                eq(indexer.repays.chainId, chain.id),
+                eq(indexer.repays.account, owner),
+                eq(indexer.repays.caller, debtManagerAddress.toLowerCase() as Hex),
+                inArray(indexer.repays.market, [...markets.keys()]),
+              ),
+            );
+
+      const [deposits, repays, withdraws, borrows, loans, rollovers] = await Promise.all([
         ignore("received")
           ? []
           : Promise.all([
@@ -180,8 +235,9 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
             ),
         ignore("repay")
           ? []
-          : repayPromise.then((rows) =>
+          : Promise.all([repayPromise, ignore("rollover") ? [] : rolloverPromise]).then(([rows, rolled]) =>
               rows
+                .filter((row) => !rolled.some(({ repay }) => repay.id === row.id))
                 .filter((row) => maturity === undefined || Number(row.maturity) === maturity)
                 .map((row) => parse(RepayActivity, { ...row, market: market(row.market, row.usdPrice) })),
             ),
@@ -273,6 +329,13 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                 .filter(({ receiver }) => !known.has(receiver))
                 .map((row) => parse(LoanActivity, { ...row, market: market(row.market, row.usdPrice) }));
             }),
+        ignore("rollover")
+          ? []
+          : rolloverPromise.then((rows) =>
+              rows.map(({ repay, borrow }) =>
+                parse(RolloverActivity, { ...repay, market: market(repay.market, repay.usdPrice), borrow }),
+              ),
+            ),
       ]);
       const purchases =
         !ignore("card") && borrows && maturity !== undefined
@@ -434,6 +497,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
         ...repays,
         ...withdraws,
         ...loans,
+        ...rollovers,
       ]
         .filter(<T>(value: T | undefined): value is T => value !== undefined)
         .toSorted((a, b) => b.timestamp.localeCompare(a.timestamp) || collator.compare(b.id, a.id));
@@ -859,6 +923,27 @@ export const LoanActivity = pipe(
   })),
 );
 
+export const RolloverActivity = pipe(
+  object({ ...OnchainActivity.entries, maturity: bigint(), positionAssets: bigint(), borrow: Borrow }),
+  transform((activity) => {
+    const { decimals } = activity.market;
+    return {
+      ...transformActivity(activity),
+      positionAmount: Number(activity.positionAssets) / 10 ** decimals,
+      maturity: Number(activity.maturity),
+      borrow: {
+        amount: Number(activity.borrow.assets + activity.borrow.fee) / 10 ** decimals,
+        fee: Number(activity.borrow.fee) / 10 ** decimals,
+        maturity: Number(activity.borrow.maturity),
+        rate:
+          Number(fixedRate(activity.borrow.maturity, activity.borrow.assets, activity.borrow.fee, activity.timestamp)) /
+          1e18,
+      },
+      type: "rollover" as const,
+    };
+  }),
+);
+
 function forbid<T extends object>(value: T) {
   return new Proxy(value, {
     /* v8 ignore start */
@@ -884,4 +969,5 @@ export type LoanActivity = InferOutput<typeof LoanActivity>;
 export type OnchainActivity = InferOutput<typeof OnchainActivity>;
 export type PandaActivity = InferOutput<typeof PandaActivity>;
 export type RepayActivity = InferOutput<typeof RepayActivity>;
+export type RolloverActivity = InferOutput<typeof RolloverActivity>;
 export type WithdrawActivity = InferOutput<typeof WithdrawActivity>;

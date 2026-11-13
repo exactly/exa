@@ -36,6 +36,7 @@ import fixedRate from "@exactly/common/fixedRate";
 import chain, {
   auditorAbi,
   auditorAddress,
+  debtManagerAddress,
   exaAccountFactoryAbi,
   exaAccountFactoryAddress,
   exaPluginAbi,
@@ -137,15 +138,17 @@ describe.concurrent("authenticated", () => {
         { id: "first-activity-card", credentialId: "bob", lastFour: "1234" },
         { id: "second-activity-card", credentialId: "bob", lastFour: "6789" },
       ]);
-      const borrows = await anvilClient.getContractEvents({
-        abi: marketAbi,
-        eventName: "BorrowAtMaturity",
-        address: [...markets],
-        args: { borrower: account },
-        toBlock: "latest",
-        fromBlock: 0n,
-        strict: true,
-      });
+      const borrows = await anvilClient
+        .getContractEvents({
+          abi: marketAbi,
+          eventName: "BorrowAtMaturity",
+          address: [...markets],
+          args: { borrower: account },
+          toBlock: "latest",
+          fromBlock: 0n,
+          strict: true,
+        })
+        .then((logs) => logs.filter(({ args }) => args.caller !== debtManagerAddress));
       assert.ok(borrows[0], "expected at least one BorrowAtMaturity event");
       maturity = String(borrows[0].args.maturity);
       const logs = [
@@ -768,12 +771,8 @@ describe.concurrent("authenticated", () => {
 
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toMatchObject([
-        {
-          type: "repay",
-          currency: "USDC",
-          amount: expect.withinRange(13, 18),
-          usdAmount: expect.withinRange(13, 18),
-        },
+        { type: "repay", currency: "USDC", amount: expect.withinRange(6, 9), usdAmount: expect.withinRange(6, 9) },
+        { type: "repay", currency: "USDC", amount: expect.withinRange(6, 9), usdAmount: expect.withinRange(6, 9) },
         { amount: expect.closeTo(81, 0.5), currency: "USDC", type: "repay", usdAmount: expect.closeTo(81, 0.5) }, // eslint-disable-line @typescript-eslint/no-unsafe-assignment
         {
           type: "repay",
@@ -846,6 +845,93 @@ describe.concurrent("authenticated", () => {
           timestamp: new Date(Number(timestamp) * 1000).toISOString(),
         },
       ]);
+    });
+
+    it("returns rollovers", async () => {
+      const borrows = await anvilClient
+        .getContractEvents({
+          abi: marketAbi,
+          eventName: "BorrowAtMaturity",
+          address: marketUSDCAddress,
+          args: { borrower: account },
+          toBlock: "latest",
+          fromBlock: 0n,
+          strict: true,
+        })
+        .then((logs) => logs.filter(({ args }) => args.caller === debtManagerAddress));
+      const repays = await anvilClient
+        .getContractEvents({
+          abi: marketAbi,
+          eventName: "RepayAtMaturity",
+          address: marketUSDCAddress,
+          args: { borrower: account },
+          toBlock: "latest",
+          fromBlock: 0n,
+          strict: true,
+        })
+        .then((logs) => logs.filter(({ args }) => args.caller === debtManagerAddress));
+      expect(repays).toHaveLength(2);
+      expect(borrows).toHaveLength(2);
+      expect(new Set([...repays, ...borrows].map(({ transactionHash }) => transactionHash)).size).toBe(1);
+      const { timestamp } = await anvilClient.getBlock({ blockHash: repays[0]?.blockHash });
+
+      const response = await appClient.index.$get(
+        { query: { include: "rollover" } },
+        { headers: { "test-credential-id": "bob" } },
+      );
+
+      expect(response.status).toBe(200);
+      const ids = repays.map((repay) => `${chain.id}:${repay.blockNumber}:${repay.transactionIndex}:${repay.logIndex}`);
+      const json = (await response.json()) as { id: string; type: string }[];
+      expect(
+        json.filter(({ id }) => ids.includes(id)).toSorted((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id)),
+      ).toStrictEqual(
+        repays.map((repay, index) => {
+          const borrow = borrows[index];
+          assert.ok(borrow, "expected a rollover borrow");
+          assert.ok(repay.logIndex < borrow.logIndex, "expected borrow after repay");
+          return {
+            id: ids[index],
+            type: "rollover",
+            currency: "USDC",
+            amount: Number(repay.args.assets) / 1e6,
+            usdAmount: Number(repay.args.assets) / 1e6,
+            positionAmount: Number(repay.args.positionAssets) / 1e6,
+            maturity: Number(repay.args.maturity),
+            borrow: {
+              amount: Number(borrow.args.assets + borrow.args.fee) / 1e6,
+              fee: Number(borrow.args.fee) / 1e6,
+              maturity: Number(borrow.args.maturity),
+              rate: Number(fixedRate(borrow.args.maturity, borrow.args.assets, borrow.args.fee, timestamp)) / 1e18,
+            },
+            transactionHash: repay.transactionHash,
+            timestamp: new Date(Number(timestamp) * 1000).toISOString(),
+          };
+        }),
+      );
+    });
+
+    it("moves rollover repays out of repays", async () => {
+      const response = await appClient.index.$get(
+        { query: { include: ["rollover", "repay"] } },
+        { headers: { "test-credential-id": "bob" } },
+      );
+
+      expect(response.status).toBe(200);
+      const json = (await response.json()) as { type: string }[];
+      expect(json.filter(({ type }) => type === "repay")).toHaveLength(2);
+      expect(json.filter(({ type }) => type === "rollover")).toHaveLength(2);
+    });
+
+    it("keeps rollover repays as repays by default", async () => {
+      const response = await appClient.index.$get(
+        { query: { include: "repay" } },
+        { headers: { "test-credential-id": "bob" } },
+      );
+
+      expect(response.status).toBe(200);
+      const json = (await response.json()) as { type: string }[];
+      expect(json.filter(({ type }) => type === "repay")).toHaveLength(4);
     });
 
     it("leaves loans out by default", async () => {
