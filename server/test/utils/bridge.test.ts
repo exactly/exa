@@ -2912,6 +2912,7 @@ describe("bridge utils", () => {
     it("throws MISSING_FIELDS when account misses fields", async () => {
       const fetchSpy = vi
         .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(Response.json({ data: [incompletePersonaAccount] }))
         .mockResolvedValueOnce(Response.json({ data: [incompletePersonaAccount] }));
 
       await expect(
@@ -2922,8 +2923,100 @@ describe("bridge utils", () => {
           acceptedTermsId: "terms-1",
         }),
       ).rejects.toThrow(bridge.ErrorCodes.MISSING_FIELDS);
-      expect(fetchSpy).toHaveBeenCalledOnce();
-      expect(fetchSpy.mock.calls[0]?.[0]).toMatch(/\/accounts\?page\[size\]=1&filter\[reference-id\]=cred-1$/);
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      for (const [url] of fetchSpy.mock.calls) {
+        expect(url).toMatch(/\/accounts\?page\[size\]=1&filter\[reference-id\]=cred-1$/);
+      }
+      expect(captureException).not.toHaveBeenCalled();
+    });
+
+    it("throws DENYLISTED_COUNTRY before MISSING_FIELDS", async () => {
+      const account = {
+        ...incompletePersonaAccount,
+        attributes: { ...incompletePersonaAccount.attributes, "country-code": "ID" },
+      };
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(Response.json({ data: [account] }))
+        .mockResolvedValueOnce(Response.json({ data: [account] }));
+
+      await expect(
+        bridge.onboarding({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: null,
+          acceptedTermsId: "terms-1",
+        }),
+      ).rejects.toThrow(bridge.ErrorCodes.DENYLISTED_COUNTRY);
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      expect(captureException).not.toHaveBeenCalled();
+    });
+
+    it("throws NOT_ENABLED before MISSING_FIELDS", async () => {
+      const account = {
+        ...incompletePersonaAccount,
+        attributes: {
+          ...incompletePersonaAccount.attributes,
+          fields: { ...incompletePersonaAccount.attributes.fields, bridge_enable: { value: false } },
+        },
+      };
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(Response.json({ data: [account] }))
+        .mockResolvedValueOnce(Response.json({ data: [account] }));
+
+      await expect(
+        bridge.onboarding({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: null,
+          acceptedTermsId: "terms-1",
+        }),
+      ).rejects.toThrow(bridge.ErrorCodes.NOT_ENABLED);
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      expect(captureException).not.toHaveBeenCalled();
+    });
+
+    it("throws MISSING_FIELDS when account misses fields and country", async () => {
+      const account = {
+        ...incompletePersonaAccount,
+        attributes: { ...incompletePersonaAccount.attributes, "country-code": null },
+      };
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(Response.json({ data: [account] }))
+        .mockResolvedValueOnce(Response.json({ data: [account] }));
+
+      await expect(
+        bridge.onboarding({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: null,
+          acceptedTermsId: "terms-1",
+        }),
+      ).rejects.toThrow(bridge.ErrorCodes.MISSING_FIELDS);
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      expect(captureException).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["fields", { data: [{ ...incompletePersonaAccount, attributes: { "country-code": "US" } }] }],
+      ["account", { data: [] }],
+    ])("throws NOT_ENABLED when missing fields and unknown %s", async (_, unknownAccount) => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(Response.json({ data: [incompletePersonaAccount] }))
+        .mockResolvedValueOnce(Response.json(unknownAccount));
+
+      await expect(
+        bridge.onboarding({
+          accountType: "consumer",
+          credentialId: "cred-1",
+          customerId: null,
+          acceptedTermsId: "terms-1",
+        }),
+      ).rejects.toThrow(bridge.ErrorCodes.NOT_ENABLED);
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
       expect(captureException).not.toHaveBeenCalled();
     });
 

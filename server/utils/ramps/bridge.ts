@@ -1398,11 +1398,17 @@ export default function bridge(key: string, url: string) {
         break;
       }
       case "consumer": {
-        const personaAccount = await persona.getAccount(params.credentialId, "bridge").catch((error: unknown) => {
+        const personaAccount = await persona.getAccount(params.credentialId, "bridge").catch(async (error: unknown) => {
           if (
             error instanceof ValiError &&
             error.issues.every((issue: BaseIssue<unknown>) => Persona.isMissingOrNull(issue))
           ) {
+            const {
+              data: [account],
+            } = await persona.getUnknownAccount(params.credentialId);
+            const countryCode = account?.attributes["country-code"];
+            if (countryCode && Denylist.has(countryCode)) throw new Error(ErrorCodes.DENYLISTED_COUNTRY);
+            if (account?.attributes.fields?.bridge_enable?.value !== true) throw new Error(ErrorCodes.NOT_ENABLED);
             throw new Error(ErrorCodes.MISSING_FIELDS);
           }
           throw error;

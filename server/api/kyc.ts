@@ -1056,7 +1056,7 @@ async function isLegacy(
   });
 }
 
-async function canRetry(credentialId: string, templateId: string, persona: ReturnType<typeof createPersona>) {
+export async function canRetry(credentialId: string, templateId: string, persona: ReturnType<typeof createPersona>) {
   const failed = await persona.getFailedInquiries(credentialId, templateId, MAX_FAILED_INQUIRIES);
   return failed.length < MAX_FAILED_INQUIRIES;
 }

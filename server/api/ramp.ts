@@ -21,6 +21,7 @@ import {
 import { business } from "@exactly/common/tenants";
 import { Address } from "@exactly/common/validation";
 
+import { canRetry } from "./kyc";
 import { credentials } from "../database/schema";
 import { BusinessApplicationError } from "../utils/panda";
 import { ADDRESS_TEMPLATE, MANTECA_TEMPLATE_EXTRA_FIELDS, PANDA_TEMPLATE } from "../utils/persona";
@@ -419,6 +420,13 @@ export default function route({
                     const inquiry = await persona.getLatestInquiry(credentialId, PANDA_TEMPLATE);
                     if (inquiry?.attributes.status === "completed" || inquiry?.attributes.status === "needs_review") {
                       return c.json({ code: "pending" }, 200);
+                    }
+                    if (
+                      inquiry?.attributes.status === "declined" ||
+                      (inquiry?.attributes.status === "failed" &&
+                        !(await canRetry(credentialId, PANDA_TEMPLATE, persona)))
+                    ) {
+                      return c.json({ code: "failed" }, 400);
                     }
                     const { inquiryId, sessionToken } = await getOrCreateInquiry(
                       credentialId,

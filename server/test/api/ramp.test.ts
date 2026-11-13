@@ -1457,10 +1457,11 @@ describe("ramp api", () => {
         expect(persona.createInquiry).toHaveBeenCalledTimes(1);
       });
 
-      it.each(["approved", "declined", "failed"] as const)(
+      it.each(["approved", "failed"] as const)(
         "returns 400 with new basic inquiry for missing fields when latest is %s",
         async (status) => {
           vi.spyOn(bridge, "onboarding").mockRejectedValue(new Error(bridge.ErrorCodes.MISSING_FIELDS));
+          vi.spyOn(persona, "getFailedInquiries").mockResolvedValue([]);
           vi.spyOn(persona, "getInquiry");
           vi.spyOn(persona, "getLatestInquiry").mockResolvedValue({
             id: "inq_basic_old",
@@ -1497,6 +1498,55 @@ describe("ramp api", () => {
           expect(persona.resumeInquiry).toHaveBeenCalledExactlyOnceWith("inq_basic_new");
         },
       );
+
+      it("returns failed for missing fields when latest basic inquiry is declined", async () => {
+        vi.spyOn(bridge, "onboarding").mockRejectedValue(new Error(bridge.ErrorCodes.MISSING_FIELDS));
+        vi.spyOn(persona, "getLatestInquiry").mockResolvedValue({
+          id: "inq_basic_declined",
+          type: "inquiry" as const,
+          attributes: { status: "declined", "reference-id": "ramp-test" },
+        });
+        vi.spyOn(persona, "getFailedInquiries");
+        vi.spyOn(persona, "createInquiry");
+        vi.spyOn(persona, "resumeInquiry");
+
+        const response = await appClient.index.$post(
+          { json: { provider: "bridge", acceptedTermsId: "terms_123" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code: "failed" });
+        expect(persona.getFailedInquiries).not.toHaveBeenCalled();
+        expect(persona.createInquiry).not.toHaveBeenCalled();
+        expect(persona.resumeInquiry).not.toHaveBeenCalled();
+        expect(captureException).not.toHaveBeenCalled();
+      });
+
+      it("returns failed for missing fields when failed basic inquiries reach the limit", async () => {
+        const failed = {
+          id: "inq_basic_failed",
+          type: "inquiry" as const,
+          attributes: { status: "failed" as const, "reference-id": "ramp-test" },
+        };
+        vi.spyOn(bridge, "onboarding").mockRejectedValue(new Error(bridge.ErrorCodes.MISSING_FIELDS));
+        vi.spyOn(persona, "getLatestInquiry").mockResolvedValue(failed);
+        vi.spyOn(persona, "getFailedInquiries").mockResolvedValue([failed, failed, failed]);
+        vi.spyOn(persona, "createInquiry");
+        vi.spyOn(persona, "resumeInquiry");
+
+        const response = await appClient.index.$post(
+          { json: { provider: "bridge", acceptedTermsId: "terms_123" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code: "failed" });
+        expect(persona.getFailedInquiries).toHaveBeenCalledExactlyOnceWith("ramp-test", persona.PANDA_TEMPLATE, 3);
+        expect(persona.createInquiry).not.toHaveBeenCalled();
+        expect(persona.resumeInquiry).not.toHaveBeenCalled();
+        expect(captureException).not.toHaveBeenCalled();
+      });
 
       it("returns 400 with new basic inquiry for missing fields when none exists", async () => {
         vi.spyOn(bridge, "onboarding").mockRejectedValue(new Error(bridge.ErrorCodes.MISSING_FIELDS));
