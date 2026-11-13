@@ -90,13 +90,19 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
         object({
           include: optional(union([ActivityTypes, array(ActivityTypes)])),
           maturity: optional(pipe(string(), digits(), transform(Number))),
+          timezone: optional(
+            pipe(
+              string(),
+              transform((value) => (isTimeZone(value) ? value : undefined)),
+            ),
+          ),
         }),
         {},
       ),
       validatorHook(),
     ),
     async (c) => {
-      const { include, maturity } = c.req.valid("query");
+      const { include, maturity, timezone } = c.req.valid("query");
       if (maturity !== undefined && maturity > 864e10) return c.json({ code: "invalid maturity" }, 400);
       const accept = accepts(c, {
         header: "Accept",
@@ -681,6 +687,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
               amount,
               positionAmount,
             })),
+          timeZone: timezone,
         };
         return c.body(new Uint8Array(await renderToBuffer(Statement(statement))), 200, {
           "content-type": "application/pdf",
@@ -1196,6 +1203,14 @@ function forbid<T extends object>(value: T) {
 }
 
 const collator = new Intl.Collator(undefined, { numeric: true });
+
+function isTimeZone(timeZone: string) {
+  try {
+    return new Intl.DateTimeFormat(undefined, { timeZone }).resolvedOptions().timeZone.length > 0;
+  } catch {
+    return false;
+  }
+}
 
 export type BridgeActivity = InferOutput<typeof BridgeActivity>;
 export type CreditActivity = InferOutput<typeof CreditActivity>;
