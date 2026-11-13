@@ -1,7 +1,7 @@
 import { renderToBuffer } from "@react-pdf/renderer";
 
 import { captureException, setUser } from "@sentry/node";
-import { and, arrayOverlaps, eq, getViewSelectedFields, gt, inArray, min } from "drizzle-orm";
+import { and, arrayOverlaps, eq, getViewSelectedFields, gt, inArray, min, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { Hono } from "hono";
 import { accepts } from "hono/accepts";
@@ -60,7 +60,17 @@ import type * as schema from "../database/schema";
 import type { Auth } from "../middleware/auth";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
-const ActivityTypes = picklist(["card", "received", "repay", "sent", "loan", "rollover", "swap", "liquidation"]);
+const ActivityTypes = picklist([
+  "card",
+  "received",
+  "repay",
+  "sent",
+  "loan",
+  "rollover",
+  "swap",
+  "liquidation",
+  "bridge",
+]);
 const legacyTypes = new Set<InferInput<typeof ActivityTypes>>(["card", "received", "repay", "sent"]);
 
 const fromToken = alias(indexer.tokens, "from_token");
@@ -235,7 +245,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
             )
             .where(and(eq(indexer.swaps.chainId, chain.id), eq(indexer.swaps.account, owner)));
 
-      const [deposits, repays, withdraws, borrows, loans, rollovers, swapped, liquidated] = await Promise.all([
+      const [deposits, repays, withdraws, borrows, loans, rollovers, swapped, liquidated, bridged] = await Promise.all([
         ignore("received")
           ? []
           : Promise.all([
@@ -384,6 +394,30 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                     seizeMarket: market(row.seizeMarket, row.seizeUsdPrice),
                   }),
                 ),
+              ),
+        ignore("bridge")
+          ? []
+          : database
+              .select({
+                bridge: getViewSelectedFields(indexer.bridges),
+                token: { symbol: indexer.tokens.symbol, decimals: indexer.tokens.decimals },
+              })
+              .from(indexer.bridges)
+              .innerJoin(
+                indexer.tokens,
+                and(
+                  eq(indexer.tokens.chainId, indexer.bridges.chainId),
+                  eq(indexer.tokens.address, indexer.bridges.asset),
+                ),
+              )
+              .where(
+                or(
+                  and(eq(indexer.bridges.chainId, chain.id), eq(indexer.bridges.account, owner)),
+                  and(eq(indexer.bridges.destinationChainId, BigInt(chain.id)), eq(indexer.bridges.receiver, owner)),
+                ),
+              )
+              .then((rows) =>
+                rows.map(({ bridge, token }) => parse(BridgeActivity, { ...bridge, assets: bridge.amount, token })),
               ),
       ]);
       const purchases =
@@ -549,6 +583,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
         ...rollovers,
         ...swapped,
         ...liquidated,
+        ...bridged,
       ]
         .filter(<T>(value: T | undefined): value is T => value !== undefined)
         .toSorted((a, b) => b.timestamp.localeCompare(a.timestamp) || collator.compare(b.id, a.id));
@@ -1035,6 +1070,28 @@ export const SwapActivity = pipe(
   }),
 );
 
+export const BridgeActivity = pipe(
+  object({
+    ...omit(OnchainActivity, ["market"]).entries,
+    chainId: number(),
+    token: Token,
+    usdPrice: nullable(bigint()),
+    bridge: string(),
+    receiver: Address,
+    destinationChainId: bigint(),
+  }),
+  transform(({ chainId, token, usdPrice, bridge, receiver, destinationChainId, ...activity }) => ({
+    ...transformActivity({ ...activity, market: { ...token, usdPrice: usdPrice ?? 0n } }),
+    id: `${chainId}:${activity.block}:${activity.transactionIndex}:${activity.logIndex}`,
+    usdAmount: usdPrice === null ? undefined : Number((activity.assets * usdPrice) / WAD) / 10 ** token.decimals,
+    bridge,
+    receiver,
+    sourceChainId: chainId,
+    destinationChainId: Number(destinationChainId),
+    type: "bridge" as const,
+  })),
+);
+
 function forbid<T extends object>(value: T) {
   return new Proxy(value, {
     /* v8 ignore start */
@@ -1052,6 +1109,7 @@ function forbid<T extends object>(value: T) {
 
 const collator = new Intl.Collator(undefined, { numeric: true });
 
+export type BridgeActivity = InferOutput<typeof BridgeActivity>;
 export type CreditActivity = InferOutput<typeof CreditActivity>;
 export type DebitActivity = InferOutput<typeof DebitActivity>;
 export type DepositActivity = InferOutput<typeof DepositActivity>;

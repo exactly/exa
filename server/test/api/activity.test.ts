@@ -12,6 +12,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { parse, safeParse, type InferOutput } from "valibot";
 import {
+  createPublicClient,
   createWalletClient,
   encodeAbiParameters,
   encodeFunctionData,
@@ -26,6 +27,7 @@ import {
   zeroHash,
   type Hash,
   type Hex,
+  type PublicClient,
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { anvil } from "viem/chains";
@@ -57,6 +59,7 @@ import { WAD } from "@exactly/lib";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 
 import route, {
+  BridgeActivity,
   CreditActivity,
   DebitActivity,
   InstallmentsActivity,
@@ -68,6 +71,7 @@ import * as indexer from "../../database/indexer";
 import authenticate from "../../middleware/auth";
 import publicClient from "../../utils/publicClient";
 import wallet from "../../utils/wallet";
+import { chains } from "../anvil";
 import anvilClient from "../anvilClient";
 
 function httpSerialize<T>(object: T): T {
@@ -1003,6 +1007,98 @@ describe.concurrent("authenticated", () => {
       await expect(response.json()).resolves.toStrictEqual(expected.toReversed());
     });
 
+    it("returns bridges to and from other networks", async () => {
+      const anvil2Client = createPublicClient({ chain: chains[1], transport: http() });
+      const sources = await Promise.all(
+        [anvilClient, anvil2Client].map(async (client) => ({
+          client,
+          chainId: await client.getChainId(),
+          logs: await client.getContractEvents({
+            address: swapperAddress,
+            abi: mockSwapperAbi,
+            eventName: "LiFiTransferStarted",
+            fromBlock: 0n,
+            strict: true,
+          }),
+        })),
+      );
+      const bridged = sources.flatMap(({ client, chainId, logs }) =>
+        logs
+          .filter(
+            ({ args: { bridgeData } }) =>
+              chainId === chain.id ||
+              (bridgeData.receiver === account && bridgeData.destinationChainId === BigInt(chain.id)),
+          )
+          .map((log) => ({ client, chainId, log })),
+      );
+      expect(bridged.map(({ chainId }) => chainId)).toStrictEqual([chain.id, chains[1]?.id]);
+      const collator = new Intl.Collator(undefined, { numeric: true });
+      const expected = await Promise.all(
+        bridged.map(
+          async ({
+            client,
+            chainId,
+            log: {
+              args: { bridgeData },
+              blockNumber,
+              logIndex,
+              transactionHash,
+              transactionIndex,
+            },
+          }) => {
+            const [{ timestamp }, token, usdPrice] = await Promise.all([
+              client.getBlock({ blockNumber }),
+              metadata(bridgeData.sendingAssetId, client),
+              assetPrice(bridgeData.sendingAssetId, blockNumber, client),
+            ]);
+            return {
+              id: `${chainId}:${blockNumber}:${transactionIndex}:${logIndex}`,
+              type: "bridge",
+              currency: token.symbol,
+              amount: Number(bridgeData.minAmount) / 10 ** token.decimals,
+              usdAmount: Number((bridgeData.minAmount * usdPrice) / WAD) / 10 ** token.decimals,
+              bridge: bridgeData.bridge,
+              receiver: bridgeData.receiver,
+              sourceChainId: chainId,
+              destinationChainId: Number(bridgeData.destinationChainId),
+              transactionHash,
+              timestamp: new Date(Number(timestamp) * 1000).toISOString(),
+            };
+          },
+        ),
+      );
+
+      const response = await appClient.index.$get(
+        { query: { include: "bridge" } },
+        { headers: { "test-credential-id": "bob" } },
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual(
+        expected.toSorted((a, b) => b.timestamp.localeCompare(a.timestamp) || collator.compare(b.id, a.id)),
+      );
+    });
+
+    it("leaves unpriced sends to other networks without usd amount", () => {
+      const bridge = parse(BridgeActivity, {
+        block: 1n,
+        timestamp: 0n,
+        hash: zeroHash,
+        transactionIndex: 0,
+        logIndex: 0,
+        chainId: 1,
+        assets: 10n ** 18n,
+        token: { symbol: "TOKEN", decimals: 18 },
+        usdPrice: null,
+        bridge: "mock",
+        receiver: account,
+        destinationChainId: 1n,
+      });
+
+      expect(bridge.amount).toBe(1);
+      expect(bridge.usdAmount).toBeUndefined();
+    });
+
     it("returns swaps", async () => {
       const logs = await anvilClient
         .getContractEvents({
@@ -1659,25 +1755,25 @@ const spendTemplate = {
   userLastName: "SAMPLEapproved",
 };
 
-async function metadata(address: Hex) {
+async function metadata(address: Hex, client: PublicClient = anvilClient) {
   const [symbol, decimals] = await Promise.all([
-    anvilClient.readContract({ address, abi: erc20Abi, functionName: "symbol" }),
-    anvilClient.readContract({ address, abi: erc20Abi, functionName: "decimals" }),
+    client.readContract({ address, abi: erc20Abi, functionName: "symbol" }),
+    client.readContract({ address, abi: erc20Abi, functionName: "decimals" }),
   ]);
   return { symbol, decimals };
 }
 
-async function assetPrice(asset: Hex, blockNumber: bigint) {
-  const all = await anvilClient.readContract({ address: auditorAddress, abi: auditorAbi, functionName: "allMarkets" });
+async function assetPrice(asset: Hex, blockNumber: bigint, client: PublicClient = anvilClient) {
+  const all = await client.readContract({ address: auditorAddress, abi: auditorAbi, functionName: "allMarkets" });
   const assets = await Promise.all(
-    all.map((address) => anvilClient.readContract({ address, abi: marketAbi, functionName: "asset" })),
+    all.map((address) => client.readContract({ address, abi: marketAbi, functionName: "asset" })),
   );
   const market = all[assets.indexOf(asset)];
   assert.ok(market, "expected a market");
-  const priceFeed = await anvilClient
+  const priceFeed = await client
     .readContract({ address: auditorAddress, abi: auditorAbi, functionName: "markets", args: [market] })
     .then((data) => data[4]);
-  return anvilClient.readContract({
+  return client.readContract({
     address: auditorAddress,
     abi: auditorAbi,
     functionName: "assetPrice",
