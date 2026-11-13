@@ -10,7 +10,7 @@ import { array, nonEmpty, optional, parse, picklist, pipe, string, transform } f
 import { base } from "viem/chains";
 
 import domain from "@exactly/common/domain";
-import chain from "@exactly/common/generated/chain";
+import chain, { lifiURL } from "@exactly/common/generated/chain";
 import { tenantScript } from "@exactly/common/tenants";
 
 import createApi from "./api";
@@ -271,7 +271,7 @@ frontend.use(
       ],
       connectSrc: [
         "'self'",
-        "https://li.quest",
+        new URL(lifiURL).origin,
         "https://*.g.alchemy.com",
         "https://assets.smold.app",
         "https://assets.exactly.app",
