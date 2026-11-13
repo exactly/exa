@@ -654,11 +654,16 @@ describe.concurrent("authenticated", () => {
           args: [0n, [{ x: hexToBigInt(owner.account.address), y: 0n }]],
         }),
       });
-      const { blockNumber: block, logs } = await anvilClient.waitForTransactionReceipt({
+      const {
+        blockNumber: block,
+        logs,
+        status: outcome,
+      } = await anvilClient.waitForTransactionReceipt({
         hash: await owner.writeContract({
           address: depositor,
           abi: upgradeableModularAccountAbi,
           functionName: "executeBatch",
+          gas: 1_000_000n,
           args: [
             [
               {
@@ -702,6 +707,7 @@ describe.concurrent("authenticated", () => {
       });
       const deposits = parseEventLogs({ abi: marketAbi, eventName: "Deposit", logs });
 
+      expect(outcome).toBe("success");
       expect(new Set(deposits.map(({ logIndex }) => String(logIndex).length))).toStrictEqual(new Set([1, 2]));
 
       await vi.waitFor(
