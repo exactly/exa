@@ -1,4 +1,4 @@
-import { ponder } from "ponder:registry";
+import { ponder, type Context } from "ponder:registry";
 import {
   accounts,
   borrows,
@@ -7,16 +7,28 @@ import {
   deposits,
   exaPlugins,
   executions,
+  markets,
   plugins,
   proposalManagers,
   proposals,
   repays,
   withdraws,
 } from "ponder:schema";
-import { decodeFunctionData, getAbiItem, isAddressEqual, numberToHex, toFunctionSelector, type Hex } from "viem";
+import {
+  BaseError,
+  CallExecutionError,
+  ContractFunctionRevertedError,
+  ContractFunctionZeroDataError,
+  decodeFunctionData,
+  getAbiItem,
+  isAddressEqual,
+  numberToHex,
+  toFunctionSelector,
+  type Hex,
+} from "viem";
 
 import deriveAddress from "@exactly/common/deriveAddress";
-import { exaPluginAbi, factories } from "@exactly/common/generated/chain";
+import { auditorAbi, chains, exaPluginAbi, factories, marketAbi } from "@exactly/common/generated/chain";
 
 const executeProposalAbi = [getAbiItem({ abi: exaPluginAbi, name: "executeProposal" })] as const;
 const executeProposal = toFunctionSelector(executeProposalAbi[0]);
@@ -101,6 +113,24 @@ ponder.on("ProposalManager:DelaySet", async ({ event, context }) => {
     .onConflictDoUpdate({ delay: event.args.delay });
 });
 
+ponder.on("Auditor:MarketListed", async ({ event, context }) => {
+  const [asset, symbol] = await Promise.all([
+    context.client.readContract({ address: event.args.market, abi: marketAbi, functionName: "asset" }),
+    context.client.readContract({ address: event.args.market, abi: marketAbi, functionName: "symbol" }),
+  ]);
+  const metadata = { asset, symbol: symbol.slice(3), decimals: event.args.decimals };
+  await context.db
+    .insert(markets)
+    .values({ chainId: context.chain.id, address: event.args.market, ...metadata })
+    .onConflictDoUpdate(metadata);
+});
+
+ponder.on("Auditor:PriceFeedSet", async ({ event, context }) => {
+  const key = { chainId: context.chain.id, address: event.args.market };
+  if (!(await context.db.find(markets, key))) return; // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
+  await context.db.update(markets, key).set({ priceFeed: event.args.priceFeed });
+});
+
 ponder.on("Market:Deposit", async ({ event, context }) => {
   if (!(await context.db.find(accounts, { chainId: context.chain.id, address: event.args.owner }))) return; // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
   await context.db.insert(deposits).values({
@@ -109,6 +139,7 @@ ponder.on("Market:Deposit", async ({ event, context }) => {
     caller: event.args.caller,
     market: event.log.address,
     assets: event.args.assets,
+    usdPrice: await usdPrice(context, event.log.address),
   });
 });
 
@@ -134,6 +165,7 @@ ponder.on("Market:Withdraw", async ({ event, context }) => {
     receiver: event.args.receiver,
     market: event.log.address,
     assets: event.args.assets,
+    usdPrice: await usdPrice(context, event.log.address),
     proposalManager: input.startsWith(legacyWithdraw) ? event.args.receiver : (proposal?.proposalManager ?? null),
     nonce: proposal?.nonce ?? null,
   });
@@ -149,6 +181,7 @@ ponder.on("Market:BorrowAtMaturity", async ({ event, context }) => {
     market: event.log.address,
     maturity: event.args.maturity,
     assets: event.args.assets,
+    usdPrice: await usdPrice(context, event.log.address),
     fee: event.args.fee,
   });
 });
@@ -162,6 +195,7 @@ ponder.on("Market:RepayAtMaturity", async ({ event, context }) => {
     market: event.log.address,
     maturity: event.args.maturity,
     assets: event.args.assets,
+    usdPrice: await usdPrice(context, event.log.address),
     positionAssets: event.args.positionAssets,
   });
 });
@@ -191,6 +225,30 @@ ponder.on("ProposalManager:ProposalNonceSet", async ({ event, context }) => {
     .values({ ...key, ...execution })
     .onConflictDoUpdate(execution);
 });
+
+async function usdPrice(context: Context, market: Hex) {
+  const found = await context.db.find(markets, { chainId: context.chain.id, address: market }); // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
+  const auditor = chains.get(context.chain.id)?.auditor;
+  if (!found?.priceFeed || !auditor) return null;
+  return context.client
+    .readContract({ address: auditor, abi: auditorAbi, functionName: "assetPrice", args: [found.priceFeed] })
+    .catch(fallback(() => null));
+}
+
+function fallback<T>(value: () => T) {
+  return (error: unknown) => {
+    const found =
+      error instanceof BaseError &&
+      error.walk(
+        (cause) =>
+          cause instanceof ContractFunctionRevertedError ||
+          cause instanceof ContractFunctionZeroDataError ||
+          cause instanceof CallExecutionError,
+      );
+    if (found === false || found instanceof CallExecutionError) throw error;
+    return value();
+  };
+}
 
 function log(
   {
