@@ -3788,6 +3788,15 @@ describe("webhooks", () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 
+  it("skips company webhooks", async () => {
+    const response = await appClient.index.$post(company);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(hookQueue.enqueue).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
   it("retries card updated webhooks that cannot be queued", async () => {
     const error = new Error("queue down");
     hookQueue.enqueue.mockRejectedValueOnce(error);
@@ -4126,6 +4135,21 @@ const dispute = {
     resource: "dispute",
     action: "created",
     body: { id: "dispute-1" },
+  },
+} as const;
+
+const company = {
+  header: { signature: "panda-signature" },
+  json: {
+    id: "c3b3cb1f-876f-47c0-88e8-77eac334afcd",
+    resource: "company",
+    action: "updated",
+    body: {
+      applicationReason: "",
+      applicationStatus: "approved",
+      id: "919ebe17-4e6f-49da-b3b4-0b57efe95cbf",
+      name: "Exa Labs SAS",
+    },
   },
 } as const;
 

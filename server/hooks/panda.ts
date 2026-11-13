@@ -128,7 +128,7 @@ export default function hook({
       getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, `panda.${payload.resource}.${payload.action}`);
 
       if (payload.resource !== "transaction") {
-        if (payload.resource === "dispute") return c.json({ code: "ok" });
+        if (payload.resource === "dispute" || payload.resource === "company") return c.json({ code: "ok" });
         const pandaId =
           payload.resource === "card"
             ? payload.action === "updated"

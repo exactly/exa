@@ -525,6 +525,21 @@ describe("hook worker", () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 
+  it("skips companies", async () => {
+    webhooks.set("wk-company", {
+      id: "wk-company",
+      requestBody: { resource: "company", action: "updated", body: { id: "company" }, id: "wk-company" },
+      requestSentAt: "2026-01-01T00:00:00.000Z",
+    });
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(new Response("OK")));
+
+    await jobFinished("wk-company");
+
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(setUser).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
   it("skips card notifications", async () => {
     webhooks.set("wk-notification", {
       id: "wk-notification",

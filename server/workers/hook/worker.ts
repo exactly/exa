@@ -54,7 +54,7 @@ export default function worker({
       }
       const { requestBody: payload } = await panda.getWebhook(id);
       if (payload.resource === "transaction" && payload.action === "requested") return;
-      if (payload.resource === "dispute") return;
+      if (payload.resource === "dispute" || payload.resource === "company") return;
       if (payload.resource === "card" && payload.action === "notification") return;
       const user = await (payload.resource === "user"
         ? database.query.credentials.findFirst({

@@ -608,6 +608,12 @@ export const Payload = variant("resource", [
     id: string(),
   }),
   object({
+    resource: literal("company"),
+    action: string(),
+    body: looseObject({ id: string() }),
+    id: string(),
+  }),
+  object({
     resource: literal("user"),
     action: literal("updated"),
     body: object({
