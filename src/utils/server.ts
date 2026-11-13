@@ -57,7 +57,11 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
       sessionId ? { headers: { "x-session-id": sessionId } } : undefined,
     );
     if (!post.ok) {
-      throw Object.assign(new APIError("POST", post, stringOrLegacy(await post.json())), { assertion: json.id, owner });
+      throw Object.assign(new APIError("POST", post, stringOrLegacy(await post.json())), {
+        assertion: json.id,
+        owner,
+        attachment: "authenticatorAttachment" in json ? json.authenticatorAttachment : undefined,
+      });
     }
     const { expires, intercomToken, credentialId, factory, x, y, salt } = await post.json();
     queryClient.setQueryData(["credential"], { credentialId, factory, x, y, salt });
@@ -332,26 +336,30 @@ export async function createCredential() {
   const get = await api.auth.registration.$get({ query: { credentialId } });
   const sessionId = get.headers.get("x-session-id");
   const options = await get.json();
+  const json: InferRequestType<typeof api.auth.registration.$post>["json"] =
+    options.method === "siwe"
+      ? {
+          method: options.method,
+          id: options.address,
+          signature: await signMessage(ownerConfig, { account: options.address, message: options.message }),
+        }
+      : await create({
+          ...options,
+          extensions: options.extensions as Record<string, unknown> | undefined,
+        }).then((attestation) => {
+          if (!attestation) throw new Error("bad attestation");
+          return attestation;
+        });
   const post = await api.auth.registration.$post(
-    {
-      json:
-        options.method === "siwe"
-          ? {
-              method: options.method,
-              id: options.address,
-              signature: await signMessage(ownerConfig, { account: options.address, message: options.message }),
-            }
-          : await create({
-              ...options,
-              extensions: options.extensions as Record<string, unknown> | undefined,
-            }).then((attestation) => {
-              if (!attestation) throw new Error("bad attestation");
-              return attestation;
-            }),
-    },
+    { json },
     sessionId ? { headers: { "x-session-id": sessionId } } : undefined,
   );
-  if (!post.ok) throw new APIError("POST", post, stringOrLegacy(await post.json()));
+  if (!post.ok) {
+    throw Object.assign(new APIError("POST", post, stringOrLegacy(await post.json())), {
+      attestation: json.id,
+      attachment: "authenticatorAttachment" in json ? json.authenticatorAttachment : undefined,
+    });
+  }
   const { auth: expires, intercomToken, ...credential } = await post.json();
   await loginIntercom(
     deriveAddress(credential.factory, { x: credential.x, y: credential.y, salt: credential.salt }),
