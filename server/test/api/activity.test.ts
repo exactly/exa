@@ -127,6 +127,15 @@ describe.concurrent("validation", () => {
     expect(response.status).toBe(400);
   });
 
+  it("fails with invalid timezone", async () => {
+    const response = await appClient.index.$get(
+      { query: { timezone: "Mars/Olympus" } },
+      { headers: { "test-credential-id": "activity" } },
+    );
+
+    expect(response.status).toBe(400);
+  });
+
   it("succeeds with valid credential", async () => {
     const response = await appClient.index.$get(
       { query: { include: "card" } },
@@ -528,7 +537,7 @@ describe.concurrent("authenticated", () => {
     it("returns statement pdf", async () => {
       expect.hasAssertions();
       const response = await appClient.index.$get(
-        { query: { maturity } },
+        { query: { maturity, timezone: "America/Argentina/Buenos_Aires" } },
         { headers: { "test-credential-id": "bob", accept: "application/pdf" } },
       );
 
