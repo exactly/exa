@@ -1,5 +1,15 @@
 # @exactly/server
 
+## 0.3.3
+
+### Patch Changes
+
+- [#1856](https://github.com/exactly/exa/pull/1856) [`4c12d67`](https://github.com/exactly/exa/commit/4c12d6775d9f75daadb981bf159c2873d6f9fb31) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 retry failed kyc inquiries
+
+- [#1859](https://github.com/exactly/exa/pull/1859) [`6c18d7f`](https://github.com/exactly/exa/commit/6c18d7f1bb151b7d7b73ea227f3dc4474780e9ce) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 👔 cap failed kyc retries
+
+- [#1841](https://github.com/exactly/exa/pull/1841) [`d6d18f7`](https://github.com/exactly/exa/commit/d6d18f79be1728a5fc3819206deb4c889bafc41e) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔒️ restrict csp eval to wasm
+
 ## 0.3.2
 
 ### Patch Changes

@@ -1,5 +1,38 @@
 # @exactly/mobile
 
+## 1.2.45
+
+### Patch Changes
+
+- [#1856](https://github.com/exactly/exa/pull/1856) [`ca32dbc`](https://github.com/exactly/exa/commit/ca32dbcf363521a9e26c7e28b8e827e790050883) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 refresh kyc review status on resume
+
+- [#1856](https://github.com/exactly/exa/pull/1856) [`b5b754f`](https://github.com/exactly/exa/commit/b5b754f6cfd7792c27e2a39045480a8e0dcee63f) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 report card activation errors once
+
+- [#1857](https://github.com/exactly/exa/pull/1857) [`2308d83`](https://github.com/exactly/exa/commit/2308d836e76ab72609d4aff784a0bcb0c92c67ee) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 split scan failures by cause
+
+- [#1856](https://github.com/exactly/exa/pull/1856) [`d836424`](https://github.com/exactly/exa/commit/d836424a45e18425af77dda8612fd134887ef931) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🩹 accept already set card updates
+
+- [#1856](https://github.com/exactly/exa/pull/1856) [`e4ac59d`](https://github.com/exactly/exa/commit/e4ac59d3d1f852e171f34baafdd6628b76326195) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 skip country lookup until kyc approval
+
+- [#1857](https://github.com/exactly/exa/pull/1857) [`0207c1f`](https://github.com/exactly/exa/commit/0207c1f2aa0309480470cc92bab4df9e69332bb8) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 tag errors with request endpoint
+
+- [#1856](https://github.com/exactly/exa/pull/1856) [`edfdc70`](https://github.com/exactly/exa/commit/edfdc709ed70ef6ee8ff83196c3cd4d70ebe3038) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 prefill support message on failed verification
+
+- [#1841](https://github.com/exactly/exa/pull/1841) [`989112c`](https://github.com/exactly/exa/commit/989112cc74d04589302b7a38c4445f455f56acf7) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔒️ self-host zxing wasm
+
+- [#1856](https://github.com/exactly/exa/pull/1856) [`0592347`](https://github.com/exactly/exa/commit/0592347e2b6443ddaae236517267e523a0293765) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 explain missing passkey on sign-in
+
+- [#1861](https://github.com/exactly/exa/pull/1861) [`4d460a3`](https://github.com/exactly/exa/commit/4d460a3a22049a0f577889b8bc386f4f172e5674) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔒️ skip public rpcs on alchemy networks
+
+- [#1856](https://github.com/exactly/exa/pull/1856) [`9b85fef`](https://github.com/exactly/exa/commit/9b85fefb5242e0308111a656f8329bdc6d6eccb6) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 report kyc state once per change
+
+- [#1856](https://github.com/exactly/exa/pull/1856) [`57e1dfd`](https://github.com/exactly/exa/commit/57e1dfdee7b9d5800d668a66477046e6b09958a4) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🧵 prevent duplicate card updates
+
+- [#1856](https://github.com/exactly/exa/pull/1856) [`e3ced0a`](https://github.com/exactly/exa/commit/e3ced0a52588485c1009a4d2010755b951a9c923) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🧵 prevent duplicate card activation
+
+- Updated dependencies [[`4c12d67`](https://github.com/exactly/exa/commit/4c12d6775d9f75daadb981bf159c2873d6f9fb31), [`6c18d7f`](https://github.com/exactly/exa/commit/6c18d7f1bb151b7d7b73ea227f3dc4474780e9ce), [`d6d18f7`](https://github.com/exactly/exa/commit/d6d18f79be1728a5fc3819206deb4c889bafc41e)]:
+  - @exactly/server@0.3.3
+
 ## 1.2.44
 
 ### Patch Changes

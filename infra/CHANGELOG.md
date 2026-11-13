@@ -1,5 +1,11 @@
 # @exactly/infra
 
+## 0.4.1
+
+### Patch Changes
+
+- [#1854](https://github.com/exactly/exa/pull/1854) [`5689285`](https://github.com/exactly/exa/commit/568928525c4590d4cca6081788dbe89b80665963) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🧱 trust base deploys from server tags and base-sepolia deploys from sandbox
+
 ## 0.4.0
 
 ### Minor Changes
