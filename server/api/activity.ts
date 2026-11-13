@@ -446,7 +446,10 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
 
       const accept = accepts(c, {
         header: "Accept",
-        supports: maturity === undefined ? ["application/json"] : ["application/json", "application/pdf"],
+        supports:
+          maturity === undefined
+            ? ["application/json", "text/csv"]
+            : ["application/json", "application/pdf", "text/csv"],
         default: "application/json",
       });
       const pdf = accept === "application/pdf";
@@ -648,6 +651,16 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
         return c.body(new Uint8Array(await renderToBuffer(Statement(statement))), 200, {
           "content-type": "application/pdf",
         });
+      }
+      if (accept === "text/csv") {
+        return c.body(
+          toCSV(
+            response.filter((item) => item.type === "card" || item.type === "panda"),
+            timezone,
+          ),
+          200,
+          { "content-type": "text/csv; charset=utf-8", "content-disposition": 'attachment; filename="activity.csv"' },
+        );
       }
       return c.json(response, 200);
     },
@@ -1114,6 +1127,42 @@ function forbid<T extends object>(value: T) {
 }
 
 const collator = new Intl.Collator(undefined, { numeric: true });
+
+function toCSV(
+  items: {
+    amount: number;
+    currency?: null | string;
+    lastFour: string;
+    merchant: { city?: null | string; country?: null | string; name: string };
+    status?: string;
+    timestamp: string;
+    usdAmount: number;
+  }[],
+  timeZone = "UTC",
+) {
+  const date = new Intl.DateTimeFormat("sv-SE", { timeZone, dateStyle: "short", timeStyle: "medium" });
+  return [
+    ["date", "card", "merchant", "city", "country", "amount", "currency", "usd amount", "status"],
+    ...items.map(({ amount, currency, lastFour, merchant, status, timestamp, usdAmount }) => [
+      date.format(new Date(timestamp)),
+      text(lastFour),
+      text(merchant.name.trim()),
+      text(merchant.city?.trim()),
+      text(merchant.country?.trim()),
+      amount.toFixed(2),
+      text(currency),
+      usdAmount.toFixed(2),
+      status ?? "settled",
+    ]),
+  ]
+    .map((row) => row.map((cell) => (/[\n\r",]/.test(cell) ? `"${cell.replaceAll('"', '""')}"` : cell)).join(","))
+    .join("\r\n");
+}
+
+function text(value?: null | string) {
+  if (!value) return "";
+  return /^[\t\r+=@-]/.test(value) ? `'${value}` : value;
+}
 
 function isTimeZone(timeZone: string) {
   try {

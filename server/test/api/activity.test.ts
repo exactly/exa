@@ -589,6 +589,61 @@ describe.concurrent("authenticated", () => {
       }
     });
 
+    it("exports card activity as csv", async () => {
+      try {
+        await database.insert(transactions).values([
+          {
+            id: "csv-export",
+            cardId: "first-activity-card",
+            hashes: [zeroHash],
+            payload: {
+              type: "panda",
+              bodies: [
+                {
+                  action: "created",
+                  resource: "transaction",
+                  createdAt: "2025-12-20T01:00:00.000Z",
+                  body: {
+                    id: "csv-export",
+                    spend: {
+                      ...spendTemplate,
+                      merchantName: '=evil, "co"',
+                      merchantCity: null,
+                      amount: 1053,
+                      localAmount: 1_500_803,
+                      localCurrency: "ars",
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        ]);
+        const [json, csv] = await Promise.all([
+          appClient.index.$get({ query: { include: "card" } }, { headers: { "test-credential-id": "bob" } }),
+          appClient.index.$get(
+            { query: { include: "card", timezone: "America/Argentina/Buenos_Aires" } },
+            { headers: { "test-credential-id": "bob", accept: "text/csv" } },
+          ),
+        ]);
+
+        expect(csv.status).toBe(200);
+        expect(csv.headers.get("content-type")).toBe("text/csv; charset=utf-8");
+        const [lines, items] = await Promise.all([
+          csv.text().then((body) => body.split("\r\n")),
+          json.json() as Promise<unknown[]>,
+        ]);
+        expect(lines).toHaveLength(items.length + 1);
+        expect(lines[0]).toBe("date,card,merchant,city,country,amount,currency,usd amount,status");
+        expect(lines).toContain(`2025-12-19 22:00:00,1234,"'=evil, ""co""",,ARG,15008.03,ARS,10.53,pending`);
+        expect(lines.some((line) => /,1234,Merchant,Buenos Aires,ARG,[\d.]+,ARS,[\d.]+,settled$/.test(line))).toBe(
+          true,
+        );
+      } finally {
+        await database.delete(transactions).where(eq(transactions.id, "csv-export"));
+      }
+    });
+
     it("returns statement pdf for combined accept header", async () => {
       expect.hasAssertions();
       const response = await appClient.index.$get(
