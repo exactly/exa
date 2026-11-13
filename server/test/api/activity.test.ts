@@ -1088,6 +1088,36 @@ describe.concurrent("authenticated", () => {
       expect(panda.output.status).toBe("pending");
     });
 
+    it("returns refunds settled in usd with usd currency", () => {
+      const panda = safeParse(PandaActivity, {
+        type: "panda",
+        hashes: [zeroHash],
+        borrows: [null],
+        bodies: [
+          {
+            action: "completed",
+            resource: "transaction",
+            createdAt: new Date(0).toISOString(),
+            body: {
+              id: "refund",
+              type: "spend",
+              spend: {
+                ...spendTemplate,
+                amount: -1053,
+                authorizedAmount: -1053,
+                localAmount: -1053,
+                status: "completed",
+              },
+            },
+          },
+        ],
+      });
+
+      expect(panda.success).toBe(true);
+      if (!panda.success) return;
+      expect(panda.output).toMatchObject({ currency: "USD", amount: -10.53, usdAmount: -10.53 });
+    });
+
     describe("retried collects", () => {
       const hashes = [padHex("0x1", { size: 32 }), padHex("0x2", { size: 32 }), padHex("0x3", { size: 32 })];
       const borrow = { timestamp: 1n, events: [{ maturity: 2_419_200n, assets: 232_530_000n, fee: 1_160_000n }] };
