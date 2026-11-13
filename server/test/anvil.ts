@@ -292,6 +292,13 @@ async function start(dump = false) {
       ) {
         throw new Error("market not frozen");
       }
+      await Promise.all([
+        client.impersonateAccount({ address: bob }),
+        client.setBalance({ address: bob, value: 10n ** 18n }),
+      ]);
+      await $(shell)`forge script test/mocks/Bob.s.sol --sig anvil2()
+          --unlocked --rpc-url ${chain.rpcUrls.default.http[0]} --broadcast --skip-simulation --offline`;
+      await client.stopImpersonatingAccount({ address: bob });
     }),
   );
 
