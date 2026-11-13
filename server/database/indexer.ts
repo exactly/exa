@@ -10,6 +10,7 @@ export const accounts = indexer
     address: text("address").$type<Hex>().notNull(),
     factory: text("factory").$type<Hex>().notNull(),
     owner: text("owner").$type<Hex>(),
+    plugin: text("plugin").$type<Hex>(),
     block: numeric("block", { mode: "bigint" }).notNull(),
     timestamp: numeric("timestamp", { mode: "bigint" }).notNull(),
   })
@@ -24,6 +25,13 @@ export const plugins = indexer
     timestamp: numeric("timestamp", { mode: "bigint" }).notNull(),
     logIndex: integer("log_index").notNull(),
     uninstalled: numeric("uninstalled", { mode: "bigint" }),
+  })
+  .existing();
+
+export const exaPlugins = indexer
+  .view("exa_plugins", {
+    chainId: integer("chain_id").notNull(),
+    address: text("address").$type<Hex>().notNull(),
   })
   .existing();
 
