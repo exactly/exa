@@ -32,7 +32,7 @@ import {
 import { privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { anvil, foundry, moonbeamDev, optimism } from "viem/chains";
 
-import { Address } from "@exactly/common/validation";
+import { Address, Hash } from "@exactly/common/validation";
 import deploy from "@exactly/plugin/deploy.json";
 
 import anvilClient from "./anvilClient";
@@ -250,9 +250,13 @@ async function start(dump = false) {
   );
 
   const files = await readdir(__dirname, { recursive: true }); // eslint-disable-line unicorn/prefer-module
-  const signers = files
-    .filter((file) => file.endsWith(".test.ts") || file.endsWith("e2e.ts"))
-    .map((file) => privateKeyToAddress(keccak256(toBytes(file))));
+  const swapper = parse(Address, deploy.accounts.swapper.default);
+  const signers = [
+    ...files
+      .filter((file) => file.endsWith(".test.ts") || file.endsWith("e2e.ts"))
+      .map((file) => privateKeyToAddress(keccak256(toBytes(file)))),
+    ...(env.MOCKFI_PRIVATE_KEY ? [privateKeyToAddress(parse(Hash, env.MOCKFI_PRIVATE_KEY))] : []),
+  ];
   const verified = Promise.all(
     chains.slice(1).map(async (chain) => {
       const client = createTestClient({ chain, mode: "anvil", transport: http() })
@@ -282,6 +286,15 @@ async function start(dump = false) {
             }),
           });
         }
+        await client.waitForTransactionReceipt({
+          hash: await client.writeContract({
+            address: swapper,
+            functionName: "setRelayer",
+            args: [address, true],
+            abi: parseAbi(["function setRelayer(address relayer, bool allowed)"]),
+            account: null,
+          }),
+        });
       }
       if (
         !(await client.readContract({
@@ -332,6 +345,15 @@ async function start(dump = false) {
         }),
       });
     }
+    await anvilClient.waitForTransactionReceipt({
+      hash: await anvilClient.writeContract({
+        address: swapper,
+        functionName: "setRelayer",
+        args: [address, true],
+        abi: parseAbi(["function setRelayer(address relayer, bool allowed)"]),
+        account: null,
+      }),
+    });
   }
 
   await verified;
