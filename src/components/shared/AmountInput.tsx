@@ -21,7 +21,9 @@ export default function AmountInput({
       inputMode="decimal"
       value={value.replace(".", separator)}
       onChangeText={(text) => {
-        const next = text.trim().replaceAll(separator, ".").replaceAll(",", ".");
+        const raw = text.trim().replaceAll(separator, ".").replaceAll(",", ".");
+        const stripped = raw.replace(/^0+(?=\d)/, "");
+        const next = value === "0" || (stripped !== value && stripped.startsWith(value)) ? stripped : raw;
         if (!/^\d*(?:\.\d*)?$/.test(next)) return;
         const fraction = next.split(".")[1]?.length ?? 0;
         if (fraction > decimals && fraction > (value.split(".")[1]?.length ?? 0)) return;
