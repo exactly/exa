@@ -39,6 +39,7 @@ import {
   collectors,
   delays,
   exaPlugins,
+  liquidations,
   markets,
   plugins,
   swaps,
@@ -355,6 +356,49 @@ describe("indexer", () => {
         usdPrice: await assetPrice(asset, started.blockNumber, client),
       },
     ]);
+  });
+
+  it("indexes liquidations of exa accounts", async () => {
+    const liquidated = deriveAddress(exaAccountFactoryAddress, {
+      x: padHex(privateKeyToAddress(padHex("0x11a"))),
+      y: zeroHash,
+    });
+    const logs = await anvilClient.getContractEvents({
+      abi: marketAbi,
+      eventName: "Liquidate",
+      args: { borrower: liquidated },
+      fromBlock: 0n,
+      strict: true,
+    });
+    assert.ok(logs[0], "expected a Liquidate event");
+    const { timestamp } = await anvilClient.getBlock({ blockNumber: logs[0].blockNumber });
+
+    await expect(
+      database
+        .select()
+        .from(liquidations)
+        .where(and(eq(liquidations.chainId, anvil.id), eq(liquidations.account, liquidated.toLowerCase() as Hex)))
+        .orderBy(asc(liquidations.logIndex)),
+    ).resolves.toStrictEqual(
+      logs.map(({ address, args, blockNumber, logIndex, transactionHash, transactionIndex }) => ({
+        id: expect.any(String), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+        chainId: anvil.id,
+        hash: transactionHash,
+        block: blockNumber,
+        timestamp,
+        transactionIndex,
+        logIndex,
+        account: liquidated.toLowerCase(),
+        liquidator: args.receiver.toLowerCase(),
+        market: address.toLowerCase(),
+        assets: args.assets,
+        lendersAssets: args.lendersAssets,
+        seizeMarket: args.seizeMarket.toLowerCase(),
+        seizedAssets: args.seizedAssets,
+        usdPrice: expect.any(BigInt), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+        seizeUsdPrice: 2n * 10n ** 18n,
+      })),
+    );
   });
 });
 

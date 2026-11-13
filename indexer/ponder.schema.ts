@@ -193,6 +193,23 @@ export const bridges = onchainTable(
   }),
 );
 
+export const liquidations = onchainTable(
+  "liquidations",
+  (t) => ({
+    ...log(t),
+    account: t.hex().notNull(),
+    liquidator: t.hex().notNull(),
+    market: t.hex().notNull(),
+    assets: t.bigint().notNull(),
+    lendersAssets: t.bigint().notNull(),
+    seizeMarket: t.hex().notNull(),
+    seizedAssets: t.bigint().notNull(),
+    usdPrice: t.bigint().notNull(),
+    seizeUsdPrice: t.bigint().notNull(),
+  }),
+  (table) => ({ account: index().on(table.chainId, table.account) }),
+);
+
 function log(t: PgColumnsBuilders) {
   return {
     id: t.text().primaryKey(),

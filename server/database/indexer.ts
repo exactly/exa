@@ -175,6 +175,21 @@ export const bridges = indexer
   })
   .existing();
 
+export const liquidations = indexer
+  .view("liquidations", {
+    ...log(),
+    account: text("account").$type<Hex>().notNull(),
+    liquidator: text("liquidator").$type<Hex>().notNull(),
+    market: text("market").$type<Hex>().notNull(),
+    assets: numeric("assets", { mode: "bigint" }).notNull(),
+    lendersAssets: numeric("lenders_assets", { mode: "bigint" }).notNull(),
+    seizeMarket: text("seize_market").$type<Hex>().notNull(),
+    seizedAssets: numeric("seized_assets", { mode: "bigint" }).notNull(),
+    usdPrice: numeric("usd_price", { mode: "bigint" }).notNull(),
+    seizeUsdPrice: numeric("seize_usd_price", { mode: "bigint" }).notNull(),
+  })
+  .existing();
+
 function log() {
   return {
     id: text("id").notNull(),

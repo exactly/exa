@@ -8,6 +8,7 @@ import {
   delays,
   deposits,
   exaPlugins,
+  liquidations,
   markets,
   plugins,
   proposalManagers,
@@ -190,6 +191,22 @@ ponder.on("ProposalManager:Proposed", async ({ event, context }) => {
     amount: event.args.amount,
     data: event.args.data,
     unlock: event.args.unlock,
+  });
+});
+
+ponder.on("Market:Liquidate", async ({ event, context }) => {
+  if (!(await context.db.find(accounts, { chainId: context.chain.id, address: event.args.borrower }))) return; // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
+  await context.db.insert(liquidations).values({
+    ...log(event, context),
+    account: event.args.borrower,
+    liquidator: event.args.receiver,
+    market: event.log.address,
+    assets: event.args.assets,
+    lendersAssets: event.args.lendersAssets,
+    seizeMarket: event.args.seizeMarket,
+    seizedAssets: event.args.seizedAssets,
+    usdPrice: await usdPrice(context, event.log.address),
+    seizeUsdPrice: await usdPrice(context, event.args.seizeMarket),
   });
 });
 
