@@ -38,13 +38,7 @@ import {
 import { TransactionReceiptNotFoundError, zeroHash } from "viem";
 
 import fixedRate from "@exactly/common/fixedRate";
-import chain, {
-  debtManagerAddress,
-  exaPreviewerAbi,
-  exaPreviewerAddress,
-  marketUSDCAddress,
-  marketWETHAddress,
-} from "@exactly/common/generated/chain";
+import chain, { debtManagerAddress, marketUSDCAddress, marketWETHAddress } from "@exactly/common/generated/chain";
 import ProposalType, { decodeWithdraw } from "@exactly/common/ProposalType";
 import { Address, Hash, type Hex } from "@exactly/common/validation";
 import { effectiveRate, WAD } from "@exactly/lib";
@@ -53,7 +47,7 @@ import * as indexer from "../database/indexer";
 import { cards, credentials, transactions } from "../database/schema";
 import { collectors as cryptomateCollectors } from "../utils/cryptomate";
 import { declineMessage, collectors as pandaCollectors } from "../utils/panda";
-import publicClient, { clients } from "../utils/publicClient";
+import { clients } from "../utils/publicClient";
 import Statement from "../utils/Statement";
 import validatorHook from "../utils/validatorHook";
 
@@ -83,6 +77,14 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
     async (c) => {
       const { include, maturity } = c.req.valid("query");
       if (maturity !== undefined && maturity > 864e10) return c.json({ code: "invalid maturity" }, 400);
+      const accept = accepts(c, {
+        header: "Accept",
+        supports: maturity === undefined ? ["application/json"] : ["application/json", "application/pdf"],
+        default: "application/json",
+      });
+      const pdf = accept === "application/pdf";
+      const legacy = include === undefined && accept === "application/json";
+
       function ignore(type: InferInput<typeof ActivityTypes>) {
         return include && (Array.isArray(include) ? !include.includes(type) : include !== type);
       }
@@ -105,9 +107,15 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
 
       const owner = account.toLowerCase() as Hex;
       const [markets, plugins] = await Promise.all([
-        publicClient
-          .readContract({ address: exaPreviewerAddress, functionName: "markets", abi: exaPreviewerAbi })
-          .then((p) => new Map<Hex, (typeof p)[number]>(p.map((m) => [m.market.toLowerCase() as Hex, m]))),
+        database
+          .select({
+            address: indexer.markets.address,
+            symbol: indexer.markets.symbol,
+            decimals: indexer.markets.decimals,
+          })
+          .from(indexer.markets)
+          .where(eq(indexer.markets.chainId, chain.id))
+          .then((rows) => new Map(rows.map(({ address, ...m }) => [address, m]))),
         !ignore("repay") || !ignore("sent") || !ignore("received")
           ? Promise.all([
               database
@@ -129,10 +137,10 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
           : Promise.resolve(forbid(new Set<Hex>())),
       ]);
 
-      const market = (address: Hex) => {
+      const market = (address: Hex, usdPrice: bigint | null) => {
         const found = markets.get(address.toLowerCase() as Hex);
         if (!found) throw new Error("market not found");
-        return found;
+        return { ...found, usdPrice };
       };
 
       const repayPromise =
@@ -171,14 +179,16 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
             ]).then(([deposit, repay]) =>
               deposit
                 .filter(({ hash }) => !repay.some(({ hash: repayHash }) => repayHash === hash))
-                .map((row) => parse(DepositActivity, { ...row, market: market(row.market) })),
+                .filter(({ usdPrice }) => !legacy || usdPrice !== null)
+                .map((row) => parse(DepositActivity, { ...row, market: market(row.market, row.usdPrice) })),
             ),
         ignore("repay")
           ? []
           : repayPromise.then((rows) =>
               rows
                 .filter((row) => maturity === undefined || Number(row.maturity) === maturity)
-                .map((row) => parse(RepayActivity, { ...row, market: market(row.market) })),
+                .filter(({ usdPrice }) => !legacy || usdPrice !== null)
+                .map((row) => parse(RepayActivity, { ...row, market: market(row.market, row.usdPrice) })),
             ),
         ignore("sent")
           ? []
@@ -219,7 +229,8 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                   return { ...row, receiver: decodeWithdraw(proposal.data) };
                 })
                 .filter((row) => !!row)
-                .map((row) => parse(WithdrawActivity, { ...row, market: market(row.market) })),
+                .filter(({ usdPrice }) => !legacy || usdPrice !== null)
+                .map((row) => parse(WithdrawActivity, { ...row, market: market(row.market, row.usdPrice) })),
             ),
         ignore("card")
           ? undefined
@@ -295,13 +306,6 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
             )
           : [],
       );
-
-      const accept = accepts(c, {
-        header: "Accept",
-        supports: maturity === undefined ? ["application/json"] : ["application/json", "application/pdf"],
-        default: "application/json",
-      });
-      const pdf = accept === "application/pdf";
 
       const response = [
         ...purchases.flatMap(({ id: cardId, lastFour, transactions: txs }) =>
@@ -484,7 +488,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
             })),
           payments: response
             .filter((item) => item.type === "repay")
-            .filter((repay) => repay.currency === market(marketUSDCAddress).symbol)
+            .filter((repay) => repay.currency === markets.get(marketUSDCAddress.toLowerCase() as Hex)?.symbol)
             .map(({ id, timestamp, amount, positionAmount }) => ({
               id,
               timestamp,
@@ -842,7 +846,7 @@ export const InstallmentsActivity = pipe(
 
 export const OnchainActivity = object({
   assets: bigint(),
-  market: object({ decimals: number(), symbol: string(), usdPrice: bigint() }),
+  market: object({ decimals: number(), symbol: string(), usdPrice: nullable(bigint()) }),
   block: bigint(),
   timestamp: bigint(),
   hash: Hash,
@@ -864,7 +868,7 @@ function transformActivity({
     id: `${chain.id}:${block}:${transactionIndex}:${logIndex}`,
     currency: symbol,
     amount: Number(value) / baseUnit,
-    usdAmount: Number((value * usdPrice) / WAD) / baseUnit,
+    usdAmount: usdPrice === null ? undefined : Number((value * usdPrice) / WAD) / baseUnit,
     timestamp: new Date(Number(timestamp) * 1000).toISOString(),
     transactionHash: hash,
   };
