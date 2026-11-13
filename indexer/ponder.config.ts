@@ -64,6 +64,15 @@ export default createConfig({
         sources.map(({ network, startBlock }) => [network.name, { address: addresses, startBlock }]),
       ),
     },
+    Auditor: {
+      abi: auditorAbi,
+      chain: Object.fromEntries(
+        sources.map(({ auditor, network }) => [
+          network.name,
+          { address: auditor, startBlock: { [optimism.id]: 78_310_663 }[network.id] },
+        ]),
+      ),
+    },
     ExaPlugin: {
       abi: exaPluginAbi,
       chain: Object.fromEntries(sources.map(({ network, startBlock }) => [network.name, { startBlock }])),

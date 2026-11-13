@@ -1,4 +1,4 @@
-import { ponder } from "ponder:registry";
+import { ponder, type Context } from "ponder:registry";
 import {
   accounts,
   borrows,
@@ -6,6 +6,7 @@ import {
   delays,
   deposits,
   exaPlugins,
+  markets,
   plugins,
   proposalManagers,
   proposals,
@@ -14,7 +15,7 @@ import {
 } from "ponder:schema";
 import { getAbiItem, toFunctionSelector, type Hex } from "viem";
 
-import { exaPluginAbi } from "@exactly/common/generated/chain";
+import { auditorAbi, exaPluginAbi, marketAbi, networks } from "@exactly/common/generated/chain";
 
 const executeProposal = toFunctionSelector(getAbiItem({ abi: exaPluginAbi, name: "executeProposal" }));
 
@@ -81,6 +82,24 @@ ponder.on("ProposalManager:DelaySet", async ({ event, context }) => {
     .onConflictDoUpdate({ delay: event.args.delay });
 });
 
+ponder.on("Auditor:MarketListed", async ({ event, context }) => {
+  const [asset, symbol] = await Promise.all([
+    context.client.readContract({ address: event.args.market, abi: marketAbi, functionName: "asset" }),
+    context.client.readContract({ address: event.args.market, abi: marketAbi, functionName: "symbol" }),
+  ]);
+  const metadata = { asset, symbol: symbol.slice(3), decimals: event.args.decimals };
+  await context.db
+    .insert(markets)
+    .values({ chainId: context.chain.id, address: event.args.market, ...metadata })
+    .onConflictDoUpdate(metadata);
+});
+
+ponder.on("Auditor:PriceFeedSet", async ({ event, context }) => {
+  const key = { chainId: context.chain.id, address: event.args.market };
+  if (!(await context.db.find(markets, key))) return; // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
+  await context.db.update(markets, key).set({ priceFeed: event.args.priceFeed });
+});
+
 ponder.on("Market:Deposit", async ({ event, context }) => {
   if (!(await context.db.find(accounts, { chainId: context.chain.id, address: event.args.owner }))) return; // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
   await context.db.insert(deposits).values({
@@ -89,6 +108,7 @@ ponder.on("Market:Deposit", async ({ event, context }) => {
     caller: event.args.caller,
     market: event.log.address,
     assets: event.args.assets,
+    usdPrice: await usdPrice(context, event.log.address),
   });
 });
 
@@ -110,6 +130,7 @@ ponder.on("Market:Withdraw", async ({ event, context }) => {
     receiver: event.args.receiver,
     market: event.log.address,
     assets: event.args.assets,
+    usdPrice: await usdPrice(context, event.log.address),
     input: plugin ? event.transaction.input : null,
     proposalManager: proposalManager?.address ?? null,
   });
@@ -125,6 +146,7 @@ ponder.on("Market:BorrowAtMaturity", async ({ event, context }) => {
     market: event.log.address,
     maturity: event.args.maturity,
     assets: event.args.assets,
+    usdPrice: await usdPrice(context, event.log.address),
     fee: event.args.fee,
   });
 });
@@ -138,6 +160,7 @@ ponder.on("Market:RepayAtMaturity", async ({ event, context }) => {
     market: event.log.address,
     maturity: event.args.maturity,
     assets: event.args.assets,
+    usdPrice: await usdPrice(context, event.log.address),
     positionAssets: event.args.positionAssets,
   });
 });
@@ -156,6 +179,18 @@ ponder.on("ProposalManager:Proposed", async ({ event, context }) => {
     unlock: event.args.unlock,
   });
 });
+
+async function usdPrice(context: Context, market: Hex) {
+  const found = await context.db.find(markets, { chainId: context.chain.id, address: market }); // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
+  const auditor = networks.get(context.chain.id)?.auditor;
+  if (!found?.priceFeed || !auditor) throw new Error(`unknown market ${market}`);
+  return context.client.readContract({
+    address: auditor,
+    abi: auditorAbi,
+    functionName: "assetPrice",
+    args: [found.priceFeed],
+  });
+}
 
 function log(
   {

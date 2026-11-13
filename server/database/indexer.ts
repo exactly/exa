@@ -61,6 +61,17 @@ export const delays = indexer
   })
   .existing();
 
+export const markets = indexer
+  .view("markets", {
+    chainId: integer("chain_id").notNull(),
+    address: text("address").$type<Hex>().notNull(),
+    asset: text("asset").$type<Hex>().notNull(),
+    symbol: text("symbol").notNull(),
+    decimals: integer("decimals").notNull(),
+    priceFeed: text("price_feed").$type<Hex>(),
+  })
+  .existing();
+
 export const deposits = indexer
   .view("deposits", {
     ...log(),
@@ -68,6 +79,7 @@ export const deposits = indexer
     caller: text("caller").$type<Hex>().notNull(),
     market: text("market").$type<Hex>().notNull(),
     assets: numeric("assets", { mode: "bigint" }).notNull(),
+    usdPrice: numeric("usd_price", { mode: "bigint" }).notNull(),
   })
   .existing();
 
@@ -79,6 +91,7 @@ export const withdraws = indexer
     receiver: text("receiver").$type<Hex>().notNull(),
     market: text("market").$type<Hex>().notNull(),
     assets: numeric("assets", { mode: "bigint" }).notNull(),
+    usdPrice: numeric("usd_price", { mode: "bigint" }).notNull(),
     input: text("input").$type<Hex>(),
     proposalManager: text("proposal_manager").$type<Hex>(),
   })
@@ -93,6 +106,7 @@ export const borrows = indexer
     market: text("market").$type<Hex>().notNull(),
     maturity: numeric("maturity", { mode: "bigint" }).notNull(),
     assets: numeric("assets", { mode: "bigint" }).notNull(),
+    usdPrice: numeric("usd_price", { mode: "bigint" }).notNull(),
     fee: numeric("fee", { mode: "bigint" }).notNull(),
   })
   .existing();
@@ -105,6 +119,7 @@ export const repays = indexer
     market: text("market").$type<Hex>().notNull(),
     maturity: numeric("maturity", { mode: "bigint" }).notNull(),
     assets: numeric("assets", { mode: "bigint" }).notNull(),
+    usdPrice: numeric("usd_price", { mode: "bigint" }).notNull(),
     positionAssets: numeric("position_assets", { mode: "bigint" }).notNull(),
   })
   .existing();
