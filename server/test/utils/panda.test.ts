@@ -47,6 +47,32 @@ describe("panda request", () => {
     await expect(rejection).rejects.toMatchObject({ name: "PandaNotFound", status: 404, message: "user" });
   });
 
+  it("classifies generic not found as not found", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      text: () => Promise.resolve('{"statusCode":404,"error":"Not Found","message":"Not Found"}'),
+    } as Response);
+
+    const rejection = panda.getUser("some-id");
+    await expect(rejection).rejects.toBeInstanceOf(ServiceError);
+    await expect(rejection).rejects.toMatchObject({ name: "PandaNotFound", status: 404, message: "user" });
+  });
+
+  it("keeps typed non-404 classification", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      text: () => Promise.resolve('{"statusCode":400,"error":"Not Found","message":"invalid"}'),
+    } as Response);
+
+    await expect(panda.getUser("some-id")).rejects.toMatchObject({
+      name: "PandaNot Found",
+      status: 400,
+      message: "invalid",
+    });
+  });
+
   it("gets a company user without a phone", async () => {
     const user = {
       id: "user-id",

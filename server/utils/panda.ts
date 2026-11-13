@@ -316,7 +316,7 @@ export default function panda({ key, url }: { key: string; url: string }) {
           if (typeof detail === "string") message = detail;
         }
       } catch {} // eslint-disable-line no-empty -- non-json panda errors use fallback classification
-      if (!type) {
+      if (!type || (response.status === 404 && type === "Not Found")) {
         const lower = raw.toLowerCase();
         if (response.status === 404 && (!raw || lower.includes("not found"))) type = "NotFoundError";
         if (response.status === 403 && (!raw || lower.includes("not approved"))) type = "ForbiddenError";
