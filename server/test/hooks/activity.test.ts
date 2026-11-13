@@ -7,12 +7,19 @@ import { testClient } from "hono/testing";
 import { Redis } from "ioredis";
 import { createHmac } from "node:crypto";
 import { v5 } from "uuid";
-import { hexToBytes, padHex, zeroAddress, zeroHash, type Address, type PrivateKeyAccount } from "viem";
+import { getAddress, hexToBytes, padHex, zeroAddress, zeroHash, type Address, type PrivateKeyAccount } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import { anvil } from "viem/chains";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
-import { exaAccountFactoryAddress, lifiURL, marketWETHAddress, wethAddress } from "@exactly/common/generated/chain";
+import {
+  allowlists,
+  exaAccountFactoryAddress,
+  lifiURL,
+  marketWETHAddress,
+  wethAddress,
+} from "@exactly/common/generated/chain";
 
 import database, { credentials } from "../../database";
 import activity from "../../hooks/activity";
@@ -129,7 +136,6 @@ describe("address activity", () => {
     const sendPushNotification = sendPushNotificationMock;
     const chain = activityChain("ETH_MAINNET");
     if (!chain) throw new Error("missing mainnet");
-    mockLifiTokens({ 1: [{ address: wethAddress }] });
 
     const response = await appClient.index.$post({
       ...activityPayload,
@@ -546,46 +552,67 @@ describe("address activity", () => {
       };
     }
 
-    it("fetches from lifi on cache miss and sends notification for known token", async () => {
-      const sendPushNotification = sendPushNotificationMock;
-      mockLifiTokens({ [optMainnet.id]: [{ address: tokenAddress }] });
+    function anvilPayload(address: Address) {
+      return {
+        ...activityPayload,
+        json: {
+          ...activityPayload.json,
+          event: {
+            network: "ANVIL",
+            activity: [
+              {
+                ...activityPayload.json.event.activity[2],
+                toAddress: account,
+                rawContract: {
+                  rawValue: "0x00000000000000000000000000000000000000000000000000000000004c4b40" as const,
+                  address,
+                  decimals: 6,
+                },
+              },
+            ],
+          },
+        },
+      };
+    }
 
-      const response = await appClient.index.$post(lifiPayload(account));
+    it("fetches from lifi on cache miss and sends notification for known token", async () => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+      const sendPushNotification = sendPushNotificationMock;
+
+      const usdt = allowlists[anvil.id]?.[0];
+      if (!usdt) throw new Error("missing anvil usdt");
+
+      const response = await appClient.index.$post(anvilPayload(getAddress(usdt)));
 
       await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0, 5000);
 
-      expect(globalThis.fetch).toHaveBeenCalledWith(
-        `${lifiURL}/tokens?chains=${optMainnet.id}`,
+      expect(fetchSpy).toHaveBeenCalledWith(
+        `${lifiURL}/tokens?chains=${anvil.id}`,
         expect.objectContaining({ signal: expect.any(AbortSignal) }), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
       );
+      await expect(redis.sismember(`lifi:tokens:${anvil.id}`, getAddress(usdt))).resolves.toBe(1);
       expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
         userId: account,
         headings: t("Funds received"),
         contents: t("{{amount}} received", { amount: { en: "5 USDT", es: "5 USDT", pt: "5 USDT" } }),
-        idempotencyKey: key(account),
+        idempotencyKey: key(account, anvil.id),
       });
       expect(response.status).toBe(200);
     });
 
-    it("fetches from li.quest when codegen has no lifi url", async () => {
+    it("fetches from lifi on cache miss and suppresses notification for unknown token", async () => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
       const sendPushNotification = sendPushNotificationMock;
-      mocks.lifiURL.mockReset();
-      mockLifiTokens({ [optMainnet.id]: [{ address: tokenAddress }] });
 
-      const response = await appClient.index.$post(lifiPayload(account));
+      const response = await appClient.index.$post(anvilPayload(tokenAddress));
 
-      await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0, 5000);
+      await vi.waitUntil(async () => (await redis.scard(`lifi:tokens:${anvil.id}`)) > 0, 5000); // cspell:ignore scard
 
-      expect(globalThis.fetch).toHaveBeenCalledWith(
-        `https://li.quest/v1/tokens?chains=${optMainnet.id}`,
+      expect(fetchSpy).toHaveBeenCalledWith(
+        `${lifiURL}/tokens?chains=${anvil.id}`,
         expect.objectContaining({ signal: expect.any(AbortSignal) }), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
       );
-      expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
-        userId: account,
-        headings: t("Funds received"),
-        contents: t("{{amount}} received", { amount: { en: "5 USDT", es: "5 USDT", pt: "5 USDT" } }),
-        idempotencyKey: key(account),
-      });
+      expect(sendPushNotification).not.toHaveBeenCalled();
       expect(response.status).toBe(200);
     });
 
@@ -680,7 +707,6 @@ describe("address activity", () => {
     });
 
     it("fails open when lifi returns empty token list", async () => {
-      mockLifiTokens({});
       const sendPushNotification = sendPushNotificationMock;
 
       const response = await appClient.index.$post(lifiPayload(account));
@@ -746,14 +772,14 @@ describe("address activity", () => {
       const arbKey = `lifi:tokens:${arbMainnet.id}`;
       await redis.multi().sadd(arbKey, tokenAddress).expire(arbKey, 120).exec(); // cspell:ignore sadd
 
-      mockLifiTokens({ [optMainnet.id]: [{ address: tokenAddress }] });
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
       const sendPushNotification = sendPushNotificationMock;
 
       const response = await appClient.index.$post(lifiPayload(account));
 
       await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0, 5000);
 
-      expect(globalThis.fetch).toHaveBeenCalledWith(
+      expect(fetchSpy).toHaveBeenCalledWith(
         `${lifiURL}/tokens?chains=${optMainnet.id}`,
         expect.objectContaining({ signal: expect.any(AbortSignal) }), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
       );
@@ -969,8 +995,6 @@ const activityPayload = {
   },
 } as const;
 
-const mocks = vi.hoisted(() => ({ lifiURL: vi.fn<(url: string | undefined) => string | undefined>() }));
-
 vi.mock("@account-kit/infra", { spy: true });
 vi.mock("@sentry/node", { spy: true });
 vi.mock("@exactly/common/generated/chain", async (importOriginal) => {
@@ -984,21 +1008,18 @@ vi.mock("@exactly/common/generated/chain", async (importOriginal) => {
           [id, original.alchemyChains.get(id) as NonNullable<ReturnType<typeof original.factoryChains.get>>] as const,
       ),
     ]),
-    get lifiURL() {
-      return mocks.lifiURL(original.lifiURL);
-    },
   };
-});
-beforeEach(() => {
-  mocks.lifiURL.mockReset().mockImplementation((url) => url);
 });
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
-function key(toAddress: Address) {
-  return v5(`https://exact.ly/activity/10/${activityPayload.json.event.activity[2].hash}/0x3/${toAddress}`, v5.URL);
+function key(toAddress: Address, chainId = 10) {
+  return v5(
+    `https://exact.ly/activity/${chainId}/${activityPayload.json.event.activity[2].hash}/0x3/${toAddress}`,
+    v5.URL,
+  );
 }
 
 function createHook(current = alchemy) {
