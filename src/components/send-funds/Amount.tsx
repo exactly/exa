@@ -364,57 +364,75 @@ export default function Amount() {
             </XStack>
           </YStack>
           <YStack gap="s3" marginTop="s4_5">
-            {advanced && (
+            {(!!advanced || !!pay) && (
               <>
                 <Text emphasized subHeadline primary paddingHorizontal="s4">
                   {t("Pay with")}
                 </Text>
-                <XStack
-                  gap="s3"
-                  padding="s4"
-                  alignItems="center"
-                  borderWidth={1}
-                  borderColor="borderNeutralStrong"
-                  borderRadius="r3"
-                  cursor="pointer"
-                  role="button"
-                  aria-label={t("Select an asset")}
-                  opacity="press:0.7"
-                  onPress={() => {
-                    setPayOpen(true);
-                  }}
-                >
-                  {paySymbol ? (
-                    <>
-                      <AssetLogo
-                        uri={payLogoURI}
-                        symbol={paySymbol}
-                        width={32}
-                        height={32}
-                        chainId={payChain}
-                        network
-                      />
-                      <YStack gap="s2" flex={1}>
-                        <Text callout primary>
-                          {paySymbol}
-                        </Text>
-                        <Text footnote secondary>
-                          {`$${Number(formatUnits((available * payPrice) / WAD, payDecimals)).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} `}
-                          <Text footnote color="uiNeutralPlaceholder">
-                            {`(${Number(formatUnits(available, payDecimals)).toLocaleString(language, { maximumFractionDigits: 8 })})`}
+                <XStack alignItems="center" borderWidth={1} borderColor="borderNeutralStrong" borderRadius="r3">
+                  <XStack
+                    flex={1}
+                    gap="s3"
+                    padding="s4"
+                    alignItems="center"
+                    cursor={advanced ? "pointer" : undefined}
+                    role={advanced ? "button" : undefined}
+                    aria-label={advanced ? t("Select an asset") : undefined}
+                    opacity={advanced ? "press:0.7" : undefined}
+                    onPress={
+                      advanced
+                        ? () => {
+                            setPayOpen(true);
+                          }
+                        : undefined
+                    }
+                  >
+                    {paySymbol ? (
+                      <>
+                        <AssetLogo
+                          uri={payLogoURI}
+                          symbol={paySymbol}
+                          width={32}
+                          height={32}
+                          chainId={payChain}
+                          network
+                        />
+                        <YStack gap="s2" flex={1}>
+                          <Text callout primary>
+                            {paySymbol}
                           </Text>
+                          <Text footnote secondary>
+                            {`$${Number(formatUnits((available * payPrice) / WAD, payDecimals)).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} `}
+                            <Text footnote color="uiNeutralPlaceholder">
+                              {`(${Number(formatUnits(available, payDecimals)).toLocaleString(language, { maximumFractionDigits: 8 })})`}
+                            </Text>
+                          </Text>
+                        </YStack>
+                      </>
+                    ) : (
+                      <>
+                        <View width="s6" height="s6" borderRadius="r_0" backgroundColor="interactiveDisabled" />
+                        <Text flex={1} callout primary>
+                          {t("Select an asset")}
                         </Text>
-                      </YStack>
-                    </>
-                  ) : (
-                    <>
-                      <View width="s6" height="s6" borderRadius="r_0" backgroundColor="interactiveDisabled" />
-                      <Text flex={1} callout primary>
-                        {t("Select an asset")}
-                      </Text>
-                    </>
+                      </>
+                    )}
+                  </XStack>
+                  {advanced && (
+                    <View
+                      aria-hidden
+                      alignSelf="stretch"
+                      justifyContent="center"
+                      paddingRight="s4"
+                      cursor="pointer"
+                      opacity="press:0.7"
+                      onPress={() => {
+                        setPayOpen(true);
+                      }}
+                    >
+                      <ChevronRight size={20} color="interactiveBaseBrandDefault" />
+                    </View>
                   )}
-                  <ChevronRight size={20} color="interactiveBaseBrandDefault" />
                 </XStack>
               </>
             )}
