@@ -28,22 +28,24 @@ ponder.on("ExaAccountFactory:ExaAccountInitialized", async ({ event, context }) 
 });
 
 ponder.on("ExaAccount:PluginInstalled", async ({ event, context }) => {
-  const key = { chainId: context.chain.id, address: event.log.address };
+  const chainId = context.chain.id;
+  const key = { chainId, address: event.log.address };
   const account = await context.db.find(accounts, key); // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
   if (account?.block === event.block.number && !account.owner) {
     await context.db.update(accounts, key).set({ owner: event.args.plugin });
     return;
   }
+  const position = { block: event.block.number, timestamp: event.block.timestamp, logIndex: event.log.logIndex };
   await context.db
     .insert(plugins)
-    .values({
-      chainId: context.chain.id,
-      account: event.log.address,
-      address: event.args.plugin,
-      block: event.block.number,
-      timestamp: event.block.timestamp,
-    })
-    .onConflictDoNothing();
+    .values({ chainId, account: event.log.address, address: event.args.plugin, ...position })
+    .onConflictDoUpdate({ ...position, uninstalled: null });
+});
+
+ponder.on("ExaAccount:PluginUninstalled", async ({ event, context }) => {
+  const key = { chainId: context.chain.id, account: event.log.address, address: event.args.plugin };
+  if (!(await context.db.find(plugins, key))) return; // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
+  await context.db.update(plugins, key).set({ uninstalled: event.block.number });
 });
 
 ponder.on("ExaPlugin:ProposalManagerSet", async ({ event, context }) => {
