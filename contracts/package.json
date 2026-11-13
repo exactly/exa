@@ -7,6 +7,7 @@
     "prepare": "[ \"$EAS_BUILD_RUNNER\" != eas-build ] || (export FOUNDRY_DIR=${FOUNDRY_DIR-$HOME/workingdir} && (command -v foundryup >/dev/null || { curl -fsSL --retry 3 --retry-all-errors https://foundry.paradigm.xyz | bash; command -v foundryup >/dev/null; }) && (v=v1.7.1 && for i in $(seq 1 5); do foundryup -i $v && break; [ $i -eq 5 ] && exit 1; sleep $((1 << i)); done))",
     "snapshot": "FOUNDRY_PROFILE=snapshot forge snapshot --force",
     "test": "nx test contracts",
+    "test:broadcast": "for chain in 10 8453 11155420 84532; do jq -e --slurpfile build out/build/ExaPreviewer.sol/ExaPreviewer.json '.transactions[0].transaction.input | startswith($build[0].bytecode.object | .[:rindex(\"a2646970667358\")])' broadcast/ExaPreviewer.s.sol/$chain/run-latest.json > /dev/null || exit 1; done",
     "test:fmt": "forge fmt --check",
     "test:gas": "FOUNDRY_PROFILE=snapshot forge snapshot --force --check",
     "test:solhint": "solhint --disc --max-warnings 0 '**/*.sol'",
@@ -83,6 +84,7 @@
       },
       "test": {
         "dependsOn": [
+          "test:broadcast",
           "test:fmt",
           "test:solhint",
           "test:sizes",
@@ -91,6 +93,11 @@
           "test:coverage"
         ],
         "executor": "nx:noop"
+      },
+      "test:broadcast": {
+        "dependsOn": [
+          "build"
+        ]
       },
       "test:coverage": {
         "outputs": [
