@@ -88,9 +88,10 @@ export function extender(
   return {
     exaSend: async (
       spanOptions: Prettify<Omit<Parameters<typeof startSpan>[0], "name" | "op"> & { name: string; op: string }>,
-      call: Prettify<Pick<WriteContractParameters, "abi" | "address" | "args" | "functionName">>,
+      call: Prettify<Pick<WriteContractParameters, "abi" | "address" | "args" | "functionName" | "value">>,
       options?: {
         fees?: "auto";
+        gas?: bigint;
         ignore?: ((reason: string) => MaybePromise<boolean | TransactionReceipt | undefined>) | string[];
         level?: "error" | "warning" | ((reason: string, error: unknown) => "error" | "warning" | false) | false;
         onHash?: (hash: Hash) => MaybePromise<unknown>;
@@ -131,12 +132,20 @@ export function extender(
           const fees =
             options?.fees === "auto"
               ? await Promise.all([
-                  estimateGas(keeper, { account: keeper.account.address, to: call.address, data }),
+                  options.gas ??
+                    estimateGas(keeper, { account: keeper.account.address, to: call.address, data, value: call.value }),
                   estimateFeesPerGas(keeper),
                 ]).then(([gas, estimated]) => ({ gas, ...estimated }))
               : {};
           const prepared = await startSpan({ name: "prepare transaction", op: "tx.prepare" }, () =>
-            keeper.prepareTransactionRequest({ to: call.address, data, ...txOptions, ...fees, nonceManager }),
+            keeper.prepareTransactionRequest({
+              to: call.address,
+              data,
+              value: call.value,
+              ...txOptions,
+              ...fees,
+              nonceManager,
+            }),
           );
           scope.setContext("tx", { request, prepared });
           span.setAttribute("tx.nonce", prepared.nonce);
