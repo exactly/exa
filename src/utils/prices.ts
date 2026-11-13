@@ -82,7 +82,9 @@ export function useHistory(
         }),
       });
       if (response.status === 400 || response.status === 404) return null;
-      if (!response.ok) throw new Error(`alchemy prices failed: ${response.status} ${await response.text()}`);
+      if (!response.ok) {
+        throw Object.assign(new Error(`alchemy prices failed: ${response.status}`), { body: await response.text() });
+      }
       const points = parse(
         object({ data: array(object({ timestamp: string(), value: string() })) }),
         await response.json(),
@@ -120,7 +122,9 @@ export function useFeed(token?: { address: string; chainId: number; symbol: stri
       ]).get(chainId);
       if (!directory) return {};
       const response = await fetch(`https://reference-data-directory.vercel.app/feeds-${directory}.json`);
-      if (!response.ok) throw new Error(`feeds failed: ${response.status} ${await response.text()}`);
+      if (!response.ok) {
+        throw Object.assign(new Error(`feeds failed: ${response.status}`), { body: await response.text() });
+      }
       return Object.fromEntries(
         parse(
           array(
