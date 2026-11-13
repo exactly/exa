@@ -12,6 +12,7 @@ import {
   exaPluginAbi,
   exaPluginAddress,
   proposalManagerAbi,
+  upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
 
 import { chains } from "./anvil";
@@ -35,14 +36,25 @@ describe("indexer", () => {
       strict: true,
     });
     assert.ok(initialized, "expected an ExaAccountInitialized event");
-    const [{ timestamp }, owner] = await Promise.all([
+    const [{ timestamp }, owner, installed] = await Promise.all([
       anvilClient.getBlock({ blockNumber: initialized.blockNumber }),
       anvilClient.readContract({
         address: exaAccountFactoryAddress,
         abi: exaAccountFactoryAbi,
         functionName: "WEBAUTHN_OWNER_PLUGIN",
       }),
+      anvilClient
+        .getContractEvents({
+          address: account,
+          abi: upgradeableModularAccountAbi,
+          eventName: "PluginInstalled",
+          fromBlock: initialized.blockNumber,
+          toBlock: initialized.blockNumber,
+          strict: true,
+        })
+        .then((logs) => logs.find(({ args }) => args.plugin === exaPluginAddress)),
     ]);
+    assert.ok(installed, "expected the exa plugin to be installed");
 
     await expect(
       database
@@ -71,6 +83,8 @@ describe("indexer", () => {
         address: exaPluginAddress.toLowerCase(),
         block: initialized.blockNumber,
         timestamp,
+        logIndex: installed.logIndex,
+        uninstalled: null,
       },
     ]);
   });
