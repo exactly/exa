@@ -32,7 +32,7 @@ import {
 import { privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { anvil, foundry, moonbeamDev, optimism } from "viem/chains";
 
-import { Address } from "@exactly/common/validation";
+import { Address, Hash } from "@exactly/common/validation";
 import deploy from "@exactly/plugin/deploy.json";
 
 import anvilClient from "./anvilClient";
@@ -215,9 +215,12 @@ export default async function setup() {
   );
 
   const files = await readdir(__dirname, { recursive: true }); // eslint-disable-line unicorn/prefer-module
-  const signers = files
-    .filter((file) => file.endsWith(".test.ts") || file.endsWith("e2e.ts"))
-    .map((file) => privateKeyToAddress(keccak256(toBytes(file))));
+  const signers = [
+    ...files
+      .filter((file) => file.endsWith(".test.ts") || file.endsWith("e2e.ts"))
+      .map((file) => privateKeyToAddress(keccak256(toBytes(file)))),
+    ...(env.MOCKFI_PRIVATE_KEY ? [privateKeyToAddress(parse(Hash, env.MOCKFI_PRIVATE_KEY))] : []),
+  ];
   const verified = Promise.all(
     chains.slice(1).map(async (chain) => {
       const client = createTestClient({ chain, mode: "anvil", transport: http() })
