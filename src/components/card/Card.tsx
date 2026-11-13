@@ -151,6 +151,7 @@ export default function Card() {
   } = useMutation({
     mutationKey: ["card", "reveal"],
     mutationFn: async function handleReveal() {
+      if (queryClient.isMutating({ mutationKey: ["card", "create"] })) return;
       if (business && !cardDetails) {
         const { data, isSuccess } = await refetchCard();
         if (data) queryClient.setQueryData(["card-details-open"], true);
