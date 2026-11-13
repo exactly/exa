@@ -70,6 +70,19 @@ export const executions = onchainTable(
   (table) => ({ pk: primaryKey({ columns: [table.chainId, table.account] }) }),
 );
 
+export const markets = onchainTable(
+  "markets",
+  (t) => ({
+    chainId: t.integer().notNull(),
+    address: t.hex().notNull(),
+    asset: t.hex().notNull(),
+    symbol: t.text().notNull(),
+    decimals: t.integer().notNull(),
+    priceFeed: t.hex(),
+  }),
+  (table) => ({ pk: primaryKey({ columns: [table.chainId, table.address] }) }),
+);
+
 export const deposits = onchainTable(
   "deposits",
   (t) => ({
@@ -78,6 +91,7 @@ export const deposits = onchainTable(
     caller: t.hex().notNull(),
     market: t.hex().notNull(),
     assets: t.bigint().notNull(),
+    usdPrice: t.bigint(),
   }),
   (table) => ({ account: index().on(table.chainId, table.account) }),
 );
@@ -91,6 +105,7 @@ export const withdraws = onchainTable(
     receiver: t.hex().notNull(),
     market: t.hex().notNull(),
     assets: t.bigint().notNull(),
+    usdPrice: t.bigint(),
     proposalManager: t.hex(),
     nonce: t.bigint(),
   }),
@@ -107,6 +122,7 @@ export const borrows = onchainTable(
     market: t.hex().notNull(),
     maturity: t.bigint().notNull(),
     assets: t.bigint().notNull(),
+    usdPrice: t.bigint(),
     fee: t.bigint().notNull(),
   }),
   (table) => ({ account: index().on(table.chainId, table.account) }),
@@ -121,6 +137,7 @@ export const repays = onchainTable(
     market: t.hex().notNull(),
     maturity: t.bigint().notNull(),
     assets: t.bigint().notNull(),
+    usdPrice: t.bigint(),
     positionAssets: t.bigint().notNull(),
   }),
   (table) => ({ account: index().on(table.chainId, table.account) }),
