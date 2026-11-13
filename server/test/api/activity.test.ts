@@ -45,15 +45,24 @@ import chain, {
   marketAbi,
   marketUSDCAddress,
   marketWETHAddress,
+  mockSwapperAbi,
   proposalManagerAbi,
+  swapperAddress,
   upgradeableModularAccountAbi,
   usdcAddress,
 } from "@exactly/common/generated/chain";
 import ProposalType from "@exactly/common/ProposalType";
 import { Address } from "@exactly/common/validation";
+import { WAD } from "@exactly/lib";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 
-import route, { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity } from "../../api/activity";
+import route, {
+  CreditActivity,
+  DebitActivity,
+  InstallmentsActivity,
+  PandaActivity,
+  SwapActivity,
+} from "../../api/activity";
 import database, { cards, credentials, transactions } from "../../database";
 import * as indexer from "../../database/indexer";
 import authenticate from "../../middleware/auth";
@@ -941,6 +950,85 @@ describe.concurrent("authenticated", () => {
       const json = (await response.json()) as { type: string }[];
       expect(json.some(({ type }) => type === "loan")).toBe(false);
     });
+
+    it("returns swaps", async () => {
+      const logs = await anvilClient
+        .getContractEvents({
+          address: swapperAddress,
+          abi: mockSwapperAbi,
+          eventName: "LiFiGenericSwapCompleted",
+          fromBlock: 0n,
+          strict: true,
+        })
+        .then((all) => all.filter(({ args }) => args.receiver === account));
+      expect(logs.length).toBeGreaterThanOrEqual(2);
+      const expected = await Promise.all(
+        logs.map(async ({ args, blockNumber, logIndex, transactionHash, transactionIndex }) => {
+          const [{ timestamp }, from, to, toUsdPrice] = await Promise.all([
+            anvilClient.getBlock({ blockNumber }),
+            metadata(args.fromAssetId),
+            metadata(args.toAssetId),
+            assetPrice(args.toAssetId, blockNumber),
+          ]);
+          return {
+            id: `${chain.id}:${blockNumber}:${transactionIndex}:${logIndex}`,
+            type: "swap",
+            currency: to.symbol,
+            amount: Number(args.toAmount) / 10 ** to.decimals,
+            usdAmount: Number((args.toAmount * toUsdPrice) / WAD) / 10 ** to.decimals,
+            from: { currency: from.symbol, amount: Number(args.fromAmount) / 10 ** from.decimals },
+            transactionHash,
+            timestamp: new Date(Number(timestamp) * 1000).toISOString(),
+          };
+        }),
+      );
+
+      const response = await appClient.index.$get(
+        { query: { include: "swap" } },
+        { headers: { "test-credential-id": "bob" } },
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual(expected.toReversed());
+    });
+
+    it("prices swaps by the input asset when the output has no market", () => {
+      const swap = parse(SwapActivity, {
+        block: 1n,
+        timestamp: 0n,
+        hash: zeroHash,
+        transactionIndex: 0,
+        logIndex: 0,
+        from: { symbol: "USDC", decimals: 6 },
+        to: { symbol: "TOKEN", decimals: 18 },
+        fromAmount: 2_000_000n,
+        toAmount: 10n ** 18n,
+        fromUsdPrice: WAD,
+        toUsdPrice: null,
+      });
+
+      expect(swap.amount).toBe(1);
+      expect(swap.usdAmount).toBe(2);
+      expect(swap.from).toStrictEqual({ currency: "USDC", amount: 2 });
+    });
+
+    it("leaves unpriced swaps without usd amount", () => {
+      const swap = parse(SwapActivity, {
+        block: 1n,
+        timestamp: 0n,
+        hash: zeroHash,
+        transactionIndex: 0,
+        logIndex: 0,
+        from: { symbol: "TOKEN", decimals: 18 },
+        to: { symbol: "OTHER", decimals: 18 },
+        fromAmount: 10n ** 18n,
+        toAmount: 10n ** 18n,
+        fromUsdPrice: null,
+        toUsdPrice: null,
+      });
+
+      expect(swap.usdAmount).toBeUndefined();
+    });
   });
 
   it("returns everything", async () => {
@@ -1518,3 +1606,30 @@ const spendTemplate = {
   userId: "f5eb6ea9-e9ba-4e2f-b16a-94a99f32385c",
   userLastName: "SAMPLEapproved",
 };
+
+async function metadata(address: Hex) {
+  const [symbol, decimals] = await Promise.all([
+    anvilClient.readContract({ address, abi: erc20Abi, functionName: "symbol" }),
+    anvilClient.readContract({ address, abi: erc20Abi, functionName: "decimals" }),
+  ]);
+  return { symbol, decimals };
+}
+
+async function assetPrice(asset: Hex, blockNumber: bigint) {
+  const all = await anvilClient.readContract({ address: auditorAddress, abi: auditorAbi, functionName: "allMarkets" });
+  const assets = await Promise.all(
+    all.map((address) => anvilClient.readContract({ address, abi: marketAbi, functionName: "asset" })),
+  );
+  const market = all[assets.indexOf(asset)];
+  assert.ok(market, "expected a market");
+  const priceFeed = await anvilClient
+    .readContract({ address: auditorAddress, abi: auditorAbi, functionName: "markets", args: [market] })
+    .then((data) => data[4]);
+  return anvilClient.readContract({
+    address: auditorAddress,
+    abi: auditorAbi,
+    functionName: "assetPrice",
+    args: [priceFeed],
+    blockNumber,
+  });
+}

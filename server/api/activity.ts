@@ -2,6 +2,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 
 import { captureException, setUser } from "@sentry/node";
 import { and, arrayOverlaps, eq, getViewSelectedFields, gt, inArray, min } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { Hono } from "hono";
 import { accepts } from "hono/accepts";
 import { validator as vValidator } from "hono-openapi/valibot";
@@ -21,6 +22,7 @@ import {
   nullish,
   number,
   object,
+  omit,
   optional,
   parse,
   picklist,
@@ -58,8 +60,11 @@ import type * as schema from "../database/schema";
 import type { Auth } from "../middleware/auth";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
-const ActivityTypes = picklist(["card", "received", "repay", "sent", "loan", "rollover"]);
+const ActivityTypes = picklist(["card", "received", "repay", "sent", "loan", "rollover", "swap"]);
 const legacyTypes = new Set<InferInput<typeof ActivityTypes>>(["card", "received", "repay", "sent"]);
+
+const fromToken = alias(indexer.tokens, "from_token");
+const toToken = alias(indexer.tokens, "to_token");
 
 const collectors = new Set([...cryptomateCollectors, ...pandaCollectors()].map((a) => a.toLowerCase() as Hex));
 
@@ -211,7 +216,26 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
               ),
             );
 
-      const [deposits, repays, withdraws, borrows, loans, rollovers] = await Promise.all([
+      const swapPromise = ignore("swap")
+        ? Promise.resolve(forbid([]))
+        : database
+            .select({
+              swap: getViewSelectedFields(indexer.swaps),
+              from: { symbol: fromToken.symbol, decimals: fromToken.decimals },
+              to: { symbol: toToken.symbol, decimals: toToken.decimals },
+            })
+            .from(indexer.swaps)
+            .innerJoin(
+              fromToken,
+              and(eq(fromToken.chainId, indexer.swaps.chainId), eq(fromToken.address, indexer.swaps.fromAsset)),
+            )
+            .innerJoin(
+              toToken,
+              and(eq(toToken.chainId, indexer.swaps.chainId), eq(toToken.address, indexer.swaps.toAsset)),
+            )
+            .where(and(eq(indexer.swaps.chainId, chain.id), eq(indexer.swaps.account, owner)));
+
+      const [deposits, repays, withdraws, borrows, loans, rollovers, swapped] = await Promise.all([
         ignore("received")
           ? []
           : Promise.all([
@@ -336,6 +360,9 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                 parse(RolloverActivity, { ...repay, market: market(repay.market, repay.usdPrice), borrow }),
               ),
             ),
+        ignore("swap")
+          ? []
+          : swapPromise.then((rows) => rows.map(({ swap, from, to }) => parse(SwapActivity, { ...swap, from, to }))),
       ]);
       const purchases =
         !ignore("card") && borrows && maturity !== undefined
@@ -498,6 +525,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
         ...withdraws,
         ...loans,
         ...rollovers,
+        ...swapped,
       ]
         .filter(<T>(value: T | undefined): value is T => value !== undefined)
         .toSorted((a, b) => b.timestamp.localeCompare(a.timestamp) || collator.compare(b.id, a.id));
@@ -944,6 +972,34 @@ export const RolloverActivity = pipe(
   }),
 );
 
+const Token = object({ symbol: string(), decimals: number() });
+
+export const SwapActivity = pipe(
+  object({
+    ...omit(OnchainActivity, ["assets", "market"]).entries,
+    from: Token,
+    to: Token,
+    fromAmount: bigint(),
+    toAmount: bigint(),
+    fromUsdPrice: nullable(bigint()),
+    toUsdPrice: nullable(bigint()),
+  }),
+  transform(({ from, to, fromAmount, toAmount, fromUsdPrice, toUsdPrice, ...activity }) => {
+    const usd =
+      toUsdPrice === null
+        ? fromUsdPrice === null
+          ? undefined
+          : { assets: fromAmount, usdPrice: fromUsdPrice, decimals: from.decimals }
+        : { assets: toAmount, usdPrice: toUsdPrice, decimals: to.decimals };
+    return {
+      ...transformActivity({ ...activity, assets: toAmount, market: { ...to, usdPrice: toUsdPrice ?? 0n } }),
+      usdAmount: usd && Number((usd.assets * usd.usdPrice) / WAD) / 10 ** usd.decimals,
+      from: { currency: from.symbol, amount: Number(fromAmount) / 10 ** from.decimals },
+      type: "swap" as const,
+    };
+  }),
+);
+
 function forbid<T extends object>(value: T) {
   return new Proxy(value, {
     /* v8 ignore start */
@@ -970,4 +1026,5 @@ export type OnchainActivity = InferOutput<typeof OnchainActivity>;
 export type PandaActivity = InferOutput<typeof PandaActivity>;
 export type RepayActivity = InferOutput<typeof RepayActivity>;
 export type RolloverActivity = InferOutput<typeof RolloverActivity>;
+export type SwapActivity = InferOutput<typeof SwapActivity>;
 export type WithdrawActivity = InferOutput<typeof WithdrawActivity>;
