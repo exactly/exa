@@ -58,7 +58,8 @@ import type * as schema from "../database/schema";
 import type { Auth } from "../middleware/auth";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
-const ActivityTypes = picklist(["card", "received", "repay", "sent"]);
+const ActivityTypes = picklist(["card", "received", "repay", "sent", "loan"]);
+const legacyTypes = new Set<InferInput<typeof ActivityTypes>>(["card", "received", "repay", "sent"]);
 
 const collectors = new Set([...cryptomateCollectors, ...pandaCollectors()].map((a) => a.toLowerCase() as Hex));
 
@@ -81,7 +82,8 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
       const { include, maturity } = c.req.valid("query");
       if (maturity !== undefined && maturity > 864e10) return c.json({ code: "invalid maturity" }, 400);
       function ignore(type: InferInput<typeof ActivityTypes>) {
-        return include && (Array.isArray(include) ? !include.includes(type) : include !== type);
+        if (!include) return !legacyTypes.has(type);
+        return Array.isArray(include) ? !include.includes(type) : include !== type;
       }
 
       const { credentialId } = c.req.valid("cookie");
@@ -154,7 +156,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
               .orderBy(indexer.repays.block, indexer.repays.logIndex)
           : Promise.resolve(forbid([]));
 
-      const [deposits, repays, withdraws, borrows] = await Promise.all([
+      const [deposits, repays, withdraws, borrows, loans] = await Promise.all([
         ignore("received")
           ? []
           : Promise.all([
@@ -246,6 +248,31 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                   return map;
                 }, new Map<Hash, { events: { assets: bigint; fee: bigint; maturity: bigint }[]; timestamp: bigint }>()),
               ),
+        ignore("loan")
+          ? []
+          : Promise.all([
+              database
+                .select()
+                .from(indexer.borrows)
+                .where(
+                  and(
+                    eq(indexer.borrows.chainId, chain.id),
+                    eq(indexer.borrows.account, owner),
+                    eq(indexer.borrows.caller, owner),
+                    inArray(indexer.borrows.market, [...markets.keys()]),
+                  ),
+                )
+                .orderBy(indexer.borrows.block, indexer.borrows.logIndex),
+              database
+                .select({ address: indexer.collectors.address })
+                .from(indexer.collectors)
+                .where(eq(indexer.collectors.chainId, chain.id)),
+            ]).then(([rows, indexed]) => {
+              const known = new Set([...collectors, ...indexed.map(({ address }) => address)]);
+              return rows
+                .filter(({ receiver }) => !known.has(receiver))
+                .map((row) => parse(LoanActivity, { ...row, market: market(row.market, row.usdPrice) }));
+            }),
       ]);
       const purchases =
         !ignore("card") && borrows && maturity !== undefined
@@ -406,6 +433,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
         ...deposits,
         ...repays,
         ...withdraws,
+        ...loans,
       ]
         .filter(<T>(value: T | undefined): value is T => value !== undefined)
         .toSorted((a, b) => b.timestamp.localeCompare(a.timestamp) || collator.compare(b.id, a.id));
@@ -819,6 +847,18 @@ export const WithdrawActivity = pipe(
   })),
 );
 
+export const LoanActivity = pipe(
+  object({ ...OnchainActivity.entries, maturity: bigint(), fee: bigint(), receiver: Address }),
+  transform((activity) => ({
+    ...transformActivity(activity),
+    fee: Number(activity.fee) / 10 ** activity.market.decimals,
+    maturity: Number(activity.maturity),
+    rate: Number(fixedRate(activity.maturity, activity.assets, activity.fee, activity.timestamp)) / 1e18,
+    receiver: activity.receiver,
+    type: "loan" as const,
+  })),
+);
+
 function forbid<T extends object>(value: T) {
   return new Proxy(value, {
     /* v8 ignore start */
@@ -840,6 +880,7 @@ export type CreditActivity = InferOutput<typeof CreditActivity>;
 export type DebitActivity = InferOutput<typeof DebitActivity>;
 export type DepositActivity = InferOutput<typeof DepositActivity>;
 export type InstallmentsActivity = InferOutput<typeof InstallmentsActivity>;
+export type LoanActivity = InferOutput<typeof LoanActivity>;
 export type OnchainActivity = InferOutput<typeof OnchainActivity>;
 export type PandaActivity = InferOutput<typeof PandaActivity>;
 export type RepayActivity = InferOutput<typeof RepayActivity>;

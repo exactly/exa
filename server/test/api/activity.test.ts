@@ -32,6 +32,7 @@ import { anvil } from "viem/chains";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
+import fixedRate from "@exactly/common/fixedRate";
 import chain, {
   auditorAbi,
   auditorAddress,
@@ -809,6 +810,50 @@ describe.concurrent("authenticated", () => {
           }),
         ]),
       );
+    });
+
+    it("returns loans", async () => {
+      const [borrow] = await anvilClient.getContractEvents({
+        abi: marketAbi,
+        eventName: "BorrowAtMaturity",
+        address: marketUSDCAddress,
+        args: { borrower: account, receiver: privateKeyToAddress(padHex("0xb0b")) },
+        toBlock: "latest",
+        fromBlock: 0n,
+        strict: true,
+      });
+      assert.ok(borrow, "expected a loan");
+      const { timestamp } = await anvilClient.getBlock({ blockNumber: borrow.blockNumber });
+
+      const response = await appClient.index.$get(
+        { query: { include: "loan" } },
+        { headers: { "test-credential-id": "bob" } },
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual([
+        {
+          id: `${chain.id}:${borrow.blockNumber}:${borrow.transactionIndex}:${borrow.logIndex}`,
+          type: "loan",
+          currency: "USDC",
+          amount: 50,
+          usdAmount: 50,
+          fee: Number(borrow.args.fee) / 1e6,
+          maturity: Number(borrow.args.maturity),
+          rate: Number(fixedRate(borrow.args.maturity, borrow.args.assets, borrow.args.fee, timestamp)) / 1e18,
+          receiver: privateKeyToAddress(padHex("0xb0b")),
+          transactionHash: borrow.transactionHash,
+          timestamp: new Date(Number(timestamp) * 1000).toISOString(),
+        },
+      ]);
+    });
+
+    it("leaves loans out by default", async () => {
+      const response = await appClient.index.$get({}, { headers: { "test-credential-id": "bob" } });
+
+      expect(response.status).toBe(200);
+      const json = (await response.json()) as { type: string }[];
+      expect(json.some(({ type }) => type === "loan")).toBe(false);
     });
   });
 
