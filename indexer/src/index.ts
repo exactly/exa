@@ -5,6 +5,7 @@ import {
   collectors,
   delays,
   deposits,
+  exaPlugins,
   plugins,
   proposalManagers,
   proposals,
@@ -35,6 +36,10 @@ ponder.on("ExaAccount:PluginInstalled", async ({ event, context }) => {
     await context.db.update(accounts, key).set({ owner: event.args.plugin });
     return;
   }
+  if (account?.block === event.block.number && !account.plugin) {
+    await context.db.update(accounts, key).set({ plugin: event.args.plugin });
+    await context.db.insert(exaPlugins).values({ chainId, address: event.args.plugin }).onConflictDoNothing();
+  }
   const position = { block: event.block.number, timestamp: event.block.timestamp, logIndex: event.log.logIndex };
   await context.db
     .insert(plugins)
@@ -46,6 +51,12 @@ ponder.on("ExaAccount:PluginUninstalled", async ({ event, context }) => {
   const key = { chainId: context.chain.id, account: event.log.address, address: event.args.plugin };
   if (!(await context.db.find(plugins, key))) return; // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
   await context.db.update(plugins, key).set({ uninstalled: event.block.number });
+});
+
+ponder.on("ExaPlugin:PluginAllowed", async ({ event, context }) => {
+  const chainId = context.chain.id;
+  if (!event.args.allowed || !(await context.db.find(exaPlugins, { chainId, address: event.log.address }))) return; // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
+  await context.db.insert(exaPlugins).values({ chainId, address: event.args.plugin }).onConflictDoNothing();
 });
 
 ponder.on("ExaPlugin:ProposalManagerSet", async ({ event, context }) => {
