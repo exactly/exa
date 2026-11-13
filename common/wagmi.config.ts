@@ -131,6 +131,8 @@ export default defineConfig([
               {
                 auditor: getAddress(loadDeployment("Auditor", true, id).address),
                 exaPreviewer: getAddress(exaPreviewer),
+                previewer: getAddress(loadDeployment("Previewer", true, id).address),
+                ratePreviewer: getAddress(loadDeployment("RatePreviewer", true, id).address),
                 swapper: getAddress(perChain(deploy.accounts.swapper, id)),
                 webauthnOwnerPlugin: getAddress(webauthnOwnerPlugin),
               },
@@ -288,8 +290,8 @@ export default defineConfig([
               `export const factories: Readonly<Record<"legacy" | "versions", readonly \`0x\${string}\`[]>> = ${JSON.stringify(factories)}`,
               `export const factoryChains: ReadonlyMap<number, Readonly<{ network: string; startBlock: number; swapper: \`0x\${string}\` }>> = new Map(${JSON.stringify(factoryChains.map(({ id, network, startBlock }) => [id, { network, startBlock, swapper: getAddress(perChain(deploy.accounts.swapper, id)) }]))})`,
               `export const issuerCheckerPreviewerCode: \`0x\${string}\` = "${IssuerCheckerPreviewer.deployedBytecode.object}"`,
-              `export const networks: ReadonlyMap<number, Readonly<Record<"auditor" | "exaPreviewer" | "swapper" | "webauthnOwnerPlugin", \`0x\${string}\`>>> = new Map(${JSON.stringify(networkContracts)})`,
-              `export const peers: ReadonlyMap<number, Readonly<Record<"auditor" | "exaPreviewer" | "swapper" | "webauthnOwnerPlugin", \`0x\${string}\`>>> = new Map(${JSON.stringify(peers)})`,
+              `export const networks: ReadonlyMap<number, Readonly<Record<"auditor" | "exaPreviewer" | "previewer" | "ratePreviewer" | "swapper" | "webauthnOwnerPlugin", \`0x\${string}\`>>> = new Map(${JSON.stringify(networkContracts)})`,
+              `export const peers: ReadonlyMap<number, Readonly<Record<"auditor" | "exaPreviewer" | "previewer" | "ratePreviewer" | "swapper" | "webauthnOwnerPlugin", \`0x\${string}\`>>> = new Map(${JSON.stringify(peers)})`,
               `export const pricePreviewerCode: \`0x\${string}\` = "${PricePreviewer.bytecode.object}"`,
               'type AlchemyChain = ((Chain & { smartAccount: true }) | (Omit<Chain, "nativeCurrency"> & { nativeCurrency?: Chain["nativeCurrency"]; smartAccount?: never })) & { rpcUrls: { alchemy: { http: readonly [string] } } }',
               ...(chain
