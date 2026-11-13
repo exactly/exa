@@ -32,12 +32,14 @@ import path from "node:path";
 import process, { env } from "node:process";
 import { setTimeout } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
+import { parse } from "valibot";
 import { getAddress, keccak256, padHex, slice, toBytes, type Address } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { describe, expect, it, vi } from "vitest";
 
 import domain from "@exactly/common/domain";
 import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
+import { Hash } from "@exactly/common/validation";
 
 import database, { cards as cardsTable, credentials } from "../database";
 import mockfi from "../hooks/mockfi";
@@ -59,6 +61,7 @@ import ServiceError from "../utils/ServiceError";
 import allowWorker from "../workers/allow/worker";
 import creditWorker from "../workers/credit/worker";
 import hookWorker from "../workers/hook/worker";
+import mockfiWorker from "../workers/mockfi/worker";
 import pokeWorker from "../workers/poke/worker";
 import refundWorker from "../workers/refund/worker";
 import subscribeWorker from "../workers/subscribe/worker";
@@ -102,6 +105,14 @@ describe("e2e", () => {
           segment,
         }),
         hookWorker({ bullmq, database, panda }),
+        mockfiWorker({
+          bridger: privateKeyToAccount(
+            env.MOCKFI_PRIVATE_KEY ? parse(Hash, env.MOCKFI_PRIVATE_KEY) : keccak256(toBytes("e2e.ts")),
+          ),
+          bullmq,
+          database,
+          testnets: Boolean(env.MOCKFI_PRIVATE_KEY),
+        }),
         subscribeWorker({ alchemy: createAlchemy("webhooks"), bullmq, database }),
       ];
       async function deliver(inquiry: Inquiry, status: Inquiry["status"]) {
