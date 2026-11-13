@@ -12,6 +12,7 @@ import chain, {
   factories,
   factoryChains,
   marketAbi,
+  mockSwapperAbi,
   networks,
   proposalManagerAbi,
   upgradeableModularAccountAbi,
@@ -24,13 +25,14 @@ const ownerUpdated = getAbiItem({
   name: "OwnerUpdated",
   args: [zeroAddress, [{ x: 0n, y: 0n }], []],
 });
-const sources = [...networks].map(([id, { auditor, webauthnOwnerPlugin }]) => {
+const sources = [...networks].map(([id, { auditor, swapper, webauthnOwnerPlugin }]) => {
   const network = id === chain.id ? chain : alchemyChains.get(id);
   const rpc = network?.rpcUrls.alchemy.http[0];
   if (!network || !rpc) throw new Error(`missing network ${id}`);
   return {
     auditor,
     network,
+    swapper,
     webauthnOwnerPlugin,
     rpc: `${rpc}/${alchemyAPIKey}`,
     auditorBlock: {
@@ -106,6 +108,12 @@ export default createConfig({
             startBlock,
           },
         ]),
+      ),
+    },
+    Swapper: {
+      abi: mockSwapperAbi,
+      chain: Object.fromEntries(
+        sources.map(({ network, startBlock, swapper }) => [network.name, { address: swapper, startBlock }]),
       ),
     },
     WebauthnOwnerPlugin: {

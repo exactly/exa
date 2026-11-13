@@ -72,6 +72,15 @@ export const markets = indexer
   })
   .existing();
 
+export const tokens = indexer
+  .view("tokens", {
+    chainId: integer("chain_id").notNull(),
+    address: text("address").$type<Hex>().notNull(),
+    symbol: text("symbol").notNull(),
+    decimals: integer("decimals").notNull(),
+  })
+  .existing();
+
 export const deposits = indexer
   .view("deposits", {
     ...log(),
@@ -135,6 +144,20 @@ export const proposals = indexer
     amount: numeric("amount", { mode: "bigint" }).notNull(),
     data: text("data").$type<Hex>().notNull(),
     unlock: numeric("unlock", { mode: "bigint" }).notNull(),
+  })
+  .existing();
+
+export const swaps = indexer
+  .view("swaps", {
+    ...log(),
+    account: text("account").$type<Hex>().notNull(),
+    transactionId: text("transaction_id").$type<Hex>().notNull(),
+    fromAsset: text("from_asset").$type<Hex>().notNull(),
+    toAsset: text("to_asset").$type<Hex>().notNull(),
+    fromAmount: numeric("from_amount", { mode: "bigint" }).notNull(),
+    toAmount: numeric("to_amount", { mode: "bigint" }).notNull(),
+    fromUsdPrice: numeric("from_usd_price", { mode: "bigint" }),
+    toUsdPrice: numeric("to_usd_price", { mode: "bigint" }),
   })
   .existing();
 
