@@ -62,6 +62,7 @@ export default define({
       secrets: ["manteca-api-key", "onesignal-api-key", "postgres-url", "segment-write-key", "webhooks-key"],
       shared: ["manteca-api-url"],
     },
+    mockfi: { secrets: ["postgres-url"] },
     panda: {
       secrets: [
         "onesignal-api-key",
@@ -97,6 +98,7 @@ export default define({
     },
     credit: { secrets: ["onesignal-api-key", "postgres-url"], shared: ["redis-url"] },
     hook: { secrets: ["panda-api-key", "postgres-url"], shared: ["panda-api-url", "redis-url"] },
+    mockfi: { secrets: ["postgres-url"], shared: ["redis-url"], signers: ["bridger"] },
     poke: { secrets: ["onesignal-api-key", "segment-write-key"], shared: ["redis-url"], signers: ["poker"] },
     refund: {
       secrets: ["panda-api-key", "onesignal-api-key", "postgres-url", "sardine-api-key", "segment-write-key"],
