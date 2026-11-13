@@ -21,6 +21,8 @@ export const plugins = onchainTable(
     address: t.hex().notNull(),
     block: t.bigint().notNull(),
     timestamp: t.bigint().notNull(),
+    logIndex: t.integer().notNull(),
+    uninstalled: t.bigint(),
   }),
   (table) => ({ pk: primaryKey({ columns: [table.chainId, table.account, table.address] }) }),
 );
