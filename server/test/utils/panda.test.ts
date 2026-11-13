@@ -67,7 +67,7 @@ describe("panda request", () => {
     } as Response);
 
     await expect(panda.getUser("some-id")).rejects.toMatchObject({
-      name: "PandaNot Found",
+      name: "PandaNotFound",
       status: 400,
       message: "invalid",
     });

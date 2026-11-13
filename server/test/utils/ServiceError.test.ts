@@ -25,6 +25,10 @@ describe("ServiceError", () => {
       expect(new ServiceError("Panda", 400, "", "BadRequest").name).toBe("PandaBadRequest");
     });
 
+    it("removes spaces from type", () => {
+      expect(new ServiceError("Panda", 400, "", "Bad Request").name).toBe("PandaBadRequest");
+    });
+
     it("falls back to status for empty string detail", () => {
       expect(new ServiceError("X", 500, undefined, undefined, "").message).toBe("500");
     });

@@ -27,6 +27,6 @@ export default class ServiceError extends Error {
       }
     }
     super(detail || `${status}`, { cause }); // eslint-disable-line @typescript-eslint/prefer-nullish-coalescing -- empty string must fall back to status
-    this.name = `${service}${type && type !== "Error" ? type.replace(/Error$/, "") : status}`;
+    this.name = `${service}${type && type !== "Error" ? type.replaceAll(/\s/g, "").replace(/Error$/, "") : status}`;
   }
 }
