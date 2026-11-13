@@ -1,6 +1,7 @@
 import { captureException } from "@sentry/core";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { organization, siwe } from "better-auth/plugins";
 import { createAccessControl } from "better-auth/plugins/access";
 import { adminAc, defaultStatements, memberAc, ownerAc } from "better-auth/plugins/organization/access";
@@ -95,6 +96,42 @@ export default function auth(database: NodePgDatabase<typeof schema>, secret: st
         },
         allowUserToCreateOrganization: () => true,
       }),
+      {
+        id: "exa",
+        hooks: {
+          before: [
+            {
+              matcher: ({ path }) => path === "/siwe/nonce" || path === "/siwe/get-nonce" || path === "/siwe/verify",
+              handler: createAuthMiddleware((context) => {
+                if (!context.body || typeof context.body !== "object") return Promise.resolve();
+                const body = context.body as Record<string, unknown>;
+                const { walletAddress, chainId } = body;
+                if (walletAddress === undefined && chainId === undefined) return Promise.resolve();
+                if (context.path === "/siwe/verify") {
+                  const message = typeof body.message === "string" ? parseSiweMessage(body.message) : undefined;
+                  if (
+                    !message?.address ||
+                    (walletAddress !== undefined &&
+                      (typeof walletAddress !== "string" ||
+                        walletAddress.toLowerCase() !== message.address.toLowerCase())) ||
+                    (chainId !== undefined && chainId !== message.chainId)
+                  ) {
+                    throw APIError.fromStatus("UNAUTHORIZED", {
+                      message:
+                        "Unauthorized: SIWE message does not match the expected nonce, domain, address, or chain ID",
+                      status: 401,
+                      code: "UNAUTHORIZED_SIWE_MESSAGE_MISMATCH",
+                    });
+                  }
+                }
+                delete body.walletAddress;
+                delete body.chainId;
+                return Promise.resolve();
+              }),
+            },
+          ],
+        },
+      },
     ],
   });
 }

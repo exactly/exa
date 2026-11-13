@@ -206,3 +206,45 @@ describe("siwe getNonce", () => {
     expect(new Set(nonces).size).toBe(nonces.length);
   });
 });
+
+describe("siwe compatibility", () => {
+  const message = createSiweMessage({
+    address: account.address,
+    chainId: chain.id,
+    domain,
+    nonce: "abcdef0123456789",
+    uri: appOrigin,
+    version: "1",
+  });
+
+  it.each([
+    ["another address", { message, walletAddress: padHex("0xbad", { size: 20 }) }],
+    ["a non-string address", { message, walletAddress: 1 }],
+    ["another chain", { message, chainId: chain.id + 1 }],
+    ["no message", { walletAddress: account.address }],
+  ])("rejects legacy fields with %s", async (_, body) => {
+    const response = await siwe("verify", { signature: "0x", ...body });
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toMatchObject({ code: "UNAUTHORIZED_SIWE_MESSAGE_MISMATCH" });
+  });
+
+  it("drops matching legacy fields", async () => {
+    const response = await siwe("nonce", { walletAddress: account.address, chainId: chain.id });
+    expect(response.status).toBe(200);
+  });
+
+  it("ignores requests without a body", async () => {
+    const response = await auth.handler(new Request(`${appOrigin}/api/auth/siwe/nonce`, { method: "POST" }));
+    expect(response.status).toBe(200);
+  });
+});
+
+function siwe(path: string, body: Record<string, unknown>) {
+  return auth.handler(
+    new Request(`${appOrigin}/api/auth/siwe/${path}`, {
+      method: "POST",
+      headers: { origin: appOrigin, "content-type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+  );
+}
