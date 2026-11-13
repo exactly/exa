@@ -22,6 +22,7 @@ import {
   http,
   keccak256,
   padHex,
+  parseAbi,
   parseEther,
   parseEventLogs,
   publicActions,
@@ -41,11 +42,11 @@ import chain, {
   alchemyChains,
   auditorAbi,
   auditorAddress,
+  debtManagerAddress,
   exaAccountFactoryAbi,
   exaAccountFactoryAddress,
   exaPluginAbi,
   exaPluginAddress,
-  exaPreviewerAddress,
   factories,
   marketAbi,
   marketUSDCAddress,
@@ -61,12 +62,19 @@ import ProposalType from "@exactly/common/ProposalType";
 import { Address } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 
-import route, { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity } from "../../api/activity";
+import route, {
+  CreditActivity,
+  DebitActivity,
+  DepositActivity,
+  InstallmentsActivity,
+  PandaActivity,
+} from "../../api/activity";
 import database, { cards, credentials, transactions } from "../../database";
 import * as indexer from "../../database/indexer";
 import authenticate from "../../middleware/auth";
 import { signIssuerOp } from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
+import Statement from "../../utils/Statement";
 import wallet from "../../utils/wallet";
 import anvilClient from "../anvilClient";
 
@@ -132,6 +140,256 @@ describe.concurrent("validation", () => {
     );
 
     expect(response.status).toBe(200);
+  });
+});
+
+describe("onchain", () => {
+  it("leaves unpriced deposits without usd amount", () => {
+    const deposit = parse(DepositActivity, {
+      assets: 10n ** 6n,
+      market: { decimals: 6, symbol: "USDC", usdPrice: null },
+      block: 1n,
+      timestamp: 0n,
+      hash: zeroHash,
+      transactionIndex: 0,
+      logIndex: 0,
+    });
+
+    expect(deposit.amount).toBe(1);
+    expect(deposit.usdAmount).toBeUndefined();
+  });
+
+  it("leaves unpriced rows out of legacy json only", async () => {
+    const owner = createWalletClient({ chain, transport: http(), account: privateKeyToAccount(generatePrivateKey()) });
+    const unpriced = deriveAddress(exaAccountFactoryAddress, { x: padHex(owner.account.address), y: zeroHash });
+    const feed = privateKeyToAddress(generatePrivateKey());
+    const feedAbi = parseAbi([
+      "function push(uint16 phase, uint256 timestamp, int256 answer)",
+      "function setHidden(uint256 hidden)",
+    ]);
+    const receiver = padHex("0x9a1d", { size: 20 });
+    const headers = { "test-credential-id": owner.account.address };
+    const statement = vi.mocked(Statement);
+    const usdcFeed = await anvilClient
+      .readContract({ address: auditorAddress, abi: auditorAbi, functionName: "markets", args: [marketUSDCAddress] })
+      .then(({ 4: priceFeed }) => priceFeed);
+    const { timestamp } = await anvilClient.getBlock({ blockTag: "latest" });
+    const maturity = timestamp - (timestamp % 2_419_200n) + 2n * 2_419_200n;
+    const call = (data: Hex) => ({ target: unpriced, value: 0n, data });
+    function propose(amount: bigint, type: ProposalType, data: Hex) {
+      return call(
+        encodeFunctionData({
+          abi: exaPluginAbi,
+          functionName: "propose",
+          args: [marketUSDCAddress, amount, type, data],
+        }),
+      );
+    }
+    const bytecode = await anvilClient.getCode({ address: usdcFeed });
+    assert.ok(bytecode);
+    await Promise.all([
+      anvilClient.setBalance({ address: owner.account.address, value: 10n ** 24n }),
+      anvilClient.setCode({ address: feed, bytecode }),
+      database.insert(credentials).values({
+        id: owner.account.address,
+        publicKey: new Uint8Array(),
+        account: unpriced,
+        factory: exaAccountFactoryAddress,
+      }),
+    ]);
+    await anvilClient.waitForTransactionReceipt({
+      hash: await anvilClient.writeContract({
+        address: feed,
+        abi: feedAbi,
+        functionName: "push",
+        args: [1, timestamp, 10n ** 18n],
+        account: null,
+      }),
+    });
+    await anvilClient.waitForTransactionReceipt({
+      hash: await anvilClient.writeContract({
+        address: auditorAddress,
+        abi: auditorAbi,
+        functionName: "grantRole",
+        args: [zeroHash, owner.account.address],
+        account: null,
+      }),
+    });
+    await anvilClient.waitForTransactionReceipt({
+      hash: await owner.writeContract({
+        address: exaAccountFactoryAddress,
+        abi: exaAccountFactoryAbi,
+        functionName: "createAccount",
+        args: [0n, [{ x: hexToBigInt(owner.account.address), y: 0n }]],
+      }),
+    });
+    await anvilClient.waitForTransactionReceipt({
+      hash: await owner.writeContract({
+        address: unpriced,
+        abi: upgradeableModularAccountAbi,
+        functionName: "executeBatch",
+        args: [
+          [
+            propose(
+              2_000_000n,
+              ProposalType.BorrowAtMaturity,
+              encodeAbiParameters(
+                [{ type: "uint256" }, { type: "uint256" }, { type: "address" }],
+                [maturity, 3_000_000n, padHex("0x9a1db", { size: 20 })],
+              ),
+            ),
+            propose(
+              2_000_000n,
+              ProposalType.RepayAtMaturity,
+              encodeAbiParameters([{ type: "uint256" }, { type: "uint256" }], [maturity, 1_000_000n]),
+            ),
+            propose(3_000_000n, ProposalType.Withdraw, encodeAbiParameters([{ type: "address" }], [receiver])),
+          ],
+        ],
+      }),
+    });
+    await anvilClient.mine({ blocks: 1, interval: proposalManager.delay[anvil.id] });
+    const batch = (calls: { data: Hex; target: Hex; value: bigint }[]) =>
+      encodeFunctionData({ abi: upgradeableModularAccountAbi, functionName: "executeBatch", args: [calls] });
+    const sequence = [
+      {
+        to: auditorAddress,
+        data: encodeFunctionData({ abi: auditorAbi, functionName: "setPriceFeed", args: [marketUSDCAddress, feed] }),
+      },
+      {
+        to: unpriced,
+        data: batch([
+          {
+            target: usdcAddress,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: [
+                {
+                  type: "function",
+                  name: "mint",
+                  inputs: [{ type: "address" }, { type: "uint256" }],
+                  outputs: [],
+                  stateMutability: "nonpayable",
+                },
+              ],
+              functionName: "mint",
+              args: [unpriced, 10_000_000n],
+            }),
+          },
+          {
+            target: usdcAddress,
+            value: 0n,
+            data: encodeFunctionData({
+              abi: erc20Abi,
+              functionName: "approve",
+              args: [marketUSDCAddress, 10_000_000n],
+            }),
+          },
+          {
+            target: marketUSDCAddress,
+            value: 0n,
+            data: encodeFunctionData({ abi: marketAbi, functionName: "deposit", args: [10_000_000n, unpriced] }),
+          },
+        ]),
+      },
+      {
+        to: unpriced,
+        data: batch(
+          [0n, 1n, 2n].map((n) =>
+            call(encodeFunctionData({ abi: exaPluginAbi, functionName: "executeProposal", args: [n] })),
+          ),
+        ),
+      },
+      {
+        to: auditorAddress,
+        data: encodeFunctionData({
+          abi: auditorAbi,
+          functionName: "setPriceFeed",
+          args: [marketUSDCAddress, usdcFeed],
+        }),
+      },
+      { to: feed, data: encodeFunctionData({ abi: feedAbi, functionName: "setHidden", args: [1n] }) },
+      {
+        to: auditorAddress,
+        data: encodeFunctionData({
+          abi: auditorAbi,
+          functionName: "renounceRole",
+          args: [zeroHash, owner.account.address],
+        }),
+      },
+    ];
+    const hashes: Hash[] = [];
+    await anvilClient.setAutomine(false); // cspell:ignore automine
+    try {
+      for (const [index, transaction] of [...sequence.entries()].toReversed()) {
+        hashes.unshift(await owner.sendTransaction({ ...transaction, nonce: 2 + index, gas: 1_500_000n }));
+      }
+      await anvilClient.mine({ blocks: 1 });
+    } finally {
+      await anvilClient.setAutomine(true);
+    }
+    const receipts = await Promise.all(hashes.map((hash) => anvilClient.waitForTransactionReceipt({ hash })));
+    const block = receipts[0]?.blockNumber;
+    assert.ok(block);
+
+    expect(receipts.map(({ status, blockNumber }) => ({ status, blockNumber }))).toStrictEqual(
+      hashes.map(() => ({ status: "success", blockNumber: block })),
+    );
+
+    const logs = receipts.flatMap((receipt) => receipt.logs);
+    const [deposit] = parseEventLogs({ abi: marketAbi, eventName: "Deposit", logs, args: { owner: unpriced } });
+    const [repay] = parseEventLogs({ abi: marketAbi, eventName: "RepayAtMaturity", logs });
+    const [withdraw] = parseEventLogs({ abi: marketAbi, eventName: "Withdraw", logs, args: { receiver } });
+    assert.ok(deposit && repay && withdraw);
+    const id = ({ transactionIndex, logIndex }: { logIndex: number; transactionIndex: number }) =>
+      `${chain.id}:${block}:${transactionIndex}:${logIndex}`;
+    const { timestamp: minted } = await anvilClient.getBlock({ blockNumber: block });
+    await vi.waitFor(
+      async () => {
+        const status = (await fetch("http://localhost:42069/status").then((response) => response.json())) as Record<
+          string,
+          { block: { number: number } }
+        >;
+        expect(status[chain.name]?.block.number).toBeGreaterThanOrEqual(Number(block));
+      },
+      { timeout: 30_000 },
+    );
+
+    const legacy = await appClient.index.$get({}, { headers });
+    const included = await appClient.index.$get({ query: { include: ["received", "repay", "sent"] } }, { headers });
+    const json = await appClient.index.$get({ query: { maturity: String(maturity) } }, { headers });
+    const pdf = await appClient.index.$get(
+      { query: { maturity: String(maturity) } },
+      { headers: { ...headers, accept: "application/pdf" } },
+    );
+
+    expect(legacy.status).toBe(200);
+    await expect(legacy.json()).resolves.toStrictEqual([]);
+    expect(included.status).toBe(200);
+    const rows = (await included.json()) as Record<string, unknown>[];
+    expect(rows).toMatchObject([
+      { id: id(withdraw), type: "sent", currency: "USDC", amount: 3 },
+      { id: id(repay), type: "repay", currency: "USDC", amount: Number(repay.args.assets) / 1e6 },
+      { id: id(deposit), type: "received", currency: "USDC", amount: 10 },
+    ]);
+    expect(rows.map((row) => "usdAmount" in row)).toStrictEqual([false, false, false]);
+    expect(json.status).toBe(200);
+    await expect(json.json()).resolves.toStrictEqual([]);
+    expect(pdf.status).toBe(200);
+    expect(pdf.headers.get("content-type")).toBe("application/pdf");
+    expect(statement).toHaveBeenCalledWith(
+      expect.objectContaining({
+        maturity: Number(maturity),
+        payments: [
+          {
+            id: id(repay),
+            timestamp: new Date(Number(minted) * 1000).toISOString(),
+            amount: Number(repay.args.assets) / 1e6,
+            positionAmount: 1,
+          },
+        ],
+      }),
+    );
   });
 });
 
@@ -2491,9 +2749,7 @@ describe("plugin 1.0.0", () => {
         }),
       ),
     );
-    expect(readContract.mock.calls.map(([{ address, functionName }]) => [address, functionName])).toStrictEqual([
-      [exaPreviewerAddress, "markets"],
-    ]);
+    expect(readContract).not.toHaveBeenCalled();
     expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account100 });
     expect(captureException).not.toHaveBeenCalled();
   });
@@ -2532,6 +2788,7 @@ describe("plugin 1.0.0", () => {
 const mocks = vi.hoisted(() => ({ isBase: vi.fn<(base: boolean) => boolean>((base) => base) }));
 
 vi.mock("@sentry/node", { spy: true });
+vi.mock("../../utils/Statement", { spy: true });
 vi.mock("@exactly/common/generated/chain", async (importOriginal) => {
   const original = await importOriginal<typeof C>();
   return {
