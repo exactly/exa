@@ -130,6 +130,7 @@
     "mktemp",
     "mmin",
     "mload",
+    "mockfi",
     "modelcontextprotocol",
     "moti",
     "multicall",
