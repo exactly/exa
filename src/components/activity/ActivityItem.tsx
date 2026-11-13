@@ -13,13 +13,20 @@ import es from "i18n-iso-countries/langs/es.json";
 import pt from "i18n-iso-countries/langs/pt.json";
 import { titleCase } from "title-case";
 
+import chain from "@exactly/common/generated/chain";
+
 import { ArrowDownToLine } from "../../generated/icons/ArrowDownToLine";
+import { ArrowLeftRight } from "../../generated/icons/ArrowLeftRight";
 import { ArrowUpFromLine } from "../../generated/icons/ArrowUpFromLine";
+import { ArrowUpRight } from "../../generated/icons/ArrowUpRight";
 import { CircleDollarSign } from "../../generated/icons/CircleDollarSign";
 import { ClockAlert } from "../../generated/icons/ClockAlert";
+import { HandCoins } from "../../generated/icons/HandCoins";
 import { Import } from "../../generated/icons/Import";
+import { RefreshCw } from "../../generated/icons/RefreshCw";
 import { ShoppingCart } from "../../generated/icons/ShoppingCart";
 import { SquareDashed } from "../../generated/icons/SquareDashed";
+import { TriangleAlert } from "../../generated/icons/TriangleAlert";
 import isProcessing from "../../utils/isProcessing";
 import Image from "../shared/Image";
 import Text from "../shared/Text";
@@ -60,9 +67,7 @@ export default function ActivityItem({
       paddingBottom={isLast ? "s4" : "s3"}
       cursor="pointer"
       onPress={() => {
-        if (["card", "received", "sent", "repay", "panda"].includes(item.type)) {
-          router.push({ pathname: "/activity-details", params: { id: item.id } });
-        }
+        router.push({ pathname: "/activity-details", params: { id: item.id } });
       }}
       backgroundColor="backgroundMild"
       {...stackProps}
@@ -112,24 +117,26 @@ export default function ActivityItem({
                 format(item.timestamp, "yyyy-MM-dd")}
             </Text>
           </YStack>
-          {"usdAmount" in item ? (
+          {"usdAmount" in item || "amount" in item ? (
             <YStack gap="s2">
-              <XStack alignItems="center" justifyContent="flex-end">
-                <Text
-                  sensitive
-                  emphasized
-                  subHeadline
-                  textAlign="right"
-                  strikeThrough={declined}
-                  color="uiNeutralPrimary"
-                >
-                  {`$${Math.abs(item.usdAmount).toLocaleString(language, {
-                    style: "decimal",
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}`}
-                </Text>
-              </XStack>
+              {"usdAmount" in item && item.usdAmount !== undefined && (
+                <XStack alignItems="center" justifyContent="flex-end">
+                  <Text
+                    sensitive
+                    emphasized
+                    subHeadline
+                    textAlign="right"
+                    strikeThrough={declined}
+                    color="uiNeutralPrimary"
+                  >
+                    {`$${Math.abs(item.usdAmount).toLocaleString(language, {
+                      style: "decimal",
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}`}
+                  </Text>
+                </XStack>
+              )}
               {"amount" in item && item.amount ? (
                 <Text sensitive secondary caption textAlign="right">
                   {`${"currency" in item && item.currency ? item.currency : ""} ${Math.abs(item.amount).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: "currency" in item && item.currency === "USDC" ? 2 : 8 })}`}
@@ -153,6 +160,17 @@ function getActivityIcon(item: Item, processing: boolean, refund: boolean) {
       return <ArrowUpFromLine color="interactiveOnBaseErrorSoft" />;
     case "repay":
       return <CircleDollarSign color="interactiveOnBaseErrorSoft" />;
+    case "loan":
+      return <HandCoins color="interactiveOnBaseSuccessSoft" />;
+    case "rollover":
+      return <RefreshCw color="uiNeutralPrimary" />;
+    case "swap":
+      return <ArrowLeftRight color="uiNeutralPrimary" />;
+    case "liquidation":
+      return <TriangleAlert color="interactiveOnBaseErrorSoft" />;
+    case "bridge":
+      if (item.destinationChainId === chain.id) return <ArrowDownToLine color="interactiveOnBaseSuccessSoft" />;
+      return <ArrowUpRight color="interactiveOnBaseErrorSoft" />;
     case "panda":
       if (refund) return <Import color="uiSuccessSecondary" />;
       if (processing) return <ClockAlert color="interactiveOnBaseWarningSoft" />;
@@ -183,6 +201,21 @@ function getActivityTitle(item: Item, t: TFunction) {
       break;
     case "repay":
       title = t("Debt payment");
+      break;
+    case "loan":
+      title = t("Loan");
+      break;
+    case "rollover":
+      title = t("Debt rollover");
+      break;
+    case "swap":
+      title = t("Swapped {{from}} for {{to}}", { from: item.from.currency, to: item.currency });
+      break;
+    case "liquidation":
+      title = t("Liquidation");
+      break;
+    case "bridge":
+      title = item.destinationChainId === chain.id ? t("Received from another network") : t("Sent to another network");
       break;
     default:
       title = undefined;

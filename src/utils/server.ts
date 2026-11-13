@@ -402,7 +402,10 @@ async function getActivity(
 queryClient.setQueryDefaults(["activity"], {
   staleTime: 60_000,
   gcTime: isServer ? Infinity : 60 * 60_000,
-  queryFn: () => getActivity(),
+  queryFn: () =>
+    getActivity({
+      include: ["card", "received", "repay", "sent", "loan", "rollover", "swap", "liquidation", "bridge"],
+    }),
 });
 queryClient.setQueryDefaults(["activity", "card"], {
   queryFn: async () => {
