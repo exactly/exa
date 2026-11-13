@@ -15,9 +15,9 @@ import deriveAddress from "@exactly/common/deriveAddress";
 import { Address } from "@exactly/common/validation";
 
 import { chains } from "./anvil";
-import * as schema from "../database/schema";
 
 export default async function setup() {
+  const schema = await import("../database/schema");
   const databaseDir = "node_modules/@exactly/.postgres"; // eslint-disable-line unicorn/prevent-abbreviations
   await rm(databaseDir, { recursive: true, force: true });
   const postgres = new EmbeddedPostgres({
