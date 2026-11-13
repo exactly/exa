@@ -86,10 +86,19 @@ const subscribe = createSubscribe(redis);
 const walletExtension = createWalletExtension(
   parse(pipe(string("wallet"), nonEmpty("wallet")), env.WALLET_EXTENSION_SECRET),
 );
+const source = chain.testnet ? "indexer" : "alchemy";
 const hooks = {
   activity: () => createActivityHook({ alchemy, database, onesignal, poke, redis }),
   block: () =>
-    createBlockHook({ alchemy, blockKey: env.ALCHEMY_BLOCK_KEY, database, executor: keeper, onesignal, redis }),
+    createBlockHook({
+      alchemy,
+      blockKey: env.ALCHEMY_BLOCK_KEY,
+      database,
+      executor: keeper,
+      onesignal,
+      redis,
+      source,
+    }),
   bridge: () =>
     createBridgeHook({
       bridge,
@@ -496,6 +505,7 @@ export const close = supervise(
         },
         () => allow.close(),
         () => credit.close(),
+        ...enabledHooks.flatMap(([, hook]) => ("close" in hook ? [hook.close] : [])),
         ...enabledWorkers.map((worker) => () => worker.close()),
         () => poke.close(),
         () => refund.close(),

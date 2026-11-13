@@ -709,11 +709,22 @@ describe("proposal", () => {
       expect(vi.mocked(captureException).mock.calls.filter((call) => match.capture(call))).toEqual([]);
     });
 
-    it("requeues Timelocked proposals without nonce skipping", async () => {
+    it.each([
+      { pending: true, name: "the pending unlock" },
+      { pending: false, name: "the next block" },
+    ])("requeues Timelocked proposals at $name without nonce skipping", async ({ pending }) => {
       const setUser = await spyScopeSetUser();
       const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
       const match = matchProposal(proposal.args.account, proposal.args.nonce);
-      const { simulateContract } = publicClient;
+      const { readContract, simulateContract } = publicClient;
+      const getBlock = vi.spyOn(publicClient, "getBlock");
+      if (!pending) {
+        vi.spyOn(publicClient, "readContract").mockImplementation((parameters) =>
+          parameters.functionName === "pendingProposals" && parameters.args?.[0] === proposal.args.account
+            ? Promise.resolve([])
+            : readContract(parameters),
+        );
+      }
       const add: (key: string, score: number, member: string) => Promise<number> = redis.zadd.bind(redis);
       const zadd = vi.spyOn<{ zadd: typeof add }, "zadd">(Redis.prototype, "zadd");
       const removals = waitForRemovals([match]);
@@ -784,6 +795,7 @@ describe("proposal", () => {
         expect.objectContaining({ level: "warning", fingerprint: ["{{ default }}", "Timelocked"] }),
       ]);
       expect(exaSendSpy.mock.calls.some(([, call]) => call.functionName === "setProposalNonce")).toBe(false);
+      expect(getBlock).toHaveBeenCalledTimes(pending ? 0 : 1);
       expect(setUser).toHaveBeenCalledWith({ id: bobAccount });
     });
 
