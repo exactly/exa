@@ -110,12 +110,7 @@ export default function Home() {
     chainId: chain.id,
     query: { enabled: !!account },
   });
-  const {
-    portfolio: { collateralUSD },
-    averageRate,
-    allAssets,
-    totalBalanceUSD,
-  } = usePortfolio();
+  const { portfolio, averageRate, allAssets, totalBalanceUSD } = usePortfolio();
 
   const { refetch: refetchPendingProposals } = useReadContract({
     abi: exaPreviewerAbi,
@@ -323,7 +318,7 @@ export default function Home() {
               <View paddingHorizontal="s4" gap="s5">
                 {card && (
                   <CardStatus
-                    collateral={collateralUSD}
+                    collateral={portfolio.collateralUSD}
                     creditLimit={markets ? borrowLimit(markets, marketUSDCAddress) : 0n}
                     spotlightRef={spotlightRef}
                     mode={card.mode}
