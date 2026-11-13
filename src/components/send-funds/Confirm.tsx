@@ -55,7 +55,6 @@ import {
   quoteValidity,
   routeCalls,
   statusOptions,
-  trackable,
 } from "../../utils/lifi";
 import parseAmount from "../../utils/parseAmount";
 import queryClient from "../../utils/queryClient";
@@ -612,9 +611,7 @@ export default function Confirm() {
     routeStatus?.substatus === "REFUNDED"; // cspell:ignore substatus
   const processing =
     !failed &&
-    (routed && destinationChain !== payChain
-      ? trackable && routeStatus?.status !== "DONE"
-      : !!proposal && !executionHash);
+    (routed && destinationChain !== payChain ? routeStatus?.status !== "DONE" : !!proposal && !executionHash);
   useEffect(() => {
     if (routeStatus?.status !== "DONE" && routeStatus?.status !== "FAILED") return;
     queryClient.invalidateQueries({ queryKey: ["lifi", "balances"] }).catch(reportError);
