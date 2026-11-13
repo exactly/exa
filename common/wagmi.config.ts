@@ -283,7 +283,7 @@ export default defineConfig([
                 .map(({ id, source: s }) => `[${id}, ${id === chainId ? "chain" : s}]`)
                 .join(", ")}])`,
               `export const isBase: boolean = ${chainId === base.id || chainId === baseSepolia.id}`,
-              `export const lifiURL: string | undefined = ${JSON.stringify({ [anvil.id]: "http://localhost:3000/e2e/lifi/v1", [base.id]: "https://li.quest/v1", [optimism.id]: "https://li.quest/v1" }[chainId])}`,
+              `export const lifiURL: string = ${JSON.stringify(chainId === anvil.id ? "http://localhost:3000/hooks/mockfi/v1" : testnet ? "https://sandbox-mockfi-vhogzosm3q-uw.a.run.app/v1" : "https://li.quest/v1")}`,
               `export default chain as Chain & { smartAccount: true; contracts: { multicall3: { address: \`0x\${string}\` } }; rpcUrls: { alchemy: { http: readonly [string] } } }`,
             ].join("\n"),
           };
