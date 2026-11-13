@@ -56,15 +56,16 @@ export default function ExternalAssets({ assets }: { assets: PortfolioAsset[] })
           if (asset.type === "protocol") {
             return (
               <MarketRow
-                key={asset.market}
+                key={`${asset.chainId}:${asset.market}`}
                 asset={asset.asset}
+                chainId={asset.chainId}
                 decimals={asset.decimals}
                 floatingDepositAssets={asset.floatingDepositAssets}
                 market={asset.market}
                 symbol={asset.symbol}
                 value={asset.usdValue}
               >
-                <Trend chainId={chain.id} address={asset.asset} symbol={asset.symbol} />
+                <Trend chainId={asset.chainId} address={asset.asset} symbol={asset.symbol} />
               </MarketRow>
             );
           }

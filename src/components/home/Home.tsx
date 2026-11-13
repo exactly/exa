@@ -100,12 +100,7 @@ export default function Home() {
     chainId: chain.id,
     query: { enabled: !!account },
   });
-  const {
-    portfolio: { collateralUSD },
-    averageRate,
-    allAssets,
-    totalBalanceUSD,
-  } = usePortfolio();
+  const { portfolio, collateralUSD, averageRate, allAssets, totalBalanceUSD } = usePortfolio();
 
   const { data: activity } = useInfiniteQuery({ ...activityOptions, select: ({ pages }) => pages.flat() });
   const {
@@ -300,7 +295,7 @@ export default function Home() {
                 <AnimatePresence>
                   {card && (
                     <CardStatus
-                      collateral={collateralUSD}
+                      collateral={portfolio.collateralUSD}
                       creditLimit={markets ? borrowLimit(markets, marketUSDCAddress) : 0n}
                       spotlightRef={spotlightRef}
                       mode={card.mode}

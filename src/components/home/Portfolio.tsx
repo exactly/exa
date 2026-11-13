@@ -19,6 +19,7 @@ import { revalidateUnsupported } from "../../utils/deployedOptions";
 import { presentArticle } from "../../utils/intercom";
 import { balancesOptions, isStock } from "../../utils/lifi";
 import openBrowser from "../../utils/openBrowser";
+import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAllowlists from "../../utils/useAllowlists";
@@ -37,7 +38,7 @@ import View from "../shared/View";
 
 export default function Portfolio() {
   const { address } = useAccount();
-  const { averageRate, rates, portfolio, totalBalanceUSD, allAssets, isPending } = usePortfolio();
+  const { averageRate, rates, collateralUSD, deposits, totalBalanceUSD, allAssets, isPending } = usePortfolio();
   const allowlists = useAllowlists();
   const router = useRouter();
   const insets = useInsets();
@@ -83,7 +84,15 @@ export default function Portfolio() {
         refreshControl={
           <RefreshControl
             onRefresh={() =>
-              address ? Promise.all([refetchMarkets(), refetchBalances(), revalidateUnsupported()]) : Promise.resolve()
+              address
+                ? Promise.all([
+                    refetchMarkets(),
+                    refetchBalances(),
+                    revalidateUnsupported(),
+                    queryClient.refetchQueries({ queryKey: ["markets"] }),
+                    queryClient.refetchQueries({ queryKey: ["rates"] }),
+                  ])
+                : Promise.resolve()
             }
           />
         }
@@ -100,12 +109,12 @@ export default function Portfolio() {
                 amount={
                   {
                     all: Number(totalBalanceUSD) / 1e18,
-                    collateral: Number(portfolio.collateralUSD) / 1e18,
+                    collateral: Number(collateralUSD) / 1e18,
                     stocks: stocks.reduce((sum, asset) => sum + asset.usdValue, 0),
                   }[tab]
                 }
               />
-              {tab !== "stocks" && portfolio.collateralUSD > 0n ? (
+              {tab !== "stocks" && collateralUSD > 0n ? (
                 <Rate
                   rate={averageRate}
                   onPress={() => {
@@ -143,13 +152,13 @@ export default function Portfolio() {
           </YStack>
         ) : (
           <>
-            {tab === "stocks" ? null : <AssetList titled={tab === "all"} rates={rates} />}
+            {tab === "stocks" ? null : <AssetList titled={tab === "all"} rates={rates} deposits={deposits} />}
             {tab === "collateral" ? null : (
               <Stocks titled={tab === "all"} assets={stocks} pending={isBalancesFetching} />
             )}
             {tab === "all" ? (
               <ExternalAssets
-                assets={allAssets.filter((asset) =>
+                assets={[...allAssets, ...deposits].filter((asset) =>
                   asset.type === "external" ? !isStock(allowlists, asset) : asset.nonCollateral,
                 )}
               />
