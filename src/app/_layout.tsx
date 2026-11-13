@@ -25,6 +25,7 @@ import { channel, checkForUpdateAsync, fetchUpdateAsync, reloadAsync } from "exp
 import { sdk } from "@farcaster/miniapp-sdk";
 import {
   ErrorBoundary,
+  extraErrorDataIntegration,
   feedbackIntegration,
   init,
   reactNavigationIntegration,
@@ -153,7 +154,7 @@ init({
   tracePropagationTargets: [domain, origin],
   enableNativeFramesTracking: !isRunningInExpoGo(),
   enableUserInteractionTracing: true,
-  integrations: [routingInstrumentation, userFeedback],
+  integrations: [routingInstrumentation, userFeedback, extraErrorDataIntegration()],
   beforeSend: (event, hint) => {
     let knownInfo = false;
     let knownWarning = false;
