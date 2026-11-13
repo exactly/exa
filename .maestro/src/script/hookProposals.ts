@@ -1,10 +1,21 @@
-import { encodeEventTopics, erc20Abi, formatUnits, keccak256, pad, slice, toBytes, type Address } from "viem";
+import {
+  decodeEventLog,
+  encodeEventTopics,
+  erc20Abi,
+  formatUnits,
+  keccak256,
+  pad,
+  slice,
+  toBytes,
+  type Address,
+} from "viem";
 import { getAbiItem, isAddress, isHex, toEventSelector } from "viem/utils";
 
 import {
   appPreviewerAbi,
   appPreviewerCode,
   exaPluginAbi,
+  marketAbi,
   proposalManagerAbi,
   upgradeableModularAccountAbi,
   usdcAddress,
@@ -18,7 +29,9 @@ declare const amount: string | undefined;
 declare const beneficiary: string | undefined;
 declare const count: string | undefined;
 declare const market: string | undefined;
+declare const max: string | undefined;
 declare const network: string | undefined;
+declare const output: { redeemed?: string };
 declare const receiver: string | undefined;
 
 if (!account || !isHex(account)) throw new Error("bad account");
@@ -52,7 +65,8 @@ if (market !== undefined) {
   if (markets !== expected) throw new Error(`expected ${expected} proposal, got [${markets}]`);
 }
 
-anvil("anvil_mine", [1, Number(proposalDelay)], network);
+const accrual = max ? 86_400 : 0;
+anvil("anvil_mine", [1, Number(proposalDelay) + accrual], network);
 const fromBlock = anvil("eth_blockNumber", [], network);
 
 const nonceSet = encodeEventTopics({
@@ -67,6 +81,23 @@ for (
   toBlock = anvil("eth_blockNumber", [], network)
 ) {
   if (Date.now() >= deadline) throw new Error("timeout waiting for proposals");
+}
+if (max) {
+  const withdraw = toEventSelector(getAbiItem({ abi: marketAbi, name: "Withdraw" }));
+  for (const { market: address } of proposals) {
+    const shares = readContract({ address, functionName: "balanceOf", abi: erc20Abi, args: [account] }, network);
+    if (shares !== 0n) throw new Error(`expected no shares left in ${address}, got ${shares}`);
+    const decimals = readContract({ address, functionName: "decimals", abi: erc20Abi }, network);
+    for (const log of anvil(
+      "eth_getLogs",
+      [{ address, fromBlock, toBlock, topics: [withdraw, null, null, pad(account)] }],
+      network,
+    )) {
+      const { args } = decodeEventLog({ abi: marketAbi, eventName: "Withdraw", data: log.data, topics: log.topics });
+      if (args.assets === args.shares) throw new Error(`expected redeemed assets apart from shares in ${address}`);
+      output.redeemed = formatUnits(args.assets, decimals);
+    }
+  }
 }
 const transfer = toEventSelector(getAbiItem({ abi: erc20Abi, name: "Transfer" }));
 const logs = anvil("eth_getLogs", [{ fromBlock, toBlock, topics: [transfer, null, pad(account)] }], network);

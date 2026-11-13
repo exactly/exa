@@ -7,7 +7,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - runScript: { file: ../dist/downgradePlugin.js, env: { account: "${output.account}" } }
 - runFlow:
     file: send.yaml
-    env: { asset: USDC, network: Anvil, to: "0x000000000000000000000000000000000000dEaD", amount: "69" }
+    env: { asset: USDC, network: Anvil, to: "0x000000000000000000000000000000000000dEaD", amount: "${max ? 'max' : '69'}" }
 - tapOn: Card
 - tapOn: Upgrade account now
 - runFlow: sign.yaml

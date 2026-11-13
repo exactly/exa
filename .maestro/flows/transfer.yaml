@@ -3,10 +3,10 @@ env:
   method: ${method ?? "webauthn"}
 ---
 - runFlow: ../subflows/launch.yaml
-- runFlow: ../subflows/transfer.yaml
+- runFlow: { file: ../subflows/transfer.yaml, env: { max: "true" } }
 - tapOn: Activity
 - tapOn: Sent
-- assertVisible: '69[\s\xa0]USDC'
+- assertVisible: '${output.redeemed}[\s\xa0]USDC'
 - assertVisible: '.+dEaD'
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
 - tapOn: Home
