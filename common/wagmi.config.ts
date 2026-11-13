@@ -122,6 +122,8 @@ export default defineConfig([
               {
                 auditor: getAddress(loadDeployment("Auditor", true, id).address),
                 exaPreviewer: getAddress(exaPreviewer),
+                previewer: getAddress(loadDeployment("Previewer", true, id).address),
+                ratePreviewer: getAddress(loadDeployment("RatePreviewer", true, id).address),
                 swapper: getAddress(perChain(deploy.accounts.swapper, id)),
               },
             ] as const;
@@ -272,7 +274,7 @@ export default defineConfig([
               `export const exaPreviewerCode: \`0x\${string}\` = "${ExaPreviewer.bytecode.object}"`,
               `export const factories: Readonly<Record<"legacy" | "versions", readonly \`0x\${string}\`[]>> = ${JSON.stringify(factories)}`,
               `export const factoryChains: ReadonlyMap<number, Readonly<{ network: string; startBlock: number; swapper: \`0x\${string}\` }>> = new Map(${JSON.stringify(factoryChains.map(({ id, network, startBlock }) => [id, { network, startBlock, swapper: getAddress(perChain(deploy.accounts.swapper, id)) }]))})`,
-              `export const networks: ReadonlyMap<number, Readonly<Record<"auditor" | "exaPreviewer" | "swapper", \`0x\${string}\`>>> = new Map(${JSON.stringify(networkContracts)})`,
+              `export const networks: ReadonlyMap<number, Readonly<Record<"auditor" | "exaPreviewer" | "previewer" | "ratePreviewer" | "swapper", \`0x\${string}\`>>> = new Map(${JSON.stringify(networkContracts)})`,
               `export const pricePreviewerCode: \`0x\${string}\` = "${PricePreviewer.bytecode.object}"`,
               'type AlchemyChain = ((Chain & { smartAccount: true }) | (Omit<Chain, "nativeCurrency"> & { nativeCurrency?: Chain["nativeCurrency"]; smartAccount?: never })) & { rpcUrls: { alchemy: { http: readonly [string] } } }',
               ...(chain
