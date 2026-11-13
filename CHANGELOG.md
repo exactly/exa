@@ -1,5 +1,20 @@
 # @exactly/mobile
 
+## 1.2.47
+
+### Patch Changes
+
+- [#1866](https://github.com/exactly/exa/pull/1866) [`5fa1073`](https://github.com/exactly/exa/commit/5fa1073ef3570b98757ecfc841e8980ff04fe5a4) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 guide passkey sign-in failures
+
+- [#1866](https://github.com/exactly/exa/pull/1866) [`9955f19`](https://github.com/exactly/exa/commit/9955f19fc973be0d9d99ffaf5f6ee8dba525e550) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 add passkey ids to auth errors
+
+- [#1847](https://github.com/exactly/exa/pull/1847) [`39a4fb2`](https://github.com/exactly/exa/commit/39a4fb22185afe9c23a43a5e14995507eb6fdb86) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🧵 prevent duplicate concurrent sends
+
+- [#1873](https://github.com/exactly/exa/pull/1873) [`c412b82`](https://github.com/exactly/exa/commit/c412b8291033e8b9672aa95d8e19763014a8e1d6) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 track created passkey and attachment
+
+- Updated dependencies [[`f07ef78`](https://github.com/exactly/exa/commit/f07ef7876660da7f0d70fdc8aac7dfb7c0b800e3), [`f892840`](https://github.com/exactly/exa/commit/f8928402084afdf8c297318f3c8f4e41c15a601f), [`4389fbf`](https://github.com/exactly/exa/commit/4389fbfeacfc893102bf14d5c6871e6d58cf97f3), [`d31d91b`](https://github.com/exactly/exa/commit/d31d91b8241ce0a91ac619e61fae6e0e0c728ca7), [`d82da3e`](https://github.com/exactly/exa/commit/d82da3ebba981419acbb77009d81d6ca716a75e6)]:
+  - @exactly/server@0.3.5
+
 ## 1.2.46
 
 ### Patch Changes

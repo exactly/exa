@@ -1,5 +1,19 @@
 # @exactly/server
 
+## 0.3.5
+
+### Patch Changes
+
+- [#1866](https://github.com/exactly/exa/pull/1866) [`f07ef78`](https://github.com/exactly/exa/commit/f07ef7876660da7f0d70fdc8aac7dfb7c0b800e3) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 accept base64 android origins
+
+- [#1783](https://github.com/exactly/exa/pull/1783) [`f892840`](https://github.com/exactly/exa/commit/f8928402084afdf8c297318f3c8f4e41c15a601f) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 sort same-second activity by block number
+
+- [#1870](https://github.com/exactly/exa/pull/1870) [`4389fbf`](https://github.com/exactly/exa/commit/4389fbfeacfc893102bf14d5c6871e6d58cf97f3) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🦖 treat cryptomate cards as missing
+
+- [#1868](https://github.com/exactly/exa/pull/1868) [`d31d91b`](https://github.com/exactly/exa/commit/d31d91b8241ce0a91ac619e61fae6e0e0c728ca7) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 classify generic panda 404
+
+- [#1870](https://github.com/exactly/exa/pull/1870) [`d82da3e`](https://github.com/exactly/exa/commit/d82da3ebba981419acbb77009d81d6ca716a75e6) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 drop spaces from service error names
+
 ## 0.3.4
 
 ### Patch Changes
