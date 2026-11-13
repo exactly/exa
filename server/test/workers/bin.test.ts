@@ -39,6 +39,7 @@ const mocks = {
         segment: typeof segment;
       }) => Handle
     >(),
+  relay: vi.fn<(config: { bridger: typeof refunder; bullmq: object; database: typeof database }) => Handle>(),
   secret: vi.fn<(name: string, secrets: object) => Promise<string>>(),
   segment: vi.fn<(key: string) => typeof segment>(),
   signer: vi.fn<(name: string) => Promise<typeof refunder>>(),
@@ -65,6 +66,7 @@ beforeEach(() => {
   mocks.poke.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.chat.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.refund.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
+  mocks.relay.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.sardine.mockReset().mockReturnValue(sardine);
   mocks.secret.mockReset().mockImplementation((name) => Promise.resolve(name));
   mocks.segment.mockReset().mockReturnValue(segment);
@@ -81,6 +83,7 @@ beforeEach(() => {
         readonly redisUrl: string,
         readonly options: { maxRetriesPerRequest: null },
       ) {}
+      quit = () => Promise.resolve("OK");
     },
   }));
   vi.doMock("../../supervise", async (importOriginal) => ({
@@ -101,6 +104,7 @@ beforeEach(() => {
   vi.doMock("../../workers/hook/worker", () => ({ default: mocks.hook }));
   vi.doMock("../../workers/poke/worker", () => ({ default: mocks.poke }));
   vi.doMock("../../workers/refund/worker", () => ({ default: mocks.refund }));
+  vi.doMock("../../workers/relay/worker", () => ({ default: mocks.relay }));
   vi.doMock("../../workers/subscribe/worker", () => ({ default: mocks.subscribe }));
 });
 
@@ -137,6 +141,42 @@ describe("bin", () => {
     await expect(created).rejects.toBe(error);
     expect(mocks.signer.mock.calls.map(([signer]) => signer)).toStrictEqual(["allower"]);
     expect(mocks.allow).not.toHaveBeenCalled();
+  });
+
+  it("resolves relay private config before constructing and supervising its worker", async () => {
+    await import("../../workers/relay/bin");
+    const created = mocks.supervise.mock.calls[0]?.[1];
+    if (!created) throw new Error("missing worker");
+
+    expect(mocks.supervise).toHaveBeenCalledExactlyOnceWith("relay", created);
+    const handle = await created;
+    expect(mocks.secret.mock.calls.map(([secret]) => secret)).toStrictEqual(["redis-url", "relay-postgres-url"]);
+    expect(new Set(mocks.secret.mock.calls.map(([, secrets]) => secrets)).size).toBe(1);
+    expect(mocks.signer.mock.calls.map(([signer]) => signer)).toStrictEqual(["bridger"]);
+    expect(mocks.relay).toHaveBeenCalledExactlyOnceWith({
+      bridger: refunder,
+      bullmq: expect.objectContaining({ redisUrl: "redis-url", options: { maxRetriesPerRequest: null } }) as object,
+      database,
+    });
+    database.$client.end.mockReset().mockResolvedValue();
+    await handle.close();
+    expect(mocks.close).toHaveBeenCalledOnce();
+    expect(database.$client.end).toHaveBeenCalledOnce();
+  });
+
+  it("fails before constructing the relay worker without its bridger account", async () => {
+    const error = new Error("missing bridger");
+    mocks.signer.mockRejectedValueOnce(error);
+    mocks.supervise.mockImplementation((_, created) => {
+      created.catch(() => undefined);
+    });
+
+    await import("../../workers/relay/bin");
+    const created = mocks.supervise.mock.calls[0]?.[1];
+    if (!created) throw new Error("missing worker");
+
+    await expect(created).rejects.toBe(error);
+    expect(mocks.relay).not.toHaveBeenCalled();
   });
 
   it("resolves chat config before constructing and supervising its worker", async () => {

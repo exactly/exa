@@ -57,6 +57,7 @@ import creditWorker from "../workers/credit/worker";
 import hookWorker from "../workers/hook/worker";
 import pokeWorker from "../workers/poke/worker";
 import refundWorker from "../workers/refund/worker";
+import relayWorker from "../workers/relay/worker";
 import subscribeWorker from "../workers/subscribe/worker";
 import { connect } from "../workers/worker";
 
@@ -96,6 +97,7 @@ describe("e2e", () => {
           segment,
         }),
         hookWorker({ bullmq, database, panda }),
+        relayWorker({ bridger: privateKeyToAccount(keccak256(toBytes("e2e.ts"))), bullmq, database }),
         subscribeWorker({ alchemy: createAlchemy("webhooks"), bullmq, database }),
       ];
       async function deliver(inquiry: Inquiry, status: Inquiry["status"]) {
