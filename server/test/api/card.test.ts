@@ -224,6 +224,32 @@ describe("authenticated", () => {
     await expect(response.json()).resolves.toStrictEqual({ code: "no card" });
   });
 
+  it("returns 404 card not found when card is not a panda card", async () => {
+    const credentialId = "legacy-card";
+    await database.insert(credentials).values({
+      id: credentialId,
+      publicKey: new Uint8Array(),
+      account: padHex("0x4055", { size: 20 }),
+      factory: exaAccountFactoryAddress,
+      pandaId: credentialId,
+    });
+    await database.insert(cards).values({ id: "4b52a1d0f2c94e3d8a7b6c5d4e3f2a1b", credentialId, lastFour: "8888" });
+    const getCard = vi.spyOn(panda, "getCard");
+    const getSecrets = vi.spyOn(panda, "getSecrets");
+    const getPIN = vi.spyOn(panda, "getPIN");
+
+    const response = await appClient.index.$get(
+      { header: { sessionid: "fakeSession" } },
+      { headers: { "test-credential-id": credentialId } },
+    );
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toStrictEqual({ code: "no card" });
+    expect(getCard).not.toHaveBeenCalled();
+    expect(getSecrets).not.toHaveBeenCalled();
+    expect(getPIN).not.toHaveBeenCalled();
+  });
+
   it("returns 404 card not found on update", async () => {
     const response = await appClient.index.$patch({
       // @ts-expect-error - bad hono patch type
@@ -1686,7 +1712,9 @@ describe("authenticated", () => {
           factory: exaAccountFactoryAddress,
           pandaId: "siwe-nonce-fail-panda",
         });
-        await database.insert(cards).values({ id: "siwe-nonce-fail-card", credentialId, lastFour: "6666" });
+        await database
+          .insert(cards)
+          .values({ id: "00000000-0000-4000-8000-0000000000fe", credentialId, lastFour: "6666" });
         const nonceSpy = vi.spyOn(panda, "getNonce").mockRejectedValueOnce(new Error("nonce unreachable"));
         vi.spyOn(panda, "getCard").mockResolvedValueOnce({ ...cardTemplate, last4: "6666" });
         vi.spyOn(panda, "getUser").mockResolvedValueOnce(userTemplate);

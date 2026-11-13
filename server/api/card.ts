@@ -10,6 +10,7 @@ import {
   array,
   check,
   integer,
+  is,
   literal,
   maxValue,
   metadata,
@@ -330,6 +331,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
         if (credential.cards.length > 0 && credential.cards[0]) {
           const { id, lastFour, status, mode, productId } = credential.cards[0];
           if (status === "DELETED") throw new Error("card deleted");
+          if (!is(CardUUID, id)) return c.json({ code: "no card" }, 404);
           const [{ expirationMonth, expirationYear, limit, user }, pan, pin, challenge, provisioning] =
             await Promise.all([
               panda.getCard(id).then(async (card) => ({
