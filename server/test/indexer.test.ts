@@ -3,7 +3,7 @@ import assert from "node:assert";
 import { createPublicClient, http, padHex, zeroHash, type Hex } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { anvil } from "viem/chains";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import {
@@ -18,7 +18,7 @@ import {
 import { chains } from "./anvil";
 import anvilClient from "./anvilClient";
 import database from "../database";
-import { accounts, collectors, delays, plugins } from "../database/indexer";
+import { accounts, collectors, delays, exaPlugins, plugins } from "../database/indexer";
 
 const account = deriveAddress(exaAccountFactoryAddress, {
   x: padHex(privateKeyToAddress(padHex("0xb0b"))),
@@ -67,6 +67,7 @@ describe("indexer", () => {
         address: account.toLowerCase(),
         factory: exaAccountFactoryAddress.toLowerCase(),
         owner: owner.toLowerCase(),
+        plugin: exaPluginAddress.toLowerCase(),
         block: initialized.blockNumber,
         timestamp,
       },
@@ -87,6 +88,36 @@ describe("indexer", () => {
         uninstalled: null,
       },
     ]);
+    await expect(
+      database
+        .select()
+        .from(exaPlugins)
+        .where(and(eq(exaPlugins.chainId, anvil.id), eq(exaPlugins.address, exaPluginAddress.toLowerCase() as Hex))),
+    ).resolves.toStrictEqual([{ chainId: anvil.id, address: exaPluginAddress.toLowerCase() }]);
+  });
+
+  it("trusts plugins allowed by an exa plugin", async () => {
+    const allowed = padHex("0xa110", { size: 20 });
+    await anvilClient.waitForTransactionReceipt({
+      hash: await anvilClient.writeContract({
+        address: exaPluginAddress,
+        abi: exaPluginAbi,
+        functionName: "allowPlugin",
+        args: [allowed, true],
+        account: null,
+      }),
+    });
+
+    await vi.waitFor(
+      () =>
+        expect(
+          database
+            .select()
+            .from(exaPlugins)
+            .where(and(eq(exaPlugins.chainId, anvil.id), eq(exaPlugins.address, allowed))),
+        ).resolves.toStrictEqual([{ chainId: anvil.id, address: allowed }]),
+      { timeout: 10_000 },
+    );
   });
 
   it.each(chains)("indexes the collector and the proposal manager delay on $name", async (chain) => {

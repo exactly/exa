@@ -7,6 +7,7 @@ export const accounts = onchainTable(
     address: t.hex().notNull(),
     factory: t.hex().notNull(),
     owner: t.hex(),
+    plugin: t.hex(),
     block: t.bigint().notNull(),
     timestamp: t.bigint().notNull(),
   }),
@@ -25,6 +26,12 @@ export const plugins = onchainTable(
     uninstalled: t.bigint(),
   }),
   (table) => ({ pk: primaryKey({ columns: [table.chainId, table.account, table.address] }) }),
+);
+
+export const exaPlugins = onchainTable(
+  "exa_plugins",
+  (t) => ({ chainId: t.integer().notNull(), address: t.hex().notNull() }),
+  (table) => ({ pk: primaryKey({ columns: [table.chainId, table.address] }) }),
 );
 
 export const proposalManagers = onchainTable(
