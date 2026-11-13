@@ -190,11 +190,10 @@ describe("api", () => {
         status: 401,
       });
       expect(client.verifyMessage).not.toHaveBeenCalled();
-      const user = await context.internalAdapter.createUser({
-        name: "origin",
-        email: `${crypto.randomUUID()}@example.com`,
-        emailVerified: true,
-      });
+      const user = await context.internalAdapter.createUser(
+        { name: "origin", email: `${crypto.randomUUID()}@example.com`, emailVerified: true },
+        { method: "siwe" },
+      );
       onTestFinished(async () => {
         await database.delete(users).where(eq(users.id, user.id));
       });

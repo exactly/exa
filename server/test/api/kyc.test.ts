@@ -3409,7 +3409,7 @@ describe("authenticated", () => {
 
       beforeAll(async () => {
         const adminNonceResult = await auth.api.getSiweNonce({
-          body: { walletAddress: owner.address, chainId: chain.id },
+          body: {},
         });
 
         const statement = "I accept Exa terms and conditions";
@@ -3429,8 +3429,6 @@ describe("authenticated", () => {
           body: {
             message: ownerMessage,
             signature: await owner.signMessage({ message: ownerMessage }),
-            walletAddress: owner.address,
-            chainId: chain.id,
           },
           request: new Request(`https://${domain}`),
           asResponse: true,
@@ -3449,7 +3447,7 @@ describe("authenticated", () => {
         await database.update(organizations).set({ role: "kyc" }).where(eq(organizations.id, organizationId));
 
         const outsiderNonceResult = await auth.api.getSiweNonce({
-          body: { walletAddress: outsider.address, chainId: chain.id },
+          body: {},
         });
         const message = createSiweMessage({
           statement,
@@ -3464,7 +3462,7 @@ describe("authenticated", () => {
         });
         const signature = await outsider.signMessage({ message });
         const response = await auth.api.verifySiweMessage({
-          body: { message, signature, walletAddress: outsider.address, chainId: chain.id },
+          body: { message, signature },
           request: new Request(`https://${domain}`),
           asResponse: true,
         });

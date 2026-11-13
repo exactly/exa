@@ -34,7 +34,7 @@ describe("webhook", () => {
 
   beforeAll(async () => {
     const adminNonceResult = await auth.api.getSiweNonce({
-      body: { walletAddress: owner.address, chainId: chain.id },
+      body: {},
     });
 
     const statement = "I accept Exa terms and conditions";
@@ -54,8 +54,6 @@ describe("webhook", () => {
       body: {
         message: ownerMessage,
         signature: await owner.signMessage({ message: ownerMessage }),
-        walletAddress: owner.address,
-        chainId: chain.id,
       },
       request: new Request(`https://${domain}`),
       asResponse: true,
@@ -64,7 +62,7 @@ describe("webhook", () => {
     ownerHeaders.set("cookie", `${adminResponse.headers.get("set-cookie")}`);
 
     const integratorNonceResult = await auth.api.getSiweNonce({
-      body: { walletAddress: integratorAccount.address, chainId: chain.id },
+      body: {},
     });
     const integratorMessage = createSiweMessage({
       statement,
@@ -81,8 +79,6 @@ describe("webhook", () => {
       body: {
         message: integratorMessage,
         signature: await integratorAccount.signMessage({ message: integratorMessage }),
-        walletAddress: integratorAccount.address,
-        chainId: chain.id,
         email: "integrator@external.com",
       },
       request: new Request(`https://${domain}`),
@@ -93,7 +89,7 @@ describe("webhook", () => {
     if (!integrator) throw new Error("integrator not found");
 
     const memberNonceResult = await auth.api.getSiweNonce({
-      body: { walletAddress: memberAccount.address, chainId: chain.id },
+      body: {},
     });
     const memberMessage = createSiweMessage({
       statement,
@@ -110,8 +106,6 @@ describe("webhook", () => {
       body: {
         message: memberMessage,
         signature: await memberAccount.signMessage({ message: memberMessage }),
-        walletAddress: memberAccount.address,
-        chainId: chain.id,
         email: "member@external.com",
       },
       request: new Request(`https://${domain}`),
