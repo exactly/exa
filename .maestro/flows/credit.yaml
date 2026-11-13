@@ -29,4 +29,9 @@ env:
 - runFlow: { file: ../subflows/assertStatement.yaml, env: { merchant: Coffee Shop } }
 - runFlow: ../subflows/credit.yaml
 - runFlow: ../subflows/assertHistory.yaml
+- tapOn: Activity
+- tapOn: Rolled over to .*
+- assertVisible: New due date
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- tapOn: Home
 - runFlow: ../subflows/storeCoverage.yaml
