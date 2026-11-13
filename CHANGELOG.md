@@ -1,5 +1,18 @@
 # @exactly/mobile
 
+## 1.2.46
+
+### Patch Changes
+
+- [#1865](https://github.com/exactly/exa/pull/1865) [`6bf2933`](https://github.com/exactly/exa/commit/6bf29339dde47e3a36232b5402e166d702ee4da1) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 📈 add error fields to sentry
+
+- [#1865](https://github.com/exactly/exa/pull/1865) [`9a4c272`](https://github.com/exactly/exa/commit/9a4c272d3ca23b3dcad46ef7f0411cb5d418ac62) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 move response bodies to context
+
+- [#1865](https://github.com/exactly/exa/pull/1865) [`73df0e5`](https://github.com/exactly/exa/commit/73df0e58ed5ea5f20a46c19a5359daecdeb29a31) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🩹 stop price feeds refetch loop
+
+- Updated dependencies [[`447e2c0`](https://github.com/exactly/exa/commit/447e2c0e8077c411d4cc3aa4a4420833f81cb921)]:
+  - @exactly/server@0.3.4
+
 ## 1.2.45
 
 ### Patch Changes

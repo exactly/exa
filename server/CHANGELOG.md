@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.3.4
+
+### Patch Changes
+
+- [#1863](https://github.com/exactly/exa/pull/1863) [`447e2c0`](https://github.com/exactly/exa/commit/447e2c0e8077c411d4cc3aa4a4420833f81cb921) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 unblock kyc retry after persona error
+
 ## 0.3.3
 
 ### Patch Changes
