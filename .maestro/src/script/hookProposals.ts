@@ -2,6 +2,7 @@ import {
   encodeDeployData,
   encodeEventTopics,
   erc20Abi,
+  erc4626Abi,
   formatUnits,
   keccak256,
   pad,
@@ -29,12 +30,14 @@ declare const amount: string | undefined;
 declare const beneficiary: string | undefined;
 declare const count: string | undefined;
 declare const market: string | undefined;
+declare const max: string | undefined;
+declare const output: { sent?: string };
 declare const receiver: string | undefined;
 
 if (!account || !isHex(account)) throw new Error("bad account");
 if (count !== undefined && !(Number.isSafeInteger(Number(count)) && Number(count) > 0)) throw new Error("bad count");
 if (receiver !== undefined && !isAddress(receiver)) throw new Error("bad receiver");
-if ((receiver ?? beneficiary) !== undefined && !amount) throw new Error("bad amount");
+if ((receiver ?? beneficiary) !== undefined && !amount && !max) throw new Error("bad amount");
 
 const proposalDelay = readContract({ address: proposalManagerAddress, functionName: "delay", abi: proposalManagerAbi });
 let proposals = pending(account);
@@ -49,7 +52,16 @@ if (market !== undefined) {
   if (markets !== expected) throw new Error(`expected ${expected} proposal, got [${markets}]`);
 }
 
-anvil("anvil_mine", [1, Number(proposalDelay)]);
+const deposit = max
+  ? readContract({
+      address: marketUSDCAddress,
+      functionName: "convertToAssets",
+      abi: erc4626Abi,
+      args: [readContract({ address: marketUSDCAddress, functionName: "balanceOf", abi: erc20Abi, args: [account] })],
+    })
+  : 0n;
+const accrual = max ? 86_400 : 0;
+anvil("anvil_mine", [1, Number(proposalDelay) + accrual]);
 const fromBlock = anvil("eth_blockNumber", []);
 block(account, proposals);
 
@@ -66,6 +78,12 @@ for (
 ) {
   if (Date.now() >= deadline) throw new Error("timeout waiting for proposals");
 }
+if (max) {
+  for (const { market: address } of proposals) {
+    const shares = readContract({ address, functionName: "balanceOf", abi: erc20Abi, args: [account] });
+    if (shares !== 0n) throw new Error(`expected no shares left in ${address}, got ${shares}`);
+  }
+}
 const transfer = toEventSelector(getAbiItem({ abi: erc20Abi, name: "Transfer" }));
 const logs = anvil("eth_getLogs", [{ fromBlock, toBlock, topics: [transfer, null, pad(account)] }]);
 for (const log of logs) {
@@ -74,14 +92,15 @@ for (const log of logs) {
 }
 const to = receiver ?? (beneficiary && slice(keccak256(toBytes(JSON.stringify(JSON.parse(beneficiary)))), 12));
 if (to) {
-  const withdrawn = formatUnits(
-    anvil("eth_getLogs", [{ address: usdcAddress, fromBlock, toBlock, topics: [transfer, null, pad(to)] }]).reduce(
-      (total, { data }) => total + BigInt(data),
-      0n,
-    ),
-    6,
-  );
-  if (withdrawn !== amount) throw new Error(`expected ${amount} usdc to ${receiver ?? beneficiary}, got ${withdrawn}`);
+  const received = anvil("eth_getLogs", [
+    { address: usdcAddress, fromBlock, toBlock, topics: [transfer, null, pad(to)] },
+  ]).reduce((total, { data }) => total + BigInt(data), 0n);
+  const withdrawn = formatUnits(received, 6);
+  if (max ? received < deposit : withdrawn !== amount) {
+    const expected = max ? `at least ${formatUnits(deposit, 6)}` : amount;
+    throw new Error(`expected ${expected} usdc to ${receiver ?? beneficiary}, got ${withdrawn}`);
+  }
+  output.sent = withdrawn;
 }
 
 function pending(address: Address) {
