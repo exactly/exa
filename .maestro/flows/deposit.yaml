@@ -37,23 +37,26 @@ env:
 - tapOn: { text: "0", index: 0 }
 - inputText: "100"
 - runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Bridge and swap via } }
+- runScript: { file: ../dist/block.js, env: { network: Anvil2 } }
 - tapOn: Bridge USDC.e
 - repeat: { times: 3, commands: [{ runFlow: ../subflows/sign.yaml }] }
 - extendedWaitUntil: { visible: Add funds request sent, timeout: 120000 }
-- runScript: { file: ../dist/bridge.js, env: { network: Anvil2, to: "${output.deposit}", amount: "100" } }
+- runScript:
+    file: ../dist/bridge.js
+    env: { network: Anvil2, after: "${output.block}", to: "${output.deposit}", amount: "100" }
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
 - tapOn: Home
 - runFlow: ../subflows/readPortfolio.yaml
 - runScript: { file: ../dist/deposited.js, env: { account: "${output.deposit}" } }
 - repeat:
     times: 20
-    while: { true: "${output.portfolio - output.portfolioBefore !== 101 || output.deposited !== 100}" }
+    while: { true: "${output.portfolio - output.portfolioBefore !== 100.5 || output.deposited !== 99.5}" }
     commands:
       - tapOn: Home
       - runFlow: ../subflows/readPortfolio.yaml
       - runScript: { file: ../dist/deposited.js, env: { account: "${output.deposit}" } }
-- assertTrue: ${output.portfolio - output.portfolioBefore === 101}
-- assertTrue: ${output.deposited === 100}
+- assertTrue: ${output.portfolio - output.portfolioBefore === 100.5}
+- assertTrue: ${output.deposited === 99.5}
 - runFlow:
     file: ../subflows/mint.yaml
     env: { asset: USDC, to: "${output.account}", amount: "420" }
