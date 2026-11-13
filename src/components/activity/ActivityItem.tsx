@@ -13,14 +13,21 @@ import es from "i18n-iso-countries/langs/es.json";
 import pt from "i18n-iso-countries/langs/pt.json";
 import { titleCase } from "title-case";
 
+import chain from "@exactly/common/generated/chain";
+
 import { ArrowDownToLine } from "../../generated/icons/ArrowDownToLine";
 import { ArrowUpFromLine } from "../../generated/icons/ArrowUpFromLine";
+import { ArrowUpRight } from "../../generated/icons/ArrowUpRight";
 import { CircleDollarSign } from "../../generated/icons/CircleDollarSign";
 import { ClockAlert } from "../../generated/icons/ClockAlert";
+import { HandCoins } from "../../generated/icons/HandCoins";
 import { Import } from "../../generated/icons/Import";
+import { RefreshCw } from "../../generated/icons/RefreshCw";
+import { Repeat } from "../../generated/icons/Repeat";
 import { ShoppingCart } from "../../generated/icons/ShoppingCart";
 import { SquareDashed } from "../../generated/icons/SquareDashed";
 import isProcessing from "../../utils/isProcessing";
+import { lifiChainsOptions } from "../../utils/lifi";
 import Image from "../shared/Image";
 import Text from "../shared/Text";
 
@@ -46,6 +53,11 @@ export default function ActivityItem({
   const declined = item.type === "panda" && item.status === "declined";
   const processing = item.type === "panda" && !declined && country === "US" && isProcessing(item.timestamp);
   const refund = item.type === "panda" && item.usdAmount < 0;
+  const { data: network } = useQuery({
+    ...lifiChainsOptions,
+    enabled: lifiChainsOptions.enabled && item.type === "bridge",
+    select: (chains) => (item.type === "bridge" ? chains.find(({ id }) => id === item.sourceChainId)?.name : undefined),
+  });
   const {
     t,
     i18n: { language },
@@ -60,9 +72,7 @@ export default function ActivityItem({
       paddingBottom={isLast ? "s4" : "s3"}
       cursor="pointer"
       onPress={() => {
-        if (["card", "received", "sent", "repay", "panda"].includes(item.type)) {
-          router.push({ pathname: "/activity-details", params: { id: item.id } });
-        }
+        router.push({ pathname: "/activity-details", params: { id: item.id } });
       }}
       backgroundColor="backgroundMild"
       {...stackProps}
@@ -81,7 +91,7 @@ export default function ActivityItem({
         <XStack justifyContent="space-between" alignItems="center" gap="s4">
           <YStack gap="s2" flexShrink={1}>
             <Text primary subHeadline numberOfLines={1}>
-              {getActivityTitle(item, t)}
+              {getActivityTitle(item, t, network)}
             </Text>
             <Text
               secondary
@@ -112,24 +122,26 @@ export default function ActivityItem({
                 format(item.timestamp, "yyyy-MM-dd")}
             </Text>
           </YStack>
-          {"usdAmount" in item ? (
+          {"usdAmount" in item || "amount" in item ? (
             <YStack gap="s2">
-              <XStack alignItems="center" justifyContent="flex-end">
-                <Text
-                  sensitive
-                  emphasized
-                  subHeadline
-                  textAlign="right"
-                  strikeThrough={declined}
-                  color="uiNeutralPrimary"
-                >
-                  {`$${Math.abs(item.usdAmount).toLocaleString(language, {
-                    style: "decimal",
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}`}
-                </Text>
-              </XStack>
+              {"usdAmount" in item && item.usdAmount !== undefined && (
+                <XStack alignItems="center" justifyContent="flex-end">
+                  <Text
+                    sensitive
+                    emphasized
+                    subHeadline
+                    textAlign="right"
+                    strikeThrough={declined}
+                    color="uiNeutralPrimary"
+                  >
+                    {`$${Math.abs(item.usdAmount).toLocaleString(language, {
+                      style: "decimal",
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}`}
+                  </Text>
+                </XStack>
+              )}
               {"amount" in item && item.amount ? (
                 <Text sensitive secondary caption textAlign="right">
                   {`${"currency" in item && item.currency ? item.currency : ""} ${Math.abs(item.amount).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: "currency" in item && item.currency === "USDC" ? 2 : 8 })}`}
@@ -153,6 +165,17 @@ function getActivityIcon(item: Item, processing: boolean, refund: boolean) {
       return <ArrowUpFromLine color="interactiveOnBaseErrorSoft" />;
     case "repay":
       return <CircleDollarSign color="interactiveOnBaseErrorSoft" />;
+    case "loan":
+      return <HandCoins color="interactiveOnBaseSuccessSoft" />;
+    case "rollover":
+      return <RefreshCw color="uiNeutralPrimary" />;
+    case "swap":
+      return <Repeat color="uiNeutralPrimary" />;
+    case "liquidation":
+      return <CircleDollarSign color="uiNeutralPrimary" />;
+    case "bridge":
+      if (item.destinationChainId === chain.id) return <ArrowDownToLine color="interactiveOnBaseSuccessSoft" />;
+      return <ArrowUpRight color="uiNeutralPrimary" />;
     case "panda":
       if (refund) return <Import color="uiSuccessSecondary" />;
       if (processing) return <ClockAlert color="interactiveOnBaseWarningSoft" />;
@@ -168,7 +191,7 @@ function getActivityIcon(item: Item, processing: boolean, refund: boolean) {
   }
 }
 
-function getActivityTitle(item: Item, t: TFunction) {
+function getActivityTitle(item: Item, t: TFunction, network?: string) {
   let title;
   switch (item.type) {
     case "card":
@@ -183,6 +206,28 @@ function getActivityTitle(item: Item, t: TFunction) {
       break;
     case "repay":
       title = t("Debt payment");
+      break;
+    case "loan":
+      title = t("Borrowed {{currency}}", { currency: item.currency });
+      break;
+    case "rollover":
+      title = t("Rolled over to {{date, datetime(month: short; day: numeric)}}", {
+        date: new Date(item.borrow.maturity * 1000),
+      });
+      break;
+    case "swap":
+      title = t("Swapped {{from}} → {{to}}", { from: item.from.currency, to: item.currency });
+      break;
+    case "liquidation":
+      title = t("Liquidation");
+      break;
+    case "bridge":
+      title =
+        item.destinationChainId === chain.id
+          ? network
+            ? t("Received on {{network}}", { network })
+            : t("Received from another network")
+          : t("Sent to another network");
       break;
     default:
       title = undefined;
