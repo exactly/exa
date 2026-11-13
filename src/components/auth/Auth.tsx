@@ -17,6 +17,7 @@ import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 
 import ListItem from "./ListItem";
 import Pagination from "./Pagination";
+import SignInDialog from "./SignInDialog";
 import calendar from "../../assets/images/calendar.webp";
 import creditCard from "../../assets/images/credit-card.webp";
 import earnArrow from "../../assets/images/earn-arrow.webp";
@@ -28,7 +29,6 @@ import reportError from "../../utils/reportError";
 import useAspectRatio from "../../utils/useAspectRatio";
 import useAuth from "../../utils/useAuth";
 import ConnectSheet from "../shared/ConnectSheet";
-import ErrorDialog from "../shared/ErrorDialog";
 import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import Button from "../shared/StyledButton";
@@ -45,7 +45,6 @@ export default function Auth() {
   const router = useRouter();
   const { t, i18n } = useTranslation();
   const [activeIndex, setActiveIndex] = useState(0);
-  const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const [signUpModalOpen, setSignUpModalOpen] = useState(false);
   const [signInModalOpen, setSignInModalOpen] = useState(false);
   const playing = !signUpModalOpen && !signInModalOpen;
@@ -110,14 +109,13 @@ export default function Auth() {
     startProgressAnimation();
   }, [playing, startProgressAnimation]);
 
-  const { signIn, isPending: loadingAuth } = useAuth(
-    () => {
-      setErrorDialogOpen(true);
-    },
-    () => {
-      if (isMiniApp) sdk.actions.addMiniApp().catch((error: unknown) => reportError(error, { level: "warning" }));
-    },
-  );
+  const {
+    signIn,
+    dialog,
+    isPending: loadingAuth,
+  } = useAuth(() => {
+    if (isMiniApp) sdk.actions.addMiniApp().catch((error: unknown) => reportError(error, { level: "warning" }));
+  });
 
   const loading = loadingAuth || loadingContext || loadingOwner;
 
@@ -285,20 +283,7 @@ export default function Auth() {
           </View>
         </View>
       </View>
-      <ErrorDialog
-        open={errorDialogOpen}
-        title={t("Verification failed")}
-        description={t(
-          "Please check your internet connection and try again in a moment. If the problem persists, reinstalling the app may help.",
-        )}
-        onClose={() => {
-          setErrorDialogOpen(false);
-        }}
-        onContact={() => {
-          setErrorDialogOpen(false);
-          loginUnidentified().then(present).catch(reportError);
-        }}
-      />
+      <SignInDialog {...dialog} />
       {isOwnerAvailable ? (
         <>
           <ConnectSheet

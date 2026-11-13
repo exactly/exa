@@ -2,21 +2,24 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { Platform } from "react-native";
 
-import { AlertDialog, XStack, YStack } from "tamagui";
+import { AlertDialog, ScrollView, XStack, YStack } from "tamagui";
 
 import Button from "./StyledButton";
 import Text from "./Text";
 import { Headphones } from "../../generated/icons/Headphones";
 import { X } from "../../generated/icons/X";
 import useAspectRatio from "../../utils/useAspectRatio";
+import useInsets from "../../utils/useInsets";
 
 export default function ErrorDialog({
   open,
   title,
   description,
+  action,
   onClose,
   onContact,
 }: {
+  action?: { icon: React.ComponentProps<typeof Button.Icon>["children"]; label: string; onPress: () => void };
   description: string;
   onClose: () => void;
   onContact?: () => void;
@@ -25,9 +28,15 @@ export default function ErrorDialog({
 }) {
   const { t } = useTranslation();
   const aspectRatio = useAspectRatio();
+  const { top, bottom } = useInsets();
   return (
     <AlertDialog open={open}>
-      <AlertDialog.Portal aspectRatio={`web:${aspectRatio}`} justifySelf="web:center" padding="web:s4">
+      <AlertDialog.Portal
+        aspectRatio={`web:${aspectRatio}`}
+        justifySelf="web:center"
+        padding="web:s4"
+        {...(Platform.OS !== "web" && { paddingTop: top, paddingBottom: bottom })}
+      >
         <AlertDialog.Overlay
           onPress={onClose}
           key="overlay"
@@ -54,6 +63,7 @@ export default function ErrorDialog({
           opacity="1 enter:0 exit:0"
           borderWidth={0}
           margin="s5"
+          flexShrink={1}
         >
           <YStack
             backgroundColor="backgroundSoft"
@@ -63,6 +73,7 @@ export default function ErrorDialog({
             paddingLeft="s5"
             paddingTop="s5"
             gap="s5"
+            flexShrink={1}
           >
             <XStack alignItems="center" gap="s3" justifyContent="flex-start">
               <AlertDialog.Title>
@@ -71,13 +82,19 @@ export default function ErrorDialog({
                 </Text>
               </AlertDialog.Title>
             </XStack>
-            <YStack gap="s6">
-              <YStack gap="s5">
+            <YStack gap="s6" flexShrink={1}>
+              <ScrollView flexShrink={1}>
                 <Text secondary subHeadline>
                   {description}
                 </Text>
-              </YStack>
+              </ScrollView>
               <YStack gap="s3">
+                {action && (
+                  <Button onPress={action.onPress} primary width="100%">
+                    <Button.Text>{action.label}</Button.Text>
+                    <Button.Icon>{action.icon}</Button.Icon>
+                  </Button>
+                )}
                 {onContact && (
                   <Button onPress={onContact} secondary width="100%">
                     <Button.Text>{t("Contact support")}</Button.Text>

@@ -1,18 +1,17 @@
-import React, { useState } from "react";
+import React from "react";
 import { Trans, useTranslation } from "react-i18next";
 
 import { useRouter } from "expo-router";
 
 import { XStack } from "tamagui";
 
+import SignInDialog from "./SignInDialog";
 import passkeys from "../../assets/images/passkeys.webp";
 import { Key } from "../../generated/icons/Key";
 import { X } from "../../generated/icons/X";
-import { loginUnidentified, present } from "../../utils/intercom";
 import openBrowser from "../../utils/openBrowser";
 import reportError from "../../utils/reportError";
 import useAuth from "../../utils/useAuth";
-import ErrorDialog from "../shared/ErrorDialog";
 import IconButton from "../shared/IconButton";
 import Image from "../shared/Image";
 import SafeView from "../shared/SafeView";
@@ -22,12 +21,9 @@ import View from "../shared/View";
 
 export default function Passkeys() {
   const router = useRouter();
-  const [errorDialogOpen, setErrorDialogOpen] = useState(false);
   const { t } = useTranslation();
 
-  const { signIn, isPending: loading } = useAuth(() => {
-    setErrorDialogOpen(true);
-  });
+  const { signIn, dialog, isPending: loading } = useAuth();
 
   return (
     <SafeView fullScreen backgroundColor="backgroundSoft">
@@ -125,20 +121,7 @@ export default function Passkeys() {
           </View>
         </View>
       </View>
-      <ErrorDialog
-        open={errorDialogOpen}
-        title={t("Verification failed")}
-        description={t(
-          "Please check your internet connection and try again in a moment. If the problem persists, reinstalling the app may help.",
-        )}
-        onClose={() => {
-          setErrorDialogOpen(false);
-        }}
-        onContact={() => {
-          setErrorDialogOpen(false);
-          loginUnidentified().then(present).catch(reportError);
-        }}
-      />
+      <SignInDialog {...dialog} />
     </SafeView>
   );
 }

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { toast } from "@tamagui/toast";
@@ -18,8 +19,10 @@ import ownerConfig, { getConnector as getOwnerConnector } from "./wagmi/owner";
 import type { Credential } from "@exactly/common/validation";
 import type { TFunction } from "i18next";
 
-export default function useAuth(onDomainError: () => void, onSuccess?: (credential: Credential) => unknown) {
+export default function useAuth(onSuccess?: (credential: Credential) => unknown) {
   const { t } = useTranslation();
+  const [issue, setIssue] = useState<SignInIssue>("domain");
+  const [open, setOpen] = useState(false);
   const { mutateAsync: connectExa } = useConnect();
   const { mutateAsync: connectOwner } = useConnect({ config: ownerConfig });
   const { mutate: signIn, ...mutation } = useMutation({
@@ -40,22 +43,41 @@ export default function useAuth(onDomainError: () => void, onSuccess?: (credenti
     },
     onSuccess,
     onError: (error: unknown, { method, register }) => {
-      handleError(error, onDomainError, t, method === "siwe" || !register);
+      handleError(
+        error,
+        (value) => {
+          setIssue(value);
+          setOpen(true);
+        },
+        t,
+        method === "siwe" || !register,
+      );
     },
   });
-  return { signIn, ...mutation };
+  return {
+    signIn,
+    dialog: {
+      issue,
+      open,
+      onClose: () => {
+        setOpen(false);
+      },
+      onRetry: () => {
+        if (mutation.variables) signIn(mutation.variables);
+      },
+    },
+    ...mutation,
+  };
 }
 
-function handleError(error: unknown, onDomainError: () => void, t: TFunction, auth: boolean) {
+function handleError(error: unknown, onIssue: (issue: SignInIssue) => void, t: TFunction, auth: boolean) {
   if (
     error instanceof Error &&
     (("code" in error && error.code === "ERR_BIOMETRIC") || error.message.includes("Biometrics must be enabled"))
   ) {
     if (!auth) reportError(error);
     queryClient.setQueryData(["method"], undefined);
-    toast.error(t("Biometrics must be enabled to use passkeys. Please enable biometrics in your device settings"), {
-      duration: 3000,
-    });
+    onIssue("biometrics");
     return;
   }
   const { authKnown, bundleCancelled, passkeyCancelled, passkeyNotAllowed, walletRejected } = classifyError(error);
@@ -77,17 +99,14 @@ function handleError(error: unknown, onDomainError: () => void, t: TFunction, au
     error instanceof Error &&
     error.message.startsWith("The operation couldn’t be completed. Application with identifier")
   ) {
-    onDomainError();
+    onIssue("domain");
   } else if (error instanceof Error && error.message === "NoCredentials") {
-    toast.error(
-      t(
-        "No passkey found on this device. Use the device or password manager where you created your account, or sign up",
-      ),
-      { duration: 3000 },
-    );
+    onIssue("passkey");
   } else {
     toast.error(t("Something went wrong. Please try again."), { duration: 1000 });
   }
   if (auth && queryClient.getQueryState(["auth"])?.error === error) return;
   reportError(error);
 }
+
+export type SignInIssue = "biometrics" | "domain" | "passkey";
