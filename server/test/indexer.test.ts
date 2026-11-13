@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import assert from "node:assert";
 import { createPublicClient, erc20Abi, hexToBigInt, http, padHex, parseEventLogs, zeroHash, type Hex } from "viem";
 import { generatePrivateKey, privateKeyToAddress } from "viem/accounts";
@@ -7,6 +7,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import {
+  auditorAbi,
+  auditorAddress,
   exaAccountFactoryAbi,
   exaAccountFactoryAddress,
   exaPluginAbi,
@@ -22,7 +24,7 @@ import {
 import { chains } from "./anvil";
 import anvilClient from "./anvilClient";
 import database from "../database";
-import { accounts, collectors, delays, deposits, exaPlugins, plugins } from "../database/indexer";
+import { accounts, collectors, delays, deposits, exaPlugins, markets, plugins } from "../database/indexer";
 
 const account = deriveAddress(exaAccountFactoryAddress, {
   x: padHex(privateKeyToAddress(padHex("0xb0b"))),
@@ -236,5 +238,39 @@ describe("indexer", () => {
         .from(delays)
         .where(and(eq(delays.chainId, chain.id), eq(delays.proposalManager, proposalManager.toLowerCase() as Hex))),
     ).resolves.toStrictEqual([{ delay }]);
+  });
+  it("indexes markets with their price feeds", async () => {
+    const listed = await anvilClient.readContract({
+      address: auditorAddress,
+      abi: auditorAbi,
+      functionName: "allMarkets",
+    });
+    const expected = await Promise.all(
+      listed.map(async (market) => {
+        const [asset, symbol, decimals, data] = await Promise.all([
+          anvilClient.readContract({ address: market, abi: marketAbi, functionName: "asset" }),
+          anvilClient.readContract({ address: market, abi: marketAbi, functionName: "symbol" }),
+          anvilClient.readContract({ address: market, abi: marketAbi, functionName: "decimals" }),
+          anvilClient.readContract({
+            address: auditorAddress,
+            abi: auditorAbi,
+            functionName: "markets",
+            args: [market],
+          }),
+        ]);
+        return {
+          chainId: anvil.id,
+          address: market.toLowerCase(),
+          asset: asset.toLowerCase(),
+          symbol: symbol.slice(3),
+          decimals,
+          priceFeed: data[4].toLowerCase(),
+        };
+      }),
+    );
+
+    await expect(
+      database.select().from(markets).where(eq(markets.chainId, anvil.id)).orderBy(asc(markets.address)),
+    ).resolves.toStrictEqual(expected.toSorted((a, b) => a.address.localeCompare(b.address)));
   });
 });
