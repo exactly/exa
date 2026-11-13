@@ -5,7 +5,7 @@ import "../mocks/sentry";
 import "../mocks/wallet";
 
 import { captureException, setUser } from "@sentry/node";
-import { eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import assert from "node:assert";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -54,6 +54,7 @@ import { proposalManager } from "@exactly/plugin/deploy.json";
 
 import route, { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity } from "../../api/activity";
 import database, { cards, credentials, transactions } from "../../database";
+import * as indexer from "../../database/indexer";
 import authenticate from "../../middleware/auth";
 import publicClient from "../../utils/publicClient";
 import wallet from "../../utils/wallet";
@@ -1323,6 +1324,36 @@ describe("plugin 1.0.0", () => {
     ]);
     expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account100 });
     expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("keeps both plugins as exa plugins after the upgrade", async () => {
+    const [uninstalled] = await anvilClient.getContractEvents({
+      address: account100,
+      abi: upgradeableModularAccountAbi,
+      eventName: "PluginUninstalled",
+      args: { plugin: release },
+      fromBlock: 0n,
+      strict: true,
+    });
+    assert.ok(uninstalled, "expected a PluginUninstalled event");
+
+    await expect(
+      database
+        .select({ address: indexer.plugins.address, uninstalled: indexer.plugins.uninstalled })
+        .from(indexer.plugins)
+        .innerJoin(
+          indexer.exaPlugins,
+          and(
+            eq(indexer.exaPlugins.chainId, indexer.plugins.chainId),
+            eq(indexer.exaPlugins.address, indexer.plugins.address),
+          ),
+        )
+        .where(and(eq(indexer.plugins.chainId, chain.id), eq(indexer.plugins.account, account100.toLowerCase() as Hex)))
+        .orderBy(desc(indexer.plugins.block), desc(indexer.plugins.logIndex)),
+    ).resolves.toStrictEqual([
+      { address: exaPluginAddress.toLowerCase(), uninstalled: null },
+      { address: release.toLowerCase(), uninstalled: uninstalled.blockNumber },
+    ]);
   });
 });
 
