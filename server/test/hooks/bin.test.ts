@@ -81,6 +81,7 @@ beforeEach(() => {
   vi.doMock("../../hooks/bridge", () => ({ default: mocks.hook }));
   vi.doMock("../../hooks/chat", () => ({ default: mocks.hook }));
   vi.doMock("../../hooks/manteca", () => ({ default: mocks.hook }));
+  vi.doMock("../../hooks/mockfi", () => ({ default: mocks.hook }));
   vi.doMock("../../hooks/panda", () => ({ default: mocks.hook }));
   vi.doMock("../../hooks/persona", () => ({ default: mocks.hook }));
   vi.doMock("../../hooks/sponsor", () => ({ default: mocks.hook }));
@@ -165,6 +166,13 @@ describe("hook bin", () => {
         "manteca-onesignal-api-key",
         "manteca-segment-write-key",
       ],
+    },
+    {
+      accounts: [],
+      config: { database },
+      load: () => import("../../hooks/bin/mockfi"),
+      name: "mockfi",
+      secrets: ["mockfi-postgres-url"],
     },
     {
       accounts: ["issuer", "settler"],

@@ -37,9 +37,8 @@ import { describe, expect, it, vi } from "vitest";
 import domain from "@exactly/common/domain";
 import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 
-import { chains } from "./anvil";
-import lifi from "./lifi";
 import database, { cards as cardsTable, credentials } from "../database";
+import mockfi from "../hooks/mockfi";
 import createAlchemy from "../utils/alchemy";
 import appOrigin, { origins } from "../utils/appOrigin";
 import createOnesignal from "../utils/onesignal";
@@ -227,7 +226,7 @@ describe("e2e", () => {
           baseline.catch(reject);
 
           app.use("/e2e/*", cors());
-          app.route("/e2e/lifi", lifi(chains));
+          app.route("/hooks/mockfi", mockfi({ database }).app);
           app.get("/e2e/credential", async (c) => {
             const credential = await database.query.credentials.findFirst({
               columns: { id: true },
