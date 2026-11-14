@@ -757,14 +757,14 @@ async function* getWalletBalances(account: Address, lifiTokens: Token[], chains:
     { active: boolean; error: unknown; failed: typeof failures; fingerprint: string[]; network: boolean }
   >();
   for (const failure of failures) {
-    const { fingerprint = ["{{ default }}"], network } = classifyError(failure.error);
+    const { fetchFailed, fingerprint = ["{{ default }}"], network } = classifyError(failure.error);
     const key = JSON.stringify([failure.active, fingerprint]);
     const group = groups.get(key) ?? {
       active: failure.active,
       error: failure.error,
       failed: [],
       fingerprint,
-      network: network !== undefined,
+      network: network !== undefined || fetchFailed,
     };
     group.failed.push(failure);
     groups.set(key, group);
@@ -785,6 +785,12 @@ async function* getWalletBalances(account: Address, lifiTokens: Token[], chains:
         level: network ? "info" : "warning",
         tags: { chains: failedChains },
         fingerprint: [...fingerprint, "every chain"],
+      });
+    } else if (network) {
+      reportError(error, {
+        level: "warning",
+        tags: { chains: failedChains },
+        fingerprint: [...fingerprint, "some chains"],
       });
     } else {
       for (const failure of failed) {
