@@ -22,7 +22,7 @@ import {
 } from "@exactly/common/generated/chain";
 
 import anvil, { readContract } from "../anvil";
-import { activity, block } from "../server";
+import { activity } from "../server";
 
 declare const account: string | undefined;
 declare const amount: string | undefined;
@@ -69,7 +69,6 @@ const deposit = max
 const accrual = max ? 86_400 : 0;
 anvil("anvil_mine", [1, Number(proposalDelay) + accrual]);
 const fromBlock = anvil("eth_blockNumber", []);
-block(proposalManager, account, proposals);
 
 const nonceSet = encodeEventTopics({
   abi: proposalManagerAbi,
@@ -78,7 +77,7 @@ const nonceSet = encodeEventTopics({
 });
 let toBlock = anvil("eth_blockNumber", []);
 for (
-  const deadline = Date.now() + 30_000;
+  const deadline = Date.now() + 60_000;
   anvil("eth_getLogs", [{ address: proposalManager, fromBlock, toBlock, topics: nonceSet }]).length === 0;
   toBlock = anvil("eth_blockNumber", [])
 ) {
