@@ -5,7 +5,8 @@ env:
 - runFlow: ../subflows/launch.yaml
 - runFlow:
     file: ../subflows/mint.yaml
-    env: { asset: USDC, to: "${output.account}", amount: "420" }
+    env: { asset: USDC, to: "${output.account}", amount: "20" }
+- runScript: { file: ../dist/mint.js, env: { asset: ETH, to: "${output.account}", amount: "0.04" } }
 - runFlow: ../subflows/verifyIdentity.yaml
 - tapOn: Card
 - tapOn: Card details
@@ -33,14 +34,13 @@ env:
 - runScript:
     file: ../dist/purchase.js
     env: { merchant: Furniture, amount: "34.56", mode: "3", credentialId: "${output.credential}" }
+- runScript: { file: ../dist/liquidate.js, env: { account: "${output.account}" } }
 - tapOn: Activity
-- tapOn: Received
-- assertVisible: '420[\s\xa0]USDC'
-- assertVisible: Transaction details
-- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Bakery, center: true } }
 - tapOn: Bakery
 - assertVisible: Paid
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Payment failed, center: true } }
 - tapOn: Payment failed
 - assertVisible: Failed
 - assertVisible: 'There was an error when processing your payment: invalid pin'
@@ -52,6 +52,14 @@ env:
 - tapOn: Furniture
 - runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Installments } }
 - assertVisible: { text: '3x\xa0', rightOf: Installments }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- tapOn: Liquidation
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Collateral seized } }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: USDC 20\.00, center: true } }
+- tapOn: USDC 20\.00
+- assertVisible: '20[\s\xa0]USDC'
+- assertVisible: Transaction details
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
 - repeat: { times: 2, commands: [{ tapOn: Home }] }
 - runFlow: ../subflows/storeCoverage.yaml
