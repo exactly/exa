@@ -1,13 +1,34 @@
-From da2dd57ad616ab86a6de5b936a756d91a1fc93d8 Mon Sep 17 00:00:00 2001
+From fa98316827e066b2847d3fc3ed44723b25df5767 Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Wed, 21 Oct 2026 18:53:52 +0000
 Subject: [PATCH] fix: evaluate web scripts in an isolated world
 
-Pages that lock down their globals, such as extension pages under LavaMoat, reject Maestro's script ("property \"maestro\" of globalThis is inaccessible under scuttling mode"), so no element on them can be read. Evaluate in an isolated world instead: it shares the page's DOM but not its globals, and the same world name returns the same context for each document.
+Pages that lock down their globals, such as extension pages under LavaMoat, reject Maestro's script ("property \"maestro\" of globalThis is inaccessible under scuttling mode"), so no element on them can be read. Evaluate in an isolated world instead: it shares the page's DOM but not its globals, and the same world name returns the same context for each document. Properties that page scripts define on custom elements don't exist in that world, so a resource id is read from the attribute whenever its property is missing.
 ---
+ .../src/main/resources/maestro-web.js         |  9 ++++-----
  .../main/kotlin/maestro/web/cdp/CdpClient.kt  | 19 ++++++++++++-------
- 1 file changed, 12 insertions(+), 7 deletions(-)
+ 2 files changed, 16 insertions(+), 12 deletions(-)
 
+diff --git a/maestro-client/src/main/resources/maestro-web.js b/maestro-client/src/main/resources/maestro-web.js
+index 16ff662..f528c02 100644
+--- a/maestro-client/src/main/resources/maestro-web.js
++++ b/maestro-client/src/main/resources/maestro-web.js
+@@ -167,11 +167,10 @@
+         return null;
+       }
+ 
+-      if (!!node.attributes['flt-semantics-identifier'] || !!node.id || !!node.ariaLabel || !!node.name || !!node.title || !!node.htmlFor || !!node.attributes['data-testid']) {
+-        // Prefer flt-semantics-identifier: on Flutter web node.id is an
+-        // unstable internal handle, not the developer-set identifier.
+-        attributes['resource-id'] = node.attributes['flt-semantics-identifier']?.value || identifier(node, 'id', 'id') || identifier(node, 'ariaLabel', 'aria-label') || identifier(node, 'name', 'name') || identifier(node, 'title', 'title') || identifier(node, 'htmlFor', 'for') || node.attributes['data-testid']?.value
+-      }
++      // Prefer flt-semantics-identifier: on Flutter web node.id is an
++      // unstable internal handle, not the developer-set identifier.
++      const resourceId = node.attributes['flt-semantics-identifier']?.value || identifier(node, 'id', 'id') || identifier(node, 'ariaLabel', 'aria-label') || identifier(node, 'name', 'name') || identifier(node, 'title', 'title') || identifier(node, 'htmlFor', 'for') || node.attributes['data-testid']?.value
++      if (resourceId) attributes['resource-id'] = resourceId
+ 
+       if (node.tagName.toLowerCase() === 'body') {
+         attributes['is-loading'] = isDocumentLoading()
 diff --git a/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt b/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt
 index e8ff77d..ae67c15 100644
 --- a/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt
