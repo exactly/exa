@@ -82,4 +82,5 @@ appId: ${APP_ID ?? "app.exactly"}
     env: { aria: Pending proposals, tap: Home }
 - runFlow: ../subflows/readPortfolio.yaml
 - assertTrue: ${output.portfolioBefore - output.portfolio > 0 && output.portfolioBefore - output.portfolio < 1}
+- runFlow: ../subflows/switchWallet.yaml
 - runFlow: ../subflows/storeCoverage.yaml
