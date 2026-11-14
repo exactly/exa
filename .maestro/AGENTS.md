@@ -1,9 +1,9 @@
 # end-to-end tests (`e2e`)
 
 - **stack**: maestro with `patches/*.patch`, put into `build/` by `pnpm nx maestro e2e`: it downloads the build main published to ghcr for the same script and patches, and builds from source when there is none. scripts run on graaljs, bundled from `src/script/` into `dist/`.
-- **flows**: `flows/*.yaml` are the entry points, shared by every platform. web runs pass `--platform web -e APP_ID=http://localhost:8081` (`platform.patch`). bodies and shared steps live in `subflows/`.
+- **flows**: `flows/*.yaml` are the entry points, shared by every platform. web runs pass `--platform web -e APP_ID=https://exa.localhost` (`platform.patch`). bodies and shared steps live in `subflows/`.
 - **legs**: each row of the `e2e` matrix in `.github/workflows/test.yaml` runs one web flow as its own job, with its own signer and screen size, through its signer's target: `e2e:webauthn`, `e2e:metamask` or `e2e:brave`. `package.json` defines them: each waits for the stack and runs the flow with every flag the leg needs, once `brave` or `metamask` has fetched its browser. a leg replays from the nx cache while nothing it runs against changed (this project, the app, the server, the contracts and common), and ci passes `--skip-nx-cache` so every leg runs and reports coverage. eas runs `flows/local.yaml` (tag `critical`), which chains the bodies native covers, on ios and android.
-- **environment**: `pnpm nx e2e:web:release mobile` starts the server's e2e stack (anvil, the contracts and the server, with third parties mocked from `server/test`) and serves the web build on port 8081.
+- **environment**: `pnpm nx e2e:web:release mobile` starts the server's e2e stack (anvil, the contracts and the server, with third parties mocked from `server/test`) and serves the web build with the api on `https://exa.localhost`. the server listens on 8443 with a self-signed certificate, and the signer targets reach it with `--host-resolver-rules` and `--ignore-certificate-errors`.
 - **camera**: `camera.ts` writes `generated/<flow>.y4m` on install, a still frame of the qr code that leg scans. the signer targets play it through chrome's fake camera on flows that have one, so each leg scans a single code.
 - **coverage**: the app keeps its coverage in memory until `subflows/storeCoverage.yaml` submits it, so a step that restarts the app process stores it first, as `assertNotifications.yaml` does. on web, `openLink` is a full navigation that starts it over, so it goes right after launch.
 
@@ -101,6 +101,6 @@
   pnpm nx e2e:webauthn e2e --flow=transfer --screen=760x600
   ```
 
-- **dev runs**: against `pnpm nx e2e:web mobile`, a signer target takes `--app=http://localhost:8081` and runs the app with your edits. a browser you drive yourself, for error paths, states no flow reaches or screenshots to share, gets passkeys from a virtual authenticator over cdp (`WebAuthn.addVirtualAuthenticator`, as `biometrics.patch` does) and takes the signer targets' `--host-resolver-rules` and `--ignore-certificate-errors`. it shares nothing with maestro's browser, so it signs up its own account.
+- **dev runs**: against `pnpm nx e2e:web mobile`, a signer target runs the app with your edits on the same origin, since the server proxies metro. a browser you drive yourself, for error paths, states no flow reaches or screenshots to share, gets passkeys from a virtual authenticator over cdp (`WebAuthn.addVirtualAuthenticator`, as `biometrics.patch` does) and takes the signer targets' `--host-resolver-rules` and `--ignore-certificate-errors`. it shares nothing with maestro's browser, so it signs up its own account.
 
 @../common/AGENTS.md
