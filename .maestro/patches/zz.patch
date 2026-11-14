@@ -1,0 +1,33 @@
+From 6c0bfedaead560a2ec2dd55cf666eb0d147df0cc Mon Sep 17 00:00:00 2001
+From: d <d@d>
+Date: Sat, 14 Nov 2026 18:50:51 +0000
+Subject: [PATCH] debug: capture screen around native tap
+
+---
+ .../src/main/java/maestro/drivers/CdpWebDriver.kt           | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+index c2a1f31..243483a 100644
+--- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+@@ -579,10 +579,16 @@ class CdpWebDriver(
+     private fun tapAbovePage(point: Point) {
+         val window = ensureOpen().manage().window()
+         val top = window.size.height - executeJS("window.innerHeight") as Int
++        val dir = java.io.File("screenshots").apply { mkdirs() }
++        val info = executeJS("JSON.stringify({ih:innerHeight,iw:innerWidth,oh:outerHeight,ow:outerWidth,sx:screenX,sy:screenY,dpr:devicePixelRatio,sw:screen.width,sh:screen.height})")
++        java.io.File(dir, "robot.txt").writeText("pos=${window.position} size=${window.size} top=$top js=$info\n")
+         Robot().apply {
++            javax.imageio.ImageIO.write(createScreenCapture(java.awt.Rectangle(java.awt.Toolkit.getDefaultToolkit().screenSize)), "png", java.io.File(dir, "robot-before.png"))
+             mouseMove(window.position.x + point.x, window.position.y + top + point.y)
+             mousePress(InputEvent.BUTTON1_DOWN_MASK)
+             mouseRelease(InputEvent.BUTTON1_DOWN_MASK)
++            delay(2000)
++            javax.imageio.ImageIO.write(createScreenCapture(java.awt.Rectangle(java.awt.Toolkit.getDefaultToolkit().screenSize)), "png", java.io.File(dir, "robot-after.png"))
+         }
+     }
+ 
+-- 
+2.43.0
+
