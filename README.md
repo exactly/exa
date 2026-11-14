@@ -36,7 +36,7 @@ maestro test .maestro/flows/local.yaml
 
 # web
 pnpm nx e2e:web mobile
-maestro test .maestro/flows/local.yaml --platform web -e APP_ID=http://localhost:8081
+pnpm nx e2e:webauthn e2e --flow=transfer --screen=760x600
 ```
 
 ## @exactly/server
