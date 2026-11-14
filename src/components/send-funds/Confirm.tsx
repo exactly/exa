@@ -28,7 +28,7 @@ import {
 } from "viem";
 import { useReadContract, useSimulateContract } from "wagmi";
 
-import chain, { alchemyChains, marketWETHAddress, proposalManagerAddress } from "@exactly/common/generated/chain";
+import chain, { alchemyChains, marketWETHAddress } from "@exactly/common/generated/chain";
 import { proposalManagerAbi } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
 import shortenHex from "@exactly/common/shortenHex";
@@ -224,6 +224,7 @@ export default function Confirm() {
     refetch: refetchPropose,
   } = useSimulateProposal({
     account: address,
+    chainId: payChain,
     amount: redeem ? market.floatingDepositShares : fromAmount,
     market: market?.market,
     ...(redeem ? { proposalType: ProposalType.Redeem, assets: fromAmount } : { proposalType: ProposalType.Withdraw }),
@@ -319,6 +320,7 @@ export default function Confirm() {
     refetch: refetchBridgePropose,
   } = useSimulateProposal({
     account: address,
+    chainId: payChain,
     amount: fromAmount,
     market: market?.market,
     proposalType: ProposalType.Swap,
@@ -623,15 +625,15 @@ export default function Confirm() {
       : undefined;
   }, [receipt]);
   const { data: execution } = useQuery(
-    executionOptions(address, proposal?.proposalManager, proposal?.nonce, proposal?.since),
+    executionOptions(payChain, address, proposal?.proposalManager, proposal?.nonce, proposal?.since),
   );
   const executionHash = execution?.executed ? execution.hash : undefined;
   const { data: withdrawn } = useQuery({
-    queryKey: ["proposal", "withdrawn", executionHash, address, market?.market],
+    queryKey: ["proposal", "withdrawn", payChain, executionHash, address, market?.market],
     queryFn:
       executionHash && address && !routed && market
         ? async () => {
-            const { logs } = await getTransactionReceipt(exa, { hash: executionHash, chainId: chain.id });
+            const { logs } = await getTransactionReceipt(exa, { hash: executionHash, chainId: payChain });
             const [log] = parseEventLogs({
               abi: erc4626Abi,
               eventName: "Withdraw",
@@ -652,7 +654,7 @@ export default function Confirm() {
         abi: proposalManagerAbi,
         eventName: "Proposed",
         args: { account: address },
-        logs: emitted(logs, proposalManagerAddress),
+        logs: emitted(logs, proposal?.proposalManager),
       });
       if (!log) return;
       const { proposalType, amount: proposed } = log.args;
@@ -671,7 +673,18 @@ export default function Confirm() {
       logs: emitted(logs, externalAddress),
     });
     return log?.args.value;
-  }, [receipt, address, routed, market, withdrawn, isNativeTransfer, wrap?.token, externalAddress, receiverHex]);
+  }, [
+    receipt,
+    address,
+    routed,
+    market,
+    withdrawn,
+    proposal?.proposalManager,
+    isNativeTransfer,
+    wrap?.token,
+    externalAddress,
+    receiverHex,
+  ]);
   const { data: routeStatus } = useQuery(
     statusOptions(
       routed ? (proposal ? executionHash : hash) : undefined,
