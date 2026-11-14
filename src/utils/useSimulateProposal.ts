@@ -1,4 +1,5 @@
 import {
+  ChainDoesNotSupportContract,
   encodeAbiParameters,
   encodeErrorResult,
   encodeFunctionData,
@@ -11,9 +12,15 @@ import {
   type Address,
   type Hex,
 } from "viem";
-import { useReadContract, useReadContracts, type UseWriteContractReturnType } from "wagmi";
+import {
+  ChainNotConfiguredError,
+  useChains,
+  useReadContract,
+  useReadContracts,
+  type UseWriteContractReturnType,
+} from "wagmi";
 
-import chain, { appPreviewerCode, appPreviewerDeployedCode } from "@exactly/common/generated/chain";
+import { appPreviewerCode, appPreviewerDeployedCode } from "@exactly/common/generated/chain";
 import {
   appPreviewerAbi,
   auditorAbi,
@@ -28,7 +35,7 @@ import useSimulateBlocks from "./wagmi/useSimulateBlocks";
 export default function useSimulateProposal({
   account,
   amount,
-  chain: previewChain,
+  chainId,
   enabled = true,
   market,
   poll = false,
@@ -36,7 +43,7 @@ export default function useSimulateProposal({
 }: {
   account: Address | undefined;
   amount: bigint | undefined;
-  chain?: { contracts: { multicall3: { address: Address } } };
+  chainId: number;
   enabled?: boolean;
   market: Address | undefined;
   poll?: boolean;
@@ -84,7 +91,7 @@ export default function useSimulateProposal({
     plugins,
     error: previewError,
     refetch: refetchPreview,
-  } = useProposalPreview({ account, chain: previewChain, enabled, poll, fresh: true });
+  } = useProposalPreview({ account, chainId, enabled, poll, fresh: true });
   const nonce = preview?.queueNonce;
   const executed = preview?.nonce;
   const proposalData =
@@ -106,6 +113,7 @@ export default function useSimulateProposal({
       ? undefined
       : encodeFunctionData({ abi: exaPluginAbi, functionName: "executeProposal", args: [nonce] });
   const simulation = useSimulateBlocks({
+    chainId,
     blockNumber,
     blocks: blocks(account, calldata, execution, timestamp, delay),
     query: {
@@ -153,6 +161,7 @@ export default function useSimulateProposal({
         ? outdated && { request: outdated, calls: [encodeFunctionData(outdated), execution] }
         : undefined;
   const retry = useSimulateBlocks({
+    chainId,
     blockNumber,
     blocks: blocks(account, fallback?.calls[0], fallback?.calls[1], timestamp, delay),
     query: {
@@ -191,21 +200,25 @@ export default function useSimulateProposal({
 
 export function useProposalPreview({
   account,
-  chain: {
-    contracts: {
-      multicall3: { address: multicall3Address },
-    },
-  } = chain,
+  chainId,
   enabled = true,
   fresh = false,
   poll = false,
 }: {
   account: Address | undefined;
-  chain?: { contracts: { multicall3: { address: Address } } };
+  chainId: number;
   enabled?: boolean;
   fresh?: boolean;
   poll?: boolean;
 }) {
+  const previewChain = useChains().find(({ id }) => id === chainId);
+  const multicall3Address = previewChain?.contracts?.multicall3?.address;
+  const chainError =
+    !enabled || multicall3Address
+      ? null
+      : previewChain
+        ? new ChainDoesNotSupportContract({ chain: previewChain, contract: { name: "multicall3" } })
+        : new ChainNotConfiguredError();
   const {
     data,
     error: readsError,
@@ -213,6 +226,7 @@ export function useProposalPreview({
     isLoading: isReadsLoading,
     refetch: refetchReads,
   } = useReadContracts({
+    chainId,
     contracts: [
       {
         address: previewerAddress,
@@ -239,7 +253,7 @@ export function useProposalPreview({
     allowFailure: false,
     stateOverride: [{ address: previewerAddress, code: appPreviewerDeployedCode }],
     query: {
-      enabled: enabled && !!account,
+      enabled: enabled && !!account && !!multicall3Address,
       refetchInterval: ({ state: { data: reads } }) =>
         poll && reads && reads[0].queueNonce > reads[0].nonce ? 5000 : false,
     },
@@ -255,7 +269,7 @@ export function useProposalPreview({
     address: plugins?.[0],
     abi: outdatedAbi,
     functionName: "PROPOSAL_DELAY",
-    chainId: chain.id,
+    chainId,
     query: { enabled: enabled && outdated && !!plugins?.[0], staleTime: Infinity },
   });
   return {
@@ -265,7 +279,7 @@ export function useProposalPreview({
     blockNumber,
     plugins,
     isLoading: isReadsLoading || isOutdatedLoading,
-    error: readsError ?? outdatedError,
+    error: chainError ?? readsError ?? outdatedError,
     refetch: () => Promise.all([refetchReads(), outdatedError && refetchOutdated()]),
   };
 }

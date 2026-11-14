@@ -26,6 +26,7 @@ const INVALIDATE_ON_UPGRADE = new Set([
   "lifi",
   "estimateCalls",
   "allowlist",
+  "proposal",
 ]);
 export const isServer = typeof window === "undefined";
 
