@@ -505,6 +505,7 @@ export default function Swaps() {
     queued,
   } = useSimulateProposal({
     account,
+    chainId: chain.id,
     amount: fromAmount,
     market: getSwapAddress(fromToken),
     proposalType: ProposalType.Swap,
@@ -782,7 +783,7 @@ export default function Swaps() {
       : undefined;
   }, [receipt]);
   const { data: execution } = useQuery(
-    executionOptions(account, proposal?.proposalManager, proposal?.nonce, proposal?.since),
+    executionOptions(chain.id, account, proposal?.proposalManager, proposal?.nonce, proposal?.since),
   );
   const executionHash = execution?.executed ? execution.hash : undefined;
   const { data: routeStatus } = useQuery(
