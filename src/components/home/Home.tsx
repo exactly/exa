@@ -8,7 +8,7 @@ import { toast } from "@tamagui/toast";
 import { AnimatePresence, ScrollView, YStack } from "tamagui";
 
 import { TimeToFullDisplay } from "@sentry/react-native";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { useBytecode } from "wagmi";
 
 import chain, { marketUSDCAddress } from "@exactly/common/generated/chain";
@@ -33,7 +33,7 @@ import { balancesOptions, restrictedCountries } from "../../utils/lifi";
 import { isPromoActive, PROMO } from "../../utils/promo";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import { cardModeMutationOptions } from "../../utils/server";
+import { activityOptions, cardModeMutationOptions, refreshActivity } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import useBusiness from "../../utils/useBusiness";
 import useCardLimit from "../../utils/useCardLimit";
@@ -64,7 +64,6 @@ import Spotlight from "../shared/Spotlight";
 import View from "../shared/View";
 import { defaultSwap, type Swap } from "../swaps/Swaps";
 
-import type { ActivityItem } from "../../utils/queryClient";
 import type { CardDetails } from "../../utils/server";
 
 const HEALTH_FACTOR_THRESHOLD = (WAD * 11n) / 10n;
@@ -108,7 +107,7 @@ export default function Home() {
     totalBalanceUSD,
   } = usePortfolio();
 
-  const { data: activity } = useQuery<ActivityItem[]>({ queryKey: ["activity"] });
+  const { data: activity } = useInfiniteQuery({ ...activityOptions, select: ({ pages }) => pages.flat() });
   const {
     isProcessing,
     proposals: { refetch: refetchPendingProposals },
@@ -199,7 +198,8 @@ export default function Home() {
   const scrollOffsetRef = useRef(0);
   const refresh = () =>
     Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["activity"], exact: true }),
+      refreshActivity(),
+      queryClient.invalidateQueries({ queryKey: ["activity", "card"], exact: true }),
       queryClient.invalidateQueries({ queryKey: ["card", "details"], exact: true }),
       queryClient.invalidateQueries({ queryKey: ["kyc", "cardLimit"], exact: true }),
       queryClient.invalidateQueries({ queryKey: ["kyc", "status"], exact: true }),
