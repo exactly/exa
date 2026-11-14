@@ -35,6 +35,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Activity
 - tapOn: Bakery
 - assertVisible: Paid
+- assertVisible: \$32\.10
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
 - tapOn: Payment failed
 - assertVisible: Failed
