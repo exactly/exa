@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import { Auditor, IPriceFeed } from "@exactly/protocol/Auditor.sol";
 import { Market } from "@exactly/protocol/Market.sol";
 
+import { WETH } from "solady/tokens/WETH.sol";
 import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 import { LibString } from "solady/utils/LibString.sol";
 
@@ -16,6 +17,7 @@ import { MockVelodromeFactory, MockVelodromePool } from "./MockVelodromeFactory.
 contract DeployMocks is BaseScript {
   using FixedPointMathLib for uint256;
   using LibString for address;
+  using LibString for uint256;
   using LibString for string;
   using LibString for bytes;
 
@@ -29,10 +31,9 @@ contract DeployMocks is BaseScript {
     vm.startBroadcast(acct("deployer"));
 
     velodromeFactory = new MockVelodromeFactory();
-    swapper = new MockSwapper(velodromeFactory);
     vm.label(address(velodromeFactory), "VelodromeFactory");
-    vm.label(address(swapper), "Swapper");
 
+    WETH weth;
     Market[] memory markets = auditor.allMarkets();
     for (uint256 i = 0; i < markets.length; ++i) {
       MockERC20 asset = MockERC20(address(markets[i].asset()));
@@ -40,6 +41,7 @@ contract DeployMocks is BaseScript {
       string memory assetSymbol = marketSymbol.slice(3);
       vm.label(address(markets[i]), marketSymbol);
       vm.label(address(asset), assetSymbol);
+      if (assetSymbol.eq("WETH")) weth = WETH(payable(address(asset)));
       if (address(asset) == address(usdc)) continue;
       MockVelodromePool pool = velodromeFactory.createPool(address(asset), address(usdc), false);
       vm.label(address(pool), string.concat(assetSymbol, "/USDC"));
@@ -63,6 +65,10 @@ contract DeployMocks is BaseScript {
     usdc.mint(address(usdtPool), 1_000_000e6);
     usdtPool.poke();
 
+    swapper = new MockSwapper(velodromeFactory, address(usdc), weth);
+    vm.label(address(swapper), "Swapper");
+    vm.label(address(swapper.TOKEN_WRAPPER()), "TokenWrapper");
+
     usdc.mint(acct("swapper"), 1_000_000e6);
 
     vm.stopBroadcast();
@@ -70,9 +76,15 @@ contract DeployMocks is BaseScript {
     if (isAnvil()) {
       address target = acct("swapper");
       bytes memory code = address(swapper).code;
+      uint256 backing = weth.totalSupply();
       vm.etch(target, code);
+      vm.deal(address(weth), backing);
       try vm.activeFork() {
         vm.rpc("anvil_setCode", string.concat('["', target.toHexString(), '","', code.toHexString(), '"]')); // solhint-disable-line quotes
+        vm.rpc(
+          "anvil_setBalance",
+          string.concat('["', address(weth).toHexString(), '","', backing.toMinimalHexString(), '"]') // solhint-disable-line quotes
+        );
       } catch { } // solhint-disable-line no-empty-blocks
     }
   }
