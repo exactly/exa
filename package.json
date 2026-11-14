@@ -475,7 +475,7 @@
         ],
         "executor": "nx:run-commands",
         "options": {
-          "command": "pnpm dlx serve server/app -l 8081 -snL"
+          "command": "curl -fs --retry 900 --retry-delay 1 --retry-all-errors -o /dev/null -X POST localhost:3000/e2e/app && tail -f /dev/null"
         }
       },
       "test:spell": {
