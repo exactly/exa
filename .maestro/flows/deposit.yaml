@@ -20,10 +20,13 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: { text: "0", index: 0 }
 - inputText: "100"
 - runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Bridge and swap via } }
+- runScript: { file: ../dist/block.js, env: { network: Anvil2 } }
 - tapOn: Bridge USDC.e
 - repeat: { times: 3, commands: [{ runFlow: ../subflows/sign.yaml }] }
 - extendedWaitUntil: { visible: Add funds request sent, timeout: 120000 }
-- runScript: { file: ../dist/bridge.js, env: { network: Anvil2, to: "${output.deposit}", amount: "100" } }
+- runScript:
+    file: ../dist/bridge.js
+    env: { network: Anvil2, after: "${output.block}", to: "${output.deposit}", amount: "100" }
 - runScript: { file: ../dist/getBalance.js, env: { asset: USDT, account: "${output.deposit}" } }
 - evalScript: ${output.usdtBefore = output.balance}
 - back

@@ -145,7 +145,7 @@ export default function anvil(
 export default function anvil(method: string, params: readonly unknown[], network?: string) {
   const url = network
     ? (urls[network] ??= (
-        JSON.parse(http.get("http://localhost:3000/e2e/lifi/v1/chains").body) as {
+        JSON.parse(http.get("http://localhost:3000/hooks/mockfi/v1/chains").body) as {
           chains: { metamask: { rpcUrls: string[] }; name: string }[];
         }
       ).chains.find(({ name }) => name === network)?.metamask.rpcUrls[0])

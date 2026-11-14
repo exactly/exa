@@ -13,7 +13,6 @@ import { Hono } from "hono";
 import { validator } from "hono/validator";
 import * as v from "valibot";
 import { bytesToHex, hexToBigInt } from "viem";
-import { anvil } from "viem/chains";
 
 import exaChain, { exaPreviewerAbi, exaPreviewerAddress, lifiURL, wethAddress } from "@exactly/common/generated/chain";
 import { Address, Hash, Hex } from "@exactly/common/validation";
@@ -248,7 +247,6 @@ export default function hook({
 const Identity = v.object({ webhookId: v.string(), event: v.object({ network: v.string() }) });
 
 async function isKnownToken(chainId: number, address: Address, redis: Redis) {
-  if (chainId === anvil.id) return true;
   const key = `lifi:tokens:${chainId}`;
   try {
     const [[, isMember], [, count]] = v.parse(
@@ -257,7 +255,7 @@ async function isKnownToken(chainId: number, address: Address, redis: Redis) {
     );
     if (isMember) return true;
     if (count > 0) return false;
-    const response = await fetch(`${lifiURL ?? "https://li.quest/v1"}/tokens?chains=${chainId}`, {
+    const response = await fetch(`${lifiURL}/tokens?chains=${chainId}`, {
       signal: AbortSignal.timeout(5000),
     });
     if (!response.ok) throw new Error(`lifi tokens ${response.status}`);

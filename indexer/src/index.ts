@@ -3,6 +3,7 @@ import { ponder, type Context } from "ponder:registry";
 import {
   accounts,
   borrows,
+  bridgeCompletions,
   bridges,
   collectors,
   delays,
@@ -230,6 +231,13 @@ ponder.on("Swapper:LiFiGenericSwapCompleted", async ({ event, context }) => {
     fromUsdPrice,
     toUsdPrice,
   });
+});
+
+ponder.on("Swapper:LiFiTransferCompleted", async ({ event, context }) => {
+  const { transactionId, receivingAssetId, receiver, amount } = event.args;
+  await context.db
+    .insert(bridgeCompletions)
+    .values({ ...log(event, context), transactionId, asset: receivingAssetId, receiver, amount });
 });
 
 ponder.on("Swapper:LiFiTransferStarted", async ({ event, context }) => {

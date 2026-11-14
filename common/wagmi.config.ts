@@ -80,6 +80,7 @@ export default defineConfig([
         project: "../contracts",
         include: [
           "AppPreviewer.sol/AppPreviewer.json",
+          "Depositor.sol/Depositor.json",
           "ExaAccountFactory.sol/ExaAccountFactory.json",
           "ExaPlugin.sol/ExaPlugin.json",
           "ExaPreviewer.sol/ExaPreviewer.json",
@@ -244,6 +245,7 @@ export default defineConfig([
               }),
               ...Object.entries({
                 balancerVault: loadDeployment("Balancer2Vault", false)?.address,
+                depositor: loadBroadcast("Depositor", chainId, false)?.transactions[0]?.contractAddress,
                 exa: loadDeployment("EXA", false)?.address,
                 flashLoanAdapter: loadDeployment("FlashLoanAdapter", false)?.address,
               }).map(
@@ -281,7 +283,7 @@ export default defineConfig([
                 .map(({ id, source: s }) => `[${id}, ${id === chainId ? "chain" : s}]`)
                 .join(", ")}])`,
               `export const isBase: boolean = ${chainId === base.id || chainId === baseSepolia.id}`,
-              `export const lifiURL: string | undefined = ${JSON.stringify({ [anvil.id]: "http://localhost:3000/e2e/lifi/v1", [base.id]: "https://li.quest/v1", [optimism.id]: "https://li.quest/v1" }[chainId])}`,
+              `export const lifiURL: string = ${JSON.stringify(chainId === anvil.id ? "http://localhost:3000/hooks/mockfi/v1" : testnet ? "https://sandbox-mockfi-vhogzosm3q-uw.a.run.app/v1" : "https://li.quest/v1")}`,
               `export default chain as Chain & { smartAccount: true; contracts: { multicall3: { address: \`0x\${string}\` } }; rpcUrls: { alchemy: { http: readonly [string] } } }`,
             ].join("\n"),
           };
@@ -326,18 +328,31 @@ function loadDeployment<R extends boolean = true>(
   }
 }
 
-function loadBroadcast(script: string, id = chainId) {
-  return JSON.parse(
-    readFileSync(
-      `node_modules/@exactly/plugin/broadcast/${script}.s.sol/${id === moonbeamDev.id ? anvil.id : id}/run-latest.json`,
-      "utf8",
-    ),
-  ) as { transactions: { contractAddress: string }[] };
+function loadBroadcast<R extends boolean = true>(
+  script: string,
+  id = chainId,
+  required = true as R,
+): R extends true ? Broadcast : Broadcast | undefined {
+  try {
+    return JSON.parse(
+      readFileSync(
+        `node_modules/@exactly/plugin/broadcast/${script}.s.sol/${id === moonbeamDev.id ? anvil.id : id}/run-latest.json`,
+        "utf8",
+      ),
+    ) as never;
+  } catch (error) {
+    if (!required) return undefined as never;
+    throw error;
+  }
 }
 
 function deployed(values: Record<string, string> & { default: string }, id = chainId) {
   return values[id] ?? values.default;
 }
+
+type Broadcast = {
+  transactions: { contractAddress: string }[];
+};
 
 type Deployment = {
   address: string;

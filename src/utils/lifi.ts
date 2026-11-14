@@ -57,17 +57,7 @@ import {
 import { base } from "viem/chains";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import chain, {
-  alchemyChains,
-  appPreviewerAbi,
-  appPreviewerCode,
-  auditorAddress,
-  exaAddress,
-  lifiURL,
-  marketWETHAddress,
-  mockSwapperAbi,
-  swapperAddress,
-} from "@exactly/common/generated/chain";
+import chain, { alchemyChains, exaAddress, lifiURL, marketWETHAddress } from "@exactly/common/generated/chain";
 import { Address as AddressSchema, Hex } from "@exactly/common/validation";
 import { WAD } from "@exactly/lib";
 
@@ -81,9 +71,7 @@ export const lifiChainsOptions = queryOptions({
   queryKey: ["lifi", "chains"],
   staleTime: Infinity,
   gcTime: Infinity,
-  enabled: !!lifiURL,
   queryFn: async () => {
-    if (!lifiURL) return [];
     ensureConfig();
     return getChains({ chainTypes });
   },
@@ -94,7 +82,6 @@ export const reachOptions = queryOptions({
   staleTime: Infinity,
   gcTime: Infinity,
   queryFn: async () => {
-    if (!lifiURL) return { [chain.id]: [chain.id] };
     ensureConfig();
     const { bridges } = await getTools();
     const reach = new Map<number, Set<number>>([[chain.id, new Set([chain.id])]]);
@@ -113,15 +100,6 @@ export const lifiTokensOptions = queryOptions({
   gcTime: Infinity,
   retry: 3,
   queryFn: async () => {
-    if (!lifiURL) {
-      const markets = await publicClient.readContract({
-        abi: appPreviewerAbi,
-        functionName: "markets",
-        code: appPreviewerCode,
-        args: [auditorAddress],
-      });
-      return marketTokens(markets);
-    }
     ensureConfig();
     const { tokens } = await getTokens({ chainTypes, orderBy: "volumeUSD24H" });
     const allTokens = Object.values(tokens)
@@ -148,7 +126,7 @@ export function statsOptions(chainId: number, address: string) {
           volumeUSD24H: nullish(number()),
           fdvUSD: nullish(number()),
         }),
-        lifiURL ? await getToken(chainId as ChainId, address) : {},
+        await getToken(chainId as ChainId, address),
       );
     },
   });
@@ -184,7 +162,7 @@ export function balancesOptions(account: Address | undefined) {
     queryKey: ["lifi", "balances", account],
     staleTime: 30_000,
     gcTime: isServer ? Infinity : 60_000,
-    enabled: !!account && !!lifiURL,
+    enabled: !!account,
     queryFn: streamedQuery({
       refetchMode: "append",
       initialValue: {} as Record<number, TokenAmount[]>,
@@ -211,8 +189,6 @@ export function balancesOptions(account: Address | undefined) {
   });
 }
 
-export const trackable = !!lifiURL;
-
 export function statusOptions(
   txHash: string | undefined,
   toChain: number | undefined,
@@ -224,13 +200,12 @@ export function statusOptions(
     queryKey: ["lifi", "status", txHash, toChain, bridge, fromChain],
     retry: false,
     meta: { warnError: () => true },
-    queryFn:
-      txHash && trackable
-        ? () => {
-            ensureConfig();
-            return getStatus({ txHash, fromChain, toChain, bridge });
-          }
-        : skipToken,
+    queryFn: txHash
+      ? () => {
+          ensureConfig();
+          return getStatus({ txHash, fromChain, toChain, bridge });
+        }
+      : skipToken,
     refetchInterval: ({ state }) =>
       state.data?.status === "DONE" ||
       state.data?.status === "FAILED" ||
@@ -250,7 +225,7 @@ export function chainTypeOf(receiver: string) {
 
 let configured = false;
 function ensureConfig() {
-  if (configured || !lifiURL) return;
+  if (configured) return;
   createLifiConfig({
     integrator: "exa_app",
     apiUrl: lifiURL,
@@ -281,26 +256,6 @@ export async function getRoute(
   denyExchanges?: Record<string, boolean>,
 ) {
   ensureConfig();
-  if (!lifiURL) {
-    const fromAmount = await publicClient.readContract({
-      abi: mockSwapperAbi,
-      functionName: "getAmountIn",
-      address: parse(Hex, swapperAddress),
-      args: [fromToken, toAmount, toToken],
-    });
-    return {
-      tool: "mockSwapper",
-      fromAmount,
-      data: parse(
-        Hex,
-        encodeFunctionData<typeof mockSwapperAbi>({
-          abi: mockSwapperAbi,
-          functionName: "swapExactAmountOut",
-          args: [fromToken, fromAmount, toToken, toAmount, receiver],
-        }),
-      ),
-    };
-  }
   config.set({ integrator: "exa_app", userId: account });
   const { estimate, transactionRequest, tool } = await getQuote({
     fee: 0.0025,
@@ -360,7 +315,6 @@ export function allowTokens(
   allowlist: ReadonlySet<string> | undefined,
   markets: readonly { asset: string }[] = [],
 ) {
-  if (!lifiURL) return [];
   const allowed = swappable(allowlist, markets);
   return tokens
     .filter((token) => token.chainId === (chain.id as Token["chainId"]) && allowed.has(token.address.toLowerCase()))
@@ -486,37 +440,6 @@ export async function getRouteFrom({
   toTokenAddress: string;
 }): Promise<RouteFrom> {
   ensureConfig();
-  if (!lifiURL) {
-    const from = getAddress(fromTokenAddress);
-    const to = getAddress(toTokenAddress);
-    const toAmount = await publicClient.readContract({
-      abi: mockSwapperAbi,
-      functionName: "getAmountOut",
-      address: swapperAddress,
-      args: [from, fromAmount, to],
-    });
-    return {
-      chainId: chain.id,
-      spend: { amount: fromAmount, token: from },
-      to: swapperAddress,
-      value: 0n,
-      toAmount,
-      tool: "mockSwapper",
-      data: encodeFunctionData({
-        abi: mockSwapperAbi,
-        functionName: "swapExactAmountIn",
-        args: [from, fromAmount, to, toAmount, getAddress(toAddress)],
-      }),
-      estimate: {
-        tool: "mockSwapper",
-        fromAmount: String(fromAmount),
-        toAmount: String(toAmount),
-        toAmountMin: String(toAmount),
-        approvalAddress: swapperAddress,
-        executionDuration: 0,
-      },
-    };
-  }
   config.set({ integrator: "exa_app", userId: fromAddress });
   const request = {
     fee: 0.0025,

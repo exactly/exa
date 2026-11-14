@@ -174,6 +174,18 @@ export const swaps = onchainTable(
   (table) => ({ account: index().on(table.chainId, table.account) }),
 );
 
+export const bridgeCompletions = onchainTable(
+  "bridge_completions",
+  (t) => ({
+    ...log(t),
+    transactionId: t.hex().notNull(),
+    asset: t.hex().notNull(),
+    receiver: t.hex().notNull(),
+    amount: t.bigint().notNull(),
+  }),
+  (table) => ({ transaction: index().on(table.transactionId) }),
+);
+
 export const bridges = onchainTable(
   "bridges",
   (t) => ({

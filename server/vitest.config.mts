@@ -9,7 +9,7 @@ if (env.NODE_ENV === "e2e" && env.PERSONA_API_KEY && !env.PERSONA_API_KEY.starts
 
 export default defineConfig({
   test: {
-    globalSetup: ["test/anvil.ts", "test/database.ts", "test/redis.ts", "test/spotlight.ts"],
+    globalSetup: ["test/anvil.ts", "test/database.ts", "test/mockfi.ts", "test/redis.ts", "test/spotlight.ts"],
     coverage: {
       enabled: true,
       allowExternal: true,

@@ -87,7 +87,7 @@ export function extender(
   return {
     exaSend: async (
       spanOptions: Prettify<Omit<Parameters<typeof startSpan>[0], "name" | "op"> & { name: string; op: string }>,
-      call: Prettify<Pick<WriteContractParameters, "abi" | "address" | "args" | "functionName">>,
+      call: Prettify<Pick<WriteContractParameters, "abi" | "address" | "args" | "functionName" | "value">>,
       options?: {
         fees?: "auto";
         ignore?: ((reason: string) => MaybePromise<boolean | TransactionReceipt | undefined>) | string[];
@@ -130,6 +130,7 @@ export function extender(
               keeper.prepareTransactionRequest({
                 to: call.address,
                 data: dataSuffix ? concatHex([data, dataSuffix]) : data,
+                value: call.value,
                 ...txOptions,
                 nonceManager,
               }),

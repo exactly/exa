@@ -3,5 +3,6 @@ config:
   gcp:project: exa-dev
   exa:alertChannel: "#monitoring"
   exa:disabled: [activity, api, block, bridge, chat, manteca, panda, persona]
+  exa:relayMinimum: 1
   exa:subscribeTimeout: 600s
   exa:whatsappPhoneNumberId: "1287864854409817"
