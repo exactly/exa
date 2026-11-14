@@ -51,6 +51,7 @@ import { connect } from "../../workers/worker";
 import anvilClient from "../anvilClient";
 import { finished, tip } from "../redis";
 
+import type * as L from "../../utils/liquidity";
 import type * as P from "../../utils/panda";
 import type * as W from "../../utils/wallet";
 import type createHook from "../../workers/hook/queue";
@@ -82,6 +83,7 @@ const hook = vi.hoisted(() => ({
   enqueue: vi.fn<ReturnType<typeof createHook>["enqueue"]>(),
   ready: vi.fn<() => Promise<void>>().mockResolvedValue(),
 }));
+const remember = vi.hoisted(() => vi.fn<typeof L.default>(() => Promise.resolve([])));
 const slot = keccak256(
   encodeAbiParameters(
     [{ type: "address" }, { type: "bytes32" }],
@@ -395,6 +397,7 @@ describe("refund worker", () => {
       expect.any(Function),
     );
     expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
+    expect(remember).toHaveBeenCalledExactlyOnceWith(connection, "user", account, chain.id);
     expect(continueTrace).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
   });
@@ -516,6 +519,22 @@ describe("refund worker", () => {
       hashes: [zeroHash],
       payload: { bodies: [], type: "panda" },
     });
+  });
+
+  it("captures liquidity refresh failures", async () => {
+    webhook("wh-liquidity-error", { amount: 500, authorizedAmount: 1500, status: "pending" });
+    const error = new Error("redis down");
+    remember.mockRejectedValueOnce(error);
+    const track = vi.spyOn(segment, "track").mockReturnValue();
+
+    await jobFinished("wh-liquidity-error");
+
+    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error));
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(error, { level: "warning", tags: { chainId: chain.id } });
+    expect(hook.enqueue).toHaveBeenCalledOnce();
+    expect(track).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ userId: account, event: "TransactionRefund" }),
+    );
   });
 
   it("refunds reversed authorization updates", async () => {
@@ -1378,6 +1397,11 @@ vi.mock("../../utils/wallet", async (importOriginal) => {
     },
   };
 });
+
+vi.mock("../../utils/liquidity", async (importOriginal) => ({
+  ...(await importOriginal<typeof L>()),
+  default: remember,
+}));
 
 vi.mock("@exactly/common/generated/chain", async (importOriginal) => {
   const original = await importOriginal<typeof C>();
