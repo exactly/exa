@@ -82,6 +82,7 @@ export default defineConfig([
         project: "../contracts",
         include: [
           "AppPreviewer.sol/AppPreviewer.json",
+          "Depositor.sol/Depositor.json",
           "ExaAccountFactory.sol/ExaAccountFactory.json",
           "ExaPlugin.sol/ExaPlugin.json",
           "ExaPreviewer.sol/ExaPreviewer.json",
@@ -302,6 +303,7 @@ export default defineConfig([
               }),
               ...Object.entries({
                 balancerVault: loadDeployment("Balancer2Vault", false)?.address,
+                depositor: loadBroadcast("Depositor", chainId, undefined, false)?.transactions[0]?.contractAddress,
                 exa: loadDeployment("EXA", false)?.address,
                 flashLoanAdapter: loadDeployment("FlashLoanAdapter", false)?.address,
               }).map(
@@ -389,18 +391,32 @@ function loadDeployment<R extends boolean = true>(
   }
 }
 
-function loadBroadcast(script: string, id = chainId, root = "@exactly/plugin") {
-  return JSON.parse(
-    readFileSync(
-      `node_modules/${root}/broadcast/${script}.s.sol/${id === moonbeamDev.id ? anvil.id : id}/run-latest.json`,
-      "utf8",
-    ),
-  ) as { transactions: { contractAddress: string }[] };
+function loadBroadcast<R extends boolean = true>(
+  script: string,
+  id = chainId,
+  root = "@exactly/plugin",
+  required = true as R,
+): R extends true ? Broadcast : Broadcast | undefined {
+  try {
+    return JSON.parse(
+      readFileSync(
+        `node_modules/${root}/broadcast/${script}.s.sol/${id === moonbeamDev.id ? anvil.id : id}/run-latest.json`,
+        "utf8",
+      ),
+    ) as never;
+  } catch (error) {
+    if (!required) return undefined as never;
+    throw error;
+  }
 }
 
 function perChain<T>(values: Record<string, T> & { default: T }, id = chainId) {
   return values[id] ?? values.default;
 }
+
+type Broadcast = {
+  transactions: { contractAddress: string }[];
+};
 
 type Deployment = {
   address: string;
