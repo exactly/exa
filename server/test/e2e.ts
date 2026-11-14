@@ -1,9 +1,10 @@
 /// <reference types="vite/client" />
+import "../instrument.cjs";
+
 import "./mocks/alchemy";
 import "./mocks/onesignal";
 import "./mocks/pax";
 import "./mocks/sardine";
-import "./mocks/sentry";
 import "./mocks/wallet";
 
 import { serve } from "@hono/node-server";
@@ -14,6 +15,7 @@ import {
   X509CertificateGenerator,
 } from "@peculiar/x509";
 import { and, eq } from "drizzle-orm";
+import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { html } from "hono/html";
 import { createCoverageMap } from "istanbul-lib-coverage";
@@ -42,8 +44,15 @@ import createAlchemy from "../utils/alchemy";
 import appOrigin, { origins } from "../utils/appOrigin";
 import createOnesignal from "../utils/onesignal";
 import createPanda from "../utils/panda";
+import {
+  BUSINESS_PANDA_REPRESENTATIVE_TEMPLATE,
+  BUSINESS_TEMPLATE,
+  PANDA_BUSINESS_CHECKBOX_TEMPLATE,
+  PANDA_TEMPLATE,
+} from "../utils/persona";
 import createSardine from "../utils/sardine";
 import createSegment from "../utils/segment";
+import ServiceError from "../utils/ServiceError";
 import allowWorker from "../workers/allow/worker";
 import creditWorker from "../workers/credit/worker";
 import hookWorker from "../workers/hook/worker";
@@ -64,7 +73,7 @@ describe("e2e", () => {
   it(
     "runs server",
     async () => {
-      const tls = domain === "localhost" ? undefined : await certificate();
+      const tls = await certificate();
       await database.delete(credentials); // eslint-disable-line drizzle/enforce-delete-with-where -- e2e starts with no users
       const { default: app, close: stop } = await import("../index");
       if (!env.REDIS_URL) throw new Error("missing redis url");
@@ -90,7 +99,105 @@ describe("e2e", () => {
         hookWorker({ bullmq, database, panda }),
         subscribeWorker({ alchemy: createAlchemy("webhooks"), bullmq, database }),
       ];
-      const https = tls && serve({ fetch: app.fetch, port: 443, createServer, serverOptions: tls });
+      async function deliver(inquiry: Inquiry, status: Inquiry["status"]) {
+        inquiry.status = status;
+        const body = JSON.stringify({
+          data: {
+            type: "event",
+            id: `evt_${crypto.randomUUID()}`,
+            attributes: {
+              name: `inquiry.${status}`,
+              payload: {
+                data: {
+                  type: "inquiry",
+                  id: inquiry.id,
+                  attributes: {
+                    status,
+                    referenceId: inquiry.referenceId,
+                    fields: Object.fromEntries(
+                      Object.entries(inquiry.fields).map(([key, value]) => [
+                        key,
+                        { value: /^\d+$/.test(value) ? Number(value) : value },
+                      ]),
+                    ),
+                  },
+                  relationships: { inquiryTemplate: { data: { id: inquiry.templateId } } },
+                },
+              },
+            },
+          },
+        });
+        await hook(body);
+      }
+      async function hook(body: string) {
+        const t = Date.now();
+        const response = await app.request("/hooks/persona", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "persona-signature": `t=${t},v1=${crypto.createHmac("sha256", "persona").update(`${t}.${body}`).digest("hex")}`,
+          },
+          body,
+        });
+        const result = await response.text();
+        if (!response.ok || ((JSON.parse(result) as { code?: string }).code ?? "ok") !== "ok") throw new Error(result);
+      }
+      async function sandboxRequest<T>(
+        endpoint: `/${string}`,
+        method: "GET" | "PATCH" | "POST" = "GET",
+        body?: object,
+      ) {
+        const response = await fetch(`${env.PERSONA_URL}${endpoint}`, {
+          method,
+          headers: {
+            authorization: `Bearer ${env.PERSONA_API_KEY}`,
+            "content-type": "application/json",
+            "key-inflection": "camel",
+            "persona-version": "2023-01-05",
+          },
+          body: body && JSON.stringify(body),
+        });
+        if (!response.ok) throw new ServiceError("Persona", response.status, await response.text());
+        return response.json() as Promise<T>;
+      }
+      const hostedFlow = new Hono()
+        .get("/widget", (c) => {
+          const inquiry = [...inquiries.values()].find(({ id }) => id === c.req.query("inquiry-id"));
+          return inquiry ? c.html(widget(inquiry.templateId)) : c.text("no inquiry", 404);
+        })
+        .post("/widget", async (c) => {
+          const inquiry = [...inquiries.values()].find(({ id }) => id === c.req.query("inquiry-id"));
+          if (inquiry?.status !== "pending") return c.text("no pending inquiry", 404);
+          inquiry.fields = await c.req.json<Record<string, string>>();
+          await deliver(inquiry, "completed");
+          return c.json({ status: inquiry.status });
+        });
+      const kyb = new Hono()
+        .get("/verify", (c) =>
+          customers.get(c.req.query("reference-id") ?? "")?.status === "not_started"
+            ? c.html(widget(BRIDGE_KYB_TEMPLATE))
+            : c.text("no customer to verify", 404),
+        )
+        .post("/verify", (c) => {
+          const customer = customers.get(c.req.query("reference-id") ?? "");
+          if (customer?.status !== "not_started") return c.text("no customer to verify", 404);
+          customer.status = "under_review";
+          return c.json({ status: "completed" });
+        });
+      const hosts: Record<string, Hono> = {
+        "bridge.withpersona.com": kyb,
+        "inquiry.withpersona.com": hostedFlow,
+      };
+      const https = serve({
+        fetch: (request, bindings) => {
+          const address = bindings.incoming.socket.remoteAddress;
+          if (address) request.headers.set("do-connecting-ip", address);
+          return (hosts[new URL(request.url).hostname] ?? app).fetch(request, bindings);
+        },
+        port: domain === "localhost" ? 8443 : 443,
+        createServer,
+        serverOptions: tls,
+      });
 
       await expect(
         new Promise((resolve, reject) => {
@@ -100,7 +207,7 @@ describe("e2e", () => {
               Promise.allSettled(workers.map((worker) => worker.close())).then(() => bullmq.quit()),
               segment.close(),
               stop(),
-              ...(https ? [new Promise((closed) => https.close(closed))] : []),
+              new Promise((closed) => https.close(closed)),
             ]).then(resolve, reject);
           };
 
@@ -175,6 +282,78 @@ describe("e2e", () => {
             );
             return c.json({ code: "ok" });
           });
+          app.post("/e2e/review", async (c) => {
+            switch (await c.req.text()) {
+              case "persona": {
+                if (sandbox) {
+                  for (const { id, pandaId } of await database.query.credentials.findMany({
+                    columns: { id: true, pandaId: true },
+                  })) {
+                    const {
+                      data: [latest],
+                    } = await sandboxRequest<{
+                      data: {
+                        attributes: { status: string };
+                        id: string;
+                        relationships: { inquiryTemplate: { data: { id: string } } };
+                      }[];
+                    }>(`/inquiries?page[size]=1&filter[reference-id]=${id}`);
+                    if (!latest) continue;
+                    if (latest.relationships.inquiryTemplate.data.id === PANDA_BUSINESS_CHECKBOX_TEMPLATE) {
+                      if (latest.attributes.status === "completed") {
+                        await sandboxRequest(`/inquiries/${latest.id}/approve`, "POST").catch((error: unknown) => {
+                          if (!(error instanceof ServiceError && error.status === 409)) throw error; // approved by persona
+                        });
+                      } else if (latest.attributes.status !== "approved") continue;
+                      return c.json({ code: "ok" });
+                    }
+                    if (latest.relationships.inquiryTemplate.data.id === PANDA_TEMPLATE) {
+                      if (pandaId || !["completed", "approved"].includes(latest.attributes.status)) continue;
+                      await sandboxRequest(`/inquiries/${latest.id}`, "PATCH", {
+                        data: { attributes: { fields: { nameFirst: "Test", nameLast: "Approved" } } },
+                      });
+                      await sandboxRequest(`/inquiries/${latest.id}/approve`, "POST").catch((error: unknown) => {
+                        if (!(error instanceof ServiceError && error.status === 409)) throw error; // approved by persona
+                      });
+                    } else {
+                      if (latest.attributes.status !== "completed") continue;
+                      await sandboxRequest(`/inquiries/${latest.id}/approve`, "POST");
+                    }
+                    const {
+                      data: [approval],
+                    } = await sandboxRequest<{ data: { attributes: { payload: object } }[] }>(
+                      `/events?page[size]=1&filter[object-id]=${latest.id}&filter[name]=inquiry.approved`,
+                    );
+                    if (!approval) throw new Error("no approval event");
+                    const { included } = await sandboxRequest<{ included: unknown[] }>(
+                      `/inquiries/${latest.id}?include=sessions`,
+                    );
+                    await hook(
+                      JSON.stringify({
+                        data: {
+                          ...approval,
+                          attributes: { ...approval.attributes, payload: { ...approval.attributes.payload, included } },
+                        },
+                      }),
+                    );
+                    return c.json({ code: "ok" });
+                  }
+                  break;
+                }
+                const inquiry = [...inquiries.values()].find(({ status }) => status === "completed");
+                if (!inquiry) break;
+                await deliver(inquiry, "approved");
+                return c.json({ code: "ok" });
+              }
+              case "bridge": {
+                const customer = [...customers.values()].find(({ status }) => status === "under_review");
+                if (!customer) break;
+                customer.status = "active";
+                return c.json({ code: "ok" });
+              }
+            }
+            return c.json({ code: "nothing to review" }, 404);
+          });
           app.get("/e2e/redirect", (c) =>
             c.html(html`<meta http-equiv="refresh" content="0;url=${c.req.query("url")}" />`),
           );
@@ -184,7 +363,7 @@ describe("e2e", () => {
           });
           process.once("SIGTERM", teardown);
 
-          https?.once("error", reject);
+          https.once("error", reject);
           Promise.all(workers.map((worker) => worker.ready)).catch(reject);
         }),
       ).resolves.toBeDefined();
@@ -227,6 +406,30 @@ async function certificate() {
   };
 }
 
+type Inquiry = {
+  fields: Record<string, string>;
+  id: string;
+  referenceId: string;
+  status: InferOutput<typeof persona.Inquiry>["attributes"]["status"];
+  templateId: string;
+};
+
+const inquiries = vi.hoisted(() => new Map<string, Inquiry>());
+
+type Company = Awaited<ReturnType<ReturnType<typeof panda.default>["createCompanyApplication"]>>;
+
+const companies = vi.hoisted(() => new Map<string, Company>());
+
+type Customer = { status: "active" | "not_started" | "under_review" };
+
+const customers = vi.hoisted(() => new Map<string, Customer>());
+
+const BRIDGE_KYB_TEMPLATE = "itmpl_bridge_kyb";
+
+const sandbox = env.PERSONA_API_KEY !== "persona";
+
+const rain = env.PANDA_API_KEY !== "panda";
+
 vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) => {
   const original = await importOriginal();
   type Panda = ReturnType<typeof original.default>;
@@ -234,6 +437,7 @@ vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) =>
   type Card = Awaited<ReturnType<Panda["getCard"]>>;
   const users = new Map<string, User>();
   const cards = new Map<string, Card>();
+  const members = new Map<string, Awaited<ReturnType<Panda["getCompanyUsers"]>>>();
   return {
     ...original,
     default: (...parameters: Parameters<typeof original.default>) => ({
@@ -253,21 +457,23 @@ vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) =>
         cards.set(id, card);
         return Promise.resolve(card);
       }),
-      createUser: vi.fn().mockImplementation(() => {
-        const id = `usr_${Math.random().toString(36).slice(2)}`;
-        const user: User = {
-          applicationReason: "",
-          applicationStatus: "approved",
-          email: "test@example.com",
-          firstName: "Test",
-          id,
-          isActive: true,
-          lastName: "User",
-          phoneCountryCode: "+1",
-          phoneNumber: "5551234567",
-        };
-        users.set(id, user);
-        return Promise.resolve({ id });
+      ...(!(rain && sandbox) && {
+        createUser: vi.fn().mockImplementation(() => {
+          const id = `usr_${Math.random().toString(36).slice(2)}`;
+          const user: User = {
+            applicationReason: "",
+            applicationStatus: "approved",
+            email: "test@example.com",
+            firstName: "Test",
+            id,
+            isActive: true,
+            lastName: "User",
+            phoneCountryCode: "+1",
+            phoneNumber: "5551234567",
+          };
+          users.set(id, user);
+          return Promise.resolve({ id });
+        }),
       }),
       getCard: vi.fn().mockImplementation((cardId: string) => Promise.resolve(cards.get(cardId))),
       getCards: vi.fn().mockResolvedValue([]),
@@ -298,7 +504,13 @@ vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) =>
           encryptedPan: encrypt("4111111111111234"),
         });
       }),
-      getUser: vi.fn().mockImplementation((userId: string) => Promise.resolve(users.get(userId))),
+      getUser: vi
+        .fn()
+        .mockImplementation((userId: string) =>
+          rain && !users.has(userId)
+            ? original.default(...parameters).getUser(userId)
+            : Promise.resolve(users.get(userId)),
+        ),
       getApplicationStatus: vi.fn().mockResolvedValue({ id: "pandaId", applicationStatus: "approved" }),
       setPIN: vi.fn().mockResolvedValue({}),
       updateCard: vi.fn().mockImplementation((update: { id: string }) => {
@@ -313,75 +525,181 @@ vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) =>
         Object.assign(user, update);
         return Promise.resolve(user);
       }),
+      ...(!rain && {
+        createCompanyApplication: vi
+          .fn()
+          .mockImplementation(
+            (
+              externalId: string,
+              {
+                address,
+                initialUser,
+                name,
+                representatives,
+                ultimateBeneficialOwners,
+              }: Parameters<Panda["createCompanyApplication"]>[1],
+            ) => {
+              if (
+                [initialUser, ...representatives, ...ultimateBeneficialOwners].some(
+                  ({ countryOfIssue, nationalId }) => countryOfIssue === "US" && !/^\d{9}$/.test(nationalId),
+                )
+              ) {
+                return Promise.reject(
+                  new ServiceError(
+                    "Panda",
+                    400,
+                    JSON.stringify({
+                      statusCode: 400,
+                      error: "Bad Request",
+                      message: "National id should be 9-digit SSN if country of issue is US",
+                    }),
+                  ),
+                );
+              }
+              const id = crypto.randomUUID();
+              const user: User = {
+                applicationReason: "",
+                applicationStatus: "approved",
+                email: initialUser.email,
+                firstName: initialUser.firstName,
+                id: crypto.randomUUID(),
+                isActive: true,
+                lastName: initialUser.lastName,
+                phoneCountryCode: "+1",
+                phoneNumber: "5551234567",
+              };
+              users.set(user.id, user);
+              members.set(id, [
+                { companyId: id, email: initialUser.email, id: user.id, walletAddress: initialUser.walletAddress },
+              ]);
+              const company: Company = {
+                address,
+                applicationStatus:
+                  original.kycStatus.find((status) =>
+                    name.replaceAll(" ", "").toLowerCase().includes(status.toLowerCase()),
+                  ) ?? "needsVerification",
+                externalId,
+                id,
+                name,
+              };
+              companies.set(externalId, company);
+              return Promise.resolve(company);
+            },
+          ),
+        createCompanyUser: vi
+          .fn()
+          .mockImplementation(
+            (companyId: string, { email, firstName, lastName }: Parameters<Panda["createCompanyUser"]>[1]) =>
+              Promise.resolve({
+                applicationStatus: "approved",
+                companyId,
+                email,
+                firstName,
+                id: crypto.randomUUID(),
+                isActive: true,
+                lastName,
+              }),
+          ),
+        getCompanyApplication: vi
+          .fn()
+          .mockImplementation((externalId: string) => Promise.resolve(companies.get(externalId))),
+        getCompanyUsers: vi
+          .fn()
+          .mockImplementation((companyId: string) => Promise.resolve(members.get(companyId) ?? [])),
+      }),
     }),
   };
 });
 
 vi.mock("../utils/persona", async (importOriginal: () => Promise<typeof persona>) => {
   const original = await importOriginal();
-  const inquiries = new Map<
-    string,
-    { id: string; referenceId: string; status: "approved" | "created" | "expired" | "pending"; templateId: string }
-  >();
   return {
     ...original,
-    default: (...parameters: Parameters<typeof original.default>) => ({
-      ...original.default(...parameters),
-      getPendingInquiryTemplate: vi
-        .fn()
-        .mockImplementation(async (referenceId: string) =>
-          (await approved(referenceId)) ? undefined : original.PANDA_TEMPLATE,
-        ),
-      evaluateAccount: vi
-        .fn()
-        .mockImplementation(({ data }: persona.UnknownAccountOutput) =>
-          Promise.resolve(data[0] ? undefined : original.PANDA_TEMPLATE),
-        ),
-      getInquiry: vi.fn().mockImplementation((referenceId: string, templateId: string) => {
-        const key = `${referenceId}:${templateId}`;
-        const inquiry = inquiries.get(key);
-        if (!inquiry) return Promise.resolve();
-        return Promise.resolve({
-          id: inquiry.id,
-          type: "inquiry" as const,
-          attributes: { status: inquiry.status, "reference-id": inquiry.referenceId },
-        });
-      }),
-      createInquiry: vi.fn().mockImplementation((referenceId: string, templateId: string) => {
-        const id = `inq_${Math.random().toString(36).slice(2)}`;
-        inquiries.set(`${referenceId}:${templateId}`, { id, status: "created", referenceId, templateId });
-        return Promise.resolve({
-          data: {
-            id,
-            type: "inquiry" as const,
-            attributes: { status: "created" as const, "reference-id": referenceId },
-          },
-        });
-      }),
-      resumeInquiry: vi.fn().mockImplementation((inquiryId: string) => {
-        for (const inquiry of inquiries.values()) {
-          if (inquiry.id === inquiryId && inquiry.status === "created") {
-            inquiry.status = "pending";
-          }
-        }
-        return Promise.resolve({
-          data: { id: inquiryId, type: "inquiry" as const },
-          meta: { "session-token": "mock-session-token" },
-        });
-      }),
-
-      getDocument: vi.fn().mockResolvedValue({
-        id: "doc_mock",
-        attributes: { "back-photo": null, "front-photo": null, "selfie-photo": null, "id-class": "dl" },
-      }),
-      addDocument: vi.fn().mockResolvedValue({ data: { id: "acc_mock" } }),
-      getCardLimitStatus: vi.fn().mockResolvedValue({ status: "noTemplate" as const }),
-      getAccount: vi.fn().mockImplementation(mockAccount),
-      getUnknownAccount: vi.fn().mockImplementation(async (referenceId: string) => {
-        const found = await mockAccount(referenceId);
-        return { data: found ? [found] : [] };
-      }),
-    }),
+    default: (...parameters: Parameters<typeof original.default>) => {
+      const client = original.default(...parameters);
+      return {
+        ...client,
+        getPendingInquiryTemplate: vi
+          .fn()
+          .mockImplementation(async (referenceId: string, scope: persona.AccountScope) => {
+            if (scope !== "business") return (await approved(referenceId)) ? undefined : original.PANDA_TEMPLATE;
+            if (sandbox) return client.getPendingInquiryTemplate(referenceId, scope);
+            return inquiries.get(`${referenceId}:${original.BUSINESS_TEMPLATE}`)?.status === "approved"
+              ? undefined
+              : original.BUSINESS_TEMPLATE;
+          }),
+        evaluateAccount: vi
+          .fn()
+          .mockImplementation(({ data }: persona.UnknownAccountOutput) =>
+            Promise.resolve(data[0] ? undefined : original.PANDA_TEMPLATE),
+          ),
+        ...(!sandbox && {
+          getInquiry: vi.fn().mockImplementation((referenceId: string, templateId: string) => {
+            const key = `${referenceId}:${templateId}`;
+            const inquiry = inquiries.get(key);
+            if (!inquiry) return Promise.resolve();
+            return Promise.resolve({
+              id: inquiry.id,
+              type: "inquiry" as const,
+              attributes: { status: inquiry.status, "reference-id": inquiry.referenceId },
+            });
+          }),
+          createInquiry: vi.fn().mockImplementation((referenceId: string, templateId: string) => {
+            const id = `inq_${Math.random().toString(36).slice(2)}`;
+            inquiries.set(`${referenceId}:${templateId}`, {
+              fields: {},
+              id,
+              status: "created",
+              referenceId,
+              templateId,
+            });
+            return Promise.resolve({
+              data: {
+                id,
+                type: "inquiry" as const,
+                attributes: { status: "created" as const, "reference-id": referenceId },
+              },
+            });
+          }),
+          resumeInquiry: vi.fn().mockImplementation((inquiryId: string) => {
+            for (const inquiry of inquiries.values()) {
+              if (inquiry.id === inquiryId && inquiry.status === "created") {
+                inquiry.status = "pending";
+              }
+            }
+            return Promise.resolve({
+              data: { id: inquiryId, type: "inquiry" as const },
+              meta: { "session-token": "mock-session-token" },
+            });
+          }),
+        }),
+        getDocument: vi.fn().mockResolvedValue({
+          id: "doc_mock",
+          attributes: { "back-photo": null, "front-photo": null, "selfie-photo": null, "id-class": "dl" },
+        }),
+        addDocument: vi.fn().mockResolvedValue({ data: { id: "acc_mock" } }),
+        getCardLimitStatus: vi.fn().mockResolvedValue({ status: "noTemplate" as const }),
+        getAccount: vi.fn().mockImplementation(async (referenceId: string, scope: persona.AccountScope) => {
+          if (scope !== "business") return mockAccount(referenceId);
+          if (sandbox) return client.getAccount(referenceId, scope);
+          const inquiry = inquiries.get(`${referenceId}:${original.BUSINESS_TEMPLATE}`);
+          if (inquiry?.status !== "approved") return;
+          const { day, month, year, ...fields } = inquiry.fields;
+          return {
+            id: `act_${referenceId}`,
+            type: "account" as const,
+            attributes: {
+              "reference-id": referenceId,
+              fields: { ...fields, ubo_birth_date: `${year}-${month}-${day?.padStart(2, "0")}` },
+            },
+          };
+        }),
+        getUnknownAccount: vi.fn().mockImplementation(async (referenceId: string) => {
+          const found = await mockAccount(referenceId);
+          return { data: found ? [found] : [] };
+        }),
+      };
+    },
   };
 });
 
@@ -494,9 +812,33 @@ vi.mock("../utils/ramps/bridge", async (importOriginal: () => Promise<typeof bri
       getProvider: vi
         .fn()
         .mockImplementation(
-          ({ customerId, redirectURL }: Parameters<ReturnType<typeof original.default>["getProvider"]>[0]) => {
-            const fiat = ["USD", "EUR", "MXN", "BRL", "GBP"];
+          ({
+            accountType,
+            customerId,
+            redirectURL,
+          }: Parameters<ReturnType<typeof original.default>["getProvider"]>[0]) => {
+            const fiat = accountType === "business" ? ["USD", "EUR"] : ["USD", "EUR", "MXN", "BRL", "GBP"];
             const currencies = { onramp: { currencies: fiat }, offramp: { currencies: fiat } };
+            switch (customerId && customers.get(customerId)?.status) {
+              case "not_started": {
+                const redirect = new URL(redirectURL ?? "");
+                redirect.searchParams.set("provider", "bridge");
+                return Promise.resolve({
+                  ...currencies,
+                  status: "ONBOARDING",
+                  kycLink: `https://bridge.withpersona.com/verify?${String(
+                    new URLSearchParams({
+                      "inquiry-template-id": BRIDGE_KYB_TEMPLATE,
+                      "environment-id": "env_bridge",
+                      "reference-id": customerId ?? "",
+                      "redirect-uri": redirect.href,
+                    }),
+                  )}`,
+                });
+              }
+              case "under_review":
+                return Promise.resolve({ ...currencies, status: "ONBOARDING" });
+            }
             if (customerId) return Promise.resolve({ ...currencies, status: "ACTIVE" });
             const redirect = new URL(redirectURL ?? "");
             redirect.searchParams.set("provider", "bridge");
@@ -504,7 +846,7 @@ vi.mock("../utils/ramps/bridge", async (importOriginal: () => Promise<typeof bri
             return Promise.resolve({
               ...currencies,
               status: "NOT_STARTED",
-              tosLink: `http://localhost:3000/e2e/redirect?url=${encodeURIComponent(redirect.href)}`,
+              tosLink: `${accountType === "business" ? redirect.origin : "http://localhost:3000"}/e2e/redirect?url=${encodeURIComponent(redirect.href)}`,
             });
           },
         ),
@@ -515,12 +857,15 @@ vi.mock("../utils/ramps/bridge", async (importOriginal: () => Promise<typeof bri
       listExternalAccounts: vi
         .fn()
         .mockImplementation((customerId: string) => Promise.resolve(accounts.get(customerId) ?? [])),
-      onboarding: vi.fn().mockImplementation(async ({ credentialId }: { credentialId: string }) => {
-        await database
-          .update(credentials)
-          .set({ bridgeId: crypto.randomUUID() })
-          .where(eq(credentials.id, credentialId));
-      }),
+      onboarding: vi
+        .fn()
+        .mockImplementation(
+          async ({ accountType, credentialId }: Parameters<ReturnType<typeof original.default>["onboarding"]>[0]) => {
+            const id = crypto.randomUUID();
+            if (accountType === "business") customers.set(id, { status: "not_started" });
+            await database.update(credentials).set({ bridgeId: id }).where(eq(credentials.id, credentialId));
+          },
+        ),
       removeExternalAccount: vi.fn().mockImplementation(({ id: customerId }: { id: string }, id: string) => {
         accounts.set(customerId, accounts.get(customerId)?.filter((account) => account.id !== id) ?? []);
         return Promise.resolve();
@@ -592,6 +937,262 @@ async function mockAccount(referenceId: string) {
   return (await approved(referenceId))
     ? { id: `act_${referenceId}`, type: "account" as const, attributes: { "country-code": "AR", fields: {} } }
     : undefined;
+}
+
+function widget(templateId: string) {
+  const link = (text: string, href: string) => html`<a href="${href}">${text}</a>`;
+  const ubo = html`<h2>We need information about the company's UBOs (Ultimate beneficial owners)</h2>
+    <p>UBOs are individuals that own 25% or more of the company</p>`;
+  const country = [
+    ["Select a country", ""],
+    ["Brazil", "BR"],
+    ["United States", "US"],
+  ] satisfies [string, string][];
+  const screens: Record<string, ReturnType<typeof html>[]> = {
+    [BUSINESS_TEMPLATE]: [
+      html`<h1>Getting started</h1>
+        <p>We need some information to start the verification process.</p>
+        ${field("Company name", "business_name")}
+        <h2>Business Industry</h2>
+        ${select("Industry Category", "company_industry", [
+          ["Select an industry category...", ""],
+          ["54 - Professional, Scientific, and Technical Services", "54"],
+        ])}
+        ${select("NAICS Code", "company_industry_naics", [
+          ["Select a NAICS code...", ""],
+          ["541511 - Custom Computer Programming Services", "541511"],
+        ])}
+        ${select("Country of incorporation", "company_country", country)}
+        ${field("Company Registration Number", "company_registration_number")}
+        ${field("Company tax ID", "company_tax_id")}
+        <button>Continue</button>`,
+      html`${address("Company address", 2, "street_2")} ${field("Company description", "company_description")}
+        ${field("URL", "company_website", "https://...")} ${field("Primary contact email", "primary_contact_email")}
+        <button>Continue</button>`,
+      html`${ubo} ${field("UBO's name", "ubo_name_1")} ${field("UBO's last name", "ubo_last_name_1")}
+        <p>Birth Date</p>
+        ${select("Month", "month", [
+          ["Month", ""],
+          ...[
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
+          ].map((month, index) => [month, String(index + 1).padStart(2, "0")] satisfies [string, string]),
+        ])}
+        ${field("Day", "day", "Day")} ${field("Year", "year", "Year")}
+        ${select("Country that issued the UBO's ID", "ubo_country_id_1", country)} ${field("ID Number", "ubo_id_1")}
+        ${select("Country of residence of the UBO", "ubo_country_residency_1", country)}
+        <button>Continue</button>`,
+      html`${ubo} ${address("UBO's address", 3, "street_2_2")} ${field("UBO's email", "ubo_email_1")}
+        <label for="ubo_phone_1">UBO's phone number</label>
+        <select aria-label="Phone number country">
+          <option>International</option>
+        </select>
+        <input id="ubo_phone_1" name="ubo_phone_1" type="tel" />
+        <button>Done</button>
+        <button type="button">I need to add another UBO</button>`,
+    ],
+    [PANDA_BUSINESS_CHECKBOX_TEMPLATE]: [
+      html`<h1>Terms and conditions</h1>
+        ${check("consent", [
+          "I accept the ",
+          link(
+            "E-Sign Consent",
+            "https://help.exactly.app/en/articles/10430854-e-sign-electronic-communications-notice",
+          ),
+        ])}
+        ${check("terms", [
+          "I accept the",
+          link(
+            " Exa Card Terms",
+            "https://help.exactly.app/en/articles/11840074-exa-business-card-terms-and-conditons",
+          ),
+          ", and the ",
+          link("Issuer Privacy Policy", "https://legal.raincards.xyz/legal/privacy-policy"),
+        ])}
+        ${check(
+          "accuracy",
+          "I certify that the information I have provided is accurate and that I will abide by all the rules and requirements related to my Exa Spend Card.",
+        )}
+        ${check(
+          "solicitation",
+          "I acknowledge that applying for the Exa Spend Card does not constitute unauthorized solicitation.",
+        )}
+        <button>Done</button>`,
+    ],
+    [BRIDGE_KYB_TEMPLATE]: [
+      html`<h1>Verify your business</h1>
+        <p>We need some information about your business to enable USD and EUR accounts.</p>
+        ${select("Business type", "business_type", [
+          ["Select a business type...", ""],
+          ["Cooperative", "cooperative"],
+          ["Corporation", "corporation"],
+          ["LLC", "llc"],
+          ["Partnership", "partnership"],
+          ["Sole proprietorship", "sole_prop"],
+          ["Trust", "trust"],
+        ])}
+        ${field("Tax identification number", "tax_identification_number")}
+        <button>Submit</button>`,
+    ],
+    [BUSINESS_PANDA_REPRESENTATIVE_TEMPLATE]: [
+      html`<h1>Just the basics</h1>
+        <p>We just need some information about the card holder to issue the Card</p>
+        <button>Complete the form</button>`,
+      html`<h1>Just the basics</h1>
+        <p>Nothing fancy, just some information about the cardholder</p>
+        ${field("First name", "authUserName")} ${field("Last name", "authUserLastName")}
+        ${field("Email address", "authUserEmail")} ${field("Weekly spending limit", "weeklyCardLimit")}
+        ${check("agreement", [
+          "I accept the ",
+          link(
+            "Authorized User Agreement",
+            "https://help.exactly.app/en/articles/11840175-exa-business-card-authorized-user-terms",
+          ),
+        ])}
+        <button>Continue</button>`,
+    ],
+  };
+  return html`<!doctype html>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <style>
+      body {
+        font: 16px system-ui;
+        margin: 0;
+        padding: 24px;
+      }
+      input,
+      select,
+      button {
+        display: block;
+        box-sizing: border-box;
+        width: 100%;
+        height: 48px;
+        margin: 8px 0 16px;
+      }
+      [hidden] {
+        display: none;
+      }
+      .check {
+        display: flex;
+        gap: 8px;
+        margin: 16px 0;
+      }
+      .check input {
+        flex: none;
+        width: 20px;
+        height: 20px;
+        margin: 0;
+      }
+      [role="alert"] {
+        position: fixed;
+        inset: 0 0 auto;
+        padding: 16px 48px;
+        background: #fee;
+      }
+      [role="alert"] button {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        width: 24px;
+        height: 24px;
+      }
+    </style>
+    <div role="alert">
+      <p>You are in a Sandbox environment.</p>
+      <button aria-label="Close" onclick="this.parentElement.remove()">×</button>
+    </div>
+    ${(screens[templateId] ?? []).map((screen, index) => html`<form ${index ? "hidden" : ""}>${screen}</form>`)}
+    <section hidden>
+      <h1>Congratulations, you’re done!</h1>
+      <p>Thanks for verifying your identity.</p>
+      <button>Done</button>
+    </section>
+    <script>
+      function manual(button) {
+        button.hidden = true;
+        button.nextElementSibling.hidden = false;
+      }
+      const query = new URLSearchParams(location.search);
+      const message = (name, metadata = {}) => {
+        if (parent === window) return;
+        parent.postMessage(
+          { containerId: query.get("container-id"), templateId: query.get("inquiry-template-id"), name, metadata },
+          query.get("iframe-origin"),
+        );
+      };
+      const forms = [...document.forms];
+      const fields = {};
+      for (const [index, form] of forms.entries()) {
+        form.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          Object.assign(fields, Object.fromEntries(new FormData(form)));
+          form.hidden = true;
+          const next = forms[index + 1];
+          if (next) {
+            next.hidden = false;
+            message("page-change", { name: "screen_" + (index + 1) });
+            return;
+          }
+          const response = await fetch(location.href, { method: "POST", body: JSON.stringify(fields) });
+          const { status } = await response.json();
+          const success = document.querySelector("section");
+          success.hidden = false;
+          message("page-change", { name: "success" });
+          success
+            .querySelector("button")
+            .addEventListener("click", () =>
+              parent === window
+                ? location.assign(query.get("redirect-uri"))
+                : message("complete", { inquiryId: query.get("inquiry-id"), referenceId: null, status, fields: null }),
+            );
+        });
+      }
+      message("load");
+      message("start", { inquiryId: query.get("inquiry-id") });
+      message("ready", { preferredDimensions: {}, styles: {} });
+    </script>`;
+
+  function field(label: string, name: string, placeholder = "") {
+    return html`<label for="${name}">${label}</label
+      ><input id="${name}" name="${name}" placeholder="${placeholder}" />`;
+  }
+
+  function select(label: string, name: string, options: [string, string][]) {
+    return html`<label for="${name}">${label}</label>
+      <select id="${name}" name="${name}">
+        ${options.map(([text, value]) => html`<option value="${value}">${text}</option>`)}
+      </select>`;
+  }
+
+  function address(label: string, index: number, line2: string) {
+    return html`<label for="street_1_${index}">${label}</label>
+      <input id="street_1_${index}" name="street_1_${index}" placeholder="Street address" />
+      <button type="button" onclick="manual(this)">+ or edit address manually</button>
+      <div hidden>
+        <input name="${line2}" placeholder="Apt / Suite" />
+        <input name="city_${index}" placeholder="City" />
+        <input name="subdivision_${index}" placeholder="Province" />
+        <input name="postal_code_${index}" placeholder="Postal code" />
+        <input name="country_code_${index}" type="hidden" value="BR" />
+      </div>`;
+  }
+
+  function check(id: string, label: (ReturnType<typeof html> | string)[] | string) {
+    return html`<div class="check">
+      <input type="checkbox" id="${id}" required /><label for="${id}">${label}</label>
+    </div>`;
+  }
 }
 
 async function approved(referenceId: string) {

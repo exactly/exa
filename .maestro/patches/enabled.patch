@@ -1,0 +1,61 @@
+From 8888be9c79c2039a252abc3c93eb9cfb3c347d4a Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Fri, 6 Nov 2026 21:52:33 +0000
+Subject: [PATCH] fix: report disabled elements on web
+
+Web hierarchy nodes carry no enabled state, so enabled and disabled selectors never match on web, and a flow can't wait for a disabled button to turn enabled before tapping it. Report each element as enabled unless it or an ancestor matches :disabled, since a disabled control doesn't take clicks on its contents either.
+---
+ .../src/main/java/maestro/drivers/CdpWebDriver.kt           | 6 +++++-
+ maestro-client/src/main/java/maestro/drivers/WebDriver.kt   | 6 +++++-
+ maestro-client/src/main/resources/maestro-web.js            | 1 +
+ 3 files changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+index 7738c2f..f852b43 100644
+--- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+@@ -402,7 +402,11 @@ class CdpWebDriver(
+ 
+         val children = domRepresentation["children"] as List<Map<String, Any>>
+ 
+-        return TreeNode(attributes = attributes, children = children.map { parseDomAsTreeNodes(it) })
++        return TreeNode(
++            attributes = attributes,
++            children = children.map { parseDomAsTreeNodes(it) },
++            enabled = attrs["enabled"] as? Boolean,
++        )
+     }
+ 
+     private fun detectWindowChange() {
+diff --git a/maestro-client/src/main/java/maestro/drivers/WebDriver.kt b/maestro-client/src/main/java/maestro/drivers/WebDriver.kt
+index 209a212..2eff540 100644
+--- a/maestro-client/src/main/java/maestro/drivers/WebDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/WebDriver.kt
+@@ -281,7 +281,11 @@ class WebDriver(
+ 
+         val children = domRepresentation["children"] as List<Map<String, Any>>
+ 
+-        return TreeNode(attributes = attributes, children = children.map { parseDomAsTreeNodes(it) })
++        return TreeNode(
++            attributes = attributes,
++            children = children.map { parseDomAsTreeNodes(it) },
++            enabled = attrs["enabled"] as? Boolean,
++        )
+     }
+ 
+     private fun detectWindowChange() {
+diff --git a/maestro-client/src/main/resources/maestro-web.js b/maestro-client/src/main/resources/maestro-web.js
+index 16ff662..abc7610 100644
+--- a/maestro-client/src/main/resources/maestro-web.js
++++ b/maestro-client/src/main/resources/maestro-web.js
+@@ -160,6 +160,7 @@
+       const attributes = {
+           text: getNodeText(node),
+           bounds: getNodeBounds(node, iframeOffsetX, iframeOffsetY, clip),
++          enabled: !node.closest(':disabled'),
+       }
+ 
+       // If this is an <option> element, we only want to include it if the parent <select> element is focused.
+-- 
+2.43.0
+
