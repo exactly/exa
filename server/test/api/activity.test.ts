@@ -411,6 +411,47 @@ describe.concurrent("authenticated", () => {
       expect(panda.output).toMatchObject({ currency: "USD", amount: -10.53, usdAmount: -10.53 });
     });
 
+    it("settles gas station holds at the captured amount", () => {
+      const spend = {
+        ...spendTemplate,
+        amount: 15_000,
+        authorizedAmount: 15_000,
+        localAmount: 15_000,
+        localCurrency: "usd",
+        merchantCategory: "5542 - Automated Fuel Dispensers",
+        merchantCategoryCode: "5542",
+      };
+      const panda = safeParse(PandaActivity, {
+        type: "panda",
+        hashes: [zeroHash, zeroHash],
+        borrows: [null, null],
+        bodies: [
+          {
+            action: "created",
+            resource: "transaction",
+            createdAt: new Date(0).toISOString(),
+            body: { id: "gas", type: "spend", spend },
+          },
+          {
+            action: "completed",
+            resource: "transaction",
+            createdAt: new Date(1).toISOString(),
+            body: {
+              id: "gas",
+              type: "spend",
+              spend: { ...spend, amount: 4321, localAmount: 4321, status: "completed" },
+            },
+          },
+        ],
+      });
+
+      expect(panda.success).toBe(true);
+      if (!panda.success) return;
+      expect(panda.output).toMatchObject({ currency: "USD", status: "settled" });
+      expect(panda.output.usdAmount).toBeCloseTo(43.21);
+      expect(panda.output.amount).toBeCloseTo(43.21);
+    });
+
     it("reports bad transaction", async () => {
       await database
         .insert(transactions)
