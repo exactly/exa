@@ -20,6 +20,7 @@ import {
   getAbiItem,
   hexToBigInt,
   http,
+  isAddressEqual,
   keccak256,
   padHex,
   parseEventLogs,
@@ -1186,14 +1187,27 @@ describe.concurrent("authenticated", () => {
           }),
         })),
       );
-      const bridged = sources.flatMap(({ client, chainId, logs }) =>
-        logs
-          .filter(
-            ({ args: { bridgeData } }) =>
-              chainId === chain.id ||
-              (bridgeData.receiver === account && bridgeData.destinationChainId === BigInt(chain.id)),
-          )
-          .map((log) => ({ client, chainId, log })),
+      const started = await Promise.all(
+        sources.flatMap(({ client, chainId, logs }) =>
+          logs.map(async (log) => ({
+            client,
+            chainId,
+            log,
+            transaction: await client.getTransaction({ hash: log.transactionHash }),
+          })),
+        ),
+      );
+      const bridged = started.filter(
+        ({
+          chainId,
+          log: {
+            args: { bridgeData },
+          },
+          transaction: { to },
+        }) =>
+          chainId === chain.id
+            ? to !== null && isAddressEqual(to, account)
+            : bridgeData.receiver === account && bridgeData.destinationChainId === BigInt(chain.id),
       );
       expect(bridged.map(({ chainId }) => chainId)).toStrictEqual([chain.id, chains[1]?.id]);
       const collator = new Intl.Collator(undefined, { numeric: true });
