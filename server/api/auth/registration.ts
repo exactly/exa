@@ -238,7 +238,7 @@ export default function route({
           userName,
           userDisplayName: userName,
           supportedAlgorithmIDs: [cose.COSEALG.ES256],
-          authenticatorSelection: { residentKey: "required", userVerification: "preferred" },
+          authenticatorSelection: { residentKey: "required", userVerification: "required" },
           // TODO excludeCredentials?
           timeout,
         });

@@ -1018,6 +1018,19 @@ describe("registration", () => {
     );
   });
 
+  it("requires user verification in webauthn registration options", async () => {
+    const response = await registrationAppClient.index.$get({ query: {} }, { headers: { origin: business } });
+    onTestFinished(async () => {
+      await redis.del(`session:${response.headers.get("X-Session-Id") ?? ""}`);
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      authenticatorSelection: { residentKey: "required", userVerification: "required" },
+    });
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
   it("returns 400 if registration challenge is missing", async () => {
     await redis.del("session:test-session");
     const response = await postRegistrationWebauthn();
