@@ -24,10 +24,31 @@ index 9ee2998ec07657268c14adb28bc8ac5b71ab64a6..3f3b55860c71de6bd7be72006b00ff02
          if (config.enableCors) {
              this.fastify.register(cors, { origin: true });
 diff --git a/esm/rpc/validation/BundlerCollectorTracerV06.js b/esm/rpc/validation/BundlerCollectorTracerV06.js
-index e4cac0bd40c10fab7f306e9f87f7e08dab1f134f..01d27b330508129d484e45e3b2800479ef87a58d 100644
+index e4cac0bd40c10fab7f306e9f87f7e08dab1f134f..693eb304c09f91f13b4cb6bb61d609c72ffc5e4b 100644
 --- a/esm/rpc/validation/BundlerCollectorTracerV06.js
 +++ b/esm/rpc/validation/BundlerCollectorTracerV06.js
-@@ -170,7 +170,7 @@ export function bundlerCollectorTracer() {
+@@ -27,7 +27,12 @@ export function bundlerCollectorTracer() {
+         stopCollectingTopic: "bb47ee3e183a558b1a2ff0874b079f3fc5478b7454eacf2bfc5af2ff5878f972",
+         stopCollecting: false,
+         topLevelCallCounter: 0,
++        revertStepped: false,
+         fault(log, _db) {
++            if (log.op.toString() === "REVERT" && !this.revertStepped) {
++                this.step(log, _db);
++            }
++            this.revertStepped = false;
+             this.debug.push(JSON.stringify({
+                 type: "fault",
+                 depth: log.getDepth(),
+@@ -81,6 +86,7 @@ export function bundlerCollectorTracer() {
+         },
+         // biome-ignore lint/suspicious/noExplicitAny: it's a generic type
+         step(log, db) {
++            this.revertStepped = log.op.toString() === "REVERT";
+             if (this.stopCollecting) {
+                 return;
+             }
+@@ -170,7 +176,7 @@ export function bundlerCollectorTracer() {
                  const addrHex = toHex(address);
                  const addressInt = Number.parseInt(addrHex);
                  // this.debug.push(`isPrecompiled address=${addrHex} addressInt=${addressInt}`)

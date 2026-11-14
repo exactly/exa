@@ -329,7 +329,7 @@ overrides:
 
 patchedDependencies:
   '@lifi/sdk': ee16233f297d9a6c8a8320b5dc2b4bf47b7be8b481d79e3d54108cd77775b45b
-  '@pimlico/alto': d35b5e3bbd38e85c4061af41c6ffc1d3e075e7404e0dc9c4c08543af3c40c276
+  '@pimlico/alto': 1ac6951329d0e689c0657c867b890ae42c4451f0b2161f4099db16552ccfbd97
   '@tamagui/sheet': c2fc59ae5f5e686032f297b66c245ec14f4259499fd14e1ed6f08251810a44fb
   '@tamagui/web': f64e3ee48a62db577d3e3b83cef581ab57ebea8c47b6ef29b410ee90341beaa0
   embedded-postgres: cb5e37525b1810f2af136570b38d5e0cec4cc2455408896ed1943d27f3f61b38
@@ -1152,7 +1152,7 @@ importers:
         version: 1.14.3
       '@pimlico/alto':
         specifier: ^0.0.21
-        version: 0.0.21(patch_hash=d35b5e3bbd38e85c4061af41c6ffc1d3e075e7404e0dc9c4c08543af3c40c276)(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+        version: 0.0.21(patch_hash=1ac6951329d0e689c0657c867b890ae42c4451f0b2161f4099db16552ccfbd97)(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       '@sentry/cli':
         specifier: ^3.6.2
         version: 3.6.2
@@ -1227,7 +1227,7 @@ importers:
         version: 2.27.0(typescript@5.9.3)(vite@8.3.4(@types/node@25.5.0)(esbuild@0.28.1)(terser@5.46.1)(tsx@4.22.4)(yaml@2.9.1))
       prool:
         specifier: ^0.2.17
-        version: 0.2.17(patch_hash=c8576988b7c6649c8f0fa61ec9eef3064a03c2697e3c4ce9f214f76aa8fb565f)(@pimlico/alto@0.0.21(patch_hash=d35b5e3bbd38e85c4061af41c6ffc1d3e075e7404e0dc9c4c08543af3c40c276)(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(debug@4.4.3)
+        version: 0.2.17(patch_hash=c8576988b7c6649c8f0fa61ec9eef3064a03c2697e3c4ce9f214f76aa8fb565f)(@pimlico/alto@0.0.21(patch_hash=1ac6951329d0e689c0657c867b890ae42c4451f0b2161f4099db16552ccfbd97)(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(debug@4.4.3)
       redis-memory-server:
         specifier: ^0.17.1
         version: 0.17.1
@@ -21397,7 +21397,7 @@ snapshots:
       esquery: 1.7.0
       typescript: 5.9.3
 
-  '@pimlico/alto@0.0.21(patch_hash=d35b5e3bbd38e85c4061af41c6ffc1d3e075e7404e0dc9c4c08543af3c40c276)(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)':
+  '@pimlico/alto@0.0.21(patch_hash=1ac6951329d0e689c0657c867b890ae42c4451f0b2161f4099db16552ccfbd97)(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)':
     dependencies:
       '@fastify/cors': 11.3.1
       '@fastify/websocket': 11.3.4(bufferutil@4.1.0)(utf-8-validate@5.0.10)
@@ -33078,7 +33078,7 @@ snapshots:
       kleur: 3.0.3
       sisteransi: 1.0.5
 
-  prool@0.2.17(patch_hash=c8576988b7c6649c8f0fa61ec9eef3064a03c2697e3c4ce9f214f76aa8fb565f)(@pimlico/alto@0.0.21(patch_hash=d35b5e3bbd38e85c4061af41c6ffc1d3e075e7404e0dc9c4c08543af3c40c276)(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(debug@4.4.3):
+  prool@0.2.17(patch_hash=c8576988b7c6649c8f0fa61ec9eef3064a03c2697e3c4ce9f214f76aa8fb565f)(@pimlico/alto@0.0.21(patch_hash=1ac6951329d0e689c0657c867b890ae42c4451f0b2161f4099db16552ccfbd97)(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(debug@4.4.3):
     dependencies:
       change-case: 5.4.4
       eventemitter3: 5.0.4
@@ -33087,7 +33087,7 @@ snapshots:
       http-proxy: 1.18.1(debug@4.4.3)
       tar: 7.5.22
     optionalDependencies:
-      '@pimlico/alto': 0.0.21(patch_hash=d35b5e3bbd38e85c4061af41c6ffc1d3e075e7404e0dc9c4c08543af3c40c276)(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@pimlico/alto': 0.0.21(patch_hash=1ac6951329d0e689c0657c867b890ae42c4451f0b2161f4099db16552ccfbd97)(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
     transitivePeerDependencies:
       - debug
 
