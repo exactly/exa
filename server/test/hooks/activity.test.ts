@@ -3,6 +3,7 @@ import sendPushNotificationMock from "../mocks/onesignal";
 import "../mocks/sentry";
 
 import { captureException, setUser } from "@sentry/node";
+import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { Redis } from "ioredis";
 import { createHmac } from "node:crypto";
@@ -304,6 +305,42 @@ describe("address activity", () => {
       factory: exaAccountFactoryAddress,
       salt: zeroAddress,
       origin: "activity",
+      publicKey: owner.address.toLowerCase(),
+      source: null,
+    });
+    expect(response.status).toBe(200);
+  });
+
+  it("queues the card user of the account", async () => {
+    await database
+      .update(credentials)
+      .set({ pandaId: `activity-${account}` })
+      .where(eq(credentials.id, account));
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [
+            {
+              ...activityPayload.json.event.activity[1],
+              toAddress: account,
+              rawContract: { ...activityPayload.json.event.activity[1].rawContract, address: wethAddress },
+            },
+          ],
+        },
+      },
+    });
+
+    expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
+      account,
+      assets: [wethAddress],
+      chainId: 31_337,
+      factory: exaAccountFactoryAddress,
+      salt: zeroAddress,
+      origin: "activity",
+      pandaId: `activity-${account}`,
       publicKey: owner.address.toLowerCase(),
       source: null,
     });

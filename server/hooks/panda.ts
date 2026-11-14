@@ -14,6 +14,7 @@ import { E_TIMEOUT } from "async-mutex";
 import createDebug from "debug";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { Hono } from "hono";
+import { setTimeout } from "node:timers/promises";
 import * as v from "valibot";
 import {
   BaseError,
@@ -36,6 +37,7 @@ import {
   type LocalAccount,
   type PublicClient,
   type StateOverride,
+  type TransactionReceipt,
 } from "viem";
 
 import chain, {
@@ -58,6 +60,7 @@ import { MATURITY_INTERVAL, splitInstallments } from "@exactly/lib";
 
 import { cards, credentials, transactions } from "../database/schema";
 import t, { f } from "../i18n";
+import remember, { key, limit } from "../utils/liquidity";
 import {
   collectors,
   createMutex,
@@ -86,6 +89,7 @@ import type createHook from "../workers/hook/queue";
 import type createRefund from "../workers/refund/queue";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { UnofficialStatusCode } from "hono/utils/http-status";
+import type { Redis } from "ioredis";
 
 const debug = createDebug("exa:panda");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
@@ -95,6 +99,7 @@ export default function hook({
   issuer,
   onesignal,
   panda,
+  redis,
   refund,
   sardine,
   segment,
@@ -106,6 +111,7 @@ export default function hook({
   issuer: LocalAccount;
   onesignal: ReturnType<typeof createOnesignal>;
   panda: ReturnType<typeof createPanda>;
+  redis: Redis;
   refund: ReturnType<typeof createRefund>;
   sardine: ReturnType<typeof createSardine>;
   segment: ReturnType<typeof createSegment>;
@@ -125,7 +131,7 @@ export default function hook({
               const client = tracer(network);
               return { fees: "auto" as const, reader: client, tracer: client, wallet: createWallet(settler, network) };
             })();
-      const { issuerCheckers, plugins, usdc } = await clients.reader.readContract({
+      const { exaUSDC, issuerCheckers, plugins, usdc } = await clients.reader.readContract({
         address: exaPreviewer,
         functionName: "discover",
         args: [factories.versions],
@@ -162,6 +168,7 @@ export default function hook({
         exaPreviewer,
         id,
         issuerCheckers,
+        market: exaUSDC,
         overrides: [...new Set(plugins)].map((address) => ({ address, stateDiff: [{ slot, value }] })),
         trusted,
         usdc,
@@ -179,6 +186,17 @@ export default function hook({
     vValidator("json", Payload, validatorHook({ code: "bad panda", status: 400, debug })),
     async (c) => {
       const payload = c.req.valid("json");
+      const cached =
+        payload.resource === "transaction" && payload.action === "requested"
+          ? Promise.race([
+              redis.hgetall(key(payload.body.spend.userId)),
+              setTimeout(100).then(() => {
+                throw new Error("liquidity timeout");
+              }),
+            ]).catch((error: unknown) => {
+              captureException(error, { level: "warning" });
+            })
+          : undefined;
       getActiveSpan()?.setAttributes({ "panda.event": payload.id, "panda.transaction": payload.body.id });
       setTag("panda.resource", payload.resource);
       setTag("panda.action", payload.action);
@@ -330,7 +348,9 @@ export default function hook({
           setContext("mutex", { locked: mutex.isLocked() });
 
           try {
-            const { amount, sign } = await prepareCollection(card, payload, issuer, panda, { unsigned: true });
+            const { amount, maturity, sign, stamp } = await prepareCollection(card, payload, issuer, panda, {
+              unsigned: true,
+            });
             const authorize = () => {
               trackAuthorized(account, payload, card.mode, card.credential.source, segment);
               return c.json({ code: "ok" });
@@ -362,8 +382,8 @@ export default function hook({
               }
             }).catch((error: unknown) => captureException(error, { level: "error" }));
             try {
-              const inspect = async (network: Network) => {
-                const call = await sign({ network });
+              const inspect = async ({ amount: value, network }: Part) => {
+                const call = await sign({ amount: value, network, timestamp: stamp(value) });
                 const trace = await startSpan(
                   { name: "debug_traceCall", op: "tx.trace", attributes: { chainId: network.id } },
                   () =>
@@ -379,18 +399,30 @@ export default function hook({
                       ],
                     }),
                 );
-                return { call, network, trace };
+                return { amount: value, call, network, trace };
               };
               const known = await chains;
-              const results = known.map((network) =>
-                inspect(network).catch((error: unknown) => {
-                  captureException(error, { level: "warning", tags: { chainId: network.id } });
+              const snapshot = (await cached) ?? {};
+              const timestamp = Math.floor(Date.now() / 1000);
+              const parts = split(
+                amount,
+                known.map((network) => ({
+                  network,
+                  limit: limit(snapshot[network.id], network.market, maturity, timestamp),
+                })),
+              );
+              const results = (parts ?? known.map((network) => ({ amount, network }))).map((part) =>
+                inspect(part).catch((error: unknown) => {
+                  captureException(error, { level: "warning", tags: { chainId: part.network.id } });
                   return null;
                 }),
               );
-              const settled =
-                (await race(results, (result) => replay(result) || covers(result, amount))) ??
-                fallback(await Promise.all(results));
+              const all = parts && (await Promise.all(results));
+              if (all?.every((result) => result && covers(result))) return authorize();
+              const settled = all
+                ? (all.find((result) => result && !covers(result)) ?? fallback(all))
+                : ((await race(results, (result) => replay(result) || covers(result))) ??
+                  fallback(await Promise.all(results)));
               const { call, network, trace } = settled;
               setContext("tx", { call, chainId: network.id, trace });
               if (trace.output) {
@@ -434,7 +466,7 @@ export default function hook({
                 });
                 throw new PandaError("tx reverted", 550 as UnofficialStatusCode);
               }
-              if (collected(network, trace) !== amount) {
+              if (collected(network, trace) !== settled.amount) {
                 debug(`${payload.action}:${payload.body.spend.status}`, payload.body.id, "bad collection");
                 withScope((scope) => {
                   scope.addEventProcessor((event) => {
@@ -692,16 +724,20 @@ export default function hook({
           getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "panda.tx.collect");
 
           try {
-            const stored = await database.query.transactions.findFirst({
-              columns: { payload: true },
-              where: and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)),
-            });
-            const {
-              amount,
-              functionName,
-              hash: operation,
-              sign,
-            } = await prepareCollection(card, payload, issuer, panda, { stored });
+            const [stored, planned] = await Promise.all([
+              database.query.transactions.findFirst({
+                columns: { payload: true },
+                where: and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)),
+              }),
+              within(redis.hgetall(`split:${payload.body.id}`), "plan read timeout"),
+            ]);
+            const { amount, functionName, maturity, sign, stamp } = await prepareCollection(
+              card,
+              payload,
+              issuer,
+              panda,
+              { stored },
+            );
             if (!sign) {
               const appended = await database
                 .update(transactions)
@@ -746,19 +782,30 @@ export default function hook({
               return c.json({ code: "ok" });
             }
             let attempt: Collection | undefined;
+            const deliver = (receipt: TransactionReceipt) =>
+              webhook
+                .enqueue(
+                  {
+                    account,
+                    receipt: { blockNumber: Number(receipt.blockNumber), transactionHash: receipt.transactionHash },
+                  },
+                  payload.id,
+                )
+                .catch((error: unknown) =>
+                  captureException(error, {
+                    level: "error",
+                    tags: { queue: hookName, job: hookName },
+                    extra: { id: payload.id },
+                  }),
+                );
             try {
-              const collect = (network: Network, collection: Collection) =>
-                network.wallet.exaSend(
+              const collect = ({ amount: value, call: collection, network }: Inspection, partial: boolean) => {
+                attempt = collection;
+                return network.wallet.exaSend(
                   { name: "collect credit", op: "exa.collect", attributes: { account, chainId: network.id } },
                   {
                     address: account,
-                    abi: [
-                      ...exaPluginAbi,
-                      ...issuerCheckerAbi,
-                      ...upgradeableModularAccountAbi,
-                      ...auditorAbi,
-                      ...marketAbi,
-                    ],
+                    abi,
                     ...collection,
                   },
                   {
@@ -768,6 +815,7 @@ export default function hook({
                         ...(jsonBody as object),
                         createdAt: getCreatedAt(payload) ?? new Date().toISOString(),
                         chainId: network.id,
+                        ...(partial && { collected: String(value) }),
                       };
                       const appended = await database
                         .insert(transactions)
@@ -797,101 +845,199 @@ export default function hook({
                       });
                       if (tx?.cardId !== payload.body.spend.cardId) throw new Error("transaction card mismatch");
                     },
-                    onReceipt: (receipt) =>
-                      receipt.status === "reverted"
-                        ? undefined
-                        : webhook
-                            .enqueue(
-                              {
-                                account,
-                                receipt: {
-                                  blockNumber: Number(receipt.blockNumber),
-                                  transactionHash: receipt.transactionHash,
-                                },
-                              },
-                              payload.id,
-                            )
-                            .catch((error: unknown) =>
-                              captureException(error, {
-                                level: "error",
-                                tags: { queue: hookName, job: hookName },
-                                extra: { id: payload.id },
-                              }),
-                            ),
+                    onReceipt(receipt) {
+                      if (receipt.status === "reverted") return;
+                      remember(redis, payload.body.spend.userId, account, network.id).catch((error: unknown) =>
+                        captureException(error, { level: "warning", tags: { chainId: network.id } }),
+                      );
+                      if (!partial) return deliver(receipt);
+                    },
                   },
                 );
+              };
               const probe = (network: Network, data: Hex) =>
                 startSpan({ name: "debug_traceCall", op: "tx.trace", attributes: { chainId: network.id } }, () =>
                   network.tracer.traceCall({ from: wallet.account.address, to: account, data }),
                 );
-              const inspect = async (network: Network) => {
-                const initial = await sign({ network });
+              const inspect = async ({ amount: value, network, timestamp = stamp(value) }: Part) => {
+                const initial = await sign({ amount: value, network, timestamp });
                 const trace = await probe(network, encodeFunctionData({ abi: exaPluginAbi, ...initial }));
                 if (!trace.output?.startsWith(toFunctionSelector("Unauthorized()"))) {
-                  return { call: initial, network, trace };
+                  return { amount: value, call: initial, network, timestamp, trace };
                 }
-                const resigned = await sign({ checker: issuance(trace).checker, network });
+                const resigned = await sign({ amount: value, checker: issuance(trace), network, timestamp });
                 return {
+                  amount: value,
                   call: resigned,
                   network,
+                  timestamp,
                   trace: await probe(network, encodeFunctionData({ abi: exaPluginAbi, ...resigned })),
                 };
               };
-              const inspectAll = (candidates: Network[]) =>
-                candidates.map((network) =>
-                  inspect(network).catch((error: unknown) => {
+              const settles = (result: Inspection) => replay(result) || covers(result);
+              const settle = async (value: bigint, candidates: Network[], prior?: Inspection) => {
+                const results = candidates.map((network) =>
+                  inspect({ amount: value, network }).catch((error: unknown) => {
                     captureException(error, { level: "warning", tags: { chainId: network.id } });
                     return null;
                   }),
                 );
-              const settles = (result: { network: Network; trace: CallFrame }) =>
-                replay(result) || covers(result, amount);
+                const winner = await race(results, settles);
+                if (winner) return [winner];
+                const timestamp = Math.floor(Date.now() / 1000);
+                const parts = split(
+                  value,
+                  await Promise.all(
+                    (prior ? [prior.network, ...candidates] : candidates).map((network) =>
+                      within(remember(redis, payload.body.spend.userId, account, network.id), "snapshot timeout").then(
+                        (positions) => ({
+                          network,
+                          limit: limit(positions, network.market, maturity, timestamp),
+                        }),
+                        (error: unknown) => {
+                          captureException(error, { level: "warning", tags: { chainId: network.id } });
+                          return { network, limit: undefined };
+                        },
+                      ),
+                    ),
+                  ),
+                );
+                return parts
+                  ? await Promise.all(parts.map((part) => inspect(part)))
+                  : await Promise.all(results).then((others) => [
+                      prior && !others.includes(null) ? prior : fallback(others),
+                    ]);
+              };
               const known = await chains;
               const bodies = v
                 .parse(Stored, stored?.payload ?? { bodies: [] })
-                .bodies.filter(({ id: event }) => event === payload.id);
-              const recorded = bodies.at(-1);
-              const previous = recorded && known.find(({ id }) => id === (recorded.chainId ?? chain.id));
-              const prior = previous && (await inspect(previous));
-              const settled =
-                prior && settles(prior)
-                  ? prior
-                  : await (async () => {
-                      const results = inspectAll(known.filter((network) => network !== previous));
-                      const winner = await race(results, settles);
-                      if (winner) return winner;
-                      const others = await Promise.all(results);
-                      return prior && !others.includes(null) ? prior : fallback(others);
-                    })();
-              attempt = settled.call;
-              const checker = frames(settled.trace).find(({ input }) =>
-                input.startsWith(toFunctionSelector("checkIssuer(address,uint256,uint256,bytes)")),
-              )?.to;
-              const used = await Promise.all(
-                known
-                  .filter(
-                    (network) =>
-                      network === settled.network || bodies.some(({ chainId = chain.id }) => chainId === network.id),
-                  )
-                  .flatMap((network) =>
+                .bodies.filter(({ id }) => id === payload.id);
+              const authorized =
+                stored && v.parse(TransactionPayload, stored.payload).bodies.some((b) => b.action === "created");
+              const recovered = Object.entries(planned).flatMap(([field, value]) =>
+                field === `${payload.action}:${payload.id}` ||
+                (payload.action === "completed" && !authorized && field.startsWith("created:")) ||
+                (payload.action === "created" && field.startsWith("completed:"))
+                  ? v.parse(Planned, JSON.parse(value))
+                  : [],
+              );
+              const done = [
+                ...new Map(
+                  [...bodies.map((body) => ({ ...body, timestamp: undefined })), ...recovered].flatMap(
+                    ({ chainId, collected: value, timestamp: signed }) => {
+                      const network = known.find(({ id }) => id === chainId);
+                      return network && value !== undefined
+                        ? [[`${chainId}:${value}`, { amount: BigInt(value), network, timestamp: signed }] as const]
+                        : [];
+                    },
+                  ),
+                ).values(),
+              ];
+              const plan = await (async () => {
+                if (done.length > 0) {
+                  const kept = await Promise.all(done.map((part) => inspect(part)));
+                  const remaining = amount - kept.reduce((total, part) => total + part.amount, 0n);
+                  return [
+                    ...kept,
+                    ...(remaining > 0n
+                      ? await settle(
+                          remaining,
+                          known.filter((network) => !kept.some((part) => part.network === network)),
+                        )
+                      : []),
+                  ];
+                }
+                const recorded = bodies.at(-1);
+                const previous = recorded && known.find(({ id }) => id === (recorded.chainId ?? chain.id));
+                const prior = previous && (await inspect({ amount, network: previous }));
+                return prior && settles(prior)
+                  ? [prior]
+                  : await settle(
+                      amount,
+                      known.filter((network) => network !== previous),
+                      prior,
+                    );
+              })();
+              const operation = (value: bigint, timestamp: number) =>
+                keccak256(encodeAbiParameters([{ type: "uint256" }, { type: "uint256" }], [value, BigInt(timestamp)]));
+              const [whole, ...used] = await Promise.all([
+                Promise.all(
+                  known
+                    .filter(
+                      (network) =>
+                        bodies.some(({ chainId = chain.id, collected: part }) => !part && chainId === network.id) &&
+                        !plan.some((part) => part.network === network && part.amount === amount),
+                    )
+                    .flatMap((network) =>
+                      [...new Set(network.issuerCheckers)].map((address) =>
+                        network.reader.readContract({
+                          address,
+                          abi: issuerCheckerAbi,
+                          functionName: "collections",
+                          args: [account, operation(amount, stamp(amount))],
+                        }),
+                      ),
+                    ),
+                ).then((results) => results.includes(true)),
+                ...plan.map(async ({ amount: value, network, timestamp = stamp(value), trace }) => {
+                  const checker = frames(trace).find(({ input }) =>
+                    input.startsWith(toFunctionSelector("checkIssuer(address,uint256,uint256,bytes)")),
+                  )?.to;
+                  const collections = await Promise.all(
                     [...new Set(network.issuerCheckers)]
-                      .filter((address) => network !== settled.network || address.toLowerCase() !== checker)
+                      .filter((address) => address.toLowerCase() !== checker)
                       .map((address) =>
                         network.reader.readContract({
                           address,
                           abi: issuerCheckerAbi,
                           functionName: "collections",
-                          args: [account, operation],
+                          args: [account, operation(value, timestamp)],
                         }),
                       ),
-                  ),
-              );
-              if (used.includes(true)) {
+                  );
+                  return collections.includes(true);
+                }),
+              ]);
+              const fresh = plan.filter((_, index) => !used[index]);
+              if (whole || (fresh.length < plan.length && fresh.every((part) => replay(part)))) {
                 getActiveSpan()?.setAttributes({ "panda.replay": true });
                 return c.json({ code: "ok" });
               }
-              if (!settled.trace.output && !covers(settled, amount)) throw new Error("bad collection");
-              await collect(settled.network, settled.call);
+              const failure = fresh.find((part) => !settles(part));
+              if (failure) {
+                attempt = failure.call;
+                throw failure.trace.output && plan.length === 1
+                  ? getContractError(new RawContractError({ data: failure.trace.output }), { abi, ...failure.call })
+                  : new Error("bad collection");
+              }
+              const claimed = await within(
+                redis.eval(
+                  'if (redis.call("hget", KEYS[1], ARGV[1]) or "") ~= ARGV[2] or (redis.call("hget", KEYS[1], "version") or "") ~= ARGV[5] then return 0 end redis.call("hset", KEYS[1], ARGV[1], ARGV[3]) redis.call("hincrby", KEYS[1], "version", 1) redis.call("expire", KEYS[1], ARGV[4]) return 1', // cspell:ignore hincrby
+                  1,
+                  `split:${payload.body.id}`,
+                  `${payload.action}:${payload.id}`,
+                  planned[`${payload.action}:${payload.id}`] ?? "",
+                  JSON.stringify(
+                    plan.map((part) => ({
+                      chainId: part.network.id,
+                      collected: String(part.amount),
+                      timestamp: part.timestamp,
+                    })),
+                  ),
+                  2_592_000,
+                  planned.version ?? "",
+                ),
+                "plan write timeout",
+              );
+              if (claimed !== 1) throw new Error("plan changed");
+              const pending = fresh.filter((part) => !replay(part));
+              const results = await Promise.allSettled(
+                (pending.length > 0 ? pending : plan.slice(0, 1)).map((part) => collect(part, plan.length > 1)),
+              );
+              const rejected = results.find((result) => result.status === "rejected");
+              if (rejected) throw rejected.reason;
+              const last = results.at(-1);
+              if (plan.length > 1 && last?.status === "fulfilled" && last.value) await deliver(last.value);
 
               if (
                 payload.action === "created" ||
@@ -1250,6 +1396,7 @@ async function prepareCollection(
       }
     })() / 100;
   const amount = BigInt(Math.round(usdAmount * 1e6));
+  if (amount === 0n) return { amount, functionName: null, maturity: undefined, sign: null, stamp: null };
   const authorized = Math.floor(
     (payload.body.spend.authorizedAt ? new Date(payload.body.spend.authorizedAt) : new Date()).getTime() / 1000, // TODO remove fallback
   );
@@ -1258,8 +1405,6 @@ async function prepareCollection(
     (payload.action === "completed" && amount !== BigInt(Math.round((payload.body.spend.amount / 100) * 1e6)))
       ? authorized - Number(BigInt(`0x${payload.id.replaceAll(/[^0-9a-f]/g, "")}`) % 3600n)
       : authorized;
-  const hash = keccak256(encodeAbiParameters([{ type: "uint256" }, { type: "uint256" }], [amount, BigInt(timestamp)]));
-  if (amount === 0n) return { amount, functionName: null, hash, sign: null };
   if (payload.body.spend.signature) {
     await startSpan(
       {
@@ -1295,31 +1440,40 @@ async function prepareCollection(
       : card.mode === 1 || usdAmount < card.mode || payload.action === "requested"
         ? "collectCredit"
         : "collectInstallments";
-  const sign = async ({ checker, network }: { checker?: Hex; network: Network }) => {
+  const nextMaturity = authorized - (authorized % MATURITY_INTERVAL) + MATURITY_INTERVAL;
+  const firstMaturity =
+    nextMaturity - authorized < MIN_BORROW_INTERVAL ? nextMaturity + MATURITY_INTERVAL : nextMaturity;
+  const lastMaturity = firstMaturity + (card.mode - 1) * MATURITY_INTERVAL;
+  const stamp = (value: bigint) =>
+    value === amount
+      ? timestamp
+      : timestamp - Number(BigInt(keccak256(toBytes(payload.body.id ?? payload.id))) % 3600n);
+  const sign = async ({
+    amount: value,
+    checker,
+    network,
+    timestamp: signed,
+  }: {
+    amount: bigint;
+    checker?: Hex;
+    network: Network;
+    timestamp: number;
+  }) => {
     const signature = unsigned
       ? "0x"
       : await signIssuerOp(
-          { account, amount, timestamp },
+          { account, amount: value, timestamp: signed },
           issuer,
           checker ?? network.issuerCheckers.at(-1),
           network.id,
         ); // TODO replace with payload signature
     if (functionName === "collectDebit") {
-      return { functionName: "collectDebit", args: [amount, BigInt(timestamp), signature] } as const;
+      return { functionName: "collectDebit", args: [value, BigInt(signed), signature] } as const;
     }
-    const nextMaturity = authorized - (authorized % MATURITY_INTERVAL) + MATURITY_INTERVAL;
-    const firstMaturity =
-      nextMaturity - authorized < MIN_BORROW_INTERVAL ? nextMaturity + MATURITY_INTERVAL : nextMaturity;
     if (functionName === "collectCredit") {
       return {
         functionName: "collectCredit",
-        args: [
-          BigInt(firstMaturity + (card.mode - 1) * MATURITY_INTERVAL),
-          amount,
-          maxUint256,
-          BigInt(timestamp),
-          signature,
-        ],
+        args: [BigInt(lastMaturity), value, maxUint256, BigInt(signed), signature],
       } as const;
     }
     const preview = await startSpan({ name: "query onchain state", op: "exa.preview" }, () =>
@@ -1332,7 +1486,7 @@ async function prepareCollection(
     setContext("preview", preview);
     const installments = startSpan({ name: "split installments", op: "exa.split" }, () =>
       splitInstallments(
-        amount,
+        value,
         preview.floatingAssets,
         firstMaturity,
         preview.fixedUtilizations.length,
@@ -1349,11 +1503,19 @@ async function prepareCollection(
     setContext("installments", installments);
     return {
       functionName: "collectInstallments",
-      args: [BigInt(firstMaturity), installments.amounts, maxUint256, BigInt(timestamp), signature],
+      args: [BigInt(firstMaturity), installments.amounts, maxUint256, BigInt(signed), signature],
     } as const;
   };
-  return { amount, functionName, hash, sign };
+  return {
+    amount,
+    functionName,
+    maturity: functionName === "collectDebit" ? undefined : BigInt(lastMaturity),
+    sign,
+    stamp,
+  };
 }
+
+const abi = [...exaPluginAbi, ...issuerCheckerAbi, ...upgradeableModularAccountAbi, ...auditorAbi, ...marketAbi];
 
 const [transferTopic] = encodeEventTopics({ abi: erc20Abi, eventName: "Transfer" });
 function collected(network: Network, frame: CallFrame) {
@@ -1374,7 +1536,7 @@ function collected(network: Network, frame: CallFrame) {
     );
 }
 
-function covers({ network, trace }: { network: Network; trace: CallFrame }, amount: bigint) {
+function covers({ amount, network, trace }: { amount: bigint; network: Network; trace: CallFrame }) {
   return !trace.output && collected(network, trace) === amount;
 }
 
@@ -1396,10 +1558,27 @@ function transfers({ calls, logs }: CallFrame): NonNullable<CallFrame["logs"]> {
 }
 
 function issuance(trace: CallFrame) {
-  const frame = frames(trace).find(({ input }) =>
-    input.startsWith(toFunctionSelector("checkIssuer(address,uint256,uint256,bytes)")),
+  return v.parse(
+    Address,
+    frames(trace).find(({ input }) =>
+      input.startsWith(toFunctionSelector("checkIssuer(address,uint256,uint256,bytes)")),
+    )?.to,
   );
-  return { checker: v.parse(Address, frame?.to), plugin: v.parse(Address, frame?.from) };
+}
+
+function split(amount: bigint, limits: { limit: bigint | undefined; network: Network }[]) {
+  const known = limits.flatMap(({ limit: value, network }) => (value === undefined ? [] : [{ network, value }]));
+  if (known.length !== limits.length || known.some(({ value }) => value >= amount)) return;
+  const total = known.reduce((sum, { value }) => sum + value, 0n);
+  if (total < amount) return;
+  let cumulative = 0n;
+  return known
+    .filter(({ value }) => value > 0n)
+    .map(({ network, value }) => {
+      const start = (amount * cumulative) / total;
+      cumulative += value;
+      return { amount: (amount * cumulative) / total - start, network };
+    });
 }
 
 function race<T>(promises: Promise<null | T>[], test: (result: T) => boolean) {
@@ -1418,13 +1597,18 @@ function frames(frame: CallFrame): CallFrame[] {
 
 type Collection = Awaited<ReturnType<NonNullable<Awaited<ReturnType<typeof prepareCollection>>["sign"]>>>;
 
+type Inspection = Part & { call: Collection; trace: CallFrame };
+
 type Database = NodePgDatabase<typeof schema>;
+
+type Part = { amount: bigint; network: Network; timestamp?: number };
 
 type Network = {
   exaPreviewer: Hex;
   fees?: "auto";
   id: number;
   issuerCheckers: readonly Hex[];
+  market: Hex;
   overrides: StateOverride;
   reader: PublicClient;
   tracer: Pick<typeof traceClient, "traceCall">;
@@ -1433,8 +1617,21 @@ type Network = {
   wallet: ReturnType<typeof createWallet>;
 };
 
+function within<T>(promise: Promise<T>, message: string) {
+  return Promise.race([
+    promise,
+    setTimeout(1000).then(() => {
+      throw new Error(message);
+    }),
+  ]);
+}
+
+const Planned = v.array(v.object({ chainId: v.number(), collected: v.string(), timestamp: v.optional(v.number()) }));
+
 const Stored = v.object({
-  bodies: v.array(v.looseObject({ chainId: v.optional(v.number()), id: v.optional(v.string()) })),
+  bodies: v.array(
+    v.looseObject({ chainId: v.optional(v.number()), collected: v.optional(v.string()), id: v.optional(v.string()) }),
+  ),
 });
 
 type TransferLog = {
