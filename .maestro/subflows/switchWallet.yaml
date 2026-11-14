@@ -1,0 +1,27 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- runFlow: storeCoverage.yaml
+- evalScript: ${output.previous = output.credential; output.account = undefined}
+- runFlow:
+    when: { true: "${method === 'metamask'}" }
+    commands:
+      - launchApp: { appId: "chrome-extension://${extension}/home.html" }
+      - runFlow:
+          when: { true: "${reminder === '1'}", visible: Protect your wallet }
+          commands: [{ tapOn: Remind me later }]
+      - tapOn: { id: account-menu-icon }
+      - tapOn: Add account
+      - tapOn: Account 2
+      - tapOn: { id: Account options }
+      - tapOn: { id: global-menu-connected-sites }
+      - tapOn: localhost:8081
+      - tapOn: { id: multichain-account-cell-name-Account 2 } # cspell:ignore multichain
+      - tapOn: Save
+- launchApp
+- tapOn: Continue with 0x.*
+- runFlow:
+    when: { true: "${method === 'metamask'}" }
+    commands: [{ assertVisible: Sign-in request }]
+- runFlow: sign.yaml
+- runFlow: getAccount.yaml
+- assertTrue: ${output.credential !== output.previous}
