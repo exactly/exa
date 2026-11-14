@@ -95,13 +95,14 @@ describe("e2e", () => {
         subscribeWorker({ alchemy: createAlchemy("webhooks"), bullmq, database }),
       ];
       const metro = env.EXPO_PACKAGER_PROXY_URL ? 8081 : undefined;
+      let generated = false;
       const https =
         tls &&
         serve({
           fetch: (request, bindings) => {
             const { pathname, search } = new URL(request.url);
-            if (!metro || /^\/(?:api|e2e|hooks|\.well-known)(?:\/|$)/.test(pathname))
-              return app.fetch(request, bindings);
+            if (/^\/(?:api|e2e|hooks|\.well-known)(?:\/|$)/.test(pathname)) return app.fetch(request, bindings);
+            if (!metro) return generated ? app.fetch(request, bindings) : new Response(null, { status: 503 });
             request.headers.delete("origin");
             return proxy(`http://localhost:${metro}${pathname}${search}`, { raw: request });
           },
@@ -211,6 +212,10 @@ describe("e2e", () => {
           app.get("/e2e/redirect", (c) =>
             c.html(html`<meta http-equiv="refresh" content="0;url=${c.req.query("url")}" />`),
           );
+          app.post("/e2e/app", (c) => {
+            generated = true;
+            return c.json({ code: "ok" });
+          });
           app.post("/e2e/shutdown", (c) => {
             teardown();
             return c.json({ code: "ok" });
