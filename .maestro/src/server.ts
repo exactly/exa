@@ -115,8 +115,9 @@ export function persona(referenceId: string, event = "approved") {
   if (!ok) throw new Error(`${status} ${body}`);
 }
 
+let purchases = 0;
 export function purchase(cardId: string, amount: number, merchantName: string, declinedReason?: string) {
-  const id = String(Date.now());
+  const id = `${Date.now()}${String(purchases++).padStart(3, "0")}`;
   const cents = Math.round(amount * 100);
   const authorizedAt = new Date().toISOString();
   for (const action of declinedReason ? ["created"] : ["created", "completed"]) {

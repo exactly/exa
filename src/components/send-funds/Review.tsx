@@ -28,7 +28,7 @@ import { presentArticle } from "../../utils/intercom";
 import parseAmount from "../../utils/parseAmount";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import { APIError, getRampQuote, listExternalAccounts } from "../../utils/server";
+import { APIError, getRampQuote, listExternalAccounts, refreshActivity } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import useSend from "../../utils/useSend";
 import useSimulateProposal from "../../utils/useSimulateProposal";
@@ -115,7 +115,7 @@ export default function Review() {
       return receipt?.transactionHash;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["activity"] }).catch(reportError);
+      refreshActivity().catch(reportError);
     },
     onError: (error) => {
       reportError(error);
