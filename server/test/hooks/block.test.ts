@@ -83,6 +83,7 @@ import t, { f } from "../../i18n";
 import createAlchemy from "../../utils/alchemy";
 import appOrigin from "../../utils/appOrigin";
 import ensClient from "../../utils/ensClient";
+import { refresh } from "../../utils/liquidity";
 import createOnesignal from "../../utils/onesignal";
 import createPersona from "../../utils/persona";
 import publicClient from "../../utils/publicClient";
@@ -417,6 +418,7 @@ describe("proposal", () => {
       });
       expect(hasExpectedTransfers(receipts, expected)).toBe(true);
       expect(removals).toStrictEqual([1, 1]);
+      expect(refresh).toHaveBeenCalledWith(database, redis, bobAccount, chain.id);
       expect(setUser).toHaveBeenCalledWith({ id: bobAccount });
     });
 
@@ -951,7 +953,13 @@ describe("proposal", () => {
       expect(captureException).toHaveBeenCalledWith(new Error("missing withdraw event"), {
         level: "error",
         contexts: {
-          proposal: { account: redeem.args.account, market: marketUSDCAddress, nonce: Number(redeem.args.nonce), hash },
+          proposal: {
+            account: redeem.args.account,
+            chainId: chain.id,
+            market: marketUSDCAddress,
+            nonce: Number(redeem.args.nonce),
+            hash,
+          },
         },
       });
       expect(removed).toStrictEqual([1]);
@@ -2287,6 +2295,7 @@ describe("legacy withdraw", () => {
       ),
     });
     expect(vi.mocked(captureException).mock.calls.filter((call) => match.capture(call))).toEqual([]);
+    expect(refresh).toHaveBeenCalledWith(database, redis, withdrawAccount, chain.id);
     expect(setUser).toHaveBeenCalledWith({ id: withdrawAccount });
   });
 
@@ -4145,6 +4154,7 @@ afterEach(() => vi.restoreAllMocks());
 
 vi.mock("@sentry/core", { spy: true });
 vi.mock("@sentry/node", { spy: true });
+vi.mock("../../utils/liquidity", { spy: true });
 
 const wrappedErrorAbi = [
   {

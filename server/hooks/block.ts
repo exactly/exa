@@ -67,6 +67,7 @@ import t, { f } from "../i18n";
 import { headerValidator } from "../utils/alchemy";
 import appOrigin from "../utils/appOrigin";
 import ensClient from "../utils/ensClient";
+import { refresh } from "../utils/liquidity";
 import listen from "../utils/listen";
 import publicClient, { alchemyClient } from "../utils/publicClient";
 import pay from "../utils/ramps/pay";
@@ -581,6 +582,7 @@ export default function hook({
                   ));
 
               parent.setStatus({ code: SPAN_STATUS_OK });
+              refresh(database, redis, account, chainId);
               if (proposalType === ProposalType.Withdraw || proposalType === ProposalType.Redeem) {
                 if (await isWETHMarket(chainId, market)) {
                   await skipNonce().catch((nonceError: unknown) => {
@@ -608,7 +610,9 @@ export default function hook({
                 if (assets === undefined) {
                   captureException(new Error("missing withdraw event"), {
                     level: "error",
-                    contexts: { proposal: { account, market, nonce: Number(nonce), hash: receipt?.transactionHash } },
+                    contexts: {
+                      proposal: { account, chainId, market, nonce: Number(nonce), hash: receipt?.transactionHash },
+                    },
                   });
                 }
                 startSpan(
@@ -802,6 +806,7 @@ export default function hook({
                 return redis.zrem("withdraw", message);
               }
               parent.setStatus({ code: SPAN_STATUS_OK });
+              refresh(database, redis, account, chain.id);
               startSpan(
                 { name: "send withdraw notification", op: "notification.send", attributes: { account, receiver } },
                 () =>

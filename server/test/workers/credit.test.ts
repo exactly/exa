@@ -12,6 +12,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, type MockIns
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import {
+  chains,
   exaAccountFactoryAbi,
   exaAccountFactoryAddress,
   exaPluginAbi,
@@ -23,6 +24,7 @@ import {
 
 import database, { cards, credentials } from "../../database";
 import t from "../../i18n";
+import { key } from "../../utils/liquidity";
 import createOnesignal from "../../utils/onesignal";
 import publicClient from "../../utils/publicClient";
 import { bullmq } from "../../utils/redis";
@@ -213,6 +215,19 @@ describe("credit worker", () => {
       contents: t("Your card is now in credit mode", { count: 2 }),
       idempotencyKey: v5(`https://exact.ly/credit/${holder}/${job.timestamp}`, v5.URL),
     });
+  });
+
+  it("stores liquidity of card users on every network", async () => {
+    await database.update(credentials).set({ pandaId: "credit-panda" }).where(eq(credentials.id, "credit-empty"));
+
+    await jobFinished(empty);
+
+    await vi.waitFor(() =>
+      expect(bullmq.hkeys(key("credit-panda")).then((fields) => fields.toSorted())).resolves.toStrictEqual(
+        [...chains.keys()].flatMap((id) => [String(id), `${id}:at`]).toSorted(),
+      ),
+    );
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it("keeps debit mode without deposits", async () => {
