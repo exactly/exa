@@ -428,6 +428,8 @@ export const Document = object({
     "front-photo": nullable(File),
     "selfie-photo": nullable(File),
     "id-class": string(),
+    "name-first": optional(nullable(string())),
+    "name-last": optional(nullable(string())),
   }),
 });
 
