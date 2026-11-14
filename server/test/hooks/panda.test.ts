@@ -5,7 +5,7 @@ import * as segment from "../mocks/segment";
 import "../mocks/sentry";
 import "../mocks/wallet";
 
-import { captureException, captureMessage, setUser } from "@sentry/node";
+import { captureException, captureMessage, setTag, setUser } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { parse } from "valibot";
@@ -19,8 +19,10 @@ import {
   encodeErrorResult,
   encodeFunctionData,
   erc20Abi,
+  getAbiItem,
   hexToBigInt,
   http,
+  keccak256,
   padHex,
   zeroAddress,
   zeroHash,
@@ -30,7 +32,7 @@ import {
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { anvil } from "viem/chains";
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import chain, {
@@ -38,7 +40,10 @@ import chain, {
   exaAccountFactoryAbi,
   exaAccountFactoryAddress,
   exaPluginAbi,
+  exaPluginAddress,
+  factories,
   issuerCheckerAbi,
+  issuerCheckerPreviewerCode,
   marketAbi,
   marketUSDCAddress,
   refunderAddress,
@@ -499,7 +504,12 @@ describe("card operations", () => {
       });
 
       it("fails with unexpected outer-catch error", async () => {
-        vi.spyOn(Panda, "signIssuerOp").mockRejectedValueOnce(new Error("sign failed"));
+        onTestFinished(() => {
+          vi.mocked(setTag).mockReset();
+        });
+        vi.mocked(setTag).mockImplementation((key) => {
+          if (key === "exa.mode") throw new Error("unexpected");
+        });
         const cardId = "rc-ouch";
         await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "0005", mode: 0 }]);
 
@@ -2573,6 +2583,199 @@ describe("card operations", () => {
   });
 });
 
+describe("plugin 1.0.0", () => {
+  const owner100 = createWalletClient({ chain, transport: http(), account: privateKeyToAccount(generatePrivateKey()) });
+  const factory = parse(
+    Address,
+    factories.versions.find((address) => address !== exaAccountFactoryAddress),
+  );
+  const account100 = deriveAddress(factory, { x: padHex(owner100.account.address), y: zeroHash });
+  let release: Address;
+
+  beforeAll(async () => {
+    await database.transaction(async (tx) => {
+      await tx
+        .insert(credentials)
+        .values([{ id: account100, publicKey: new Uint8Array(), account: account100, factory }]);
+      await tx.insert(cards).values([
+        { id: `${account100}-debit`, credentialId: account100, lastFour: "1000", mode: 0 },
+        { id: `${account100}-credit`, credentialId: account100, lastFour: "1001", mode: 1 },
+        { id: `${account100}-upgraded`, credentialId: account100, lastFour: "1002", mode: 0 },
+      ]);
+    });
+    await Promise.all([
+      keeper.exaSend(
+        { name: "create account", op: "exa.account" },
+        {
+          address: factory,
+          abi: exaAccountFactoryAbi,
+          functionName: "createAccount",
+          args: [0n, [{ x: hexToBigInt(owner100.account.address), y: 0n }]],
+        },
+      ),
+      keeper.exaSend(
+        { name: "mint usdc", op: "tx.mint" },
+        { address: usdcAddress, abi: mockERC20Abi, functionName: "mint", args: [account100, 420_000_000n] },
+      ),
+      anvilClient.setBalance({ address: owner100.account.address, value: 10n ** 24n }),
+    ]);
+    await keeper.exaSend(
+      { name: "poke", op: "exa.poke" },
+      { address: account100, abi: exaPluginAbi, functionName: "poke", args: [marketUSDCAddress] },
+    );
+    release = await publicClient
+      .readContract({ address: account100, abi: upgradeableModularAccountAbi, functionName: "getInstalledPlugins" })
+      .then(([plugin]) => parse(Address, plugin));
+  });
+
+  afterEach(() => Panda.getMutex(account100)?.release());
+
+  it.each([
+    ["debit", 901],
+    ["credit", 11],
+  ] as const)("authorizes %s with one trace", async (mode, amount) => {
+    const checker = await publicClient.readContract({
+      address: release,
+      abi: exaPluginAbi,
+      functionName: "ISSUER_CHECKER",
+    });
+    const traceCall = vi.spyOn(traceClient, "traceCall");
+
+    await expect(authorize(`${account100}-${mode}`, amount)).resolves.toBe(200);
+
+    expect(captureException).not.toHaveBeenCalled();
+    expect(traceCall.mock.calls.map(([{ stateOverride }]) => stateOverride)).toStrictEqual([
+      expect.arrayContaining([
+        { address: release, stateDiff: [expect.any(Object)] },
+        { address: checker, code: issuerCheckerPreviewerCode },
+      ]),
+    ]);
+  });
+
+  it("authorizes when factories share a plugin", async () => {
+    const { readContract } = publicClient;
+    vi.spyOn(publicClient, "readContract").mockImplementationOnce((parameters) =>
+      readContract({ ...parameters, args: [[...factories.versions, ...factories.versions]] }),
+    );
+    const hook = createPandaHook(dependencies);
+    await hook.ready;
+
+    const { status } = await testClient(hook.app).index.$post({
+      ...authorization,
+      json: {
+        ...authorization.json,
+        body: {
+          ...authorization.json.body,
+          id: `${account100}-shared-authorization`,
+          spend: { ...authorization.json.body.spend, amount: 903, cardId: `${account100}-debit` },
+        },
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  describe("after upgrade", () => {
+    beforeAll(async () => {
+      await anvilClient.waitForTransactionReceipt({
+        hash: await owner100.writeContract({
+          address: account100,
+          abi: upgradeableModularAccountAbi,
+          functionName: "executeBatch",
+          args: [
+            [
+              {
+                target: account100,
+                value: 0n,
+                data: encodeFunctionData({
+                  abi: upgradeableModularAccountAbi,
+                  functionName: "uninstallPlugin",
+                  args: [
+                    release,
+                    encodeAbiParameters(
+                      [
+                        {
+                          type: "tuple",
+                          components: [
+                            { name: "serializedManifest", type: "bytes" },
+                            { name: "forceUninstall", type: "bool" },
+                            { name: "callbackGasLimit", type: "uint256" },
+                          ],
+                        },
+                      ],
+                      [{ serializedManifest: "0x", forceUninstall: false, callbackGasLimit: 0n }],
+                    ),
+                    "0x",
+                  ],
+                }),
+              },
+              {
+                target: account100,
+                value: 0n,
+                data: encodeFunctionData({
+                  abi: upgradeableModularAccountAbi,
+                  functionName: "installPlugin",
+                  args: [
+                    exaPluginAddress,
+                    keccak256(
+                      encodeAbiParameters(getAbiItem({ abi: exaPluginAbi, name: "pluginManifest" }).outputs, [
+                        await publicClient.readContract({
+                          address: exaPluginAddress,
+                          abi: exaPluginAbi,
+                          functionName: "pluginManifest",
+                        }),
+                      ]),
+                    ),
+                    "0x",
+                    [],
+                  ],
+                }),
+              },
+            ],
+          ],
+        }),
+      });
+    });
+
+    it("authorizes with one trace", async () => {
+      const traceCall = vi.spyOn(traceClient, "traceCall");
+
+      await expect(authorize(`${account100}-upgraded`, 901)).resolves.toBe(200);
+
+      expect(captureException).not.toHaveBeenCalled();
+      expect(traceCall).toHaveBeenCalledOnce();
+    });
+
+    it("declines replayed authorization", async () => {
+      const id = `${account100}-replay`;
+      const spend = {
+        ...authorization.json.body.spend,
+        amount: 902,
+        cardId: `${account100}-upgraded`,
+        authorizedAt: new Date().toISOString(),
+      };
+      const created = await appClient.index.$post({
+        ...authorization,
+        json: { ...authorization.json, action: "created", body: { ...authorization.json.body, id, spend } },
+      });
+      await publicClient.waitForTransactionReceipt({
+        hash: await database.query.transactions
+          .findFirst({ where: eq(transactions.id, id) })
+          .then((transaction) => transaction?.hashes[0] as Hex),
+        confirmations: 0,
+      });
+
+      const replayed = await appClient.index.$post({
+        ...authorization,
+        json: { ...authorization.json, body: { ...authorization.json.body, id: `${id}-authorization`, spend } },
+      });
+
+      expect([created.status, replayed.status]).toStrictEqual([200, 558]);
+    });
+  });
+});
+
 describe("card notification", () => {
   beforeAll(async () => {
     await database.update(credentials).set({ pandaId: "cred" }).where(eq(credentials.id, "cred"));
@@ -3593,7 +3796,12 @@ describe("concurrency", () => {
 
     it("stores unexpected error when a non-panda error escapes authorization", async () => {
       const txId = crypto.randomUUID();
-      vi.spyOn(Panda, "signIssuerOp").mockRejectedValueOnce(new Error("sign failed"));
+      onTestFinished(() => {
+        vi.mocked(setTag).mockReset();
+      });
+      vi.mocked(setTag).mockImplementation((key) => {
+        if (key === "exa.mode") throw new Error("unexpected");
+      });
 
       const response = await appClient.index.$post({
         ...authorization,
@@ -4222,6 +4430,21 @@ function usdcToAddress(purchaseReceipt: TransactionReceipt, address: Address) {
 
 function usdcToCollector(purchaseReceipt: TransactionReceipt) {
   return usdcToAddress(purchaseReceipt, parse(Address, "0xDb90CDB64CfF03f254e4015C4F705C3F3C834400"));
+}
+
+async function authorize(cardId: string, amount: number) {
+  const { status } = await appClient.index.$post({
+    ...authorization,
+    json: {
+      ...authorization.json,
+      body: {
+        ...authorization.json.body,
+        id: `${cardId}-authorization`,
+        spend: { ...authorization.json.body.spend, amount, cardId },
+      },
+    },
+  });
+  return status;
 }
 
 async function execute(calldata: Hex) {
