@@ -1,4 +1,4 @@
-// cspell:ignore cust midmarket sepa spei iban COBADEFFXXX Anytown Joao Zdestination Adestination GABCDEFGHIJKLMNOPQRSTUVWXYZSTELLARDESTINATION Xiaoming Dawen Zeng Zhang Иван Abudula Aili Xiao
+// cspell:ignore cust midmarket sepa spei iban COBADEFFXXX Anytown Joao Zdestination Adestination GABCDEFGHIJKLMNOPQRSTUVWXYZSTELLARDESTINATION Xiaoming Dawen Zeng Zhang Иван Abudula Aili Xiao Юрій Шевченко Shevchenko المصري محمد Yurii Masry MULLER José Müller
 import "../mocks/sentry";
 
 import { captureException, setContext } from "@sentry/core";
@@ -3333,13 +3333,26 @@ describe("bridge utils", () => {
     it.each([
       { first: "小明", last: "吕", issuer: "CN", transliterated: { first: "Xiaoming", last: "Lyu" } },
       { first: "大文", last: "曾", issuer: "CN", transliterated: { first: "Dawen", last: "Zeng" } },
-      { first: "Иван", last: "张", issuer: "CN", transliterated: { last: "Zhang" } },
-      { first: "小明Иван", last: "Doe", issuer: "CN", transliterated: {} },
+      { first: "Иван", last: "张", issuer: "CN", transliterated: { first: "Ivan", last: "Zhang" } },
       { first: "阿卜杜拉·艾力", last: "吕", issuer: "CN", transliterated: { first: "Abudula Aili", last: "Lyu" } },
-      { first: "小\u3000明", last: "曾", issuer: "CN", transliterated: { first: "Xiao Ming", last: "Zeng" } },
-      { first: "太郎", last: "山田", issuer: "JP", transliterated: {} },
-      { first: "大文", last: "陳", issuer: "HK", transliterated: {} },
-    ])("transliterates han names $first $last from $issuer", async ({ first, last, issuer, transliterated }) => {
+      {
+        first: "太郎",
+        last: "山田",
+        issuer: "JP",
+        document: { first: "TARO", last: "YAMADA" },
+        transliterated: { first: "TARO", last: "YAMADA" },
+      },
+      {
+        first: "大文",
+        last: "陳",
+        issuer: "HK",
+        document: { first: "TAI MAN", last: "CHAN" },
+        transliterated: { first: "TAI MAN", last: "CHAN" },
+      },
+      { first: "محمد", last: "المصري", issuer: "EG", transliterated: { first: "Mohamed", last: "El-Masry" } },
+      { first: "Юрій", last: "Шевченко", issuer: "UA", transliterated: { first: "Yurii", last: "Shevchenko" } },
+      { first: "José", last: "Müller", issuer: "AR", document: { first: "JOSE", last: "MULLER" }, transliterated: {} },
+    ])("transliterates names $first $last from $issuer", async ({ first, last, issuer, document, transliterated }) => {
       vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
         ...enabledPersonaAccount,
         attributes: {
@@ -3351,7 +3364,10 @@ describe("bridge utils", () => {
           },
         },
       });
-      vi.spyOn(persona, "getDocument").mockResolvedValueOnce(documentResponse);
+      vi.spyOn(persona, "getDocument").mockResolvedValueOnce({
+        ...documentResponse,
+        attributes: { ...documentResponse.attributes, "name-first": document?.first, "name-last": document?.last },
+      });
       const fetchSpy = vi
         .spyOn(globalThis, "fetch")
         .mockResolvedValueOnce({ ok: true, blob: () => Promise.resolve(new Blob(["front"])) } as Response)
@@ -3369,6 +3385,7 @@ describe("bridge utils", () => {
       expect(body).toMatchObject({ first_name: first, last_name: last });
       expect(body.transliterated_first_name).toBe(transliterated.first);
       expect(body.transliterated_last_name).toBe(transliterated.last);
+      expect(body.transliterated_residential_address).toBeUndefined();
       expect(captureException).not.toHaveBeenCalled();
     });
 
