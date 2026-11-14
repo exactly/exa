@@ -5,7 +5,7 @@ import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { YStack } from "tamagui";
 
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import CardActivity from "./CardActivity";
 import DeclinedActivity from "./DeclinedActivity";
@@ -16,16 +16,14 @@ import SentActivity from "./SentActivity";
 import { ArrowLeft } from "../../../generated/icons/ArrowLeft";
 import { Headphones } from "../../../generated/icons/Headphones";
 import { present } from "../../../utils/intercom";
-import queryClient from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
+import { activityOptions, findActivity, type Activity } from "../../../utils/server";
 import GradientScrollView from "../../shared/GradientScrollView";
 import IconButton from "../../shared/IconButton";
 import SafeView from "../../shared/SafeView";
 import ExaSpinner from "../../shared/Spinner";
 import Button from "../../shared/StyledButton";
 import Text from "../../shared/Text";
-
-import type { Activity } from "../../../utils/server";
 
 export default function ActivityDetails() {
   const { t } = useTranslation();
@@ -34,16 +32,27 @@ export default function ActivityDetails() {
     data: activity,
     isPending,
     isFetching,
-    isPlaceholderData,
     isError,
     refetch,
-  } = useQuery<Activity>({
-    queryKey: ["activity"],
-    staleTime: 0,
-    placeholderData: () => queryClient.getQueryData<Activity>(["activity", "card"]),
+  } = useInfiniteQuery({ ...activityOptions, select: ({ pages }) => pages.flat() });
+  const listed = activity?.find((entry) => entry.id === id);
+  const { data: card, isFetching: carding } = useQuery<Activity>({
+    queryKey: ["activity", "card"],
+    enabled: !listed && !isPending,
   });
-  const item = activity?.find((entry) => entry.id === id);
-  if (!item && (isPending || isFetching || isPlaceholderData)) {
+  const cached = listed ?? card?.find((entry) => entry.id === id);
+  const {
+    data: found,
+    isFetching: finding,
+    isError: lost,
+    refetch: retry,
+  } = useQuery({
+    queryKey: ["activity", "item", id],
+    queryFn: () => findActivity(id),
+    enabled: !cached && !isPending && !isFetching && !isError && !carding,
+  });
+  const item = cached ?? found ?? undefined;
+  if (!item && (isPending || isFetching || carding || finding)) {
     return (
       <SafeView fullScreen padded>
         <Back />
@@ -53,7 +62,7 @@ export default function ActivityDetails() {
       </SafeView>
     );
   }
-  if (!item && isError) {
+  if (!item && (isError || lost)) {
     return (
       <SafeView fullScreen padded>
         <Back />
@@ -64,7 +73,7 @@ export default function ActivityDetails() {
           <Button
             outlined
             onPress={() => {
-              refetch().catch(reportError);
+              (isError ? refetch() : retry()).catch(reportError);
             }}
           >
             <Button.Text>{t("Retry")}</Button.Text>
