@@ -24,6 +24,21 @@ export function transliterateName(
   return romanized(input) || (documentName ? romanized(documentName) : "") || undefined;
 }
 
+export function transliterateAddress(text: string, country: string) {
+  const input = clean(text);
+  if (latin(input)) return input;
+  return input
+    .split(" ")
+    .map((word) => {
+      const out = romanize(word, country, "address");
+      return /[\p{Ll}\p{Lu}]/u.test(word)
+        ? out
+        : out.replaceAll(/(^|-)(\p{Ll})/gu, (_, start: string, first: string) => `${start}${first.toUpperCase()}`);
+    })
+    .filter(Boolean)
+    .join(" ");
+}
+
 function clean(text: string) {
   return text
     .normalize("NFKC")
@@ -32,7 +47,7 @@ function clean(text: string) {
     .trim();
 }
 
-function romanize(text: string, country: string, kind: "name" | "surname") {
+function romanize(text: string, country: string, kind: "address" | "name" | "surname") {
   return text
     .split(/([^\p{L}\p{M}\u200C\u200D]+|\p{Script=Latin}+)/u)
     .map((word) => {
@@ -40,9 +55,11 @@ function romanize(text: string, country: string, kind: "name" | "surname") {
         return word.replaceAll(/[^\u0020-\u007E\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u00FF]/gu, (char) => anyAscii(char));
       }
       const out = script(word, country, kind);
-      return out.replaceAll(/(^|[\s-])(\p{L})(\p{L}*)/gu, (_, start: string, first: string, rest: string) => {
-        return `${start}${first.toUpperCase()}${rest.toLowerCase()}`;
-      });
+      return kind === "address"
+        ? out
+        : out.replaceAll(/(^|[\s-])(\p{L})(\p{L}*)/gu, (_, start: string, first: string, rest: string) => {
+            return `${start}${first.toUpperCase()}${rest.toLowerCase()}`;
+          });
     })
     .join("")
     .replaceAll(/[`´]/gu, "")
@@ -52,8 +69,8 @@ function romanize(text: string, country: string, kind: "name" | "surname") {
     .trim();
 }
 
-function script(word: string, country: string, kind: "name" | "surname") {
-  if (/\p{Script=Han}/u.test(word) && !/[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(word)) {
+function script(word: string, country: string, kind: "address" | "name" | "surname") {
+  if (kind !== "address" && /\p{Script=Han}/u.test(word) && !/[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(word)) {
     return anyAscii(
       pinyin(word, {
         toneType: "none",

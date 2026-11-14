@@ -46,7 +46,7 @@ import { credentials } from "../../database/schema";
 import { BusinessApplicationError } from "../panda";
 import * as Persona from "../persona";
 import ServiceError from "../ServiceError";
-import { transliterateName } from "../transliterate";
+import { latin, transliterateAddress, transliterateName } from "../transliterate";
 
 import type * as schema from "../../database/schema";
 import type createPersona from "../persona";
@@ -1480,6 +1480,14 @@ export default function bridge(key: string, url: string) {
             issuing_country: "USA",
           });
         }
+        const address = {
+          street_line_1: personaAccount.attributes["address-street-1"],
+          street_line_2: personaAccount.attributes["address-street-2"] ?? undefined,
+          postal_code: personaAccount.attributes["address-postal-code"],
+          subdivision: countryCode === "US" ? personaAccount.attributes["address-subdivision"] : undefined,
+          country,
+          city: personaAccount.attributes["address-city"],
+        };
         const idempotencyKey = crypto.randomUUID();
         const customer = await createCustomer(
           {
@@ -1498,14 +1506,17 @@ export default function bridge(key: string, url: string) {
             ),
             email: personaAccount.attributes["email-address"],
             phone: personaAccount.attributes.fields.phone_number.value,
-            residential_address: {
-              street_line_1: personaAccount.attributes["address-street-1"],
-              street_line_2: personaAccount.attributes["address-street-2"] ?? undefined,
-              postal_code: personaAccount.attributes["address-postal-code"],
-              subdivision: countryCode === "US" ? personaAccount.attributes["address-subdivision"] : undefined,
-              country,
-              city: personaAccount.attributes["address-city"],
-            },
+            residential_address: address,
+            transliterated_residential_address: Object.values(address).every((value) => !value || latin(value))
+              ? undefined
+              : {
+                  street_line_1: transliterateAddress(address.street_line_1, countryCode),
+                  street_line_2: address.street_line_2 && transliterateAddress(address.street_line_2, countryCode),
+                  postal_code: transliterateAddress(address.postal_code, countryCode),
+                  subdivision: address.subdivision,
+                  country,
+                  city: transliterateAddress(address.city, countryCode),
+                },
             birth_date: personaAccount.attributes.fields.birthdate.value,
             signed_agreement_id: params.acceptedTermsId,
             endorsements,
