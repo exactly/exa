@@ -111,7 +111,7 @@ export default async function setup() {
       chains.map(
         ({ rpcUrls }) =>
           $(shell)`forge script ${args}
-              --unlocked --rpc-url ${rpcUrls.default.http[0]} --broadcast --skip-simulation --offline`,
+              --unlocked --sender ${deployer} --rpc-url ${rpcUrls.default.http[0]} --broadcast --skip-simulation --offline`,
       ),
     );
   }
@@ -241,7 +241,7 @@ export default async function setup() {
       const client = createTestClient({ chain, mode: "anvil", transport: http() }).extend(publicActions);
       await Promise.all([
         $(shell)`forge script test/mocks/Mocks.s.sol --sig frozenMarket()
-            --unlocked --rpc-url ${chain.rpcUrls.default.http[0]} --broadcast --skip-simulation --offline`,
+            --unlocked --sender ${deployer} --rpc-url ${chain.rpcUrls.default.http[0]} --broadcast --skip-simulation --offline`,
         client.setBalance({ address: privateKeyToAddress(keccak256(toBytes("e2e.ts"))), value: 10n ** 24n }),
       ]);
       if (
