@@ -6,13 +6,14 @@ import { useFocusEffect } from "expo-router";
 
 import { useTheme } from "tamagui";
 
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 
 import ActivityItem from "./ActivityItem";
 import Empty from "./Empty";
 import queryClient, { type ActivityItem as ActivityEvent } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import { activityOptions, foldActivity, refreshActivity } from "../../utils/server";
 import useAsset from "../../utils/useAsset";
 import useTabPress from "../../utils/useTabPress";
 import TabBarContext from "../context/TabBarContext";
@@ -24,15 +25,21 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function Activity() {
-  const { data: activity } = useQuery<ActivityEvent[]>({ queryKey: ["activity"] });
+  const {
+    data: activity,
+    fetchNextPage,
+    fetchPreviousPage,
+    hasNextPage,
+    isFetching,
+    isFetchingNextPage,
+  } = useInfiniteQuery({ ...activityOptions, select: ({ pages }) => pages.flat() });
   const { queryKey } = useAsset();
   const { fontScale } = useWindowDimensions();
   const theme = useTheme();
   const [headerHeight, setHeaderHeight] = useState<number>();
-  const [limit, setLimit] = useState(page);
 
   const layout = useMemo(() => {
-    const events = activity?.slice(0, limit) ?? [];
+    const events: ActivityEvent[] = activity ?? [];
     const items: ActivityItemType[] = [];
     const offsets: number[] = [];
     const stickies: number[] = [];
@@ -58,7 +65,7 @@ export default function Activity() {
     offsets.push(offset);
 
     return { items, offsets, stickies };
-  }, [activity, fontScale, limit]);
+  }, [activity, fontScale]);
 
   const onHeaderLayout = useCallback<NonNullable<ComponentPropsWithoutRef<typeof View>["onLayout"]>>(
     (event) => setHeaderHeight(event.nativeEvent.layout.height),
@@ -68,19 +75,24 @@ export default function Activity() {
   const listRef = useRef<FlatList<ActivityItemType>>(null);
   const refresh = () =>
     Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["activity"], exact: true }),
+      refreshActivity(),
+      queryClient.invalidateQueries({ queryKey: ["activity", "card"], exact: true }),
       queryClient.refetchQueries({ queryKey }),
     ]);
   useFocusEffect(
     useCallback(() => {
-      queryClient.invalidateQueries({ queryKey: ["activity"], exact: true }).catch(reportError);
-    }, []),
+      const pages = queryClient.getQueryData(activityOptions.queryKey)?.pages.length ?? 0;
+      Promise.all([
+        pages > 1
+          ? fetchPreviousPage({ cancelRefetch: false }).then(foldActivity)
+          : queryClient.invalidateQueries({ queryKey: activityOptions.queryKey, exact: true }),
+        queryClient.invalidateQueries({ queryKey: ["activity", "card"], exact: true }),
+      ]).catch(reportError);
+    }, [fetchPreviousPage]),
   );
   useTabPress("activity", () => {
     if (layout.items.length > 0) listRef.current?.scrollToIndex({ index: 0, animated: true });
-    refresh()
-      .then(() => setLimit(page))
-      .catch(reportError);
+    refresh().catch(reportError);
   });
 
   return (
@@ -122,15 +134,21 @@ export default function Activity() {
           windowSize={5}
           removeClippedSubviews={false}
           onEndReachedThreshold={1}
-          onEndReached={() => setLimit((current) => (activity && current < activity.length ? current + page : current))}
+          onEndReached={() => {
+            if (!hasNextPage || isFetchingNextPage) return;
+            const refetching = isFetching;
+            fetchNextPage({ cancelRefetch: false })
+              .then((result) =>
+                refetching && result.hasNextPage ? fetchNextPage({ cancelRefetch: false }) : undefined,
+              )
+              .catch(reportError);
+          }}
           stickyHeaderIndices={layout.stickies}
         />
       </View>
     </SafeView>
   );
 }
-
-const page = 40;
 
 type ActivityItemType =
   | { date: string; height: number; type: "header" }
