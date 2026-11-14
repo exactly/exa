@@ -241,6 +241,7 @@ function RolloverButton({
 
   const { request: proposeSimulation, error: executeProposalError } = useSimulateProposal({
     account: address,
+    chainId: chain.id,
     amount: maxRepayAssets,
     market: marketUSDCAddress,
     proposalType: ProposalType.RollDebt,

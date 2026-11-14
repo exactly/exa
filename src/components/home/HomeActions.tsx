@@ -57,7 +57,7 @@ export default function HomeActions() {
     factoryData: credential && accountInit(credential),
     query: { enabled: !!account && !!credential },
   });
-  const proposalManager = useProposalManager();
+  const proposalManager = useProposalManager(chain.id);
   const { refetch: fetchProposals, isPending } = useReadContract({
     chainId: chain.id,
     functionName: "proposals",

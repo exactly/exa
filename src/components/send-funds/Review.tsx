@@ -94,6 +94,7 @@ export default function Review() {
   const { address: userAddress } = useAccount({ config: exa });
   const { request: proposeSimulation } = useSimulateProposal({
     account: userAddress,
+    chainId: chain.id,
     amount: usdcAmount,
     market: marketUSDCAddress,
     proposalType: ProposalType.Withdraw,
