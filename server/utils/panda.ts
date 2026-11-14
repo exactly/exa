@@ -48,6 +48,7 @@ import { Address, Hex } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 
 import ServiceError from "./ServiceError";
+import { transliterateName } from "./transliterate";
 
 export default function panda({ key, url }: { key: string; url: string }) {
   return {
@@ -87,7 +88,10 @@ export default function panda({ key, url }: { key: string; url: string }) {
     amount = 1_000_000,
     idempotencyKey?: string,
     source?: null | string,
+    name?: { country: string; first: string; last: string },
   ) {
+    const first = name && transliterateName(name.first, name.country);
+    const last = name && transliterateName(name.last, name.country, { surname: true });
     return await request(
       CardResponse,
       `/issuing/users/${userId}/cards`,
@@ -97,6 +101,7 @@ export default function panda({ key, url }: { key: string; url: string }) {
         status: "active",
         limit: { amount, frequency: "per7DayPeriod" },
         configuration: {
+          displayName: name && (first ?? last) ? displayName(first ?? name.first, last ?? name.last) : undefined,
           productId,
           virtualCardArt:
             chain.id === baseSepolia.id || chain.id === optimismSepolia.id
@@ -184,6 +189,7 @@ export default function panda({ key, url }: { key: string; url: string }) {
     return request(
       array(
         object({
+          address: nullish(object({ countryCode: string() })),
           companyId: optional(string()),
           email: optional(string()),
           id: string(),
@@ -654,6 +660,23 @@ export const PINResponse = pipe(
   transform(({ encryptedPin }) => ({ pin: encryptedPin })),
 );
 
+function displayName(first: string, last: string) {
+  const full = `${first} ${last}`;
+  if (full.length <= 30) return full;
+  const initial = `${first.charAt(0)}. ${last}`;
+  if (initial.length <= 30) return initial;
+  for (const separator of [/(?<=\s)/u, /(?<=[\s-])/u]) {
+    let out = "";
+    for (const part of initial.split(separator)) {
+      if (`${out}${part}`.trimEnd().replace(/-$/u, "").length > 30) break;
+      out += part;
+    }
+    out = out.trimEnd().replace(/-$/u, "");
+    if (out.includes(" ")) return out;
+  }
+  return initial.slice(0, 30);
+}
+
 const CreateCardRequest = object({
   type: picklist(["physical", "virtual"]),
   status: picklist(["active", "canceled", "locked", "notActivated"]),
@@ -669,6 +692,7 @@ const CreateCardRequest = object({
     ]),
   }),
   configuration: object({
+    displayName: optional(pipe(string(), maxLength(30))),
     productId: picklist([BASE_PRODUCT_ID, CLASSIC_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
     virtualCardArt: string(),
   }),

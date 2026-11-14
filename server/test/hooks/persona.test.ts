@@ -947,6 +947,8 @@ describe("business representative", () => {
       CLASSIC_PRODUCT_ID,
       200_000,
       "evt_representative_123",
+      undefined,
+      { country: "", first: "authorized", last: "user" },
     );
     expect(allow.enqueue).toHaveBeenCalledExactlyOnceWith({
       account,
@@ -990,11 +992,38 @@ describe("business representative", () => {
       CLASSIC_PRODUCT_ID,
       undefined,
       "evt_representative_123",
+      undefined,
+      { country: "", first: "authorized", last: "user" },
     );
     expect(captureException).not.toHaveBeenCalled();
     await expect(
       database.query.cards.findMany({ columns: { id: true }, where: eq(cards.credentialId, referenceId) }),
     ).resolves.toStrictEqual([{ id: "business-card" }]);
+  });
+
+  it("transliterates the card name with the company user country", async () => {
+    await database.update(credentials).set({ pandaId: "business-user" }).where(eq(credentials.id, referenceId));
+    vi.mocked(panda.getCompanyApplication).mockResolvedValueOnce({ id: "company-id", applicationStatus: "approved" });
+    vi.mocked(panda.getCompanyUsers).mockResolvedValueOnce([
+      { id: "authorized-user", email: "authorized@example.com", address: { countryCode: "EG" } },
+    ]);
+    vi.mocked(panda.createCard).mockResolvedValueOnce(card);
+
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: representativePayload({ referenceId, status: "approved" }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(panda.createCompanyUser).not.toHaveBeenCalled();
+    expect(panda.createCard).toHaveBeenCalledExactlyOnceWith(
+      "authorized-user",
+      CLASSIC_PRODUCT_ID,
+      undefined,
+      "evt_representative_123",
+      undefined,
+      { country: "EG", first: "authorized", last: "user" },
+    );
   });
 
   it("rounds the weekly card limit to cents", async () => {
@@ -1016,6 +1045,8 @@ describe("business representative", () => {
       CLASSIC_PRODUCT_ID,
       115,
       "evt_representative_123",
+      undefined,
+      { country: "", first: "authorized", last: "user" },
     );
   });
 
@@ -1188,6 +1219,8 @@ describe("business representative", () => {
       CLASSIC_PRODUCT_ID,
       undefined,
       "evt_representative_123",
+      undefined,
+      { country: "", first: "authorized", last: "user" },
     );
     expect(allow.enqueue).toHaveBeenCalledOnce();
     expect(captureException).not.toHaveBeenCalled();
@@ -1359,6 +1392,8 @@ describe("business representative", () => {
       CLASSIC_PRODUCT_ID,
       200_000,
       "evt_representative_123",
+      undefined,
+      { country: "", first: "authorized", last: "user" },
     );
     expect(allow.enqueue).toHaveBeenCalledOnce();
     expect(captureException).not.toHaveBeenCalled();
@@ -1393,6 +1428,8 @@ describe("business representative", () => {
       CLASSIC_PRODUCT_ID,
       undefined,
       "evt_representative_123",
+      undefined,
+      { country: "", first: "authorized", last: "user" },
     );
     await expect(
       database.query.cards.findMany({ columns: { id: true }, where: eq(cards.credentialId, referenceId) }),
