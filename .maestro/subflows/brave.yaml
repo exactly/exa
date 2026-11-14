@@ -5,6 +5,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: I understand that this is a self-custody wallet.*
 - tapOn: I have read and agree to the.*
 - tapOn: Continue
+- scrollUntilVisible: { element: Continue with .* Networks }
 - tapOn: Continue with .* Networks
 - tapOn: 12 words
 - tapOn: Continue
