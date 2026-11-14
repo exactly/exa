@@ -1,11 +1,14 @@
-// cspell:ignoreRegExp /[\u0600-\u06FF\uAC00-\uD7AF]+/g
+// cspell:ignoreRegExp /[\u0590-\u06FF\u1000-\u109F\uAC00-\uD7AF]+/g
 // cspell:ignoreRegExp /"[A-Z][a-z]+(-[A-Z][a-z]+)?"/g
-// cspell:ignore aāeiīoōuūṛ bcdgjkpt brahmic gurmukhi iast αβγδεζηιλμνορυω
+// cspell:ignore aāeiīoōuūṛ bcdgjkpt brahmic gurmukhi iast αβγδεζηιλμνορυω aeiou aing aung chih dfghj eung mnpt npstwz oeng romaji shih
 import Sanscript from "@indic-transliteration/sanscript";
 import anyAscii from "any-ascii";
 import cyrillicToTranslit from "cyrillic-to-translit-js";
 import { ICAO_DOC_9303, translate } from "iuliia";
 import { pinyin } from "pinyin-pro";
+import { romanizeName } from "thai-rtgs";
+import ToJyutping from "to-jyutping";
+import { toRomaji } from "wanakana";
 
 export function latin(text: string) {
   return /^[\u0020-\u007E\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u00FF]*$/u.test(text);
@@ -41,7 +44,7 @@ export function transliterateAddress(text: string, country: string) {
       const out = romanize(word, country, "address");
       return /[\p{Ll}\p{Lu}]/u.test(word)
         ? out
-        : out.replaceAll(/(^|-)(\p{Ll})/gu, (_, start: string, first: string) => `${start}${first.toUpperCase()}`);
+        : out.replaceAll(/(^|[\s-])(\p{Ll})/gu, (_, start: string, first: string) => `${start}${first.toUpperCase()}`);
     })
     .filter(Boolean)
     .join(" ");
@@ -57,21 +60,20 @@ function clean(text: string) {
 
 function romanize(text: string, country: string, kind: "address" | "name" | "surname") {
   return text
-    .split(/([^\p{L}\p{M}\u200C\u200D]+|\p{Script=Latin}+)/u)
+    .split(/((?:(?<![\u05D2\u05D6\u05E5\u05E6])['\u05F3]|[^'\p{L}\p{M}\u05F3\u200C\u200D])+|\p{Script=Latin}+)/u)
     .map((word) => {
       if (!/\p{L}/u.test(word) || /\p{Script=Latin}/u.test(word)) return anyAscii(word);
-      if (
-        kind !== "address" &&
-        /\p{Script=Han}/u.test(word) &&
-        !/[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(word)
-      ) {
+      if (/[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(word)) return japanese(word);
+      if (kind !== "address" && /\p{Script=Han}/u.test(word)) {
+        if (country === "HK" || country === "MO") return cantonese(word, kind === "surname");
+        const syllables = pinyin(word, {
+          toneType: "none",
+          type: "array",
+          surname: kind === "surname" ? "all" : "off",
+          v: country === "TW" ? false : "yu",
+        });
         return anyAscii(
-          pinyin(word, {
-            toneType: "none",
-            type: "array",
-            surname: kind === "surname" ? "all" : "off",
-            v: "yu",
-          }).join(""),
+          country === "TW" ? syllables.map((syllable) => wadeGiles(syllable)).join("-") : syllables.join(""),
         );
       }
       if (kind === "surname" && korean[word]) return korean[word];
@@ -80,6 +82,9 @@ function romanize(text: string, country: string, kind: "address" | "name" | "sur
       }
       if (/\p{Script=Arabic}/u.test(word)) return arabic(word, region(country));
       if (/\p{Script=Greek}/u.test(word)) return greek(word);
+      if (/\p{Script=Thai}/u.test(word)) return romanizeName(word);
+      if (/\p{Script=Hebrew}/u.test(word)) return hebrew(word);
+      if (/\p{Script=Myanmar}/u.test(word)) return burmese(word);
       const indic = /[\u0900-\u0DFF]/u.exec(word)?.[0].codePointAt(0);
       if (indic !== undefined) return brahmic(word, indic - (indic % 0x80));
       return anyAscii(word);
@@ -507,3 +512,352 @@ const names = new Map<string, Partial<Record<Region, string>> | string>([
   ["الرزاق", "Razek"],
   ["الستار", "Sattar"],
 ]);
+
+function japanese(word: string) {
+  return anyAscii(
+    toRomaji(word)
+      .replaceAll("n'", "n")
+      .replaceAll(/([ou])u(?![aeiou])|(o)o(?![aeiou])/gu, "$1$2")
+      .replaceAll(/n(?=[bmp])/gu, "m"),
+  );
+}
+
+function cantonese(word: string, surname: boolean) {
+  return (
+    (surname ? hongKongSurnames[word] : undefined) ??
+    ToJyutping.getJyutpingList(word)
+      .map(
+        ([char, jyutping]) => (surname ? hongKongSurnames[char] : undefined) ?? (jyutping ? hongKong(jyutping) : char),
+      )
+      .join(" ")
+  );
+}
+
+function hongKong(jyutping: string) {
+  return jyutping.replace(
+    /^(gw|kw|ng|[b-dfghj-npstwz])?([a-z]+)\d?$/u,
+    (_, initial: string | undefined, final: string) => {
+      if (final === "i") return `${hongKongApical[String(initial)]}`;
+      const head =
+        initial === "z" || initial === "c"
+          ? /^(?:ang|ap|e|eoi)$/u.test(final)
+            ? "ts"
+            : "ch"
+          : initial === "s" && /^(?:yu|eon)$/u.test(final)
+            ? "sh"
+            : (hongKongInitials[initial ?? ""] ?? initial ?? "");
+      return `${head}${hongKongFinals[final] ?? final.replace(/^aa/u, "a")}`;
+    },
+  );
+}
+
+const hongKongApical: Record<string, string> = { c: "tsz", j: "yee", s: "sze", z: "tsz" };
+const hongKongInitials: Record<string, string> = { b: "p", d: "t", g: "k", gw: "kw", j: "y" };
+const hongKongFinals: Record<string, string> = {
+  eoi: "ui",
+  eon: "un",
+  eot: "ut",
+  oek: "euk",
+  oeng: "eung",
+  ou: "o",
+  un: "oon",
+  ut: "oot",
+  yu: "u",
+  yun: "uen",
+  yut: "uet",
+};
+const hongKongSurnames: Record<string, string> = {
+  司徒: "Szeto",
+  曾: "Tsang",
+  李: "Lee",
+  石: "Shek",
+  羅: "Law",
+};
+
+function wadeGiles(syllable: string) {
+  return (
+    wadeGilesSyllables[syllable] ??
+    syllable.replace(/^(zh|ch|sh|[b-df-hj-np-tw-z])?(.*)$/u, (_, initial: string | undefined, final: string) => {
+      const velar = initial === "g" || initial === "k" || initial === "h";
+      let tail = final;
+      if (final === "e" && velar) tail = "o";
+      else if (final === "uo" && !velar && initial !== "sh") tail = "o";
+      else if (final === "ui" && (initial === "g" || initial === "k")) tail = "uei";
+      return `${wadeGilesInitials[initial ?? ""] ?? initial ?? ""}${tail
+        .replace(/ong$/u, "ung")
+        .replace(/ian$/u, "ien")
+        .replace(/([iuü])e$/u, "$1eh")}`;
+    })
+  );
+}
+
+const wadeGilesInitials: Record<string, string> = {
+  b: "p",
+  c: "ts",
+  d: "t",
+  g: "k",
+  j: "ch",
+  q: "ch",
+  r: "j",
+  x: "hs",
+  z: "ts",
+  zh: "ch",
+};
+const wadeGilesSyllables: Record<string, string> = {
+  chi: "chih",
+  ci: "tzu",
+  e: "o",
+  er: "erh",
+  ri: "jih",
+  shi: "shih",
+  si: "ssu",
+  yan: "yen",
+  ye: "yeh",
+  you: "yu",
+  zhi: "chih",
+  zi: "tzu",
+};
+
+function hebrew(word: string) {
+  const text = word.replaceAll(/[\u0591-\u05BD\u05BF-\u05C7]/gu, "").replaceAll("\u05F3", "'");
+  const known = hebrewNames[text];
+  if (known) return known;
+  const tokens = [...text.matchAll(/וו|יי|[גזצץ]'|./gu)].map(([token]) => token);
+  const out = tokens.map((token, index) => {
+    const first = index === 0;
+    const last = index === tokens.length - 1;
+    const next = tokens[index + 1];
+    switch (token) {
+      case "א":
+      case "ע":
+        return (first || !last) && (next === "ו" || next === "י") ? "" : "a";
+      case "ב":
+        return first ? "b" : "v";
+      case "כ":
+        return first ? "k" : "ch";
+      case "פ":
+        return first ? "p" : "f";
+      case "ו":
+        return first ? "v" : "o";
+      case "י":
+        return first || hebrewVowel.has(next) ? "y" : "i";
+      case "ה":
+        return last && !first ? "a" : "h";
+      default:
+        return hebrewLetters[token] ?? anyAscii(token);
+    }
+  });
+  return out
+    .map((segment, index) => {
+      const next = out[index + 1];
+      return next && /[^aeiou]$/u.test(segment) && /^[^aeiou]/u.test(next) ? `${segment}a` : segment;
+    })
+    .join("")
+    .replaceAll(/a+/gu, "a");
+}
+
+const hebrewVowel = new Set<string | undefined>(["א", "ע", "ו"]);
+
+const hebrewLetters: Record<string, string> = {
+  "ג'": "j",
+  "ז'": "zh",
+  "צ'": "ch",
+  "ץ'": "ch",
+  ג: "g",
+  ד: "d",
+  וו: "v",
+  ז: "z",
+  ח: "ch",
+  ט: "t",
+  יי: "y",
+  ך: "ch",
+  ל: "l",
+  ם: "m",
+  מ: "m",
+  ן: "n",
+  נ: "n",
+  ס: "s",
+  ף: "f",
+  ץ: "tz",
+  צ: "tz",
+  ק: "k",
+  ר: "r",
+  ש: "sh",
+  ת: "t",
+};
+
+const hebrewNames: Record<string, string> = {
+  אביגיל: "Avigail",
+  אברהם: "Avraham",
+  אהרון: "Aharon",
+  אהרן: "Aharon",
+  אוחיון: "Ohayon",
+  אזולאי: "Azoulay",
+  איתי: "Itai",
+  אליהו: "Eliyahu",
+  אליעזר: "Eliezer",
+  אסתר: "Esther",
+  אשכנזי: "Ashkenazi",
+  בנימין: "Binyamin",
+  גבאי: "Gabay",
+  גבריאל: "Gavriel",
+  גולדברג: "Goldberg",
+  גיא: "Guy",
+  דוד: "David",
+  דניאל: "Daniel",
+  הרצל: "Herzl",
+  וייס: "Weiss",
+  חדד: "Hadad",
+  חיים: "Haim",
+  חנה: "Hana",
+  יהודה: "Yehuda",
+  יובל: "Yuval",
+  יונתן: "Yonatan",
+  יוסף: "Yosef",
+  יעל: "Yael",
+  יעקב: "Yaakov",
+  יצחק: "Yitzhak",
+  כהן: "Cohen",
+  לאה: "Leah",
+  לוי: "Levi",
+  מאיה: "Maya",
+  מאיר: "Meir",
+  מזרחי: "Mizrahi",
+  מיכאל: "Michael",
+  מלכה: "Malka",
+  מרים: "Miriam",
+  משה: "Moshe",
+  נתנאל: "Netanel",
+  עומר: "Omer",
+  עמר: "Amar",
+  פרידמן: "Friedman",
+  פרץ: "Peretz",
+  ראובן: "Reuven",
+  רבקה: "Rivka",
+  רוזנברג: "Rosenberg",
+  רחוב: "Rehov",
+  רחל: "Rachel",
+  רפאל: "Refael",
+  שדרות: "Sderot",
+  שלמה: "Shlomo",
+  שמואל: "Shmuel",
+  שמעון: "Shimon",
+  שפירא: "Shapira",
+  שרה: "Sara",
+};
+
+function burmese(word: string) {
+  return [
+    ...word
+      .replaceAll(/([\u1000-\u1021])\u1039/gu, "$1\u103A")
+      .matchAll(
+        /([\u1000-\u102A\u103F])([\u103B-\u103E]*)([\u102B-\u1032\u1036-\u1038\u103A]*)(?:([\u1000-\u1021])(\u1037\u103A|\u103A))?|./gu,
+      ),
+  ]
+    .map(([syllable, initial, medials = "", signs = "", final, tone = ""]) => {
+      if (!initial) return anyAscii(syllable);
+      if (burmeseVowels[initial]) return ` ${burmeseVowels[initial]}`;
+      const sign = signs
+        .replaceAll(/[\u1036-\u1038\u103A]/gu, "")
+        .replace("\u102B", "\u102C")
+        .replace("\u102E", "\u102D")
+        .replace("\u1030", "\u102F");
+      const coda = signs.includes("\u1036") ? "n" : final ? (burmeseFinals[final] ?? "t") : "";
+      let head = burmeseInitials[initial] ?? "";
+      if (medials.includes("\u103B") || medials.includes("\u103C")) head = head === "kh" ? "ch" : `${head}y`;
+      if (medials.includes("\u103E")) head = head.endsWith("y") ? "sh" : `h${head}`;
+      let rhyme =
+        medials.includes("\u103D") && !sign && /^[mnpt]$/u.test(coda)
+          ? `u${coda === "p" ? "t" : coda === "m" ? "n" : coda}`
+          : `${medials.includes("\u103D") ? "w" : ""}${burmeseRhymes[`${sign}${coda}`] ?? burmeseRhymes[coda]}`;
+      if (!head && rhyme === "ay") rhyme = "aye";
+      return ` ${head}${rhyme}${(signs + tone).includes("\u1037") && rhyme.endsWith("n") ? "t" : ""}`;
+    })
+    .join("")
+    .trim();
+}
+
+const burmeseInitials: Record<string, string> = {
+  က: "k",
+  ခ: "kh",
+  ဂ: "g",
+  ဃ: "g",
+  င: "ng",
+  စ: "s",
+  ဆ: "s",
+  ဇ: "z",
+  ဈ: "z",
+  ဉ: "ny",
+  ည: "ny",
+  ဋ: "t",
+  ဌ: "ht",
+  ဍ: "d",
+  ဎ: "d",
+  ဏ: "n",
+  တ: "t",
+  ထ: "ht",
+  ဒ: "d",
+  ဓ: "d",
+  န: "n",
+  ပ: "p",
+  ဖ: "ph",
+  ဗ: "b",
+  ဘ: "b",
+  မ: "m",
+  ယ: "y",
+  ရ: "y",
+  လ: "l",
+  ဝ: "w",
+  သ: "th",
+  ဟ: "h",
+  ဠ: "l",
+  ဿ: "th",
+};
+
+const burmeseVowels: Record<string, string> = { ဣ: "i", ဤ: "i", ဥ: "u", ဦ: "u", ဧ: "ay", ဩ: "aw", ဪ: "aw" };
+
+const burmeseFinals: Record<string, string> = {
+  က: "k",
+  င: "ng",
+  စ: "c",
+  ည: "ny",
+  ဉ: "ny",
+  တ: "t",
+  န: "n",
+  ပ: "p",
+  မ: "m",
+  ယ: "y",
+};
+
+const burmeseRhymes: Record<string, string> = {
+  "": "a",
+  k: "et",
+  ng: "in",
+  c: "it",
+  ny: "i",
+  t: "at",
+  n: "an",
+  p: "at",
+  m: "an",
+  y: "e",
+  "\u102C": "a",
+  "\u102D": "i",
+  "\u102Dt": "eik",
+  "\u102Dp": "eik",
+  "\u102Dn": "ein",
+  "\u102Dm": "ein",
+  "\u102F": "u",
+  "\u102Ft": "ok",
+  "\u102Fp": "ok",
+  "\u102Fn": "on",
+  "\u102Fm": "on",
+  "\u1031": "ay",
+  "\u1032": "e",
+  "\u1031\u102C": "aw",
+  "\u1031\u102Ck": "auk",
+  "\u1031\u102Cng": "aung",
+  "\u102D\u102F": "o",
+  "\u102D\u102Fk": "aik",
+  "\u102D\u102Fng": "aing",
+  "\u102D\u102Fy": "o",
+};
