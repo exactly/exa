@@ -10,6 +10,7 @@ import {
   getAddress,
   getContractAddress,
   keccak256,
+  slice,
   type Abi,
   type Chain,
 } from "viem";
@@ -133,19 +134,19 @@ export default defineConfig([
           const version = deployed(deploy.factory.version);
           if (!deploy.factory.versions.includes(version)) throw new Error(`unlisted factory version ${version}`);
           function factory(v: string) {
+            const salt = keccak256(encodeAbiParameters([{ type: "string" }, { type: "string" }], ["Exa Plugin", v]));
             return getContractAddress({
               from: getContractAddress({
                 opcode: "CREATE2",
-                from: create3Factory,
-                salt: keccak256(
-                  encodePacked(
-                    ["address", "bytes32"],
-                    [
-                      admin,
-                      keccak256(encodeAbiParameters([{ type: "string" }, { type: "string" }], ["Exa Plugin", v])),
-                    ],
-                  ),
-                ),
+                from: testnet ? "0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed" : create3Factory,
+                salt: testnet
+                  ? keccak256(
+                      encodeAbiParameters(
+                        [{ type: "address" }, { type: "bytes32" }],
+                        [admin, encodePacked(["address", "bytes1", "bytes11"], [admin, "0x00", slice(salt, 0, 11)])],
+                      ),
+                    )
+                  : keccak256(encodePacked(["address", "bytes32"], [admin, salt])),
                 bytecodeHash: "0x21c35dbe1b344a2488cf3321d6ce542f8e9f305544ff09e4993a62319a497c1f",
               }),
               nonce: 1n,
