@@ -1137,6 +1137,12 @@ importers:
       react:
         specifier: 'catalog:'
         version: 19.2.0
+      thai-rtgs:
+        specifier: ^0.1.3
+        version: 0.1.3
+      to-jyutping:
+        specifier: ^3.1.1
+        version: 3.1.1
       uuid:
         specifier: ^11.1.0
         version: 11.1.0
@@ -1146,6 +1152,9 @@ importers:
       viem:
         specifier: 'catalog:'
         version: 2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7)
+      wanakana:
+        specifier: ^5.3.1
+        version: 5.3.1
     devDependencies:
       '@account-kit/infra':
         specifier: 'catalog:'
@@ -15534,6 +15543,10 @@ packages:
   text-table@0.2.0:
     resolution: {integrity: sha512-N+8UisAXDGk8PFXP4HAzVR9nbfmVJ3zYLAWiTIoqC5v5isinhr+r5uaO8+7r3BMfuNIufIsA7RdpVgacC2cSpw==}
 
+  thai-rtgs@0.1.3:
+    resolution: {integrity: sha512-89QE9Qqoi1j7sIKcDqRmqaAa42YZAD6jROPFQOadkQ1bBg6hqthlaHNlIDmfqXYYhI0gtu90y4hecrMfuMwqdA==}
+    engines: {node: '>=18'}
+
   thenify-all@1.6.0:
     resolution: {integrity: sha512-RNxQH/qI8/t3thXJDwcstUO4zeqo64+Uy/+sNVRBx4Xn2OX+OZ9oP+iJnNFqplFra2ZUVeKCSa2oVWi3T4uVmA==}
     engines: {node: '>=0.8'}
@@ -15593,6 +15606,9 @@ packages:
 
   tmpl@1.0.5:
     resolution: {integrity: sha512-3f0uOEAQwIqGuWW2MVzYg8fV/QNnc/IpuJNG837rLuczAaLVHslWHZQj4IGiEl5Hs3kkbhwL9Ab7Hrsmuj+Smw==}
+
+  to-jyutping@3.1.1:
+    resolution: {integrity: sha512-8dqSOTbYC5pBs1DQtC9olmFLhf/pzKqxMfQLRUYu1BXXtWgqyS8dSFy9mHuF0cHjgjtX86pCBvGIvKzzlVM6lw==}
 
   to-regex-range@5.0.1:
     resolution: {integrity: sha512-65P7iz6X5yEr1cwcgvQxbbIw7Uk3gOy5dIdtZ4rDveLqhrdJP+Li/Hx6tyK0NEb+2GCyneCMJiGqrADCSNk8sQ==}
@@ -16286,6 +16302,10 @@ packages:
 
   walker@1.0.8:
     resolution: {integrity: sha512-ts/8E8l5b7kY0vlWLewOkDXMmPdLcVV4GmOQLyxuSswIJsweeFZtAsMF7k1Nszz+TYBQrlYRmzOnr398y1JemQ==}
+
+  wanakana@5.3.1:
+    resolution: {integrity: sha512-OSDqupzTlzl2LGyqTdhcXcl6ezMiFhcUwLBP8YKaBIbMYW1wAwDvupw2T9G9oVaKT9RmaSpyTXjxddFPUcFFIw==}
+    engines: {node: '>=12'}
 
   warn-once@0.1.1:
     resolution: {integrity: sha512-VkQZJbO8zVImzYFteBXvBOZEl1qL175WH8VmZcxF2fZAoudNhNDvHi+doCaAEdU2l2vtcIwa2zn0QK5+I1HQ3Q==}
@@ -35652,6 +35672,8 @@ snapshots:
 
   text-table@0.2.0: {}
 
+  thai-rtgs@0.1.3: {}
+
   thenify-all@1.6.0:
     dependencies:
       thenify: 3.3.1
@@ -35699,6 +35721,8 @@ snapshots:
   tmp@0.2.7: {}
 
   tmpl@1.0.5: {}
+
+  to-jyutping@3.1.1: {}
 
   to-regex-range@5.0.1:
     dependencies:
@@ -36342,6 +36366,8 @@ snapshots:
   walker@1.0.8:
     dependencies:
       makeerror: 1.0.12
+
+  wanakana@5.3.1: {}
 
   warn-once@0.1.1: {}
 
