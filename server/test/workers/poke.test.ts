@@ -72,6 +72,10 @@ const anvil2Auditor = await anvil2Client.readContract({
   functionName: "AUDITOR",
   abi: exaPreviewerAbi,
 });
+const minter = privateKeyToAccount(generatePrivateKey());
+await Promise.all(
+  [anvilClient, anvil2Client].map((client) => client.setBalance({ address: minter.address, value: 10n ** 20n })),
+);
 const allower = wallet(poker, anvil2);
 const mocks = vi.hoisted(() => ({
   closeSegment: vi.fn(),
@@ -840,7 +844,7 @@ async function mint(
 ) {
   await client.waitForTransactionReceipt({
     hash: await client.writeContract({
-      account: null,
+      account: minter,
       address: asset,
       functionName: "mint",
       args: [address, amount],
