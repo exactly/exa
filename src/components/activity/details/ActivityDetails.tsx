@@ -1,11 +1,11 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { YStack } from "tamagui";
 
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 
 import CardActivity from "./CardActivity";
 import DeclinedActivity from "./DeclinedActivity";
@@ -18,14 +18,13 @@ import { Headphones } from "../../../generated/icons/Headphones";
 import { present } from "../../../utils/intercom";
 import queryClient from "../../../utils/queryClient";
 import reportError from "../../../utils/reportError";
+import { activityOptions, type Activity } from "../../../utils/server";
 import GradientScrollView from "../../shared/GradientScrollView";
 import IconButton from "../../shared/IconButton";
 import SafeView from "../../shared/SafeView";
 import ExaSpinner from "../../shared/Spinner";
 import Button from "../../shared/StyledButton";
 import Text from "../../shared/Text";
-
-import type { Activity } from "../../../utils/server";
 
 export default function ActivityDetails() {
   const { t } = useTranslation();
@@ -34,16 +33,19 @@ export default function ActivityDetails() {
     data: activity,
     isPending,
     isFetching,
-    isPlaceholderData,
     isError,
     refetch,
-  } = useQuery<Activity>({
-    queryKey: ["activity"],
-    staleTime: 0,
-    placeholderData: () => queryClient.getQueryData<Activity>(["activity", "card"]),
-  });
-  const item = activity?.find((entry) => entry.id === id);
-  if (!item && (isPending || isFetching || isPlaceholderData)) {
+    hasNextPage,
+    fetchNextPage,
+  } = useInfiniteQuery({ ...activityOptions, staleTime: 0, select: ({ pages }) => pages.flat() });
+  const item =
+    activity?.find((entry) => entry.id === id) ??
+    queryClient.getQueryData<Activity>(["activity", "card"])?.find((entry) => entry.id === id);
+  const missing = !item && !isError && hasNextPage;
+  useEffect(() => {
+    if (missing && !isFetching) fetchNextPage().catch(reportError);
+  }, [missing, isFetching, fetchNextPage]);
+  if (!item && (isPending || isFetching || missing)) {
     return (
       <SafeView fullScreen padded>
         <Back />

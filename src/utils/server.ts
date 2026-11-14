@@ -2,6 +2,7 @@ import { AppState, Platform } from "react-native";
 import { get as assert, create } from "react-native-passkeys";
 
 import { sdk } from "@farcaster/miniapp-sdk";
+import { infiniteQueryOptions, type InfiniteData } from "@tanstack/react-query";
 import { getConnection, signMessage } from "@wagmi/core";
 import { hc, parseResponse, type InferRequestType, type InferResponseType } from "hono/client";
 import { check, number, object, parse, picklist, pipe, safeParse, string, ValiError } from "valibot";
@@ -399,14 +400,40 @@ async function getActivity(
   if (typeof activity === "string" || activity instanceof Uint8Array) throw new Error("bad activity response");
   return activity;
 }
-queryClient.setQueryDefaults(["activity"], {
+const activityPage = 50;
+export const activityOptions = infiniteQueryOptions<
+  Activity,
+  Error,
+  InfiniteData<Activity>,
+  string[],
+  { after?: string; before?: string }
+>({
+  queryKey: ["activity"],
   staleTime: 60_000,
   gcTime: isServer ? Infinity : 60 * 60_000,
-  queryFn: () =>
+  initialPageParam: {},
+  queryFn: ({ pageParam }) =>
     getActivity({
       include: ["card", "received", "repay", "sent", "loan", "rollover", "swap", "liquidation", "bridge"],
+      limit: String(activityPage),
+      ...pageParam,
     }),
+  getNextPageParam: (page) => {
+    const last = page.at(-1);
+    return page.length === activityPage && last ? { before: `${last.timestamp},${last.id}` } : undefined;
+  },
+  getPreviousPageParam: (_, pages) => {
+    const first = pages.find((page) => page.length > 0)?.[0];
+    return first ? { after: `${first.timestamp},${first.id}` } : undefined;
+  },
 });
+export function refreshActivity() {
+  queryClient.setQueryData(
+    activityOptions.queryKey,
+    (data) => data && { pages: data.pages.slice(0, 1), pageParams: data.pageParams.slice(0, 1) },
+  );
+  return queryClient.invalidateQueries({ queryKey: activityOptions.queryKey, exact: true });
+}
 queryClient.setQueryDefaults(["activity", "card"], {
   queryFn: async () => {
     const activity = await getActivity({ include: "card" });
