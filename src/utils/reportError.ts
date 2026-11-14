@@ -75,7 +75,10 @@ const authPrefixes = ["androidx.credentials.exceptions.domerrors.NotAllowedError
 const networkTypes = [
   ["ConnectionLost", /network connection was lost/i],
   ["Offline", /internet connection appears to be offline/i],
-  ["RequestFailed", /^Network request failed$/],
+  [
+    "RequestFailed",
+    /^(Network request failed|Failed to fetch|Load failed|NetworkError when attempting to fetch resource\.)$/,
+  ],
   ["TLSFailure", /tls error caused the secure connection to fail/i],
   ["Timeout", /request timed out|request took too long to respond/i],
 ] as const;
@@ -120,7 +123,7 @@ function parseError(error: unknown) {
           ? normalizeMessage(root.message)
           : undefined;
   const fetchFailure = raw?.match(
-    /^(Failed to fetch|Load failed|NetworkError when attempting to fetch resource\.)(?: \(([^)]+)\))?$/,
+    /^(Failed to fetch|Load failed|NetworkError when attempting to fetch resource\.) \(([^)]+)\)$/,
   );
   const message = fetchFailure?.[1] ?? raw;
   const rpc = rpcFingerprint(error);
@@ -141,10 +144,10 @@ function parseError(error: unknown) {
     (request instanceof HttpRequestError || request instanceof RpcRequestError || request instanceof TimeoutError
       ? `${/"method":"([^"]+)"/.exec(request.metaMessages?.join(" ") ?? "")?.[1] ?? "rpc"} ${/^[a-z]+:\/\/([^/?#]+)/i.exec(request.url)?.[1] ?? "unknown"}`
       : fetchFailure?.[2]);
-  return { code, endpoint, fetchFailed: !!fetchFailure, message, name, reason, revert, rpc, status };
+  return { code, endpoint, message, name, reason, revert, rpc, status };
 }
 
-function classify({ code, endpoint, fetchFailed, message, name, reason, revert, rpc, status }: ParsedError) {
+function classify({ code, endpoint, message, name, reason, revert, rpc, status }: ParsedError) {
   const passkeyNotAllowed =
     name === "NotAllowedError" || (message !== undefined && authPrefixes.some((prefix) => message.startsWith(prefix)));
   const passkeyCancelled =
@@ -191,7 +194,6 @@ function classify({ code, endpoint, fetchFailed, message, name, reason, revert, 
   return {
     authKnown,
     bundleCancelled,
-    fetchFailed,
     fingerprint: value,
     known,
     knownInfo,

@@ -1,6 +1,7 @@
 import { getAddress, SwitchChainError, type Chain, type Transport } from "viem";
 import { ChainNotConfiguredError, createConnector } from "wagmi";
 
+import deriveAddress from "@exactly/common/deriveAddress";
 import chain from "@exactly/common/generated/chain";
 
 import createAccountClient from "./accountClient";
@@ -20,11 +21,20 @@ export default createConnector<ClientWithAlchemyMethods | SmartAccountClient>(({
   id: "alchemy" as const,
   name: "Alchemy" as const,
   type: "alchemy" as const,
+  setup() {
+    queryClient.getQueryCache().subscribe(({ query, type }) => {
+      if (type !== "updated" || query.queryHash !== JSON.stringify(["credential"]) || !accountClient) return;
+      getAccountClient()
+        .then((client) =>
+          client ? emitter.emit("change", { accounts: [client.account.address] }) : this.onDisconnect(),
+        )
+        .catch(reportError);
+    });
+    return Promise.resolve();
+  },
   async getAccounts() {
-    const credential = queryClient.getQueryData<Credential>(["credential"]);
-    if (!credential) return [];
-    accountClient ??= await createAccountClient(credential);
-    return [accountClient.account.address];
+    const client = await getAccountClient();
+    return client ? [client.account.address] : [];
   },
   async isAuthorized() {
     const accounts = await this.getAccounts();
@@ -32,18 +42,18 @@ export default createConnector<ClientWithAlchemyMethods | SmartAccountClient>(({
   },
   async connect({ chainId, withCapabilities } = {}) {
     if (chainId && chainId !== chain.id) throw new SwitchChainError(new ChainNotConfiguredError());
+    let client;
     try {
-      const credential = queryClient.getQueryData<Credential>(["credential"]);
-      if (!credential) throw new Error("missing credential");
-      accountClient ??= await createAccountClient(credential);
+      client = await getAccountClient();
+      if (!client) throw new Error("missing credential");
     } catch (error: unknown) {
       reportError(error);
       throw error;
     }
     return {
       accounts: (withCapabilities
-        ? [{ address: accountClient.account.address, capabilities: {} }]
-        : [accountClient.account.address]) as never,
+        ? [{ address: client.account.address, capabilities: {} }]
+        : [client.account.address]) as never,
       chainId: chain.id,
     };
   },
@@ -73,3 +83,12 @@ export default createConnector<ClientWithAlchemyMethods | SmartAccountClient>(({
   },
   getChainId: () => Promise.resolve(chain.id),
 }));
+
+async function getAccountClient() {
+  const credential = queryClient.getQueryData<Credential>(["credential"]);
+  if (!credential) return;
+  if (accountClient?.account.address !== deriveAddress(credential.factory, credential)) {
+    accountClient = await createAccountClient(credential);
+  }
+  return accountClient;
+}
