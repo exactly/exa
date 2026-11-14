@@ -6,6 +6,7 @@ appId: ${APP_ID ?? "app.exactly"}
     env: { asset: USDC, to: "${output.account}", amount: "20" }
 - runScript: { file: ../dist/mint.js, env: { asset: ETH, to: "${output.account}", amount: "0.04" } }
 - runFlow: ../subflows/verifyIdentity.yaml
+- runScript: { file: ../dist/mint.js, env: { asset: USDC, to: "${output.account}", amount: "25", network: Anvil2 } }
 - tapOn: Card
 - tapOn: Card details
 - runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Accept and enable card } }
@@ -13,7 +14,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Close
 - runScript:
     file: ../dist/purchase.js
-    env: { merchant: Bakery, amount: "12.34", mode: "0", credentialId: "${output.credential}" }
+    env: { merchant: Bakery, amount: "32.10", mode: "0", credentialId: "${output.credential}", account: "${output.account}" }
 - runScript:
     file: ../dist/purchase.js
     env: { merchant: Electronics, amount: "56.78", mode: "0", declinedReason: invalid pin, credentialId: "${output.credential}" }
