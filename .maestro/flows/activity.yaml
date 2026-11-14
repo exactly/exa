@@ -61,5 +61,14 @@ env:
 - assertVisible: '20[\s\xa0]USDC'
 - assertVisible: Transaction details
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- runScript:
+    file: ../dist/purchase.js
+    env: { merchant: Coffee, amount: "4.50", mode: "3", declinedReason: insufficient funds, count: "50", credentialId: "${output.credential}" }
+- tapOn: Activity
+- repeat: { times: 8, commands: [{ swipe: { start: "50%,70%", end: "50%,10%" } }] }
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Bakery, center: true } }
+- tapOn: Bakery
+- assertVisible: Paid
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
 - repeat: { times: 2, commands: [{ tapOn: Home }] }
 - runFlow: ../subflows/storeCoverage.yaml

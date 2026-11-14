@@ -26,7 +26,7 @@ export default function History() {
   const refresh = () =>
     Promise.all([
       refetch(),
-      queryClient.invalidateQueries({ queryKey: ["activity"], exact: true }),
+      queryClient.invalidateQueries({ queryKey: ["activity", "card"], exact: true }),
       queryClient.invalidateQueries({ queryKey: ["activity", "statement"] }),
     ]);
 
