@@ -3,17 +3,16 @@ import {
   erc20Abi,
   erc4626Abi,
   formatUnits,
+  hexToBigInt,
   keccak256,
   pad,
   slice,
   toBytes,
-  type Address,
+  toHex,
 } from "viem";
 import { getAbiItem, isAddress, isHex, toEventSelector } from "viem/utils";
 
 import {
-  appPreviewerAbi,
-  appPreviewerCode,
   exaPluginAbi,
   marketUSDCAddress,
   proposalManagerAbi,
@@ -22,7 +21,7 @@ import {
 } from "@exactly/common/generated/chain";
 
 import anvil, { readContract } from "../anvil";
-import { activity, block } from "../server";
+import { activity } from "../server";
 
 declare const account: string | undefined;
 declare const amount: string | undefined;
@@ -30,7 +29,7 @@ declare const beneficiary: string | undefined;
 declare const count: string | undefined;
 declare const market: string | undefined;
 declare const max: string | undefined;
-declare const output: { sent?: string };
+declare const output: { proposals?: number; sent?: string };
 declare const receiver: string | undefined;
 
 if (!account || !isHex(account)) throw new Error("bad account");
@@ -46,10 +45,23 @@ const [plugin] = readContract({
 if (!plugin) throw new Error("no plugin");
 const proposalManager = readContract({ address: plugin, functionName: "proposalManager", abi: exaPluginAbi });
 const proposalDelay = readContract({ address: proposalManager, functionName: "delay", abi: proposalManagerAbi });
-let proposals = pending(account);
-for (const deadline = Date.now() + 30_000; proposals.length < Number(count ?? "1"); proposals = pending(account)) {
+const queued = () =>
+  readContract({ address: proposalManager, functionName: "queueNonces", abi: proposalManagerAbi, args: [account] });
+const size = BigInt(count ?? "1");
+for (const deadline = Date.now() + 30_000; queued() < BigInt(output.proposals ?? 0) + size; ) {
   if (Date.now() >= deadline) throw new Error("timeout waiting for queued proposals");
 }
+const last = queued();
+const first = last - size;
+const proposals = Array.from({ length: Number(last - first) }, (_, index) => {
+  const [, address] = readContract({
+    address: proposalManager,
+    functionName: "proposals",
+    abi: proposalManagerAbi,
+    args: [account, first + BigInt(index)],
+  });
+  return { market: address };
+});
 if (market !== undefined) {
   const expected = `exa${market === "ETH" ? "WETH" : market}`;
   const markets = proposals
@@ -57,33 +69,33 @@ if (market !== undefined) {
     .join(", ");
   if (markets !== expected) throw new Error(`expected ${expected} proposal, got [${markets}]`);
 }
+const [proposed] = anvil("eth_getLogs", [
+  {
+    address: proposalManager,
+    fromBlock: "0x0",
+    topics: encodeEventTopics({ abi: proposalManagerAbi, eventName: "Proposed", args: { account, nonce: first } }),
+  },
+]);
+if (!proposed?.blockNumber) throw new Error("missing proposed event");
+const fromBlock = toHex(hexToBigInt(proposed.blockNumber) + 1n);
+const executed = () =>
+  readContract({ address: proposalManager, functionName: "nonces", abi: proposalManagerAbi, args: [account] }) >= last;
 
-const deposit = max
-  ? readContract({
-      address: marketUSDCAddress,
-      functionName: "convertToAssets",
-      abi: erc4626Abi,
-      args: [readContract({ address: marketUSDCAddress, functionName: "balanceOf", abi: erc20Abi, args: [account] })],
-    })
-  : 0n;
-const accrual = max ? 86_400 : 0;
-anvil("anvil_mine", [1, Number(proposalDelay) + accrual]);
-const fromBlock = anvil("eth_blockNumber", []);
-block(proposalManager, account, proposals);
-
-const nonceSet = encodeEventTopics({
-  abi: proposalManagerAbi,
-  eventName: "ProposalNonceSet",
-  args: { account, nonce: (proposals[0]?.nonce ?? 0n) + BigInt(proposals.length) },
-});
-let toBlock = anvil("eth_blockNumber", []);
-for (
-  const deadline = Date.now() + 30_000;
-  anvil("eth_getLogs", [{ address: proposalManager, fromBlock, toBlock, topics: nonceSet }]).length === 0;
-  toBlock = anvil("eth_blockNumber", [])
-) {
+const deposit =
+  max && !executed()
+    ? readContract({
+        address: marketUSDCAddress,
+        functionName: "convertToAssets",
+        abi: erc4626Abi,
+        args: [readContract({ address: marketUSDCAddress, functionName: "balanceOf", abi: erc20Abi, args: [account] })],
+      })
+    : 0n;
+if (!executed()) anvil("anvil_mine", [1, Number(proposalDelay) + (max ? 86_400 : 0)]);
+for (const deadline = Date.now() + 60_000; !executed(); ) {
   if (Date.now() >= deadline) throw new Error("timeout waiting for proposals");
 }
+const toBlock = anvil("eth_blockNumber", []);
+output.proposals = Number(last);
 if (max) {
   for (const { market: address } of proposals) {
     const shares = readContract({ address, functionName: "balanceOf", abi: erc20Abi, args: [account] });
@@ -107,13 +119,4 @@ if (to) {
     throw new Error(`expected ${expected} usdc to ${receiver ?? beneficiary}, got ${withdrawn}`);
   }
   output.sent = withdrawn;
-}
-
-function pending(address: Address) {
-  return readContract({
-    code: appPreviewerCode,
-    functionName: "pendingProposals",
-    args: [address],
-    abi: appPreviewerAbi,
-  }).map(({ nonce, proposal }) => ({ ...proposal, nonce, unlock: 0n }));
 }
