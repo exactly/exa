@@ -757,14 +757,14 @@ async function* getWalletBalances(account: Address, lifiTokens: Token[], chains:
     { active: boolean; error: unknown; failed: typeof failures; fingerprint: string[]; network: boolean }
   >();
   for (const failure of failures) {
-    const { fetchFailed, fingerprint = ["{{ default }}"], network } = classifyError(failure.error);
+    const { fingerprint = ["{{ default }}"], network } = classifyError(failure.error);
     const key = JSON.stringify([failure.active, fingerprint]);
     const group = groups.get(key) ?? {
       active: failure.active,
       error: failure.error,
       failed: [],
       fingerprint,
-      network: network !== undefined || fetchFailed,
+      network: network !== undefined,
     };
     group.failed.push(failure);
     groups.set(key, group);
