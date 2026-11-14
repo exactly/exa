@@ -28,6 +28,7 @@ const INVALIDATE_ON_UPGRADE = new Set([
   "allowlist",
   "markets",
   "rates",
+  "proposal",
 ]);
 export const isServer = typeof window === "undefined";
 
