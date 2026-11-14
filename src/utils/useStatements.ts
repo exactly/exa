@@ -6,10 +6,10 @@ import { marketUSDCAddress } from "@exactly/common/generated/chain";
 
 import useMarkets from "./useMarkets";
 
-import type { ActivityItem } from "./queryClient";
+import type { CardActivity } from "./server";
 
 export default function useStatements() {
-  const { data: activity, isPending } = useQuery<ActivityItem[]>({ queryKey: ["activity"] });
+  const { data: activity, isPending } = useQuery<CardActivity[]>({ queryKey: ["activity", "card"] });
   const { markets } = useMarkets();
   return useMemo(() => {
     if (!activity) return isPending ? undefined : [];
@@ -26,7 +26,7 @@ export default function useStatements() {
       const borrows =
         item.type === "panda"
           ? item.operations.flatMap((operation) => ("borrow" in operation ? [operation.borrow] : []))
-          : item.type === "card" && "borrow" in item
+          : "borrow" in item
             ? [item.borrow]
             : [];
       for (const borrow of borrows) {
