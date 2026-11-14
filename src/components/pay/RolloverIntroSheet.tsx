@@ -7,6 +7,8 @@ import { useRouter } from "expo-router";
 import { toast } from "@tamagui/toast";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
+import chain from "@exactly/common/generated/chain";
+
 import calendarRollover from "../../assets/images/calendar-rollover.svg";
 import { ArrowRight } from "../../generated/icons/ArrowRight";
 import { Calendar } from "../../generated/icons/Calendar";
@@ -23,7 +25,7 @@ import View from "../shared/View";
 export default function RolloverIntroSheet({ maturity, onClose }: { maturity?: string; onClose: () => void }) {
   const router = useRouter();
   const { t } = useTranslation();
-  const proposalManager = useProposalManager();
+  const proposalManager = useProposalManager(chain.id);
   const [open, setOpen] = useState(false);
   const [displayMaturity, setDisplayMaturity] = useState(maturity);
 
