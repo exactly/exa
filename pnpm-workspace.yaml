@@ -140,6 +140,7 @@ overrides:
   "@bigmi/core": npm:@favware/skip-dependency@1.2.2
   "@exactly/protocol>solmate": "-"
   "@gnosis.pm/safe-contracts": npm:@favware/skip-dependency@1.2.2
+  "@indic-transliteration/sanscript>toml": "-"
   "@mysten/sui": npm:@favware/skip-dependency@1.2.2
   "@mysten/wallet-standard": npm:@favware/skip-dependency@1.2.2
   "@nomiclabs/hardhat-etherscan": npm:@favware/skip-dependency@1.2.2
