@@ -2,7 +2,6 @@ import { captureException, setContext, withScope } from "@sentry/core";
 import { eq } from "drizzle-orm";
 import { alpha2ToAlpha3 } from "i18n-iso-countries";
 import crypto from "node:crypto";
-import { pinyin } from "pinyin-pro";
 import {
   array,
   boolean,
@@ -47,6 +46,7 @@ import { credentials } from "../../database/schema";
 import { BusinessApplicationError } from "../panda";
 import * as Persona from "../persona";
 import ServiceError from "../ServiceError";
+import { transliterateName } from "../transliterate";
 
 import type * as schema from "../../database/schema";
 import type createPersona from "../persona";
@@ -1486,14 +1486,15 @@ export default function bridge(key: string, url: string) {
             type: "individual",
             first_name: personaAccount.attributes.fields.name.value.first.value,
             last_name: personaAccount.attributes.fields.name.value.last.value,
-            transliterated_first_name: transliterate(
+            transliterated_first_name: transliterateName(
               personaAccount.attributes.fields.name.value.first.value,
               validDocument.id_issuing_country.value,
+              { document: identityDocument.attributes["name-first"] },
             ),
-            transliterated_last_name: transliterate(
+            transliterated_last_name: transliterateName(
               personaAccount.attributes.fields.name.value.last.value,
               validDocument.id_issuing_country.value,
-              true,
+              { document: identityDocument.attributes["name-last"], surname: true },
             ),
             email: personaAccount.attributes["email-address"],
             phone: personaAccount.attributes.fields.phone_number.value,
@@ -1692,21 +1693,6 @@ export const CurrencyByEndorsement: Record<
   sepa: { currencies: ["EUR"] },
   spei: { currencies: ["MXN"] },
 };
-
-function transliterate(text: string, issuingCountry: string, surname = false) {
-  if (issuingCountry !== "CN" || !/\p{Script=Han}/u.test(text)) return;
-  const latin = pinyin(text.normalize("NFKC"), {
-    toneType: "none",
-    type: "array",
-    surname: surname ? "all" : "off",
-    v: "yu",
-  })
-    .join("")
-    .replaceAll(/[\s·・]+/gu, " ")
-    .trim()
-    .replaceAll(/(?<=^|\s)\p{Ll}/gu, (letter) => letter.toUpperCase());
-  return /^[\u0020-\u007E\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u00FF]+$/u.test(latin) ? latin : undefined;
-}
 
 function fiat(endorsement: (typeof Endorsements)[number], ramp: "offramp" | "onramp") {
   const { currencies, only } = CurrencyByEndorsement[endorsement];
