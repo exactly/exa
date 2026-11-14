@@ -451,7 +451,10 @@
         ],
         "executor": "nx:run-commands",
         "options": {
-          "command": "expo start"
+          "command": "expo start",
+          "env": {
+            "NODE_OPTIONS": "--max-old-space-size=8192"
+          }
         }
       },
       "e2e:web:release": {
