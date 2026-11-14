@@ -433,6 +433,12 @@ export default function hook({
                   ? undefined
                   : Math.round(payload.data.attributes.fields.weeklyCardLimit.value * 100),
                 c.req.valid("json").data.id,
+                undefined,
+                {
+                  country: "",
+                  first: payload.data.attributes.fields.authUserName.value,
+                  last: payload.data.attributes.fields.authUserLastName.value,
+                },
               ),
             );
           await database

@@ -48,6 +48,7 @@ import { Address, Hex } from "@exactly/common/validation";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 
 import ServiceError from "./ServiceError";
+import { transliterateName } from "./transliterate";
 
 export default function panda({ key, url }: { key: string; url: string }) {
   return {
@@ -87,7 +88,10 @@ export default function panda({ key, url }: { key: string; url: string }) {
     amount = 1_000_000,
     idempotencyKey?: string,
     source?: null | string,
+    name?: { country: string; first: string; last: string },
   ) {
+    const first = name && transliterateName(name.first, name.country);
+    const last = name && transliterateName(name.last, name.country, { surname: true });
     return await request(
       CardResponse,
       `/issuing/users/${userId}/cards`,
@@ -97,6 +101,8 @@ export default function panda({ key, url }: { key: string; url: string }) {
         status: "active",
         limit: { amount, frequency: "per7DayPeriod" },
         configuration: {
+          displayName:
+            name && (first ?? last) ? `${first ?? name.first} ${last ?? name.last}`.slice(0, 30).trim() : undefined,
           productId,
           virtualCardArt:
             chain.id === baseSepolia.id || chain.id === optimismSepolia.id
@@ -669,6 +675,7 @@ const CreateCardRequest = object({
     ]),
   }),
   configuration: object({
+    displayName: optional(pipe(string(), maxLength(30))),
     productId: picklist([BASE_PRODUCT_ID, CLASSIC_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
     virtualCardArt: string(),
   }),
