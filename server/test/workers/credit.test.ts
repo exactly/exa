@@ -16,12 +16,14 @@ import {
   exaPluginAbi,
   marketUSDCAddress,
   marketWETHAddress,
+  networks,
   usdcAddress,
   wethAddress,
 } from "@exactly/common/generated/chain";
 
 import database, { cards, credentials } from "../../database";
 import t from "../../i18n";
+import { key } from "../../utils/liquidity";
 import createOnesignal from "../../utils/onesignal";
 import publicClient from "../../utils/publicClient";
 import { bullmq } from "../../utils/redis";
@@ -190,6 +192,19 @@ describe("credit worker", () => {
       headings: t("Credit mode activated"),
       contents: t("Your card is now in credit mode", { count: 2 }),
     });
+  });
+
+  it("stores liquidity of card users on every network", async () => {
+    await database.update(credentials).set({ pandaId: "credit-panda" }).where(eq(credentials.id, "credit-empty"));
+
+    await jobFinished(empty);
+
+    await vi.waitFor(() =>
+      expect(bullmq.hkeys(key("credit-panda")).then((fields) => fields.toSorted())).resolves.toStrictEqual(
+        [...networks.keys()].map(String).toSorted(),
+      ),
+    );
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it("keeps debit mode without deposits", async () => {

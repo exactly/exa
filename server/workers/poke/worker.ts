@@ -19,6 +19,7 @@ import t from "../../i18n";
 import { own } from "../../supervise";
 import { NETWORKS } from "../../utils/alchemy";
 import decodePublicKey from "../../utils/decodePublicKey";
+import remember from "../../utils/liquidity";
 import publicClient from "../../utils/publicClient";
 import revertFingerprint from "../../utils/revertFingerprint";
 import createWallet from "../../utils/wallet";
@@ -159,6 +160,11 @@ export default function worker({
               ],
             });
           }
+        }
+        if (poked && job.data.pandaId) {
+          await remember(bullmq, job.data.pandaId, job.data.account, chain.id).catch((error: unknown) =>
+            captureException(error, { level: "warning", tags: { chainId: chain.id } }),
+          );
         }
         if (poked && chain.id === exaChain.id) {
           await credit.enqueue(job.data.account, `poke-${job.id}-${job.attemptsStarted}`);
