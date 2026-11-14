@@ -9,7 +9,7 @@ import { getTokens, Separator, XStack, YStack } from "tamagui";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 
-import chain from "@exactly/common/generated/chain";
+import chain, { alchemyChains } from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 
 import { Copy } from "../../../generated/icons/Copy";
@@ -28,7 +28,8 @@ export default function TransactionDetails({
   item: ActivityItem | CreditActivity | DebitActivity | InstallmentsActivity;
 }) {
   const { t } = useTranslation();
-  const chainId = item.type === "bridge" ? item.sourceChainId : chain.id;
+  const chainId =
+    item.type === "bridge" ? item.sourceChainId : (("chainId" in item ? item.chainId : undefined) ?? chain.id);
   const { data: source } = useQuery({
     ...lifiChainsOptions,
     select: (chains) => chains.find(({ id }) => id === chainId),
@@ -36,7 +37,12 @@ export default function TransactionDetails({
   const network =
     chainId === chain.id
       ? { name: chain.name, explorer: chain.blockExplorers?.default.url }
-      : { name: source?.name ?? String(chainId), explorer: source?.metamask.blockExplorerUrls[0]?.replace(/\/$/, "") };
+      : {
+          name: source?.name ?? alchemyChains.get(chainId)?.name ?? String(chainId),
+          explorer: (
+            source?.metamask.blockExplorerUrls[0] ?? alchemyChains.get(chainId)?.blockExplorers?.default.url
+          )?.replace(/\/$/, ""),
+        };
   return (
     <YStack gap="s4">
       <YStack gap="s4">
