@@ -20,6 +20,7 @@ import {
   type Quantity,
   type ReadContractParameters,
   type ReadContractReturnType,
+  type RpcBlock,
   type RpcLog,
   type RpcTransactionReceipt,
   type TransactionRequest,
@@ -99,6 +100,11 @@ export default function anvil(
   params: readonly [account: Address, block: BlockIdentifier | BlockNumber<number> | BlockTag],
   network?: string,
 ): `0x${string}`;
+export default function anvil(
+  method: "eth_getBlockByNumber",
+  params: readonly [block: Hex, full: true],
+  network?: string,
+): null | RpcBlock<BlockTag, true>;
 export default function anvil(
   method: "eth_getCode",
   params: readonly [account: Address, block: BlockIdentifier | BlockNumber<number> | BlockTag],

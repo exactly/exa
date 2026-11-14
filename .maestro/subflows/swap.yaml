@@ -9,7 +9,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - repeat:
     times: 20
     while: { true: "${output.portfolioBefore - output.portfolio <= 0 || output.portfolioBefore - output.portfolio >= 1}" }
-    commands: [{ tapOn: Home }, { runFlow: readPortfolio.yaml }]
+    commands: [{ tapOn: { text: Home, leftOf: Card } }, { runFlow: readPortfolio.yaml }]
 - assertTrue: ${output.portfolioBefore - output.portfolio > 0 && output.portfolioBefore - output.portfolio < 1}
 - runScript:
     file: ../dist/awaitDeployment.js

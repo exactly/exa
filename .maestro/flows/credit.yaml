@@ -14,7 +14,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Accept and enable card
 - assertVisible: Manually add your card to Apple Pay & Google Pay to make contactless payments.
 - tapOn: Close
-- tapOn: Home
+- tapOn: { text: Home, leftOf: Card }
 - runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Later in 1, center: true } }
 - tapOn: Later in 1
 - tapOn: { text: Close, below: How installment repayment works }

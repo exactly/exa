@@ -1,6 +1,6 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
-- tapOn: Home
+- tapOn: { text: Home, leftOf: Card }
 - assertVisible: Hi, Test
 - runFlow:
     when: { true: "${maestro.platform != 'web'}" }
@@ -44,7 +44,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: { file: scrollTo.yaml, env: { element: Latest activity, offset: 1 } }
 - assertNotVisible: No activity yet
 - tapOn: View all
-- tapOn: Home
-- tapOn: Home
+- tapOn: { text: Home, leftOf: Card }
+- tapOn: { text: Home, leftOf: Card }
 - waitForAnimationToEnd
 - assertVisible: Portfolio
