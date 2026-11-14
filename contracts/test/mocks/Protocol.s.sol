@@ -189,7 +189,7 @@ contract DeployProtocol is BaseScript {
     Market[] memory markets = verifiedAuditor.allMarkets();
     for (uint256 i = 0; i < markets.length; ++i) {
       MockERC20 underlying = MockERC20(address(markets[i].asset()));
-      uint256 amount = 10 ** underlying.decimals();
+      uint256 amount = (address(underlying) == protocol("USDC") ? 69_420 : 1) * 10 ** underlying.decimals();
       underlying.mint(acct("deployer"), amount);
       underlying.approve(address(markets[i]), amount);
       markets[i].deposit(amount, acct("deployer"));
