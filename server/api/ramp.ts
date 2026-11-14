@@ -17,14 +17,19 @@ import {
   type InferInput,
   type InferOutput,
 } from "valibot";
+import { isAddressEqual, parseEventLogs, parseUnits } from "viem";
+import { getUserOperationReceipt, UserOperationReceiptNotFoundError } from "viem/account-abstraction";
 
+import { marketAbi, marketUSDCAddress } from "@exactly/common/generated/chain";
+import * as nonceKey from "@exactly/common/nonceKey";
 import { business } from "@exactly/common/tenants";
-import { Address } from "@exactly/common/validation";
+import { Address, Hash } from "@exactly/common/validation";
 
 import { canRetry } from "./kyc";
 import { credentials } from "../database/schema";
 import { BusinessApplicationError } from "../utils/panda";
 import { ADDRESS_TEMPLATE, MANTECA_TEMPLATE_EXTRA_FIELDS, PANDA_TEMPLATE } from "../utils/persona";
+import publicClient from "../utils/publicClient";
 import * as Bridge from "../utils/ramps/bridge";
 import * as Manteca from "../utils/ramps/manteca";
 import ServiceError from "../utils/ServiceError";
@@ -33,23 +38,27 @@ import validatorHook from "../utils/validatorHook";
 import type * as schema from "../database/schema";
 import type { Auth } from "../middleware/auth";
 import type createPersona from "../utils/persona";
+import type { AccountOutput } from "../utils/persona";
 import type createBridge from "../utils/ramps/bridge";
 import type createManteca from "../utils/ramps/manteca";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 const ErrorCodes = {
+  EXPIRED_LOCK: "expired lock",
   EXTERNAL_ACCOUNT_ALREADY_EXISTS: "external account already exists",
   EXTERNAL_ACCOUNT_CURRENCY_MISMATCH: "external account currency mismatch",
   EXTERNAL_ACCOUNT_NOT_FOUND: "external account not found",
   EXTERNAL_ACCOUNT_NOT_SUPPORTED: "external account not supported",
   INVALID_BANK_NAME: "invalid bank name",
   INVALID_DEPOSIT_ADDRESS: "invalid deposit address",
+  INVALID_PAYMENT: "invalid payment",
   NO_CREDENTIAL: "no credential",
   NOT_APPROVED: "not approved",
   NOT_STARTED: "not started",
   NOT_SUPPORTED: "not supported",
   POSTAL_CODE_REQUIRED: "postal code required",
   TRANSFER_NOT_FOUND: "transfer not found",
+  USER_OPERATION_NOT_FOUND: "user operation not found",
   WITHDRAWAL_IN_PROGRESS: "withdrawal in progress",
 };
 
@@ -445,6 +454,106 @@ export default function route({
         return c.json({ code: "ok" }, 200);
       },
     )
+    .post(
+      "/qr",
+      auth,
+      vValidator(
+        "json",
+        union([object({ qr: string(), amount: optional(string()) }), object({ userOpHash: Hash })]),
+        validatorHook({ code: "bad qr" }),
+      ),
+      async (c) => {
+        const { credentialId } = c.req.valid("cookie");
+        const payment = c.req.valid("json");
+        const credential = await database.query.credentials.findFirst({
+          where: eq(credentials.id, credentialId),
+          columns: { account: true },
+        });
+        if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
+        const account = parse(Address, credential.account);
+        setUser({ id: account });
+
+        if ("qr" in payment) {
+          const personaAccount = await persona.getAccount(credentialId, "basic");
+          if (!personaAccount) return c.json({ code: Manteca.ErrorCodes.NO_PERSONA_ACCOUNT }, 400);
+          const document = nationalId(personaAccount);
+          if (!document) return c.json({ code: Manteca.ErrorCodes.NO_DOCUMENT }, 400);
+          const lock = await manteca.lockQrPayment({
+            paymentDestination: payment.qr,
+            amount: payment.amount,
+            against: "USDC",
+            sender: {
+              legalIdNationality: document.id_issuing_country.value,
+              legalId: document.id_number.value,
+              name: personaAccount.attributes.fields.name.value.first.value,
+              surname: personaAccount.attributes.fields.name.value.last.value,
+            },
+          });
+          if (!lock.code) return c.json({ recipient: lock.paymentRecipientName }, 206);
+          return c.json(
+            {
+              code: lock.code,
+              nonceKey: nonceKey.encode(lock.code),
+              amount: lock.paymentAgainstAmount,
+              expireAt: lock.expireAt,
+              recipient: lock.paymentRecipientName,
+              receiver: await manteca.getSettlement(lock.paymentAsset),
+            },
+            200,
+          );
+        }
+
+        const receipt = await getUserOperationReceipt(publicClient, { hash: payment.userOpHash }).catch(
+          (error: unknown) => {
+            if (error instanceof UserOperationReceiptNotFoundError) return;
+            throw error;
+          },
+        );
+        if (!receipt) return c.json({ code: ErrorCodes.USER_OPERATION_NOT_FOUND }, 400);
+        if (!receipt.success || !isAddressEqual(receipt.sender, account)) {
+          return c.json({ code: ErrorCodes.INVALID_PAYMENT }, 400);
+        }
+        const settlements = Object.values(await manteca.getSettlements());
+        const withdraws = parseEventLogs({ abi: marketAbi, eventName: "Withdraw", logs: receipt.logs }).filter(
+          ({ address, args }) =>
+            isAddressEqual(address, marketUSDCAddress) &&
+            isAddressEqual(args.owner, account) &&
+            settlements.some((settlement) => isAddressEqual(settlement, args.receiver)),
+        );
+        const paid = withdraws.reduce((total, { args }) => total + args.assets, 0n);
+        let synthetic: InferOutput<typeof Manteca.SyntheticResponse> | null | undefined;
+        try {
+          const code = nonceKey.decode(BigInt(receipt.nonce)); // eslint-disable-line @typescript-eslint/no-unnecessary-type-conversion -- viem keeps the rpc hex
+          if (!code) return c.json({ code: ErrorCodes.INVALID_PAYMENT }, 400);
+          const lock = await manteca.getPaymentLock(code);
+          if (!lock) {
+            synthetic = await manteca.getSynthetic(payment.userOpHash);
+            if (!synthetic) return c.json({ code: ErrorCodes.EXPIRED_LOCK }, 400);
+            return c.json({ id: synthetic.id, status: synthetic.status }, 200);
+          }
+          const personaAccount = await persona.getAccount(credentialId, "basic");
+          if (!personaAccount || !lock.sender || nationalId(personaAccount)?.id_number.value !== lock.sender.legalId) {
+            return c.json({ code: ErrorCodes.INVALID_PAYMENT }, 400);
+          }
+          const receiver = await manteca.getSettlement(lock.paymentAsset);
+          const assets = withdraws
+            .filter(({ args }) => isAddressEqual(args.receiver, receiver))
+            .reduce((total, { args }) => total + args.assets, 0n);
+          if (assets * 100n < parseUnits(lock.paymentAgainstAmount, 8)) {
+            return c.json({ code: ErrorCodes.INVALID_PAYMENT }, 400);
+          }
+          synthetic = await manteca.executeQrPayment(code, payment.userOpHash);
+          return c.json({ id: synthetic.id, status: synthetic.status }, 200);
+        } finally {
+          if (!synthetic && paid > 0n) {
+            captureException(new Error("qr payment not executed"), {
+              level: "error",
+              contexts: { payment: { account, userOpHash: payment.userOpHash, amount: String(paid) } },
+            });
+          }
+        }
+      },
+    )
     .post("/external-account", auth, vValidator("json", Bridge.ExternalAccountInput, validatorHook()), async (c) => {
       const { credentialId } = c.req.valid("cookie");
       const credential = await database.query.credentials.findFirst({
@@ -582,6 +691,12 @@ async function getOrCreateInquiry(
       : await persona.createInquiry(credentialId, template);
   const { meta } = await persona.resumeInquiry(inquiry.id);
   return { inquiryId: inquiry.id, sessionToken: meta["session-token"] };
+}
+
+function nationalId(account: AccountOutput<"basic">) {
+  return account.attributes.fields.documents.value.find(
+    ({ value }) => value.id_class.value === "id" && value.id_issuing_country.value === "AR",
+  )?.value;
 }
 
 type QuoteResponse = undefined | { buyRate: string; sellRate: string };
