@@ -2,11 +2,12 @@ import { captureException, withScope } from "@sentry/node";
 import { and, eq, inArray } from "drizzle-orm";
 import { v5 } from "uuid";
 
-import { isBase, marketUSDCAddress, previewerAbi, previewerAddress } from "@exactly/common/generated/chain";
+import { chains, isBase, marketUSDCAddress, previewerAbi, previewerAddress } from "@exactly/common/generated/chain";
 
 import { attempts, name, type Job } from "./job";
 import { cards, credentials } from "../../database/schema";
 import t from "../../i18n";
+import { refresh } from "../../utils/liquidity";
 import publicClient from "../../utils/publicClient";
 import createWorker from "../worker";
 
@@ -39,6 +40,7 @@ export default function worker({
     },
     name,
     async process(job, span) {
+      for (const chainId of chains.keys()) refresh(database, bullmq, job.data.account, chainId);
       const markets = await publicClient.readContract({
         address: previewerAddress,
         functionName: "exactly",
