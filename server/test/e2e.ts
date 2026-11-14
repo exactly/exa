@@ -16,6 +16,7 @@ import {
 import { and, eq } from "drizzle-orm";
 import { cors } from "hono/cors";
 import { html } from "hono/html";
+import { proxy } from "hono/proxy";
 import { createCoverageMap } from "istanbul-lib-coverage";
 import { createInstrumenter } from "istanbul-lib-instrument";
 import { createContext } from "istanbul-lib-report";
@@ -23,6 +24,7 @@ import { create } from "istanbul-reports";
 import crypto from "node:crypto";
 import { glob, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { createServer } from "node:https";
+import { createConnection } from "node:net";
 import { homedir } from "node:os";
 import path from "node:path";
 import process, { env } from "node:process";
@@ -58,6 +60,8 @@ import type * as bridge from "../utils/ramps/bridge";
 import type * as manteca from "../utils/ramps/manteca";
 import type * as sentry from "@sentry/node";
 import type { CoverageMapData } from "istanbul-lib-coverage";
+import type { IncomingMessage } from "node:http";
+import type { Duplex } from "node:stream";
 import type { InferInput, InferOutput } from "valibot";
 
 describe("e2e", () => {
@@ -90,7 +94,36 @@ describe("e2e", () => {
         hookWorker({ bullmq, database, panda }),
         subscribeWorker({ alchemy: createAlchemy("webhooks"), bullmq, database }),
       ];
-      const https = tls && serve({ fetch: app.fetch, port: 443, createServer, serverOptions: tls });
+      const metro = env.EXPO_PACKAGER_PROXY_URL ? 8081 : undefined;
+      const https =
+        tls &&
+        serve({
+          fetch: (request, bindings) => {
+            const { pathname, search } = new URL(request.url);
+            if (!metro || /^\/(?:api|e2e|hooks|\.well-known)(?:\/|$)/.test(pathname))
+              return app.fetch(request, bindings);
+            request.headers.delete("origin");
+            return proxy(`http://localhost:${metro}${pathname}${search}`, { raw: request });
+          },
+          port: 443,
+          createServer,
+          serverOptions: tls,
+        });
+      if (metro) {
+        https?.on("upgrade", (request: IncomingMessage, socket: Duplex, head: Buffer) => {
+          const upstream = createConnection(metro, "localhost", () => {
+            upstream.write(
+              `${request.method} ${request.url} HTTP/${request.httpVersion}\r\n${request.rawHeaders
+                .map((value, index) => (index % 2 ? `${value}\r\n` : `${value}: `))
+                .join("")}\r\n`,
+            );
+            upstream.write(head);
+            socket.pipe(upstream).pipe(socket);
+          });
+          upstream.once("error", () => socket.destroy());
+          socket.once("error", () => upstream.destroy());
+        });
+      }
 
       await expect(
         new Promise((resolve, reject) => {
