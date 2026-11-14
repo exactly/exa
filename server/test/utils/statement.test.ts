@@ -92,6 +92,35 @@ describe("statement rendering", () => {
     expect(text).toContain("$100.00");
   });
 
+  it("renders purchase and payment dates in the given time zone", () => {
+    const text = collectText(
+      Statement({
+        account: "0x92bD...e82BA8",
+        cards: [
+          {
+            id: "card-1",
+            lastFour: "1234",
+            purchases: [
+              {
+                id: "purchase-1",
+                description: "late dinner",
+                installments: [{ amount: 100, current: 1, total: 1 }],
+                timestamp: "2025-12-20T01:00:00.000Z",
+              },
+            ],
+          },
+        ],
+        maturity: 1_768_435_200,
+        payments: [{ id: "repay-1", amount: 100, positionAmount: 100, timestamp: "2025-12-21T02:00:00.000Z" }],
+        timeZone: "America/Argentina/Buenos_Aires",
+      }),
+    );
+    expect(text).toContain("Dec 19, 2025");
+    expect(text).toContain("Dec 20, 2025");
+    expect(text).not.toContain("Dec 21, 2025");
+    expect(text).toContain(format(1_768_435_200 * 1000));
+  });
+
   it("renders with empty data", async () => {
     const statement = {
       account: "0x92bD...e82BA8",

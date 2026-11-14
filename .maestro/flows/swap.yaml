@@ -26,6 +26,11 @@ appId: ${APP_ID ?? "app.exactly"}
     env: { network: Anvil2, to: "${output.account}", amount: "4" }
 - assertVisible: completed
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
+- tapOn: Activity
+- tapOn: Received from another network
+- assertVisible: { text: Anvil2, rightOf: Source network }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- tapOn: Home
 - runFlow: ../subflows/assertOnboarding.yaml
 - runFlow:
     file: ../subflows/mint.yaml

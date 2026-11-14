@@ -152,6 +152,20 @@ export default defineConfig([
             versions: deploy.factory.versions.map((v) => factory(v)),
             legacy: deploy.factory.legacy.map((address) => getAddress(address)),
           };
+          const factoryChains = (
+            chain
+              ? deploy.factory.chains.filter(
+                  (id) => Boolean(Object.values(chains).find((c) => c.id === id)?.testnet) === testnet,
+                )
+              : [anvil.id, moonbeamDev.id]
+          ).map((id) => [
+            id,
+            {
+              swapper: getAddress(
+                (deploy.accounts.swapper as Record<string, string>)[id] ?? deploy.accounts.swapper.default,
+              ),
+            },
+          ]);
           const alchemyChains: { id: number; name?: string; source: string }[] = Object.values(infra).flatMap((c) => {
             if (typeof c !== "object" || !("rpcUrls" in c)) return [];
             const { alchemy, ...rpcUrls } = c.rpcUrls;
@@ -247,6 +261,7 @@ export default defineConfig([
               `export const appPreviewerCode: \`0x\${string}\` = "${AppPreviewer.bytecode.object}"`,
               `export const appPreviewerDeployedCode: \`0x\${string}\` = "${AppPreviewer.deployedBytecode.object}"`,
               `export const factories: Readonly<Record<"legacy" | "versions", readonly \`0x\${string}\`[]>> = ${JSON.stringify(factories)}`,
+              `export const factoryChains: ReadonlyMap<number, Readonly<Record<"swapper", \`0x\${string}\`>>> = new Map(${JSON.stringify(factoryChains)})`,
               `export const issuerCheckerPreviewerCode: \`0x\${string}\` = "${IssuerCheckerPreviewer.deployedBytecode.object}"`,
               `export const networks: ReadonlyMap<number, Readonly<Record<"auditor" | "exaPreviewer" | "swapper", \`0x\${string}\`>>> = new Map(${JSON.stringify(networkContracts)})`,
               `export const pricePreviewerCode: \`0x\${string}\` = "${PricePreviewer.bytecode.object}"`,

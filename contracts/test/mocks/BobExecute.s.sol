@@ -49,7 +49,9 @@ contract BobExecuteScript is BaseScript {
     bobAccount.executeProposal(1);
     bobAccount.executeProposal(2);
     bobAccount.executeProposal(3);
-    bobAccount.executeProposal(4);
+    bobAccount.executeProposals(4, 2);
+    bobAccount.executeProposal(6);
+    bobAccount.executeProposal(7);
 
     new BatchDeploy(factory, 4);
 

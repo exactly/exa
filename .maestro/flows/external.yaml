@@ -46,5 +46,10 @@ appId: ${APP_ID ?? "app.exactly"}
     file: ../subflows/borrow.yaml
     env: { amount: "100", installments: "1", receiver: "0x000000000000000000000000000000000000dEaD" }
 - runFlow: { file: ../subflows/repay.yaml, env: { external: USDT } }
+- tapOn: Activity
+- assertVisible: Swapped USDT for USDC
+- tapOn: Loan
+- assertVisible: { text: '100[\s\xa0]USDC', below: Loan }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
 - tapOn: Home
 - runFlow: ../subflows/storeCoverage.yaml

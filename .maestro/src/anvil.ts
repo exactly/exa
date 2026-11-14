@@ -66,14 +66,17 @@ export function writeContract<
 >(
   parameters: Pick<WriteContractParameters<abi, functionName, args>, "address" | "args" | "functionName"> & {
     abi: abi;
+    from?: Address;
   },
   network?: string,
 ): WriteContractReturnType {
-  const { address, functionName, abi, args } = parameters as Pick<
-    WriteContractParameters,
-    "abi" | "address" | "args" | "functionName"
-  >;
-  const from = sliceHex(keccak256(toHex(String(Math.random()))), 12);
+  const {
+    address,
+    functionName,
+    abi,
+    args,
+    from = sliceHex(keccak256(toHex(String(Math.random()))), 12),
+  } = parameters as Pick<WriteContractParameters, "abi" | "address" | "args" | "functionName"> & { from?: Address };
   anvil("anvil_impersonateAccount", [from], network);
   anvil("anvil_setBalance", [from, String(10n ** 18n)], network);
   const { status, transactionHash } = anvil(

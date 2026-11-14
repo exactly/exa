@@ -402,7 +402,10 @@ async function getActivity(
 queryClient.setQueryDefaults(["activity"], {
   staleTime: 60_000,
   gcTime: isServer ? Infinity : 60 * 60_000,
-  queryFn: () => getActivity(),
+  queryFn: () =>
+    getActivity({
+      include: ["card", "received", "repay", "sent", "loan", "rollover", "swap", "liquidation", "bridge"],
+    }),
 });
 queryClient.setQueryDefaults(["activity", "card"], {
   queryFn: async () => {
@@ -412,7 +415,10 @@ queryClient.setQueryDefaults(["activity", "card"], {
 });
 
 export async function getStatement(maturity: number) {
-  return getActivity({ maturity: String(maturity) }, "application/pdf");
+  return getActivity(
+    { maturity: String(maturity), timezone: new Intl.DateTimeFormat().resolvedOptions().timeZone },
+    "application/pdf",
+  );
 }
 
 export async function getStatementActivity(maturity: number) {

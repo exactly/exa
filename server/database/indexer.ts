@@ -61,6 +61,26 @@ export const delays = indexer
   })
   .existing();
 
+export const markets = indexer
+  .view("markets", {
+    chainId: integer("chain_id").notNull(),
+    address: text("address").$type<Hex>().notNull(),
+    asset: text("asset").$type<Hex>().notNull(),
+    symbol: text("symbol").notNull(),
+    decimals: integer("decimals").notNull(),
+    priceFeed: text("price_feed").$type<Hex>(),
+  })
+  .existing();
+
+export const tokens = indexer
+  .view("tokens", {
+    chainId: integer("chain_id").notNull(),
+    address: text("address").$type<Hex>().notNull(),
+    symbol: text("symbol").notNull(),
+    decimals: integer("decimals").notNull(),
+  })
+  .existing();
+
 export const deposits = indexer
   .view("deposits", {
     ...log(),
@@ -68,6 +88,7 @@ export const deposits = indexer
     caller: text("caller").$type<Hex>().notNull(),
     market: text("market").$type<Hex>().notNull(),
     assets: numeric("assets", { mode: "bigint" }).notNull(),
+    usdPrice: numeric("usd_price", { mode: "bigint" }).notNull(),
   })
   .existing();
 
@@ -79,6 +100,7 @@ export const withdraws = indexer
     receiver: text("receiver").$type<Hex>().notNull(),
     market: text("market").$type<Hex>().notNull(),
     assets: numeric("assets", { mode: "bigint" }).notNull(),
+    usdPrice: numeric("usd_price", { mode: "bigint" }).notNull(),
     input: text("input").$type<Hex>(),
     proposalManager: text("proposal_manager").$type<Hex>(),
   })
@@ -93,6 +115,7 @@ export const borrows = indexer
     market: text("market").$type<Hex>().notNull(),
     maturity: numeric("maturity", { mode: "bigint" }).notNull(),
     assets: numeric("assets", { mode: "bigint" }).notNull(),
+    usdPrice: numeric("usd_price", { mode: "bigint" }).notNull(),
     fee: numeric("fee", { mode: "bigint" }).notNull(),
   })
   .existing();
@@ -105,6 +128,7 @@ export const repays = indexer
     market: text("market").$type<Hex>().notNull(),
     maturity: numeric("maturity", { mode: "bigint" }).notNull(),
     assets: numeric("assets", { mode: "bigint" }).notNull(),
+    usdPrice: numeric("usd_price", { mode: "bigint" }).notNull(),
     positionAssets: numeric("position_assets", { mode: "bigint" }).notNull(),
   })
   .existing();
@@ -120,6 +144,49 @@ export const proposals = indexer
     amount: numeric("amount", { mode: "bigint" }).notNull(),
     data: text("data").$type<Hex>().notNull(),
     unlock: numeric("unlock", { mode: "bigint" }).notNull(),
+  })
+  .existing();
+
+export const swaps = indexer
+  .view("swaps", {
+    ...log(),
+    account: text("account").$type<Hex>().notNull(),
+    transactionId: text("transaction_id").$type<Hex>().notNull(),
+    fromAsset: text("from_asset").$type<Hex>().notNull(),
+    toAsset: text("to_asset").$type<Hex>().notNull(),
+    fromAmount: numeric("from_amount", { mode: "bigint" }).notNull(),
+    toAmount: numeric("to_amount", { mode: "bigint" }).notNull(),
+    fromUsdPrice: numeric("from_usd_price", { mode: "bigint" }),
+    toUsdPrice: numeric("to_usd_price", { mode: "bigint" }),
+  })
+  .existing();
+
+export const bridges = indexer
+  .view("bridges", {
+    ...log(),
+    account: text("account").$type<Hex>(),
+    transactionId: text("transaction_id").$type<Hex>().notNull(),
+    bridge: text("bridge").notNull(),
+    asset: text("asset").$type<Hex>().notNull(),
+    amount: numeric("amount", { mode: "bigint" }).notNull(),
+    receiver: text("receiver").$type<Hex>().notNull(),
+    destinationChainId: numeric("destination_chain_id", { mode: "bigint" }).notNull(),
+    usdPrice: numeric("usd_price", { mode: "bigint" }),
+  })
+  .existing();
+
+export const liquidations = indexer
+  .view("liquidations", {
+    ...log(),
+    account: text("account").$type<Hex>().notNull(),
+    liquidator: text("liquidator").$type<Hex>().notNull(),
+    market: text("market").$type<Hex>().notNull(),
+    assets: numeric("assets", { mode: "bigint" }).notNull(),
+    lendersAssets: numeric("lenders_assets", { mode: "bigint" }).notNull(),
+    seizeMarket: text("seize_market").$type<Hex>().notNull(),
+    seizedAssets: numeric("seized_assets", { mode: "bigint" }).notNull(),
+    usdPrice: numeric("usd_price", { mode: "bigint" }).notNull(),
+    seizeUsdPrice: numeric("seize_usd_price", { mode: "bigint" }).notNull(),
   })
   .existing();
 

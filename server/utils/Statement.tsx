@@ -7,6 +7,7 @@ const Statement = ({
   cards,
   maturity,
   payments,
+  timeZone,
 }: {
   account: string;
   cards: {
@@ -21,6 +22,7 @@ const Statement = ({
   }[];
   maturity: number;
   payments: { amount: number; id: string; positionAmount: number; timestamp: string }[];
+  timeZone?: string;
 }) => {
   const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
@@ -139,7 +141,7 @@ const Statement = ({
               </View>
               {card.purchases.map((purchase) => (
                 <View key={purchase.id} style={styles.tableRow}>
-                  <Text style={styles.colDate}>{format(purchase.timestamp)}</Text>
+                  <Text style={styles.colDate}>{format(purchase.timestamp, timeZone)}</Text>
                   <Text style={styles.colDesc}>{purchase.description}</Text>
                   <Text style={styles.colInst}>
                     {purchase.installments
@@ -175,7 +177,7 @@ const Statement = ({
                   : ((payment.positionAmount - payment.amount) / payment.positionAmount) * 100;
               return (
                 <View key={payment.id} style={styles.tableRow}>
-                  <Text style={styles.colDate}>{format(payment.timestamp)}</Text>
+                  <Text style={styles.colDate}>{format(payment.timestamp, timeZone)}</Text>
                   <View style={styles.colDescRow}>
                     <Text style={styles.descText}>Payment</Text>
                     {percent >= 0.01 && (
@@ -211,9 +213,9 @@ const Statement = ({
 
 export default Statement;
 
-export function format(value: number | string) {
+export function format(value: number | string, timeZone = "UTC") {
   return new Date(value).toLocaleDateString("en-US", {
-    timeZone: "UTC",
+    timeZone,
     month: "short",
     day: "2-digit",
     year: "numeric",

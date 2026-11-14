@@ -58,6 +58,30 @@ export const delays = onchainTable(
   (table) => ({ pk: primaryKey({ columns: [table.chainId, table.proposalManager] }) }),
 );
 
+export const markets = onchainTable(
+  "markets",
+  (t) => ({
+    chainId: t.integer().notNull(),
+    address: t.hex().notNull(),
+    asset: t.hex().notNull(),
+    symbol: t.text().notNull(),
+    decimals: t.integer().notNull(),
+    priceFeed: t.hex(),
+  }),
+  (table) => ({ pk: primaryKey({ columns: [table.chainId, table.address] }) }),
+);
+
+export const tokens = onchainTable(
+  "tokens",
+  (t) => ({
+    chainId: t.integer().notNull(),
+    address: t.hex().notNull(),
+    symbol: t.text().notNull(),
+    decimals: t.integer().notNull(),
+  }),
+  (table) => ({ pk: primaryKey({ columns: [table.chainId, table.address] }) }),
+);
+
 export const deposits = onchainTable(
   "deposits",
   (t) => ({
@@ -66,6 +90,7 @@ export const deposits = onchainTable(
     caller: t.hex().notNull(),
     market: t.hex().notNull(),
     assets: t.bigint().notNull(),
+    usdPrice: t.bigint().notNull(),
   }),
   (table) => ({ account: index().on(table.chainId, table.account) }),
 );
@@ -79,6 +104,7 @@ export const withdraws = onchainTable(
     receiver: t.hex().notNull(),
     market: t.hex().notNull(),
     assets: t.bigint().notNull(),
+    usdPrice: t.bigint().notNull(),
     input: t.hex(),
     proposalManager: t.hex(),
   }),
@@ -95,6 +121,7 @@ export const borrows = onchainTable(
     market: t.hex().notNull(),
     maturity: t.bigint().notNull(),
     assets: t.bigint().notNull(),
+    usdPrice: t.bigint().notNull(),
     fee: t.bigint().notNull(),
   }),
   (table) => ({ account: index().on(table.chainId, table.account) }),
@@ -109,6 +136,7 @@ export const repays = onchainTable(
     market: t.hex().notNull(),
     maturity: t.bigint().notNull(),
     assets: t.bigint().notNull(),
+    usdPrice: t.bigint().notNull(),
     positionAssets: t.bigint().notNull(),
   }),
   (table) => ({ account: index().on(table.chainId, table.account) }),
@@ -126,6 +154,58 @@ export const proposals = onchainTable(
     amount: t.bigint().notNull(),
     data: t.hex().notNull(),
     unlock: t.bigint().notNull(),
+  }),
+  (table) => ({ account: index().on(table.chainId, table.account) }),
+);
+
+export const swaps = onchainTable(
+  "swaps",
+  (t) => ({
+    ...log(t),
+    account: t.hex().notNull(),
+    transactionId: t.hex().notNull(),
+    fromAsset: t.hex().notNull(),
+    toAsset: t.hex().notNull(),
+    fromAmount: t.bigint().notNull(),
+    toAmount: t.bigint().notNull(),
+    fromUsdPrice: t.bigint(),
+    toUsdPrice: t.bigint(),
+  }),
+  (table) => ({ account: index().on(table.chainId, table.account) }),
+);
+
+export const bridges = onchainTable(
+  "bridges",
+  (t) => ({
+    ...log(t),
+    account: t.hex(),
+    transactionId: t.hex().notNull(),
+    bridge: t.text().notNull(),
+    asset: t.hex().notNull(),
+    amount: t.bigint().notNull(),
+    receiver: t.hex().notNull(),
+    destinationChainId: t.bigint().notNull(),
+    usdPrice: t.bigint(),
+  }),
+  (table) => ({
+    account: index().on(table.chainId, table.account),
+    receiver: index().on(table.destinationChainId, table.receiver),
+  }),
+);
+
+export const liquidations = onchainTable(
+  "liquidations",
+  (t) => ({
+    ...log(t),
+    account: t.hex().notNull(),
+    liquidator: t.hex().notNull(),
+    market: t.hex().notNull(),
+    assets: t.bigint().notNull(),
+    lendersAssets: t.bigint().notNull(),
+    seizeMarket: t.hex().notNull(),
+    seizedAssets: t.bigint().notNull(),
+    usdPrice: t.bigint().notNull(),
+    seizeUsdPrice: t.bigint().notNull(),
   }),
   (table) => ({ account: index().on(table.chainId, table.account) }),
 );
