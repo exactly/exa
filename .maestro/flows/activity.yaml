@@ -43,6 +43,7 @@ env:
 - runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Bakery, center: true } }
 - tapOn: Bakery
 - assertVisible: Paid
+- assertVisible: \$32\.10
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
 - runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Payment failed, center: true } }
 - tapOn: Payment failed
