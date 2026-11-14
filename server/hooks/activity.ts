@@ -119,16 +119,16 @@ export default function hook({
       );
       const accounts = await database.query.credentials
         .findMany({
-          columns: { account: true, publicKey: true, factory: true, salt: true, source: true },
+          columns: { account: true, publicKey: true, factory: true, pandaId: true, salt: true, source: true },
           where: inArray(credentials.account, [...new Set(transfers.map(({ toAddress }) => toAddress))]),
         })
         .then((result) =>
           Object.fromEntries(
             result.map(
-              ({ account, publicKey, factory, salt, source }) =>
+              ({ account, publicKey, factory, pandaId, salt, source }) =>
                 [
                   v.parse(Address, account),
-                  { publicKey, factory: v.parse(Address, factory), salt: v.parse(Address, salt), source },
+                  { publicKey, factory: v.parse(Address, factory), pandaId, salt: v.parse(Address, salt), source },
                 ] as const,
             ),
           ),
@@ -149,6 +149,7 @@ export default function hook({
         {
           assets: Set<Address>;
           factory: Address;
+          pandaId: null | string;
           publicKey: Uint8Array<ArrayBuffer>;
           salt: Address;
           source: null | string;
@@ -189,18 +190,19 @@ export default function hook({
         if (pokes.has(account)) {
           pokes.get(account)?.assets.add(asset);
         } else {
-          const { publicKey, factory, salt, source } = accounts[account];
-          pokes.set(account, { publicKey, factory, salt, source, assets: new Set([asset]) });
+          const { publicKey, factory, pandaId, salt, source } = accounts[account];
+          pokes.set(account, { publicKey, factory, pandaId, salt, source, assets: new Set([asset]) });
         }
       }
       await Promise.all(
-        [...pokes].map(([account, { assets, factory, publicKey, salt, source }]) =>
+        [...pokes].map(([account, { assets, factory, pandaId, publicKey, salt, source }]) =>
           poke.enqueue({
             account,
             assets: [...assets],
             chainId: chain.id,
             factory,
             origin: "activity",
+            ...(pandaId && { pandaId }),
             publicKey: bytesToHex(publicKey),
             salt,
             source,

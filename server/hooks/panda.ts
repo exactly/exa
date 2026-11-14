@@ -35,6 +35,7 @@ import {
   type LocalAccount,
   type PublicClient,
   type StateOverride,
+  type TransactionReceipt,
 } from "viem";
 
 import chain, {
@@ -57,6 +58,7 @@ import { MATURITY_INTERVAL, splitInstallments } from "@exactly/lib";
 
 import { cards, credentials, transactions } from "../database/schema";
 import t, { f } from "../i18n";
+import remember, { key, limit } from "../utils/liquidity";
 import {
   collectors,
   createMutex,
@@ -85,6 +87,7 @@ import type createHook from "../workers/hook/queue";
 import type createRefund from "../workers/refund/queue";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { UnofficialStatusCode } from "hono/utils/http-status";
+import type { Redis } from "ioredis";
 
 const debug = createDebug("exa:panda");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
@@ -94,6 +97,7 @@ export default function hook({
   issuer,
   onesignal,
   panda,
+  redis,
   refund,
   sardine,
   segment,
@@ -105,6 +109,7 @@ export default function hook({
   issuer: LocalAccount;
   onesignal: ReturnType<typeof createOnesignal>;
   panda: ReturnType<typeof createPanda>;
+  redis: Redis;
   refund: ReturnType<typeof createRefund>;
   sardine: ReturnType<typeof createSardine>;
   segment: ReturnType<typeof createSegment>;
@@ -124,7 +129,7 @@ export default function hook({
               const client = tracer(network);
               return { fees: "auto" as const, reader: client, tracer: client, wallet: createWallet(settler, network) };
             })();
-      const { issuerCheckers, plugins, usdc } = await clients.reader.readContract({
+      const { exaUSDC, issuerCheckers, plugins, usdc } = await clients.reader.readContract({
         address: exaPreviewer,
         functionName: "discover",
         args: [factories.versions],
@@ -147,6 +152,7 @@ export default function hook({
         exaPreviewer,
         id,
         issuerCheckers,
+        market: exaUSDC,
         overrides: [
           ...[...new Set(plugins)].map((address) => ({ address, stateDiff: [{ slot, value }] })),
           ...[...new Set(issuerCheckers)].map((address) => ({ address, code: issuerCheckerPreviewerCode })),
@@ -166,6 +172,12 @@ export default function hook({
     vValidator("json", Payload, validatorHook({ code: "bad panda", status: 400, debug })),
     async (c) => {
       const payload = c.req.valid("json");
+      const cached =
+        payload.resource === "transaction" && payload.action === "requested"
+          ? redis.hgetall(key(payload.body.spend.userId)).catch((error: unknown) => {
+              captureException(error, { level: "warning" });
+            })
+          : undefined;
       getActiveSpan()?.setAttributes({ "panda.event": payload.id, "panda.transaction": payload.body.id });
       setTag("panda.resource", payload.resource);
       setTag("panda.action", payload.action);
@@ -292,7 +304,9 @@ export default function hook({
           setContext("mutex", { locked: mutex.isLocked() });
 
           try {
-            const { amount, sign } = await prepareCollection(card, payload, issuer, panda, { unsigned: true });
+            const { amount, maturity, sign } = await prepareCollection(card, payload, issuer, panda, {
+              unsigned: true,
+            });
             const authorize = () => {
               trackAuthorized(account, payload, card.mode, card.credential.source, segment);
               return c.json({ code: "ok" });
@@ -316,8 +330,8 @@ export default function hook({
               }
             }).catch((error: unknown) => captureException(error, { level: "error" }));
             try {
-              const inspect = async (network: Network) => {
-                const call = await sign({ network });
+              const inspect = async ({ amount: value, network }: Part) => {
+                const call = await sign({ amount: value, network });
                 const trace = await startSpan(
                   { name: "debug_traceCall", op: "tx.trace", attributes: { chainId: network.id } },
                   () =>
@@ -328,18 +342,30 @@ export default function hook({
                       stateOverride: network.overrides,
                     }),
                 );
-                return { call, network, trace };
+                return { amount: value, call, network, trace };
               };
               const known = await chains;
-              const results = known.map((network) =>
-                inspect(network).catch((error: unknown) => {
-                  captureException(error, { level: "warning", tags: { chainId: network.id } });
+              const snapshot = (await cached) ?? {};
+              const timestamp = Math.floor(Date.now() / 1000);
+              const parts = split(
+                amount,
+                known.map((network) => ({
+                  network,
+                  limit: limit(snapshot[network.id], network.market, maturity, timestamp),
+                })),
+              );
+              const results = (parts ?? known.map((network) => ({ amount, network }))).map((part) =>
+                inspect(part).catch((error: unknown) => {
+                  captureException(error, { level: "warning", tags: { chainId: part.network.id } });
                   return null;
                 }),
               );
-              const settled =
-                (await race(results, (result) => replay(result) || covers(result, amount))) ??
-                fallback(await Promise.all(results));
+              const all = parts && (await Promise.all(results));
+              if (all?.every((result) => result && covers(result))) return authorize();
+              const settled = all
+                ? (all.find((result) => result && !covers(result)) ?? fallback(all))
+                : ((await race(results, (result) => replay(result) || covers(result))) ??
+                  fallback(await Promise.all(results)));
               const { call, network, trace } = settled;
               setContext("tx", { call, chainId: network.id, trace });
               if (trace.output) {
@@ -383,7 +409,7 @@ export default function hook({
                 });
                 throw new PandaError("tx reverted", 550 as UnofficialStatusCode);
               }
-              if (collected(network, trace) !== amount) {
+              if (collected(network, trace) !== settled.amount) {
                 debug(`${payload.action}:${payload.body.spend.status}`, payload.body.id, "bad collection");
                 withScope((scope) => {
                   scope.addEventProcessor((event) => {
@@ -645,7 +671,9 @@ export default function hook({
               columns: { payload: true },
               where: and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)),
             });
-            const { amount, functionName, sign } = await prepareCollection(card, payload, issuer, panda, { stored });
+            const { amount, functionName, maturity, sign } = await prepareCollection(card, payload, issuer, panda, {
+              stored,
+            });
             if (!sign) {
               const tx = await database.query.transactions.findFirst({
                 where: and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)),
@@ -694,9 +722,26 @@ export default function hook({
               return c.json({ code: "ok" });
             }
             let attempt: Collection | undefined;
+            const deliver = (receipt: TransactionReceipt) =>
+              webhook
+                .enqueue(
+                  {
+                    account,
+                    receipt: { blockNumber: Number(receipt.blockNumber), transactionHash: receipt.transactionHash },
+                  },
+                  payload.id,
+                )
+                .catch((error: unknown) =>
+                  captureException(error, {
+                    level: "error",
+                    tags: { queue: hookName, job: hookName },
+                    extra: { id: payload.id },
+                  }),
+                );
             try {
-              const collect = (network: Network, collection: Collection) =>
-                network.wallet.exaSend(
+              const collect = ({ amount: value, call: collection, network }: Inspection, partial: boolean) => {
+                attempt = collection;
+                return network.wallet.exaSend(
                   { name: "collect credit", op: "exa.collect", attributes: { account, chainId: network.id } },
                   {
                     address: account,
@@ -712,113 +757,139 @@ export default function hook({
                   {
                     fees: network.fees,
                     async onHash(hash) {
-                      const tx = await database.query.transactions.findFirst({
-                        where: and(
-                          eq(transactions.id, payload.body.id),
-                          eq(transactions.cardId, payload.body.spend.cardId),
-                        ),
-                      });
                       const body = {
                         ...(jsonBody as object),
                         createdAt: getCreatedAt(payload) ?? new Date().toISOString(),
                         chainId: network.id,
+                        ...(partial && { collected: String(value) }),
                       };
-                      await (tx
-                        ? database
-                            .update(transactions)
-                            .set({
-                              hashes: [...tx.hashes, hash],
-                              payload: {
-                                ...(tx.payload as object),
-                                bodies: [...v.parse(TransactionPayload, tx.payload).bodies, body],
-                              },
-                            })
-                            .where(
-                              and(
-                                eq(transactions.id, payload.body.id),
-                                eq(transactions.cardId, payload.body.spend.cardId),
-                              ),
-                            )
-                        : database.insert(transactions).values([
-                            {
-                              id: payload.body.id,
-                              cardId: payload.body.spend.cardId,
-                              hashes: [hash],
-                              payload: {
-                                bodies: [body],
-                                type: "panda",
-                              },
-                            },
-                          ]));
+                      await database
+                        .insert(transactions)
+                        .values({
+                          id: payload.body.id,
+                          cardId: payload.body.spend.cardId,
+                          hashes: [hash],
+                          payload: { bodies: [body], type: "panda" },
+                        })
+                        .onConflictDoUpdate({
+                          target: transactions.id,
+                          set: {
+                            hashes: sql`${transactions.hashes} || ARRAY[${hash}]::text[]`,
+                            payload: sql`jsonb_set(${transactions.payload}, '{bodies}', ${transactions.payload}->'bodies' || ${JSON.stringify([body])}::jsonb)`,
+                          },
+                          setWhere: eq(transactions.cardId, payload.body.spend.cardId),
+                        });
                     },
-                    onReceipt: (receipt) =>
-                      receipt.status === "reverted"
-                        ? undefined
-                        : webhook
-                            .enqueue(
-                              {
-                                account,
-                                receipt: {
-                                  blockNumber: Number(receipt.blockNumber),
-                                  transactionHash: receipt.transactionHash,
-                                },
-                              },
-                              payload.id,
-                            )
-                            .catch((error: unknown) =>
-                              captureException(error, {
-                                level: "error",
-                                tags: { queue: hookName, job: hookName },
-                                extra: { id: payload.id },
-                              }),
-                            ),
+                    onReceipt(receipt) {
+                      if (receipt.status === "reverted") return;
+                      remember(redis, payload.body.spend.userId, account, network.id).catch((error: unknown) =>
+                        captureException(error, { level: "warning", tags: { chainId: network.id } }),
+                      );
+                      if (!partial) return deliver(receipt);
+                    },
                   },
                 );
+              };
               const probe = (network: Network, data: Hex) =>
                 startSpan({ name: "debug_traceCall", op: "tx.trace", attributes: { chainId: network.id } }, () =>
                   network.tracer.traceCall({ from: wallet.account.address, to: account, data }),
                 );
-              const inspect = async (network: Network) => {
-                const initial = await sign({ network });
+              const inspect = async ({ amount: value, network }: Part) => {
+                const initial = await sign({ amount: value, network });
                 const trace = await probe(network, encodeFunctionData({ abi: exaPluginAbi, ...initial }));
                 if (!trace.output?.startsWith(toFunctionSelector("Unauthorized()"))) {
-                  return { call: initial, network, trace };
+                  return { amount: value, call: initial, network, trace };
                 }
-                const resigned = await sign({ checker: issuance(trace).checker, network });
+                const resigned = await sign({ amount: value, checker: issuance(trace), network });
                 return {
+                  amount: value,
                   call: resigned,
                   network,
                   trace: await probe(network, encodeFunctionData({ abi: exaPluginAbi, ...resigned })),
                 };
               };
-              const inspectAll = (candidates: Network[]) =>
-                candidates.map((network) =>
-                  inspect(network).catch((error: unknown) => {
+              const settles = (result: Inspection) => replay(result) || covers(result);
+              const settle = async (value: bigint, candidates: Network[], prior?: Inspection) => {
+                const results = candidates.map((network) =>
+                  inspect({ amount: value, network }).catch((error: unknown) => {
                     captureException(error, { level: "warning", tags: { chainId: network.id } });
                     return null;
                   }),
                 );
-              const settles = (result: { network: Network; trace: CallFrame }) =>
-                replay(result) || covers(result, amount);
+                const winner = await race(results, settles);
+                if (winner) return [winner];
+                const timestamp = Math.floor(Date.now() / 1000);
+                const parts = split(
+                  value,
+                  await Promise.all(
+                    (prior ? [prior.network, ...candidates] : candidates).map((network) =>
+                      remember(redis, payload.body.spend.userId, account, network.id).then(
+                        (positions) => ({
+                          network,
+                          limit: limit(positions, network.market, maturity, timestamp),
+                        }),
+                        (error: unknown) => {
+                          captureException(error, { level: "warning", tags: { chainId: network.id } });
+                          return { network, limit: undefined };
+                        },
+                      ),
+                    ),
+                  ),
+                );
+                return parts
+                  ? await Promise.all(parts.map((part) => inspect(part)))
+                  : [prior ?? fallback(await Promise.all(results))];
+              };
               const known = await chains;
-              const previous = known.find(
-                ({ id }) =>
-                  id ===
-                  v
-                    .parse(Stored, stored?.payload ?? { bodies: [] })
-                    .bodies.findLast(({ id: event }) => event === payload.id)?.chainId,
+              const bodies = v
+                .parse(Stored, stored?.payload ?? { bodies: [] })
+                .bodies.filter(({ id }) => id === payload.id);
+              const done = [
+                ...new Map(
+                  bodies.flatMap(({ chainId, collected: value }) => {
+                    const network = known.find(({ id }) => id === chainId);
+                    return network && value !== undefined
+                      ? [[`${chainId}:${value}`, { amount: BigInt(value), network }] as const]
+                      : [];
+                  }),
+                ).values(),
+              ];
+              const plan = await (async () => {
+                if (done.length > 0) {
+                  const inspections = await Promise.all(done.map((part) => inspect(part)));
+                  const landed = inspections.filter((part) => replay(part));
+                  const remaining = amount - landed.reduce((total, part) => total + part.amount, 0n);
+                  return [
+                    ...landed,
+                    ...(remaining > 0n
+                      ? await settle(
+                          remaining,
+                          known.filter((network) => !landed.some((part) => part.network === network)),
+                        )
+                      : []),
+                  ];
+                }
+                const previous = known.find(({ id }) => id === bodies.at(-1)?.chainId);
+                const prior = previous && (await inspect({ amount, network: previous }));
+                return prior && settles(prior)
+                  ? [prior]
+                  : await settle(
+                      amount,
+                      known.filter((network) => network !== previous),
+                      prior,
+                    );
+              })();
+              const failure = plan.find((part) => !settles(part));
+              if (failure && !failure.trace.output) {
+                attempt = failure.call;
+                throw new Error("bad collection");
+              }
+              const pending = failure ? [failure] : plan.filter((part) => !replay(part));
+              const receipts = await Promise.all(
+                (pending.length > 0 ? pending : plan.slice(0, 1)).map((part) => collect(part, plan.length > 1)),
               );
-              const prior = previous && (await inspect(previous));
-              const settled =
-                prior && settles(prior)
-                  ? prior
-                  : await (async () => {
-                      const results = inspectAll(known.filter((network) => network !== previous));
-                      return (await race(results, settles)) ?? prior ?? fallback(await Promise.all(results));
-                    })();
-              attempt = settled.call;
-              if (!settled.trace.output && !covers(settled, amount)) throw new Error("bad collection");
-              await collect(settled.network, settled.call);
+              const last = receipts.at(-1);
+              if (plan.length > 1 && last) await deliver(last);
 
               if (
                 payload.action === "created" ||
@@ -1177,7 +1248,7 @@ async function prepareCollection(
       }
     })() / 100;
   const amount = BigInt(Math.round(usdAmount * 1e6));
-  if (amount === 0n) return { amount, functionName: null, sign: null };
+  if (amount === 0n) return { amount, functionName: null, maturity: undefined, sign: null };
   const authorized = Math.floor(
     (payload.body.spend.authorizedAt ? new Date(payload.body.spend.authorizedAt) : new Date()).getTime() / 1000, // TODO remove fallback
   );
@@ -1221,31 +1292,26 @@ async function prepareCollection(
       : card.mode === 1 || usdAmount < card.mode || payload.action === "requested"
         ? "collectCredit"
         : "collectInstallments";
-  const sign = async ({ checker, network }: { checker?: Hex; network: Network }) => {
+  const nextMaturity = authorized - (authorized % MATURITY_INTERVAL) + MATURITY_INTERVAL;
+  const firstMaturity =
+    nextMaturity - authorized < MIN_BORROW_INTERVAL ? nextMaturity + MATURITY_INTERVAL : nextMaturity;
+  const lastMaturity = firstMaturity + (card.mode - 1) * MATURITY_INTERVAL;
+  const sign = async ({ amount: value, checker, network }: { amount: bigint; checker?: Hex; network: Network }) => {
     const signature = unsigned
       ? "0x"
       : await signIssuerOp(
-          { account, amount, timestamp },
+          { account, amount: value, timestamp },
           issuer,
           checker ?? network.issuerCheckers.at(-1),
           network.id,
         ); // TODO replace with payload signature
     if (functionName === "collectDebit") {
-      return { functionName: "collectDebit", args: [amount, BigInt(timestamp), signature] } as const;
+      return { functionName: "collectDebit", args: [value, BigInt(timestamp), signature] } as const;
     }
-    const nextMaturity = authorized - (authorized % MATURITY_INTERVAL) + MATURITY_INTERVAL;
-    const firstMaturity =
-      nextMaturity - authorized < MIN_BORROW_INTERVAL ? nextMaturity + MATURITY_INTERVAL : nextMaturity;
     if (functionName === "collectCredit") {
       return {
         functionName: "collectCredit",
-        args: [
-          BigInt(firstMaturity + (card.mode - 1) * MATURITY_INTERVAL),
-          amount,
-          maxUint256,
-          BigInt(timestamp),
-          signature,
-        ],
+        args: [BigInt(lastMaturity), value, maxUint256, BigInt(timestamp), signature],
       } as const;
     }
     const preview = await startSpan({ name: "query onchain state", op: "exa.preview" }, () =>
@@ -1258,7 +1324,7 @@ async function prepareCollection(
     setContext("preview", preview);
     const installments = startSpan({ name: "split installments", op: "exa.split" }, () =>
       splitInstallments(
-        amount,
+        value,
         preview.floatingAssets,
         firstMaturity,
         preview.fixedUtilizations.length,
@@ -1278,7 +1344,7 @@ async function prepareCollection(
       args: [BigInt(firstMaturity), installments.amounts, maxUint256, BigInt(timestamp), signature],
     } as const;
   };
-  return { amount, functionName, sign };
+  return { amount, functionName, maturity: functionName === "collectDebit" ? undefined : BigInt(lastMaturity), sign };
 }
 
 const [transferTopic] = encodeEventTopics({ abi: erc20Abi, eventName: "Transfer" });
@@ -1300,7 +1366,7 @@ function collected(network: Network, frame: CallFrame) {
     );
 }
 
-function covers({ network, trace }: { network: Network; trace: CallFrame }, amount: bigint) {
+function covers({ amount, network, trace }: { amount: bigint; network: Network; trace: CallFrame }) {
   return !trace.output && collected(network, trace) === amount;
 }
 
@@ -1322,10 +1388,27 @@ function transfers({ calls, logs }: CallFrame): NonNullable<CallFrame["logs"]> {
 }
 
 function issuance(trace: CallFrame) {
-  const frame = frames(trace).find(({ input }) =>
-    input.startsWith(toFunctionSelector("checkIssuer(address,uint256,uint256,bytes)")),
+  return v.parse(
+    Address,
+    frames(trace).find(({ input }) =>
+      input.startsWith(toFunctionSelector("checkIssuer(address,uint256,uint256,bytes)")),
+    )?.to,
   );
-  return { checker: v.parse(Address, frame?.to), plugin: v.parse(Address, frame?.from) };
+}
+
+function split(amount: bigint, limits: { limit: bigint | undefined; network: Network }[]) {
+  const known = limits.flatMap(({ limit: value, network }) => (value === undefined ? [] : [{ network, value }]));
+  if (known.length !== limits.length || known.some(({ value }) => value >= amount)) return;
+  const total = known.reduce((sum, { value }) => sum + value, 0n);
+  if (total < amount) return;
+  let cumulative = 0n;
+  return known
+    .filter(({ value }) => value > 0n)
+    .map(({ network, value }) => {
+      const start = (amount * cumulative) / total;
+      cumulative += value;
+      return { amount: (amount * cumulative) / total - start, network };
+    });
 }
 
 function race<T>(promises: Promise<null | T>[], test: (result: T) => boolean) {
@@ -1344,13 +1427,18 @@ function frames(frame: CallFrame): CallFrame[] {
 
 type Collection = Awaited<ReturnType<NonNullable<Awaited<ReturnType<typeof prepareCollection>>["sign"]>>>;
 
+type Inspection = Part & { call: Collection; trace: CallFrame };
+
 type Database = NodePgDatabase<typeof schema>;
+
+type Part = { amount: bigint; network: Network };
 
 type Network = {
   exaPreviewer: Hex;
   fees?: "auto";
   id: number;
   issuerCheckers: readonly Hex[];
+  market: Hex;
   overrides: StateOverride;
   reader: PublicClient;
   tracer: Pick<typeof traceClient, "traceCall">;
@@ -1359,7 +1447,9 @@ type Network = {
 };
 
 const Stored = v.object({
-  bodies: v.array(v.looseObject({ chainId: v.optional(v.number()), id: v.optional(v.string()) })),
+  bodies: v.array(
+    v.looseObject({ chainId: v.optional(v.number()), collected: v.optional(v.string()), id: v.optional(v.string()) }),
+  ),
 });
 
 type TransferLog = {

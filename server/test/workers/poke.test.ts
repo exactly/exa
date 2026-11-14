@@ -3,6 +3,7 @@ import "../mocks/sentry";
 import "../mocks/wallet";
 
 import { captureException, continueTrace, startSpan, withScope } from "@sentry/node";
+import { deserialize } from "@wagmi/core";
 import { Queue, QueueEvents, Job as QueueJob } from "bullmq";
 import { parse } from "valibot";
 import {
@@ -40,6 +41,7 @@ import { Address } from "@exactly/common/validation";
 
 import t from "../../i18n";
 import { NETWORKS } from "../../utils/alchemy";
+import { key } from "../../utils/liquidity";
 import createOnesignal from "../../utils/onesignal";
 import publicClient from "../../utils/publicClient";
 import { bullmq } from "../../utils/redis";
@@ -169,6 +171,15 @@ afterAll(async () => {
 });
 
 describe("poke queue", () => {
+  it("publishes panda ids", async () => {
+    await poke.enqueue({ ...request, origin: "activity", pandaId: `queue-${account}` });
+
+    const job = await queue.getJob(`${request.chainId}-${account}`);
+    if (!job) throw new Error("job not found");
+    expect(job.data).toMatchObject({ pandaId: `queue-${account}` });
+    await job.remove();
+  });
+
   it("publishes account poke jobs", async () => {
     await expect(poke.enqueue(request)).resolves.toBeUndefined();
 
@@ -435,6 +446,29 @@ describe("poke worker", () => {
       ],
     ]);
     expect(await getWETHMarket(account)).toMatchObject({ floatingDepositAssets: deposit, isCollateral: true });
+  });
+
+  it("refreshes liquidity after pokes", async () => {
+    const deposit = parseEther("5");
+    await anvilClient.setBalance({ address: account, value: deposit });
+
+    await jobFinished({ ...request, assets: [eth], origin: "activity", pandaId: `poke-${account}` });
+
+    const positions = deserialize<{ floatingDepositAssets: bigint; market: string }[]>(
+      (await bullmq.hget(key(`poke-${account}`), String(chain.id))) ?? "[]",
+    );
+    expect(positions.find(({ market }) => market === marketWETHAddress)?.floatingDepositAssets).toBe(deposit);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("captures liquidity refresh failures", async () => {
+    const error = new Error("redis down");
+    await anvilClient.setBalance({ address: account, value: parseEther("5") });
+    vi.spyOn(bullmq, "hset").mockRejectedValueOnce(error);
+
+    await jobFinished({ ...request, assets: [eth], origin: "activity", pandaId: `poke-${account}` });
+
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(error, { level: "warning", tags: { chainId: chain.id } });
   });
 
   it("drops credit when it cannot be queued", async () => {

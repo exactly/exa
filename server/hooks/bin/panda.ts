@@ -38,7 +38,19 @@ supervise(
     signer("settler", kms),
   ]).then(([database, issuer, onesignal, provider, webhookKey, [redis, refund, webhook], sardine, segment, settler]) =>
     own(
-      panda({ database, issuer, onesignal, panda: provider, refund, sardine, segment, settler, webhook, webhookKey }),
+      panda({
+        database,
+        issuer,
+        onesignal,
+        panda: provider,
+        redis,
+        refund,
+        sardine,
+        segment,
+        settler,
+        webhook,
+        webhookKey,
+      }),
       () => database.$client.end(),
       () => kms.close(),
       () => secrets.close(),

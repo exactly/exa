@@ -64,6 +64,7 @@ import createBlockHook from "../../hooks/block";
 import t, { f } from "../../i18n";
 import createAlchemy from "../../utils/alchemy";
 import ensClient from "../../utils/ensClient";
+import { refresh } from "../../utils/liquidity";
 import createOnesignal from "../../utils/onesignal";
 import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
@@ -383,6 +384,7 @@ describe("proposal", () => {
       });
       expect(hasExpectedTransfers(receipts, expected)).toBe(true);
       expect(removals).toStrictEqual([1, 1]);
+      expect(refresh).toHaveBeenCalledWith(database, redis, bobAccount, chain.id);
       expect(setUser).toHaveBeenCalledWith({ id: bobAccount });
     });
 
@@ -1738,6 +1740,7 @@ describe("legacy withdraw", () => {
       }),
     });
     expect(vi.mocked(captureException).mock.calls.filter((call) => match.capture(call))).toEqual([]);
+    expect(refresh).toHaveBeenCalledWith(database, redis, withdrawAccount, chain.id);
     expect(setUser).toHaveBeenCalledWith({ id: withdrawAccount });
   });
 
@@ -2758,6 +2761,7 @@ async function getLogs(hashes: Hex[]) {
 afterEach(() => vi.restoreAllMocks());
 
 vi.mock("@sentry/node", { spy: true });
+vi.mock("../../utils/liquidity", { spy: true });
 
 const wrappedErrorAbi = [
   {
