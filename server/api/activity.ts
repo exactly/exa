@@ -467,16 +467,23 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
           ignore("card") || !first
             ? undefined
             : database
-                .select()
+                .select({
+                  hash: indexer.borrows.hash,
+                  timestamp: indexer.borrows.timestamp,
+                  maturity: indexer.borrows.maturity,
+                  assets: indexer.borrows.assets,
+                  fee: indexer.borrows.fee,
+                })
                 .from(indexer.borrows)
-                .where(
+                .innerJoin(
+                  indexer.markets,
                   and(
-                    eq(indexer.borrows.chainId, chain.id),
-                    eq(indexer.borrows.account, owner),
-                    eq(indexer.borrows.market, marketUSDCAddress.toLowerCase() as Hex),
+                    eq(indexer.markets.chainId, indexer.borrows.chainId),
+                    eq(indexer.markets.address, indexer.borrows.market),
                   ),
                 )
-                .orderBy(indexer.borrows.block, indexer.borrows.logIndex)
+                .where(and(eq(indexer.borrows.account, owner), eq(indexer.markets.symbol, "USDC")))
+                .orderBy(indexer.borrows.chainId, indexer.borrows.block, indexer.borrows.logIndex)
                 .then((rows) =>
                   rows.reduce((map, { hash, timestamp, maturity: m, assets, fee }) => {
                     const data = map.get(hash);
@@ -875,13 +882,23 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
 
 const Borrow = object({ maturity: bigint(), assets: bigint(), fee: bigint() });
 
-const Attempts = object({ bodies: array(looseObject({ chainId: optional(number()), id: optional(string()) })) });
+const Attempts = object({
+  bodies: array(
+    looseObject({
+      chainId: optional(number()),
+      collected: optional(string()),
+      id: optional(string()),
+      signed: optional(number()),
+      whole: optional(string()),
+    }),
+  ),
+});
 
 function retried(hashes: string[], payload: unknown) {
   const parsed = safeParse(Attempts, payload);
   if (!parsed.success) return [];
   const { bodies } = parsed.output;
-  const keys = bodies.map((body) => attempt(body));
+  const keys = bodies.map((body) => attempt(body, bodies));
   return hashes.flatMap((hash, index) => {
     const key = keys[index];
     const client = clients.get(bodies[index]?.chainId ?? chain.id);
@@ -891,8 +908,21 @@ function retried(hashes: string[], payload: unknown) {
   });
 }
 
-function attempt(body?: { id?: string }) {
-  return body?.id;
+type Attempt = { chainId?: number; collected?: string; id?: string; signed?: number; whole?: string };
+
+function attempt(body: Attempt | undefined, bodies: readonly Attempt[]) {
+  if (body?.id === undefined) return;
+  const value = body.collected ?? body.whole;
+  if (value === undefined) return body.id;
+  const key = `${body.chainId}:${value}:${body.signed}`;
+  if (body.collected !== undefined) return key;
+  return bodies.some(
+    (other) =>
+      (other.collected !== undefined || other.id !== body.id) &&
+      `${other.chainId}:${other.collected ?? other.whole}:${other.signed}` === key,
+  )
+    ? key
+    : body.id;
 }
 
 export const PandaActivity = pipe(
@@ -904,9 +934,12 @@ export const PandaActivity = pipe(
           spend: looseObject({ declinedReason: nullish(string()) }),
         }),
         chainId: optional(number()),
+        collected: optional(string()),
         id: optional(string()),
         reason: optional(string()),
+        signed: optional(number()),
         status: optional(string()),
+        whole: optional(string()),
       }),
     ),
     borrows: array(nullable(object({ timestamp: optional(bigint()), events: array(Borrow) }))),
@@ -919,8 +952,8 @@ export const PandaActivity = pipe(
     const requestedReason = requestedBody?.body.spend.declinedReason ?? requestedBody?.reason;
     const landed = (index: number) => !!borrows[index] || mined[index] === true;
     const attempts = Map.groupBy(
-      hashes.keys().filter((index) => attempt(bodies[index]) !== undefined),
-      (index) => attempt(bodies[index]),
+      hashes.keys().filter((index) => attempt(bodies[index], bodies) !== undefined),
+      (index) => attempt(bodies[index], bodies),
     );
     const kept = new Set(
       attempts.values().flatMap((indexes) => {
@@ -929,10 +962,8 @@ export const PandaActivity = pipe(
         return picked.filter((index, n) => picked.findIndex((other) => hashes[other] === hashes[index]) === n);
       }),
     );
-    const entries = hashes
-      .map((hash, index) => ({ hash, index }))
-      .filter(({ index }) => attempt(bodies[index]) === undefined || kept.has(index))
-      .map(({ hash, index }) => {
+    const parsed = hashes
+      .map((hash, index) => {
         const borrow = borrows[index];
         const body = bodies[index];
         const declinedReason =
@@ -964,6 +995,7 @@ export const PandaActivity = pipe(
         (entry): entry is { index: number; operation: Extract<(typeof entry)["operation"], { provider: "panda" }> } =>
           entry.operation.provider === "panda",
       );
+    const entries = parsed.filter(({ index }) => attempt(bodies[index], bodies) === undefined || kept.has(index));
     const operations = entries.map(({ operation }) => operation);
 
     const declined = (function () {
@@ -1005,8 +1037,9 @@ export const PandaActivity = pipe(
       },
       { created: undefined, updates: [], completed: undefined },
     );
+    const completed = flow.completed ?? parsed.findLast(({ operation }) => operation.action === "completed")?.operation;
 
-    const details = flow.created ?? flow.completed;
+    const details = flow.created ?? completed;
     if (!details) throw new Error("invalid flow");
 
     const {
@@ -1019,11 +1052,12 @@ export const PandaActivity = pipe(
       .filter(
         ({ index, operation }, n) =>
           operation.action !== "requested" &&
-          (attempt(bodies[index]) === undefined ||
-            entries.findIndex((other) => attempt(bodies[other.index]) === attempt(bodies[index])) === n),
+          (attempt(bodies[index], bodies) === undefined ||
+            entries.findIndex((other) => attempt(bodies[other.index], bodies) === attempt(bodies[index], bodies)) ===
+              n),
       )
       .reduce((sum, { operation }) => sum + operation.usdAmount, 0);
-    const exchangeRate = flow.completed?.exchangeRate ?? [flow.created, ...flow.updates].at(-1)?.exchangeRate;
+    const exchangeRate = completed?.exchangeRate ?? [flow.created, ...flow.updates].at(-1)?.exchangeRate;
     if (exchangeRate === undefined) throw new Error("no exchange rate");
     return {
       id,
@@ -1034,13 +1068,13 @@ export const PandaActivity = pipe(
         city: city?.trim(),
         country: country?.trim(),
         state: state.trim(),
-        icon: flow.completed?.merchant.icon ?? flow.updates.at(-1)?.merchant.icon,
+        icon: completed?.merchant.icon ?? flow.updates.at(-1)?.merchant.icon,
       },
       operations: operations.filter(({ transactionHash }) => transactionHash !== zeroHash),
       timestamp,
       type,
       usdAmount,
-      status: declined ? ("declined" as const) : flow.completed ? ("settled" as const) : ("pending" as const),
+      status: declined ? ("declined" as const) : completed ? ("settled" as const) : ("pending" as const),
       ...(declined && { reason: declined.reason ?? "transaction declined" }),
     };
   }),
@@ -1066,6 +1100,9 @@ const PandaBase = {
   }),
   forceCapture: boolean(),
   hash: Hash,
+  chainId: optional(number()),
+  collected: optional(pipe(string(), digits())),
+  whole: optional(pipe(string(), digits())),
 };
 
 const CardActivity = pipe(
@@ -1118,6 +1155,8 @@ function transformCard(activity: InferOutput<typeof CardActivity>) {
   if (activity.type === "panda") {
     const usdAmount =
       (function () {
+        const collected = activity.collected ?? activity.whole;
+        if (collected !== undefined) return Number(collected) / 1e4;
         if (activity.action === "completed") {
           if (activity.forceCapture) return activity.body.spend.amount;
           return activity.body.spend.amount - (activity.body.spend.authorizedAmount ?? 0);
@@ -1132,6 +1171,7 @@ function transformCard(activity: InferOutput<typeof CardActivity>) {
       action: activity.action,
       id: activity.body.id,
       transactionHash: activity.hash,
+      ...(activity.chainId !== undefined && { chainId: activity.chainId }),
       timestamp: instant(activity.createdAt),
       currency:
         activity.body.spend.amount < 0 && activity.body.spend.localAmount === activity.body.spend.amount
