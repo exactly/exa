@@ -58,6 +58,7 @@ import t, { f } from "../i18n";
 import { headerValidator, NETWORKS } from "../utils/alchemy";
 import appOrigin from "../utils/appOrigin";
 import ensClient from "../utils/ensClient";
+import { refresh } from "../utils/liquidity";
 import listen from "../utils/listen";
 import publicClient, { alchemyClient } from "../utils/publicClient";
 import revertFingerprint from "../utils/revertFingerprint";
@@ -448,6 +449,7 @@ export default function hook({
                   ));
 
               parent.setStatus({ code: SPAN_STATUS_OK });
+              refresh(database, redis, account, chainId);
               if (proposalType === ProposalType.Withdraw) {
                 if (await isWETHMarket(chainId, market)) {
                   await skipNonce().catch((nonceError: unknown) => {
@@ -644,6 +646,7 @@ export default function hook({
                 return redis.zrem("withdraw", message);
               }
               parent.setStatus({ code: SPAN_STATUS_OK });
+              refresh(database, redis, account, chain.id);
               startSpan(
                 { name: "send withdraw notification", op: "notification.send", attributes: { account, receiver } },
                 () =>

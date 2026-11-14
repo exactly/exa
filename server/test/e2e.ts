@@ -238,8 +238,9 @@ describe("e2e", () => {
           });
           app.get("/e2e/card", async (c) => {
             const [card, ...rest] = await database
-              .select({ id: cardsTable.id, mode: cardsTable.mode })
+              .select({ id: cardsTable.id, mode: cardsTable.mode, userId: credentials.pandaId })
               .from(cardsTable)
+              .innerJoin(credentials, eq(credentials.id, cardsTable.credentialId))
               .where(
                 and(eq(cardsTable.credentialId, c.req.query("credential") ?? ""), eq(cardsTable.status, "ACTIVE")),
               );

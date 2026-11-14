@@ -6,9 +6,10 @@ import "../mocks/sentry";
 import "../mocks/wallet";
 
 import { captureException, captureMessage, setTag, setUser } from "@sentry/node";
+import { serialize } from "@wagmi/core";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
-import { parse } from "valibot";
+import { array, looseObject, number, object, optional, parse, string } from "valibot";
 import {
   BaseError,
   ContractFunctionExecutionError,
@@ -63,9 +64,11 @@ import { proposalManager } from "@exactly/plugin/deploy.json";
 import database, { cards, credentials, transactions } from "../../database";
 import createPandaHook from "../../hooks/panda";
 import t, { f } from "../../i18n";
+import remember, { key as liquidity } from "../../utils/liquidity";
 import createOnesignal from "../../utils/onesignal";
 import createPanda, * as Panda from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
+import redis from "../../utils/redis";
 import createSardine from "../../utils/sardine";
 import createSegment from "../../utils/segment";
 import traceClient from "../../utils/traceClient";
@@ -94,6 +97,7 @@ const dependencies = {
   issuer,
   onesignal: createOnesignal("onesignal"),
   panda,
+  redis,
   refund,
   sardine: createSardine(sardineConfig.key, sardineConfig.url),
   segment: createSegment("segment"),
@@ -3192,6 +3196,364 @@ describe("multi-chain", () => {
   }
 });
 
+describe("partial", () => {
+  const remote = alchemyChains.get(moonbeamDev.id) as Chain;
+  const remoteClient = createPublicClient({ chain: remote, transport: http() });
+  const remoteKeeper = wallet(privateKeyToAccount(padHex("0x69")), remote);
+  const clients = new Map([
+    [chain.id, createPublicClient({ chain, transport: http() })],
+    [remote.id, remoteClient],
+  ]);
+
+  it("authorizes and collects debit split across networks", async () => {
+    const user = await prepare("split");
+    await recall(user);
+
+    await expect(purchase(user, 15_000).then(({ status }) => status)).resolves.toBe(200);
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(200);
+
+    const collections = await collected(user.cardId);
+    expect(collections.map(({ chainId }) => chainId).toSorted()).toStrictEqual([chain.id, remote.id].toSorted());
+    expect(collections.reduce((total, { amount }) => total + amount, 0n)).toBe(150_000_000n);
+    expect(collections.every(({ amount, recorded }) => amount > 0n && recorded === amount)).toBe(true);
+    expect(segment.track).toHaveBeenCalledWith(
+      expect.objectContaining({ event: "TransactionAuthorized", userId: user.account }),
+    );
+    expect(hookQueue.enqueue.mock.calls.filter(([{ receipt }]) => receipt)).toStrictEqual([
+      [
+        {
+          account: user.account,
+          receipt: { blockNumber: expect.any(Number) as number, transactionHash: expect.any(String) as string },
+        },
+        authorization.json.id,
+      ],
+    ]);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("authorizes and collects credit split across networks", async () => {
+    const user = await prepare("credit-split", 1);
+    await recall(user);
+
+    await expect(purchase(user, 15_000).then(({ status }) => status)).resolves.toBe(200);
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(200);
+
+    const collections = await collected(user.cardId);
+    expect(collections.map(({ chainId }) => chainId).toSorted()).toStrictEqual([chain.id, remote.id].toSorted());
+    expect(collections.reduce((total, { amount }) => total + amount, 0n)).toBe(150_000_000n);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("keeps retried split collection", async () => {
+    const user = await prepare("retry");
+    await recall(user);
+    await purchase(user, 15_000);
+    await purchase(user, 15_000, "created");
+    const before = await database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) });
+
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(200);
+
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) }),
+    ).resolves.toStrictEqual(before);
+    expect(vi.mocked(captureException).mock.calls.map(([, hint]) => hint)).toStrictEqual([
+      { level: "error", fingerprint: ["{{ default }}", "Replay"] },
+    ]);
+  });
+
+  it("completes split collection when a landed part lost its record", async () => {
+    const user = await prepare("lost");
+    await recall(user);
+    await purchase(user, 15_000);
+    await purchase(user, 15_000, "created");
+    const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) });
+    const { bodies } = parse(Bodies, transaction?.payload);
+    await database
+      .update(transactions)
+      .set({ hashes: transaction?.hashes.slice(0, 1), payload: { type: "panda", bodies: bodies.slice(0, 1) } })
+      .where(eq(transactions.id, user.cardId));
+
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(200);
+
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) }),
+    ).resolves.toMatchObject({ hashes: transaction?.hashes.slice(0, 1) });
+    expect(vi.mocked(captureException).mock.calls.map(([, hint]) => hint)).toStrictEqual([
+      { level: "error", fingerprint: ["{{ default }}", "Replay"] },
+    ]);
+  });
+
+  it("splits again when a recorded part never landed", async () => {
+    const user = await prepare("unlanded");
+    const body = {
+      ...authorization.json.body,
+      id: user.cardId,
+      spend: {
+        ...authorization.json.body.spend,
+        amount: 15_000,
+        authorizedAt: user.authorizedAt,
+        cardId: user.cardId,
+        userId: user.user,
+      },
+    };
+    await database.insert(transactions).values([
+      {
+        id: user.cardId,
+        cardId: user.cardId,
+        hashes: [zeroHash],
+        payload: {
+          type: "panda",
+          bodies: [{ ...authorization.json, action: "created", body, chainId: chain.id, collected: "75000000" }],
+        },
+      },
+    ]);
+
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(200);
+
+    const collections = await collected(user.cardId);
+    expect(collections.slice(1).reduce((total, { amount }) => total + amount, 0n)).toBe(150_000_000n);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("counts a landed part recorded twice once", async () => {
+    const user = await prepare("twice");
+    await expect(purchase(user, 7500, "created").then(({ status }) => status)).resolves.toBe(200);
+    const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) });
+    const [first] = parse(Bodies, transaction?.payload).bodies;
+    const body = {
+      ...authorization.json,
+      action: "created",
+      body: {
+        ...authorization.json.body,
+        id: user.cardId,
+        spend: {
+          ...authorization.json.body.spend,
+          amount: 15_000,
+          authorizedAt: user.authorizedAt,
+          cardId: user.cardId,
+          userId: user.user,
+        },
+      },
+      chainId: first?.chainId,
+      collected: "75000000",
+    };
+    await database
+      .update(transactions)
+      .set({
+        hashes: [transaction?.hashes[0] ?? zeroHash, transaction?.hashes[0] ?? zeroHash],
+        payload: { type: "panda", bodies: [body, body] },
+      })
+      .where(eq(transactions.id, user.cardId));
+
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(200);
+
+    const collections = await collected(user.cardId);
+    expect(collections.slice(2)).toStrictEqual([
+      { amount: 75_000_000n, chainId: first?.chainId === chain.id ? remote.id : chain.id, recorded: 75_000_000n },
+    ]);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("declines when a part does not cover", async () => {
+    const user = await prepare("stale");
+    const [, positions] = await recall(user);
+    await redis.hset(
+      liquidity(user.user),
+      String(remote.id),
+      serialize(
+        positions.map((position) =>
+          position.market === parse(Address, marketUSDCAddress)
+            ? { ...position, floatingDepositAssets: 180_000_000n }
+            : position,
+        ),
+      ),
+    );
+
+    const response = await purchase(user, 19_000);
+
+    expect(response.status).toBe(557);
+    await expect(response.json()).resolves.toStrictEqual({
+      code: "InsufficientAccountLiquidity",
+      rejectionCode: "INSUFFICIENT_FUNDS",
+    });
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("declines when a split network fails", async () => {
+    const user = await prepare("broken");
+    await recall(user);
+    const failure = new Error("trace failure");
+    vi.spyOn(traceClient, "traceCall").mockRejectedValueOnce(failure);
+
+    const response = await purchase(user, 15_000);
+
+    expect(response.status).toBe(569);
+    expect(captureException).toHaveBeenCalledWith(failure, { level: "warning", tags: { chainId: chain.id } });
+    expect(captureException).toHaveBeenCalledWith(new Error("network failure"));
+  });
+
+  it("races every network when a snapshot is unreadable", async () => {
+    const user = await prepare("unreadable");
+    await recall(user);
+    await redis.hset(liquidity(user.user), String(chain.id), "bad");
+
+    const response = await purchase(user, 15_000);
+
+    expect(response.status).toBe(557);
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(SyntaxError), { level: "warning" });
+  });
+
+  it("races every network when snapshots are out of reach", async () => {
+    const user = await prepare("unreachable");
+    await recall(user);
+    const failure = new Error("redis failure");
+    vi.spyOn(redis, "hgetall").mockRejectedValueOnce(failure);
+
+    const response = await purchase(user, 15_000);
+
+    expect(response.status).toBe(557);
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(failure, { level: "warning" });
+  });
+
+  it("races every network when snapshots exceed the amount", async () => {
+    const user = await prepare("short");
+    await recall(user);
+
+    const response = await purchase(user, 25_000);
+
+    expect(response.status).toBe(557);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("fails collection when a snapshot cannot be refreshed", async () => {
+    const user = await prepare("forgetful");
+    const failure = new Error("redis failure");
+    vi.spyOn(redis, "hset").mockRejectedValueOnce(failure);
+
+    const response = await purchase(user, 15_000, "created");
+
+    expect(response.status).toBe(569);
+    expect(captureException).toHaveBeenCalledWith(failure, {
+      level: "warning",
+      tags: { chainId: expect.any(Number) as number },
+    });
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("reports snapshot failures after collection", async () => {
+    const user = await prepare("receipt");
+    const failure = new Error("redis failure");
+    const hset = vi.spyOn(redis, "hset").mockRejectedValue(failure);
+    onTestFinished(() => hset.mockRestore());
+
+    await expect(purchase(user, 5000, "created").then(({ status }) => status)).resolves.toBe(200);
+
+    const [collection] = await collected(user.cardId);
+    await vi.waitFor(() =>
+      expect(captureException).toHaveBeenCalledWith(failure, {
+        level: "warning",
+        tags: { chainId: collection?.chainId },
+      }),
+    );
+  });
+
+  async function prepare(name: string, mode = 0) {
+    const signer = privateKeyToAccount(generatePrivateKey());
+    const address = deriveAddress(exaAccountFactoryAddress, { x: padHex(signer.address), y: zeroHash });
+    const user = {
+      account: address,
+      authorizedAt: new Date().toISOString(),
+      cardId: `${name}-${address}`,
+      user: `${name}-${address}`,
+    };
+    await database.insert(credentials).values([
+      {
+        id: address,
+        publicKey: new Uint8Array(),
+        account: address,
+        factory: exaAccountFactoryAddress,
+        pandaId: user.user,
+      },
+    ]);
+    await database.insert(cards).values([{ id: user.cardId, credentialId: address, lastFour: "3000", mode }]);
+    const create = {
+      address: exaAccountFactoryAddress,
+      abi: exaAccountFactoryAbi,
+      functionName: "createAccount",
+      args: [0n, [{ x: hexToBigInt(signer.address), y: 0n }]],
+    } as const;
+    const mint = {
+      address: usdcAddress,
+      abi: mockERC20Abi,
+      functionName: "mint",
+      args: [address, 100_000_000n],
+    } as const;
+    const poke = { address, abi: exaPluginAbi, functionName: "poke", args: [marketUSDCAddress] } as const;
+    await Promise.all([
+      keeper.exaSend({ name: "create account", op: "exa.account" }, create),
+      remoteKeeper.exaSend(
+        { name: "allow", op: "exa.firewall" },
+        {
+          address: await remoteKeeper
+            .readContract({
+              address: parse(Address, networks.get(remote.id)?.exaPreviewer),
+              abi: exaPreviewerAbi,
+              functionName: "discover",
+              args: [[]],
+            })
+            .then(({ firewall }) => firewall),
+          abi: firewallAbi,
+          functionName: "allow",
+          args: [address, true],
+        },
+      ),
+    ]);
+    await Promise.all([
+      keeper.exaSend({ name: "mint usdc", op: "tx.mint" }, mint),
+      remoteKeeper.exaSend({ name: "create account", op: "exa.account" }, create),
+    ]);
+    await Promise.all([
+      keeper.exaSend({ name: "poke", op: "exa.poke" }, poke),
+      remoteKeeper.exaSend({ name: "mint usdc", op: "tx.mint" }, mint),
+    ]);
+    await remoteKeeper.exaSend({ name: "poke", op: "exa.poke" }, poke);
+    onTestFinished(() => Panda.getMutex(address)?.release());
+    return user;
+  }
+
+  function recall({ account: address, user }: { account: Address; user: string }) {
+    return Promise.all([remember(redis, user, address, chain.id), remember(redis, user, address, remote.id)]);
+  }
+
+  async function collected(cardId: string) {
+    const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
+    const { bodies } = parse(Bodies, transaction?.payload);
+    return Promise.all(
+      bodies.map(async ({ chainId, collected: recorded }, index) => {
+        const hash = transaction?.hashes[index] as Hex;
+        const client = clients.get(chainId);
+        return {
+          amount:
+            hash === zeroHash || !client
+              ? 0n
+              : usdcToAddress(
+                  await client.waitForTransactionReceipt({ hash, confirmations: 0 }),
+                  Panda.collectors(chainId)[0],
+                ),
+          chainId,
+          recorded: recorded === undefined ? undefined : BigInt(recorded),
+        };
+      }),
+    );
+  }
+});
+
+const Bodies = object({
+  bodies: array(looseObject({ chainId: number(), collected: optional(string()) })),
+});
+
 describe("card notification", () => {
   beforeAll(async () => {
     await database.update(credentials).set({ pandaId: "cred" }).where(eq(credentials.id, "cred"));
@@ -4684,6 +5046,25 @@ describe("webhooks", () => {
   });
 });
 
+function purchase(
+  { authorizedAt, cardId, user }: { authorizedAt: string; cardId: string; user: string },
+  amount: number,
+  action: "created" | "requested" = "requested",
+) {
+  return appClient.index.$post({
+    ...authorization,
+    json: {
+      ...authorization.json,
+      action,
+      body: {
+        ...authorization.json.body,
+        id: cardId,
+        spend: { ...authorization.json.body.spend, amount, authorizedAt, cardId, userId: user },
+      },
+    },
+  });
+}
+
 const authorization = {
   header: { signature: "panda-signature" },
   json: {
@@ -4952,6 +5333,7 @@ vi.mock("debug", () => {
   return { default: createDebug };
 });
 
-afterEach(() => {
+afterEach(async () => {
   vi.restoreAllMocks();
+  await redis.del(liquidity(authorization.json.body.spend.userId));
 });
