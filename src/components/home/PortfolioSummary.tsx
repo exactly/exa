@@ -16,7 +16,7 @@ import AssetLogo from "../shared/AssetLogo";
 import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 
-import type { ActivityItem } from "../../utils/queryClient";
+import type { CardActivity } from "../../utils/server";
 import type { PortfolioAsset } from "../../utils/usePortfolio";
 
 export default function PortfolioSummary({
@@ -37,8 +37,8 @@ export default function PortfolioSummary({
     i18n: { language },
   } = useTranslation();
 
-  const { data: processingBalance } = useQuery<ActivityItem[], Error, number>({
-    queryKey: ["activity"],
+  const { data: processingBalance } = useQuery<CardActivity[], Error, number>({
+    queryKey: ["activity", "card"],
     enabled: country === "US",
     select: selectBalance,
   });
