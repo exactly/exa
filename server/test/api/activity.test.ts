@@ -5,7 +5,7 @@ import "../mocks/sentry";
 import "../mocks/wallet";
 
 import { captureException, setUser } from "@sentry/node";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import assert from "node:assert";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -135,6 +135,27 @@ describe.concurrent("validation", () => {
     );
 
     expect(response.status).toBe(400);
+  });
+
+  it.each([
+    ["invalid cursor", { limit: "1", before: "yesterday" }, expect.stringMatching(/^before Invalid format: /)],
+    ["invalid cursor month", { limit: "1", after: "2026-99-01T00:00:00.000Z,1" }, "after invalid cursor"],
+    ["invalid cursor day", { limit: "1", before: "2026-02-30T00:00:00.000Z,1" }, "before invalid cursor"],
+    ["zero limit", { limit: "0" }, "limit Invalid value: Expected >=1 but received 0"],
+    [
+      "both cursors",
+      { limit: "1", before: "2026-01-01T00:00:00.000Z,1", after: "2026-01-01T00:00:00.000Z,1" },
+      "bad cursor",
+    ],
+  ])("fails with %s", async (_, query, message) => {
+    const response = await appClient.index.$get({ query }, { headers: { "test-credential-id": "activity" } });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toStrictEqual({
+      code: "bad request",
+      legacy: "bad request",
+      message: [message],
+    });
   });
 
   it("succeeds with valid credential", async () => {
@@ -709,6 +730,82 @@ describe.concurrent("authenticated", () => {
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toContain("application/json");
       expect(Array.isArray(await response.json())).toBe(true);
+    });
+
+    it("pages through every activity", async () => {
+      const include = ["card", "received", "repay", "sent", "loan", "rollover", "swap", "liquidation", "bridge"];
+      const headers = { "test-credential-id": "bob" };
+      const before = await appClient.index.$get({ query: { include } }, { headers });
+      const tie = ((await before.json()) as { id: string; timestamp: string }[]).find(({ id }) => id.includes(":"));
+      assert.ok(tie, "expected onchain activity");
+      const ids = ["99999z", "letter-first", "milliseconds"];
+      try {
+        await database.insert(transactions).values(
+          ids.map((id, index) => ({
+            id,
+            cardId: "first-activity-card",
+            hashes: [padHex(toHex(index + 1), { size: 32 })],
+            payload: {
+              operation_id: id,
+              type: "cryptomate",
+              data: {
+                created_at: id === "milliseconds" ? tie.timestamp.replace(".000Z", ".500Z") : tie.timestamp,
+                bill_amount: 1,
+                transaction_amount: 1200,
+                transaction_currency_code: "ARS",
+                merchant_data: { name: "Merchant", country: "ARG", city: "Buenos Aires", state: "BA" },
+              },
+            },
+          })),
+        );
+        const full = await appClient.index.$get({ query: { include } }, { headers });
+        expect(full.status).toBe(200);
+        const all = (await full.json()) as { id: string; timestamp: string; type: string }[];
+        expect(all.map(({ id }) => id)).toStrictEqual(expect.arrayContaining(ids));
+        expect(new Set(all.map(({ type }) => type)).size).toBeGreaterThan(5);
+        const known = new Set(all.map(({ id }) => id));
+
+        for (const limit of [1, 2, 3, 7]) {
+          const pages: (typeof all)[] = [];
+          let cursor: string | undefined;
+          do {
+            const response = await appClient.index.$get(
+              { query: { include, limit: String(limit), ...(cursor && { before: cursor }) } },
+              { headers },
+            );
+            expect(response.status).toBe(200);
+            const page = (await response.json()) as typeof all;
+            expect(page.length).toBeLessThanOrEqual(limit);
+            pages.push(page);
+            const last = page.at(-1);
+            cursor = page.length === limit && last ? `${last.timestamp},${last.id}` : undefined;
+          } while (cursor);
+          const paged = pages.flat();
+          expect(new Set(paged.map(({ id }) => id)).size).toBe(paged.length);
+          expect(paged.filter(({ id }) => known.has(id))).toStrictEqual(all);
+
+          const oldest = all.at(-1);
+          assert.ok(oldest, "expected activity");
+          const newer: (typeof all)[] = [];
+          for (let after: string | undefined = `${oldest.timestamp},${oldest.id}`; after; ) {
+            const response = await appClient.index.$get(
+              { query: { include, limit: String(limit), after } },
+              { headers },
+            );
+            expect(response.status).toBe(200);
+            const page = (await response.json()) as typeof all;
+            expect(page.length).toBeLessThanOrEqual(limit);
+            newer.unshift(page);
+            const first = page[0];
+            after = page.length === limit && first ? `${first.timestamp},${first.id}` : undefined;
+          }
+          const backward = [...newer.flat(), oldest];
+          expect(new Set(backward.map(({ id }) => id)).size).toBe(backward.length);
+          expect(backward.filter(({ id }) => known.has(id))).toStrictEqual(all);
+        }
+      } finally {
+        await database.delete(transactions).where(inArray(transactions.id, ids));
+      }
     });
 
     it("scopes maturity transaction lookup to user cards", async () => {
