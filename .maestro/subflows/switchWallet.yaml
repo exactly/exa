@@ -17,7 +17,23 @@ appId: ${APP_ID ?? "app.exactly"}
       - tapOn: ${APP_ID.split('//')[1]}
       - tapOn: { id: multichain-account-cell-name-Account 2 } # cspell:ignore multichain
       - tapOn: Save
-- launchApp
+      - launchApp
+- runFlow:
+    when: { true: "${method === 'brave'}" }
+    commands:
+      - launchApp: { appId: "chrome://wallet" }
+      - tapOn: Accounts
+      - tapOn: { id: plus-add }
+      - tapOn: Create account
+      - tapOn: Ethereum
+      - tapOn: Create account
+      - launchApp
+      - tapOn: { point: "710,-77" }
+      - tapOn: Connections
+      - tapOn: { text: Connect, index: 0 }
+      - tapOn: Ethereum Account 2
+      - tapOn: Next
+      - tapOn: Connect
 - tapOn: Continue with 0x.*
 - runFlow:
     when: { true: "${method === 'metamask'}" }

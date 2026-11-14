@@ -15,4 +15,5 @@ appId: ${APP_ID ?? "app.exactly"}
 - assertTrue: ${output.balance === 1}
 - back
 - back
+- runFlow: ../subflows/switchWallet.yaml
 - runFlow: ../subflows/storeCoverage.yaml
