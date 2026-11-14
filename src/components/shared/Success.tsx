@@ -4,7 +4,7 @@ import { Pressable } from "react-native";
 
 import { Square, XStack, YStack } from "tamagui";
 
-import { marketUSDCAddress } from "@exactly/common/generated/chain";
+import chain, { marketUSDCAddress } from "@exactly/common/generated/chain";
 
 import GradientScrollView from "./GradientScrollView";
 import IconButton from "./IconButton";
@@ -39,7 +39,7 @@ export default function Success({
     t,
     i18n: { language },
   } = useTranslation();
-  const proposalManager = useProposalManager();
+  const proposalManager = useProposalManager(chain.id);
   return (
     <GradientScrollView variant={proposalManager ? "info" : "success"}>
       <View flex={1}>
