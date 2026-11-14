@@ -7,7 +7,7 @@ import Text from "./Text";
 import View from "./View";
 import { selectBalance } from "../../utils/isProcessing";
 
-import type { ActivityItem } from "../../utils/queryClient";
+import type { CardActivity } from "../../utils/server";
 
 export default function ProcessingBalanceBanner() {
   const {
@@ -15,8 +15,8 @@ export default function ProcessingBalanceBanner() {
     i18n: { language },
   } = useTranslation();
   const { data: country } = useQuery({ queryKey: ["user", "country"] });
-  const { data: processingBalance } = useQuery<ActivityItem[], Error, number>({
-    queryKey: ["activity"],
+  const { data: processingBalance } = useQuery<CardActivity[], Error, number>({
+    queryKey: ["activity", "card"],
     enabled: country === "US",
     select: selectBalance,
   });
