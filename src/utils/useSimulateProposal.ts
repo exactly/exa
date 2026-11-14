@@ -11,9 +11,9 @@ import {
   type Address,
   type Hex,
 } from "viem";
-import { useReadContract, useReadContracts, type UseWriteContractReturnType } from "wagmi";
+import { ChainNotConfiguredError, useReadContract, useReadContracts, type UseWriteContractReturnType } from "wagmi";
 
-import chain, { appPreviewerCode, appPreviewerDeployedCode } from "@exactly/common/generated/chain";
+import { alchemyChains, appPreviewerCode, appPreviewerDeployedCode } from "@exactly/common/generated/chain";
 import {
   appPreviewerAbi,
   auditorAbi,
@@ -31,7 +31,7 @@ import useSimulateBlocks from "./wagmi/useSimulateBlocks";
 export default function useSimulateProposal({
   account,
   amount,
-  chain: previewChain,
+  chainId,
   enabled = true,
   fresh,
   market,
@@ -40,7 +40,7 @@ export default function useSimulateProposal({
 }: {
   account: Address | undefined;
   amount: bigint | undefined;
-  chain?: { contracts: { multicall3: { address: Address } } };
+  chainId: number;
   enabled?: boolean;
   fresh?: () => boolean;
   market: Address | undefined;
@@ -89,7 +89,7 @@ export default function useSimulateProposal({
     plugins,
     error: previewError,
     refetch: refetchPreview,
-  } = useProposalPreview({ account, chain: previewChain, enabled, poll, fresh: true });
+  } = useProposalPreview({ account, chainId, enabled, poll, fresh: true });
   const nonce = preview?.queueNonce;
   const executed = preview?.nonce;
   const proposalData =
@@ -111,6 +111,7 @@ export default function useSimulateProposal({
       ? undefined
       : encodeFunctionData({ abi: exaPluginAbi, functionName: "executeProposal", args: [nonce] });
   const simulation = useSimulateBlocks({
+    chainId,
     blockNumber,
     blocks: blocks(account, calldata, execution, timestamp, delay),
     query: {
@@ -163,6 +164,7 @@ export default function useSimulateProposal({
         ? outdated && { request: outdated, calls: [encodeFunctionData(outdated), execution] }
         : undefined;
   const retry = useSimulateBlocks({
+    chainId,
     blockNumber,
     blocks: blocks(account, fallback?.calls[0], fallback?.calls[1], timestamp, delay),
     query: {
@@ -202,22 +204,21 @@ export default function useSimulateProposal({
 
 export function useProposalPreview({
   account,
-  chain: {
-    contracts: {
-      multicall3: { address: multicall3Address },
-    },
-  } = chain,
+  chainId,
   enabled = true,
   fresh = false,
   poll = false,
 }: {
   account: Address | undefined;
-  chain?: { contracts: { multicall3: { address: Address } } };
+  chainId: number;
   enabled?: boolean;
   fresh?: boolean;
   poll?: boolean;
 }) {
+  const multicall3Address = alchemyChains.get(chainId)?.contracts?.multicall3?.address;
   const reads = useReadContracts({
+    chainId,
+    multicallAddress: multicall3Address,
     contracts: [
       {
         address: previewerAddress,
@@ -244,7 +245,7 @@ export function useProposalPreview({
     allowFailure: false,
     stateOverride: [{ address: previewerAddress, code: appPreviewerDeployedCode }],
     query: {
-      enabled: enabled && !!account,
+      enabled: enabled && !!account && !!multicall3Address,
       refetchInterval: ({ state: { data } }) => (poll && data && data[0].queueNonce > data[0].nonce ? 5000 : false),
     },
   });
@@ -255,7 +256,7 @@ export function useProposalPreview({
     address: plugins?.[0],
     abi: outdatedAbi,
     functionName: "PROPOSAL_DELAY",
-    chainId: chain.id,
+    chainId,
     query: { enabled: enabled && outdated && !!plugins?.[0], staleTime: Infinity },
   });
   return {
@@ -265,7 +266,7 @@ export function useProposalPreview({
     blockNumber,
     plugins,
     isLoading: reads.isLoading || outdatedDelay.isLoading,
-    error: reads.error ?? outdatedDelay.error,
+    error: enabled && !multicall3Address ? chainNotConfigured : (reads.error ?? outdatedDelay.error),
     refetch: () => Promise.all([reads.refetch(), outdatedDelay.error && outdatedDelay.refetch()]),
   };
 }
@@ -454,6 +455,7 @@ function encodeAddress(receiver: Address | undefined) {
   return receiver && encodeAbiParameters([{ type: "address" }], [receiver]);
 }
 
+const chainNotConfigured = new ChainNotConfiguredError();
 const proposeAbi = [...upgradeableModularAccountAbi, ...exaPluginAbi, ...proposalManagerAbi, ...auditorAbi];
 const outdatedAbi = [
   ...upgradeableModularAccountAbi,
