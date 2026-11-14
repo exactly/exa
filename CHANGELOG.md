@@ -1,5 +1,14 @@
 # @exactly/mobile
 
+## 1.2.49
+
+### Patch Changes
+
+- [`3d9f9d1`](https://github.com/exactly/exa/commit/3d9f9d1afc51d0f0b126d021afc661e5c93406af) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 group scan network failures
+
+- Updated dependencies [[`8f4c83a`](https://github.com/exactly/exa/commit/8f4c83a51eade6d866d2087e759cfcbf42c173f6)]:
+  - @exactly/server@0.3.7
+
 ## 1.2.48
 
 ### Patch Changes

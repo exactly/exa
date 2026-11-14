@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.3.7
+
+### Patch Changes
+
+- [#1887](https://github.com/exactly/exa/pull/1887) [`8f4c83a`](https://github.com/exactly/exa/commit/8f4c83a51eade6d866d2087e759cfcbf42c173f6) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 require user verification on registration
+
 ## 0.3.6
 
 ### Patch Changes
