@@ -1039,5 +1039,8 @@
   "Add the details of the person who will use the card.": "Adicione os dados da pessoa que usará o cartão.",
   "Add card user": "Adicionar usuário do cartão",
   "Finish your business account set up": "Termine de configurar a conta da sua empresa",
-  "Enable bank transfers": "Habilitar transferências bancárias"
+  "Enable bank transfers": "Habilitar transferências bancárias",
+  "Your wallet changed": "Sua carteira mudou",
+  "You logged in with {{session}}, but your wallet is now using {{wallet}}. Switch back to {{session}} in your wallet to keep using this account, or continue with {{wallet}}.": "Você entrou com {{session}}, mas sua carteira agora está usando {{wallet}}. Volte para {{session}} na sua carteira para continuar usando esta conta, ou continue com {{wallet}}.",
+  "Continue with {{wallet}}": "Continuar com {{wallet}}"
 }
