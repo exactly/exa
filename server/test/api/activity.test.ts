@@ -1388,6 +1388,287 @@ describe.concurrent("authenticated", () => {
       }
     });
 
+    it("counts each part of a split spend once", () => {
+      const remote = chains[1]?.id;
+      assert.ok(remote, "expected remote chain");
+      const spend = { ...spendTemplate, amount: 9000, authorizedAmount: 9000, localAmount: 9000, localCurrency: "usd" };
+      const created = {
+        id: "split-event",
+        action: "created",
+        resource: "transaction",
+        createdAt: new Date(0).toISOString(),
+        body: { id: "split", type: "spend", spend },
+      };
+      const hashes = [padHex("0x5917", { size: 32 }), padHex("0x5927", { size: 32 }), padHex("0x5937", { size: 32 })];
+      const panda = safeParse(PandaActivity, {
+        type: "panda",
+        hashes,
+        borrows: [
+          null,
+          { timestamp: 0n, events: [{ maturity: 2_419_200n, assets: 30_000_000n, fee: 300_000n }] },
+          null,
+        ],
+        bodies: [
+          { ...created, chainId: chain.id, collected: "60000000" },
+          { ...created, chainId: remote, collected: "30000000" },
+          { ...created, chainId: remote, collected: "30000000" },
+        ],
+      });
+
+      expect(panda.success).toBe(true);
+      if (!panda.success) return;
+      expect(panda.output).toMatchObject({ amount: 90, usdAmount: 90, status: "pending" });
+      expect(panda.output.operations).toStrictEqual([
+        expect.objectContaining({ chainId: chain.id, transactionHash: hashes[0], mode: 0, amount: 60, usdAmount: 60 }),
+        expect.objectContaining({ chainId: remote, transactionHash: hashes[1], mode: 1, amount: 30, usdAmount: 30 }),
+      ]);
+    });
+
+    it("counts a part once when settlement replays the authorization plan", () => {
+      const remote = chains[1]?.id;
+      assert.ok(remote, "expected remote chain");
+      const spend = {
+        ...spendTemplate,
+        amount: 15_000,
+        authorizedAmount: 15_000,
+        localAmount: 15_000,
+        localCurrency: "usd",
+      };
+      const created = {
+        id: "replayed-created",
+        action: "created",
+        resource: "transaction",
+        createdAt: new Date(0).toISOString(),
+        body: { id: "replayed", type: "spend", spend },
+      };
+      const completed = {
+        ...created,
+        id: "replayed-completed",
+        action: "completed",
+        createdAt: new Date(1).toISOString(),
+        body: { ...created.body, spend: { ...spend, status: "completed" } },
+      };
+      const hashes = [
+        padHex("0x5b17", { size: 32 }),
+        padHex("0x5b27", { size: 32 }),
+        padHex("0x5b37", { size: 32 }),
+        padHex("0x5b47", { size: 32 }),
+      ];
+      const panda = safeParse(PandaActivity, {
+        type: "panda",
+        hashes,
+        borrows: [null, null, null, null],
+        mined: [true, true, false, false],
+        bodies: [
+          { ...created, chainId: chain.id, collected: "75000000", signed: 1000 },
+          { ...created, chainId: remote, collected: "75000000", signed: 1000 },
+          { ...completed, chainId: chain.id, collected: "75000000", signed: 1000 },
+          { ...completed, chainId: remote, collected: "75000000", signed: 1000 },
+        ],
+      });
+
+      expect(panda.success).toBe(true);
+      if (!panda.success) return;
+      expect(panda.output).toMatchObject({ amount: 150, usdAmount: 150, status: "settled" });
+      expect(panda.output.operations.map(({ transactionHash }) => transactionHash)).toStrictEqual(hashes.slice(0, 2));
+    });
+
+    it("counts a whole collection once when settlement recovers it as a part", () => {
+      const remote = chains[1]?.id;
+      assert.ok(remote, "expected remote chain");
+      const spend = {
+        ...spendTemplate,
+        amount: 15_000,
+        authorizedAmount: 15_000,
+        localAmount: 15_000,
+        localCurrency: "usd",
+      };
+      const created = {
+        id: "recovered-whole-created",
+        action: "created",
+        resource: "transaction",
+        createdAt: new Date(0).toISOString(),
+        body: { id: "recovered-whole", type: "spend", spend },
+      };
+      const completed = {
+        ...created,
+        id: "recovered-whole-completed",
+        action: "completed",
+        createdAt: new Date(1).toISOString(),
+        body: { ...created.body, spend: { ...spend, amount: 22_500, localAmount: 22_500, status: "completed" } },
+      };
+      const hashes = [padHex("0x5c17", { size: 32 }), padHex("0x5c17", { size: 32 }), padHex("0x5c37", { size: 32 })];
+      const panda = safeParse(PandaActivity, {
+        type: "panda",
+        hashes,
+        borrows: [null, null, null],
+        mined: [true, true, true],
+        bodies: [
+          { ...created, chainId: chain.id, whole: "150000000", signed: 1000 },
+          { ...completed, chainId: chain.id, collected: "150000000", signed: 1000 },
+          { ...completed, chainId: remote, collected: "75000000", signed: 900 },
+        ],
+      });
+
+      expect(panda.success).toBe(true);
+      if (!panda.success) return;
+      expect(panda.output).toMatchObject({ amount: 225, usdAmount: 225 });
+      expect(panda.output.operations.map(({ transactionHash }) => transactionHash)).toStrictEqual([
+        hashes[0],
+        hashes[2],
+      ]);
+    });
+
+    it("reports the whole amount of a settlement the authorization recovered", () => {
+      const spend = {
+        ...spendTemplate,
+        amount: 15_000,
+        authorizedAmount: 15_000,
+        localAmount: 15_000,
+        localCurrency: "usd",
+      };
+      const created = {
+        id: "forced-created",
+        action: "created",
+        resource: "transaction",
+        createdAt: new Date(1).toISOString(),
+        body: { id: "forced", type: "spend", spend },
+      };
+      const completed = {
+        ...created,
+        id: "forced-completed",
+        action: "completed",
+        createdAt: new Date(0).toISOString(),
+        body: { ...created.body, spend: { ...spend, amount: 22_500, localAmount: 22_500, status: "completed" } },
+      };
+      const hashes = [padHex("0x5d17", { size: 32 }), padHex("0x5d27", { size: 32 })];
+      const panda = safeParse(PandaActivity, {
+        type: "panda",
+        hashes,
+        borrows: [null, null],
+        mined: [true, false],
+        bodies: [
+          { ...completed, chainId: chain.id, whole: "225000000", signed: 1000 },
+          { ...created, chainId: chain.id, collected: "225000000", signed: 1000 },
+        ],
+      });
+
+      expect(panda.success).toBe(true);
+      if (!panda.success) return;
+      expect(panda.output).toMatchObject({ amount: 225, usdAmount: 225 });
+      expect(panda.output.operations.map(({ transactionHash }) => transactionHash)).toStrictEqual([hashes[0]]);
+    });
+
+    it("counts a whole collection once when both webhooks broadcast it", () => {
+      const spend = {
+        ...spendTemplate,
+        amount: 15_000,
+        authorizedAmount: 15_000,
+        localAmount: 15_000,
+        localCurrency: "usd",
+      };
+      const created = {
+        id: "doubled-created",
+        action: "created",
+        resource: "transaction",
+        createdAt: new Date(0).toISOString(),
+        body: { id: "doubled", type: "spend", spend },
+      };
+      const completed = {
+        ...created,
+        id: "doubled-completed",
+        action: "completed",
+        createdAt: new Date(1).toISOString(),
+        body: { ...created.body, spend: { ...spend, status: "completed" } },
+      };
+      const hashes = [padHex("0x5e17", { size: 32 }), padHex("0x5e27", { size: 32 })];
+      const panda = safeParse(PandaActivity, {
+        type: "panda",
+        hashes,
+        borrows: [null, null],
+        mined: [true, false],
+        bodies: [
+          { ...created, chainId: chain.id, whole: "150000000", signed: 1000 },
+          { ...completed, chainId: chain.id, whole: "150000000", signed: 1000 },
+        ],
+      });
+
+      expect(panda.success).toBe(true);
+      if (!panda.success) return;
+      expect(panda.output).toMatchObject({ amount: 150, usdAmount: 150 });
+      expect(panda.output.operations.map(({ transactionHash }) => transactionHash)).toStrictEqual([hashes[0]]);
+    });
+
+    it("keeps whole retries of one event across networks together", () => {
+      const remote = chains[1]?.id;
+      assert.ok(remote, "expected remote chain");
+      const spend = {
+        ...spendTemplate,
+        amount: 15_000,
+        authorizedAmount: 15_000,
+        localAmount: 15_000,
+        localCurrency: "usd",
+      };
+      const created = {
+        id: "moved-created",
+        action: "created",
+        resource: "transaction",
+        createdAt: new Date(0).toISOString(),
+        body: { id: "moved", type: "spend", spend },
+      };
+      const hashes = [padHex("0x5f17", { size: 32 }), padHex("0x5f27", { size: 32 })];
+      const panda = safeParse(PandaActivity, {
+        type: "panda",
+        hashes,
+        borrows: [null, null],
+        mined: [false, true],
+        bodies: [
+          { ...created, chainId: chain.id, whole: "150000000", signed: 1000 },
+          { ...created, chainId: remote, whole: "150000000", signed: 1000 },
+        ],
+      });
+
+      expect(panda.success).toBe(true);
+      if (!panda.success) return;
+      expect(panda.output).toMatchObject({ amount: 150, usdAmount: 150 });
+      expect(panda.output.operations.map(({ transactionHash }) => transactionHash)).toStrictEqual([hashes[1]]);
+    });
+
+    it("counts distinct parts collected on the same network", () => {
+      const remote = chains[1]?.id;
+      assert.ok(remote, "expected remote chain");
+      const spend = {
+        ...spendTemplate,
+        amount: 11_000,
+        authorizedAmount: 11_000,
+        localAmount: 11_000,
+        localCurrency: "usd",
+      };
+      const created = {
+        id: "recovered-event",
+        action: "created",
+        resource: "transaction",
+        createdAt: new Date(0).toISOString(),
+        body: { id: "recovered", type: "spend", spend },
+      };
+      const hashes = [padHex("0x5a17", { size: 32 }), padHex("0x5a27", { size: 32 }), padHex("0x5a37", { size: 32 })];
+      const panda = safeParse(PandaActivity, {
+        type: "panda",
+        hashes,
+        borrows: [null, null, null],
+        bodies: [
+          { ...created, chainId: chain.id, collected: "60000000", signed: 1000 },
+          { ...created, chainId: remote, collected: "30000000", signed: 1000 },
+          { ...created, chainId: remote, collected: "20000000", signed: 900 },
+        ],
+      });
+
+      expect(panda.success).toBe(true);
+      if (!panda.success) return;
+      expect(panda.output).toMatchObject({ amount: 110, usdAmount: 110 });
+      expect(panda.output.operations.map(({ transactionHash }) => transactionHash)).toStrictEqual(hashes);
+    });
+
     it("reports bad transaction", async () => {
       await database
         .insert(transactions)
