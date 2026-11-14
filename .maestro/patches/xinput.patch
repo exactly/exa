@@ -1,0 +1,77 @@
+From caef9c08a15a704a7fb6c867330993f6001679c0 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Sat, 14 Nov 2026 18:22:17 +0000
+Subject: [PATCH] feat: tap browser UI above the page on web
+
+Flows can only tap the page, so anything a user does in the browser's own toolbar is out of reach, such as opening a browser wallet's panel from its toolbar button: CDP input events only reach page content, and point taps reject negative coordinates. On web, a point with a negative y now taps that many pixels above the page with a native click through java.awt.Robot, at the window's screen position plus the height of the browser UI above the viewport. It needs a headed browser on a display, such as one under xvfb-run.
+---
+ .../main/java/maestro/drivers/CdpWebDriver.kt   | 17 +++++++++++++++++
+ .../main/java/maestro/orchestra/Orchestra.kt    |  3 ++-
+ 2 files changed, 19 insertions(+), 1 deletion(-)
+
+diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+index 6ab6e92..c2a1f31 100644
+--- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+@@ -46,6 +46,8 @@ import org.openqa.selenium.interactions.PointerInput
+ import org.openqa.selenium.interactions.Sequence
+ import org.openqa.selenium.remote.RemoteWebDriver
+ import org.slf4j.LoggerFactory
++import java.awt.Robot
++import java.awt.event.InputEvent
+ import java.io.File
+ import java.net.URI
+ import java.time.Duration
+@@ -540,6 +542,11 @@ class CdpWebDriver(
+             return
+         }
+ 
++        if (point.y < 0) {
++            tapAbovePage(point)
++            return
++        }
++
+         val pixelsScrolled = scrollToPoint(point)
+ 
+         dispatchInputEvents(
+@@ -569,6 +576,16 @@ class CdpWebDriver(
+         }
+     }
+ 
++    private fun tapAbovePage(point: Point) {
++        val window = ensureOpen().manage().window()
++        val top = window.size.height - executeJS("window.innerHeight") as Int
++        Robot().apply {
++            mouseMove(window.position.x + point.x, window.position.y + top + point.y)
++            mousePress(InputEvent.BUTTON1_DOWN_MASK)
++            mouseRelease(InputEvent.BUTTON1_DOWN_MASK)
++        }
++    }
++
+     private fun tapOnSyntheticCoordinateSpace(point: Point) {
+         val elements = contentDescriptor()
+ 
+diff --git a/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt b/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
+index 2ed954c..5aa06b4 100644
+--- a/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
++++ b/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
+@@ -36,6 +36,7 @@ import maestro.Maestro
+ import maestro.DeviceConnectionException
+ import maestro.MaestroException
+ import maestro.device.AppCrashReport
++import maestro.device.Platform
+ import maestro.Point
+ import maestro.ScreenRecording
+ import maestro.UiElement
+@@ -1479,7 +1480,7 @@ class Orchestra(
+         } else {
+             val (x, y) = NumericFields.parsePoint(point)
+ 
+-            if (x < 0 || y < 0) {
++            if (x < 0 || y < 0 && maestro.cachedDeviceInfo.platform != Platform.WEB) {
+                 throw MaestroException.InvalidCommand("Invalid point: $point. Coordinates must not be negative.")
+             }
+ 
+-- 
+2.43.0
+
