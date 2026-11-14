@@ -10,10 +10,10 @@ import { useConnect } from "wagmi";
 
 import chain from "@exactly/common/generated/chain";
 
-import alchemyConnector from "./alchemyConnector";
 import queryClient, { type AuthMethod } from "./queryClient";
 import reportError, { classifyError } from "./reportError";
 import { APIError, createCredential, getCredential } from "./server";
+import exaConfig from "./wagmi/exa";
 import ownerConfig, { getConnector as getOwnerConnector } from "./wagmi/owner";
 
 import type { Credential } from "@exactly/common/validation";
@@ -38,7 +38,9 @@ export default function useAuth(onSuccess?: (credential: Credential) => unknown)
       }
       const credential = method === "siwe" || !register ? await getCredential() : await createCredential();
       queryClient.setQueryData<Credential>(["credential"], credential);
-      await connectExa({ connector: alchemyConnector });
+      const connector = exaConfig.connectors.find(({ id }) => id === "alchemy");
+      if (!connector) throw new Error("missing alchemy connector");
+      await connectExa({ connector });
       return credential;
     },
     onSuccess,
