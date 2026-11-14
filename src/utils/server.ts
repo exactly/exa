@@ -3,6 +3,12 @@ import { get as assert, create } from "react-native-passkeys";
 
 import { sdk } from "@farcaster/miniapp-sdk";
 import { base64URLStringToBuffer } from "@simplewebauthn/browser";
+import {
+  InfiniteQueryObserver,
+  infiniteQueryOptions,
+  type InfiniteData,
+  type InfiniteQueryObserverResult,
+} from "@tanstack/react-query";
 import { getConnection, signMessage, watchConnection } from "@wagmi/core";
 import { hc, parseResponse, type InferRequestType, type InferResponseType } from "hono/client";
 import { check, number, object, parse, picklist, pipe, safeParse, string, ValiError } from "valibot";
@@ -432,14 +438,64 @@ async function getActivity(
   if (typeof activity === "string" || activity instanceof Uint8Array) throw new Error("bad activity response");
   return activity;
 }
-queryClient.setQueryDefaults(["activity"], {
-  staleTime: 60_000,
-  gcTime: isServer ? Infinity : 60 * 60_000,
-  queryFn: () =>
+const activityPage = 50;
+queryClient.setQueryDefaults(["activity"], { staleTime: 60_000, gcTime: isServer ? Infinity : 60 * 60_000 });
+export const activityOptions = infiniteQueryOptions<
+  Activity,
+  Error,
+  InfiniteData<Activity>,
+  string[],
+  { after?: string; before?: string }
+>({
+  queryKey: ["activity"],
+  initialPageParam: {},
+  queryFn: ({ pageParam }) =>
     getActivity({
       include: ["card", "received", "repay", "sent", "loan", "rollover", "swap", "liquidation", "bridge"],
+      limit: String(activityPage),
+      ...pageParam,
     }),
+  getNextPageParam: (page) => {
+    const last = page.at(-1);
+    return page.length === activityPage && last ? { before: `${last.timestamp},${last.id}` } : undefined;
+  },
+  getPreviousPageParam: (_, pages) => {
+    const first = pages.find((page) => page.length > 0)?.[0];
+    return first ? { after: `${first.timestamp},${first.id}` } : undefined;
+  },
 });
+export function refreshActivity() {
+  queryClient.setQueryData(
+    activityOptions.queryKey,
+    (data) => data && { pages: data.pages.slice(0, 1), pageParams: data.pageParams.slice(0, 1) },
+  );
+  return queryClient.invalidateQueries({ queryKey: activityOptions.queryKey, exact: true });
+}
+export function foldActivity() {
+  const data = queryClient.getQueryData(activityOptions.queryKey);
+  const [latest, first = [], ...pages] = data?.pages ?? [];
+  const [parameter, initial, ...parameters] = data?.pageParams ?? [];
+  if (!latest || typeof parameter !== "object" || !parameter || !("after" in parameter)) return;
+  queryClient.setQueryData(activityOptions.queryKey, {
+    pages: [[...latest, ...first], ...pages],
+    pageParams: [initial ?? {}, ...parameters],
+  });
+  if (latest.length === activityPage) return refreshActivity();
+}
+export async function findActivity(id: string) {
+  await queryClient.ensureInfiniteQueryData(activityOptions);
+  const observer = new InfiniteQueryObserver(queryClient, activityOptions);
+  return find(observer.getCurrentResult(), 10);
+  async function find(
+    { data, hasNextPage }: InfiniteQueryObserverResult<InfiniteData<Activity>>,
+    pages: number,
+  ): Promise<Activity[number] | null> {
+    const item = data?.pages.flat().find((entry) => entry.id === id);
+    if (item) return item;
+    if (!hasNextPage || pages === 0) return null;
+    return find(await observer.fetchNextPage({ throwOnError: true }), pages - 1);
+  }
+}
 queryClient.setQueryDefaults(["activity", "card"], {
   queryFn: async () => {
     const activity = await getActivity({ include: "card" });
