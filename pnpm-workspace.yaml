@@ -81,6 +81,7 @@ minimumReleaseAge: 1440
 minimumReleaseAgeExclude: ["@wagmi/core@3.6.6", prool@0.2.17, wagmi@3.7.8]
 optimisticRepeatInstall: false
 overrides:
+  "@astrojs/starlight>satteri": ^0.11.7 # cspell:ignore astrojs satteri
   "@fastify/cors@8": ^11.3.1 # cspell:ignore fastify
   "@fastify/websocket@10": ^11.3.4
   "@hono/node-server": "catalog:"
