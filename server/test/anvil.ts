@@ -201,6 +201,7 @@ async function start(dump = false) {
     await forge("script/ExaPreviewer.s.sol");
     await forge("script/ExaPlugin.s.sol");
     await forge("script/ExaAccountFactory.s.sol");
+    await forge("script/Depositor.s.sol");
 
     await Promise.all([
       anvilClient.impersonateAccount({ address: bob }),
