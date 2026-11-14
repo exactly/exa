@@ -36,7 +36,7 @@ import { createSiweMessage, parseSiweMessage, validateSiweMessage } from "viem/s
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
-import chain from "@exactly/common/generated/chain";
+import chain, { factories } from "@exactly/common/generated/chain";
 import tenants from "@exactly/common/tenants";
 import { Address, Base64URL, Hex } from "@exactly/common/validation";
 
@@ -46,7 +46,6 @@ import { origin, origins } from "../../utils/appOrigin";
 import publicClient from "../../utils/publicClient";
 import { IpAddress } from "../../utils/sardine";
 import validatorHook from "../../utils/validatorHook";
-import validFactories from "../../utils/validFactories";
 
 import type createCredentialFactory from "../../utils/createCredential";
 import type createIntercom from "../../utils/intercom";
@@ -360,7 +359,7 @@ export default function route({
         setContext("auth", attestation);
         const sessionId = headers?.["x-session-id"] ?? c.req.valid("cookie").session_id;
         if (!sessionId) return c.json({ code: "bad session" }, 400);
-        if (factory && !validFactories.has(factory)) return c.json({ code: "bad factory" }, 400);
+        if (factory && !factories.versions.includes(factory)) return c.json({ code: "bad factory" }, 400);
         const challenge = await redis.getdel(`session:${sessionId}`);
         if (!challenge) return c.json({ code: "no registration", legacy: "no registration" }, 400);
 

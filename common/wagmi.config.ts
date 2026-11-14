@@ -1,11 +1,18 @@
 import * as infra from "@account-kit/infra";
 import { defineConfig } from "@wagmi/cli";
 import { foundry, react } from "@wagmi/cli/plugins";
-import { execSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import { env } from "node:process";
 import { isDeepStrictEqual } from "node:util";
-import { getAddress, type Abi, type Chain } from "viem";
+import {
+  encodeAbiParameters,
+  encodePacked,
+  getAddress,
+  getContractAddress,
+  keccak256,
+  type Abi,
+  type Chain,
+} from "viem";
 import * as chains from "viem/chains";
 import { anvil, base, baseSepolia, moonbeamDev, optimism, optimismSepolia } from "viem/chains";
 
@@ -92,26 +99,62 @@ export default defineConfig([
             [optimism.id]: "optimism",
             [optimismSepolia.id]: "optimismSepolia",
           }[chainId];
+          const testnet =
+            chainId === anvil.id || Boolean([...networks.keys()].find(({ id }) => id === chainId)?.testnet);
+          const sameSide = [...networks].filter(([current]) => Boolean(current.testnet) === testnet);
           const markets = Object.fromEntries(
-            [...networks]
-              .filter(
-                ([{ testnet }]) =>
-                  Boolean(testnet) ===
-                  (chainId === anvil.id || Boolean([...networks.keys()].find(({ id }) => id === chainId)?.testnet)),
-              )
-              .map(([{ id }, network]) => [
-                id,
-                readdirSync(`node_modules/@exactly/protocol/deployments/${network}`)
-                  .flatMap((file) => /^Market([A-Za-z.]+)\.json$/.exec(file)?.[1] ?? [])
-                  .filter((asset) => asset !== "ETHRouter")
-                  .map((asset) => getAddress(loadDeployment(asset, true, id).address)),
-              ]),
+            sameSide.map(([{ id }, network]) => [
+              id,
+              readdirSync(`node_modules/@exactly/protocol/deployments/${network}`)
+                .flatMap((file) => /^Market([A-Za-z.]+)\.json$/.exec(file)?.[1] ?? [])
+                .filter((asset) => asset !== "ETHRouter")
+                .map((asset) => getAddress(loadDeployment(asset, true, id).address)),
+            ]),
           );
+          const networkContracts = (chain ? sameSide.map(([{ id }]) => id) : [anvil.id, moonbeamDev.id]).map((id) => {
+            const exaPreviewer = loadBroadcast("ExaPreviewer", id).transactions[0]?.contractAddress;
+            if (!exaPreviewer) throw new Error(`missing exaPreviewer on ${id}`);
+            return [
+              id,
+              {
+                auditor: getAddress(loadDeployment("Auditor", true, id).address),
+                exaPreviewer: getAddress(exaPreviewer),
+                swapper: getAddress(deployed(deploy.accounts.swapper, id)),
+              },
+            ];
+          });
           const stocks = Object.keys(deploy.proposalManager.allowlist[base.id])
             .filter((address) => address.slice(0, 5).toLowerCase() === "0xb20")
             .map((address) => address.toLowerCase());
           if (stocks.length === 0) throw new Error("missing stocks");
           const slugs: Record<number, string | undefined> = alchemyNetworks;
+          const admin = getAddress(deployed(deploy.accounts.admin));
+          const create3Factory = getAddress(deployed(deploy.factory.create3));
+          const version = deployed(deploy.factory.version);
+          if (!deploy.factory.versions.includes(version)) throw new Error(`unlisted factory version ${version}`);
+          function factory(v: string) {
+            return getContractAddress({
+              from: getContractAddress({
+                opcode: "CREATE2",
+                from: create3Factory,
+                salt: keccak256(
+                  encodePacked(
+                    ["address", "bytes32"],
+                    [
+                      admin,
+                      keccak256(encodeAbiParameters([{ type: "string" }, { type: "string" }], ["Exa Plugin", v])),
+                    ],
+                  ),
+                ),
+                bytecodeHash: "0x21c35dbe1b344a2488cf3321d6ce542f8e9f305544ff09e4993a62319a497c1f",
+              }),
+              nonce: 1n,
+            });
+          }
+          const factories = {
+            versions: deploy.factory.versions.map((v) => factory(v)),
+            legacy: deploy.factory.legacy.map((address) => getAddress(address)),
+          };
           const alchemyChains: { id: number; name?: string; source: string }[] = Object.values(infra).flatMap((c) => {
             if (typeof c !== "object" || !("rpcUrls" in c)) return [];
             const { alchemy, ...rpcUrls } = c.rpcUrls;
@@ -183,19 +226,8 @@ export default defineConfig([
                 usdc: loadDeployment("USDC").address,
                 weth: loadDeployment("WETH").address,
                 simple7702Account: "0x4Cd241E8d1510e30b2076397afc7508Ae59C66c9",
-                swapper:
-                  (deploy.accounts.swapper as Record<string, string>)[chainId] ?? deploy.accounts.swapper.default,
-                exaAccountFactory:
-                  chainId === base.id || chainId === baseSepolia.id || chainId === anvil.id
-                    ? /== return ==\n0: address (0x[\da-f]{40})/i.exec(
-                        execSync(`forge script -s 'getAddress()' script/ExaAccountFactory.s.sol --chain ${chainId}`, {
-                          env: { ...env, FOUNDRY_PROFILE: "tooling" },
-                          cwd: "../contracts",
-                          encoding: "utf8",
-                        }),
-                      )?.[1]
-                    : ({ [optimism.id]: "0x961EbA47650e2198A959Ef5f337E542df5E4F61b" }[chainId] ??
-                      "0x98d3E8B291d9E89C25D8371b7e8fFa8BC32E0aEC"),
+                swapper: deployed(deploy.accounts.swapper),
+                exaAccountFactory: factory(version),
               }).map(([key, address]) => {
                 if (!address) throw new Error(`missing ${key}`);
                 return `export const ${key}Address = "${getAddress(address)}" as const`;
@@ -219,6 +251,8 @@ export default defineConfig([
               )}`,
               `export const appPreviewerCode: \`0x\${string}\` = "${AppPreviewer.bytecode.object}"`,
               `export const exaPreviewerCode: \`0x\${string}\` = "${ExaPreviewer.bytecode.object}"`,
+              `export const factories: Readonly<Record<"legacy" | "versions", readonly \`0x\${string}\`[]>> = ${JSON.stringify(factories)}`,
+              `export const networks: ReadonlyMap<number, Readonly<Record<"auditor" | "exaPreviewer" | "swapper", \`0x\${string}\`>>> = new Map(${JSON.stringify(networkContracts)})`,
               `export const pricePreviewerCode: \`0x\${string}\` = "${PricePreviewer.bytecode.object}"`,
               `export const stocks: ReadonlySet<string> = new Set(${JSON.stringify(stocks)})`,
               'type AlchemyChain = ((Chain & { smartAccount: true }) | (Omit<Chain, "nativeCurrency"> & { nativeCurrency?: Chain["nativeCurrency"]; smartAccount?: never })) & { rpcUrls: { alchemy: { http: readonly [string] } } }',
@@ -252,23 +286,22 @@ function loadDeployment<R extends boolean = true>(
   required = true as R,
   id = chainId,
 ): R extends true ? Deployment : Deployment | undefined {
-  if (id === anvil.id) {
-    const address =
-      loadBroadcast("Protocol").transactions[
-        {
-          Auditor: 1,
-          Balancer2Vault: 23,
-          DebtManager: 24,
-          Firewall: 33,
-          MarketUSDC: 11,
-          MarketWETH: 18,
-          IntegrationPreviewer: 29,
-          Previewer: 28,
-          RatePreviewer: 30,
-          USDC: 9,
-          WETH: 16,
-        }[contract] ?? Infinity
-      ]?.contractAddress;
+  if (id === anvil.id || id === moonbeamDev.id) {
+    const address = loadBroadcast("Protocol", id).transactions[
+      {
+        Auditor: 1,
+        Balancer2Vault: 23,
+        DebtManager: 24,
+        Firewall: 33,
+        MarketUSDC: 11,
+        MarketWETH: 18,
+        IntegrationPreviewer: 29,
+        Previewer: 28,
+        RatePreviewer: 30,
+        USDC: 9,
+        WETH: 16,
+      }[contract] ?? Infinity
+    ]?.contractAddress;
     if (!address && required) throw new Error(`unknown contract: ${contract}`);
     return { address } as R extends true ? Deployment : Deployment | undefined;
   }
@@ -284,10 +317,17 @@ function loadDeployment<R extends boolean = true>(
   }
 }
 
-function loadBroadcast(script: string) {
+function loadBroadcast(script: string, id = chainId) {
   return JSON.parse(
-    readFileSync(`node_modules/@exactly/plugin/broadcast/${script}.s.sol/${chainId}/run-latest.json`, "utf8"),
+    readFileSync(
+      `node_modules/@exactly/plugin/broadcast/${script}.s.sol/${id === moonbeamDev.id ? anvil.id : id}/run-latest.json`,
+      "utf8",
+    ),
   ) as { transactions: { contractAddress: string }[] };
+}
+
+function deployed(values: Record<string, string> & { default: string }, id = chainId) {
+  return values[id] ?? values.default;
 }
 
 type Deployment = {
