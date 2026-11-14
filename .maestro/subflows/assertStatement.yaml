@@ -2,7 +2,7 @@ appId: ${APP_ID ?? "app.exactly"}
 ---
 - assertTrue: ${merchant}
 - tapOn: Payments
-- tapOn: Payments
+- tapOn: { text: Payments, rightOf: Card }
 - assertVisible: Total outstanding
 - tapOn: View statement
 - assertVisible: Statement
