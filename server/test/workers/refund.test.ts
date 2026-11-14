@@ -4,6 +4,7 @@ import "../mocks/segment";
 import "../mocks/sentry";
 
 import { captureException, continueTrace, setUser, startSpan, withScope } from "@sentry/node";
+import { serialize } from "@wagmi/core";
 import { Queue, QueueEvents } from "bullmq";
 import { eq } from "drizzle-orm";
 import { env } from "node:process";
@@ -27,10 +28,11 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { optimismSepolia } from "viem/chains";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, assert, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import chain, {
   exaAccountFactoryAddress,
+  marketUSDCAddress,
   refunderAbi,
   refunderAddress,
   simple7702AccountAddress,
@@ -39,6 +41,7 @@ import { Address, type Hash } from "@exactly/common/validation";
 
 import database, { cards, credentials, transactions } from "../../database";
 import t, { f } from "../../i18n";
+import { key as liquidity } from "../../utils/liquidity";
 import createOnesignal from "../../utils/onesignal";
 import createPanda, { signIssuerOp } from "../../utils/panda";
 import redis, { bullmq } from "../../utils/redis";
@@ -51,7 +54,9 @@ import { connect } from "../../workers/worker";
 import anvilClient from "../anvilClient";
 import { finished, tip } from "../redis";
 
+import type * as L from "../../utils/liquidity";
 import type * as P from "../../utils/panda";
+import type * as PC from "../../utils/publicClient";
 import type * as W from "../../utils/wallet";
 import type createHook from "../../workers/hook/queue";
 import type { Job as Refund } from "../../workers/refund/job";
@@ -82,6 +87,7 @@ const hook = vi.hoisted(() => ({
   enqueue: vi.fn<ReturnType<typeof createHook>["enqueue"]>(),
   ready: vi.fn<() => Promise<void>>().mockResolvedValue(),
 }));
+const remember = vi.hoisted(() => vi.fn<typeof L.default>());
 const slot = keccak256(
   encodeAbiParameters(
     [{ type: "address" }, { type: "bytes32" }],
@@ -395,6 +401,12 @@ describe("refund worker", () => {
       expect.any(Function),
     );
     expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
+    expect(remember).toHaveBeenCalledExactlyOnceWith(connection, "user", account, chain.id);
+    const [result] = remember.mock.results;
+    assert.ok(result?.type === "return");
+    const positions = await result.value;
+    expect(positions.map(({ market }) => market)).toContain(parse(Address, marketUSDCAddress));
+    await expect(redis.hget(liquidity("user"), String(chain.id))).resolves.toBe(serialize(positions));
     expect(continueTrace).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
   });
@@ -516,6 +528,22 @@ describe("refund worker", () => {
       hashes: [zeroHash],
       payload: { bodies: [], type: "panda" },
     });
+  });
+
+  it("captures liquidity refresh failures", async () => {
+    webhook("wh-liquidity-error", { amount: 500, authorizedAmount: 1500, status: "pending" });
+    const error = new Error("redis down");
+    remember.mockRejectedValueOnce(error);
+    const track = vi.spyOn(segment, "track").mockReturnValue();
+
+    await jobFinished("wh-liquidity-error");
+
+    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error));
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(error, { level: "warning", tags: { chainId: chain.id } });
+    expect(hook.enqueue).toHaveBeenCalledOnce();
+    expect(track).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ userId: account, event: "TransactionRefund" }),
+    );
   });
 
   it("refunds reversed authorization updates", async () => {
@@ -1379,11 +1407,23 @@ vi.mock("../../utils/wallet", async (importOriginal) => {
   };
 });
 
+vi.mock("../../utils/publicClient", async (importOriginal) => {
+  const [original, { default: anvil }] = await Promise.all([importOriginal<typeof PC>(), import("../anvilClient")]);
+  return { ...original, default: anvil };
+});
+
+vi.mock("../../utils/liquidity", async (importOriginal) => {
+  const original = await importOriginal<typeof L>();
+  remember.mockImplementation(original.default);
+  return { ...original, default: remember };
+});
+
 vi.mock("@exactly/common/generated/chain", async (importOriginal) => {
   const original = await importOriginal<typeof C>();
   const { baseSepolia } = await import("viem/chains");
   return {
     ...original,
+    chains: new Map([...original.chains, [baseSepolia.id, original.chains.get(original.default.id)]]),
     default: Object.assign({ id: 0 }, baseSepolia, {
       rpcUrls: { ...baseSepolia.rpcUrls, alchemy: baseSepolia.rpcUrls.default },
     }),

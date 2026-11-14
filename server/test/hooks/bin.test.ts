@@ -187,6 +187,7 @@ describe("hook bin", () => {
         issuer,
         onesignal,
         panda,
+        redis: expect.any(Redis) as Redis,
         refund: queue,
         sardine,
         segment,
