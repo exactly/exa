@@ -181,7 +181,7 @@ export default function Review() {
       ? t("Funding request sent")
       : t("Funding request processing");
 
-  const proposalManager = useProposalManager();
+  const proposalManager = useProposalManager(chain.id);
 
   if (!market || !amount || !count || !maturity || !receiver || (markets && !assetMarket))
     return <Redirect href="/loan" />;
