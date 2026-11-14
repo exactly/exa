@@ -192,6 +192,7 @@ export default function Confirm() {
     refetch: refetchPropose,
   } = useSimulateProposal({
     account: address,
+    chainId: payChain,
     amount: fromAmount,
     market: market?.market,
     proposalType: ProposalType.Withdraw,
@@ -287,6 +288,7 @@ export default function Confirm() {
     refetch: refetchBridgePropose,
   } = useSimulateProposal({
     account: address,
+    chainId: payChain,
     amount: fromAmount,
     market: market?.market,
     proposalType: ProposalType.Swap,
@@ -592,7 +594,7 @@ export default function Confirm() {
       : undefined;
   }, [receipt]);
   const { data: execution } = useQuery(
-    executionOptions(address, proposal?.proposalManager, proposal?.nonce, proposal?.since),
+    executionOptions(payChain, address, proposal?.proposalManager, proposal?.nonce, proposal?.since),
   );
   const executionHash = execution?.executed ? execution.hash : undefined;
   const { data: routeStatus } = useQuery(
