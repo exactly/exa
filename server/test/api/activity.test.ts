@@ -1337,6 +1337,42 @@ describe.concurrent("authenticated", () => {
       expect(panda.output.amount).toBeCloseTo(43.21);
     });
 
+    it("counts each part of a split spend once", () => {
+      const remote = chains[1]?.id;
+      assert.ok(remote, "expected remote chain");
+      const spend = { ...spendTemplate, amount: 9000, authorizedAmount: 9000, localAmount: 9000, localCurrency: "usd" };
+      const created = {
+        id: "split-event",
+        action: "created",
+        resource: "transaction",
+        createdAt: new Date(0).toISOString(),
+        body: { id: "split", type: "spend", spend },
+      };
+      const hashes = [padHex("0x5917", { size: 32 }), padHex("0x5927", { size: 32 }), padHex("0x5937", { size: 32 })];
+      const panda = safeParse(PandaActivity, {
+        type: "panda",
+        hashes,
+        borrows: [
+          null,
+          { timestamp: 0n, events: [{ maturity: 2_419_200n, assets: 30_000_000n, fee: 300_000n }] },
+          null,
+        ],
+        bodies: [
+          { ...created, chainId: chain.id, collected: "60000000" },
+          { ...created, chainId: remote, collected: "30000000" },
+          { ...created, chainId: remote, collected: "30000000" },
+        ],
+      });
+
+      expect(panda.success).toBe(true);
+      if (!panda.success) return;
+      expect(panda.output).toMatchObject({ amount: 90, usdAmount: 90, status: "pending" });
+      expect(panda.output.operations).toStrictEqual([
+        expect.objectContaining({ chainId: chain.id, transactionHash: hashes[0], mode: 0, amount: 60, usdAmount: 60 }),
+        expect.objectContaining({ chainId: remote, transactionHash: hashes[1], mode: 1, amount: 30, usdAmount: 30 }),
+      ]);
+    });
+
     it("reports bad transaction", async () => {
       await database
         .insert(transactions)
