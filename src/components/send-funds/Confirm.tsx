@@ -225,6 +225,7 @@ export default function Confirm() {
     refetch: refetchPropose,
   } = useSimulateProposal({
     account: address,
+    chainId: payChain,
     amount: redeem ? market.floatingDepositShares : fromAmount,
     market: market?.market,
     ...(redeem ? { proposalType: ProposalType.Redeem, assets: fromAmount } : { proposalType: ProposalType.Withdraw }),
@@ -320,6 +321,7 @@ export default function Confirm() {
     refetch: refetchBridgePropose,
   } = useSimulateProposal({
     account: address,
+    chainId: payChain,
     amount: fromAmount,
     market: market?.market,
     proposalType: ProposalType.Swap,
@@ -633,15 +635,15 @@ export default function Confirm() {
     return { proposalManager: log.address, nonce, proposalType, proposed, since: receipt.blockNumber };
   }, [receipt]);
   const { data: execution } = useQuery(
-    executionOptions(address, proposal?.proposalManager, proposal?.nonce, proposal?.since),
+    executionOptions(payChain, address, proposal?.proposalManager, proposal?.nonce, proposal?.since),
   );
   const executionHash = execution?.executed ? execution.hash : undefined;
   const { data: withdrawn } = useQuery({
-    queryKey: ["proposal", "withdrawn", executionHash, address, market?.market],
+    queryKey: ["proposal", "withdrawn", payChain, executionHash, address, market?.market],
     queryFn:
       executionHash && address && !routed && market
         ? async () => {
-            const { logs } = await getTransactionReceipt(exa, { hash: executionHash, chainId: chain.id });
+            const { logs } = await getTransactionReceipt(exa, { hash: executionHash, chainId: payChain });
             const [log] = parseEventLogs({
               abi: erc4626Abi,
               eventName: "Withdraw",

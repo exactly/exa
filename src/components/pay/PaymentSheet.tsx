@@ -10,7 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { formatDistanceStrict, isAfter } from "date-fns";
 import { digits, pipe, safeParse, string } from "valibot";
 
-import { marketUSDCAddress } from "@exactly/common/generated/chain";
+import chain, { marketUSDCAddress } from "@exactly/common/generated/chain";
 import { WAD } from "@exactly/lib";
 
 import Breakdown from "./Breakdown";
@@ -35,7 +35,7 @@ export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (m
   const parameters = useLocalSearchParams();
   const router = useRouter();
   const maturity = Array.isArray(parameters.maturity) ? parameters.maturity[0] : parameters.maturity;
-  const proposalManager = useProposalManager();
+  const proposalManager = useProposalManager(chain.id);
   const { market: USDCMarket, timestamp } = useAsset(marketUSDCAddress);
   const [infoOpen, setInfoOpen] = useState(false);
   const [open, setOpen] = useState(() => !!maturity);
