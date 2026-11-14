@@ -1,4 +1,4 @@
-// cspell:ignore cust midmarket sepa spei iban COBADEFFXXX Anytown Joao Zdestination Adestination GABCDEFGHIJKLMNOPQRSTUVWXYZSTELLARDESTINATION Xiaoming Dawen Zeng Zhang Иван Abudula Aili Xiao Юрій Шевченко Shevchenko المصري محمد Yurii Masry MULLER José Müller
+// cspell:ignore cust midmarket sepa spei iban COBADEFFXXX Anytown Joao Zdestination Adestination GABCDEFGHIJKLMNOPQRSTUVWXYZSTELLARDESTINATION Xiaoming Dawen Zeng Zhang Иван Abudula Aili Xiao Юрій Шевченко Shevchenko Тверская التحرير المصري شارع محمد Shar Tahrir Yurii Москва Moskva Tverskaia Corrientes Piso Masry Shaka MULLER José Müller
 import "../mocks/sentry";
 
 import { captureException, setContext } from "@sentry/core";
@@ -3386,6 +3386,68 @@ describe("bridge utils", () => {
       expect(body.transliterated_first_name).toBe(transliterated.first);
       expect(body.transliterated_last_name).toBe(transliterated.last);
       expect(body.transliterated_residential_address).toBeUndefined();
+      expect(captureException).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      {
+        country: "RU",
+        address: { street1: "ул. Тверская, д. 7", street2: null, city: "Москва", postal: "125009" },
+        transliterated: { street_line_1: "ul. Tverskaia, d. 7", postal_code: "125009", country: "RUS", city: "Moskva" },
+      },
+      {
+        country: "EG",
+        address: { street1: "شارع التحرير ١٢", street2: "شقة ٥", city: "Cairo", postal: "١١٥١١" },
+        transliterated: {
+          street_line_1: "Shar El-Tahrir 12",
+          street_line_2: "Shaka 5",
+          postal_code: "11511",
+          country: "EGY",
+          city: "Cairo",
+        },
+      },
+      {
+        country: "AR",
+        address: { street1: "Av. Corrientes 1234", street2: "Piso 3", city: "Buenos Aires", postal: "1000" },
+        transliterated: undefined,
+      },
+    ])("transliterates address from $country", async ({ country, address, transliterated }) => {
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
+        ...enabledPersonaAccount,
+        attributes: {
+          ...enabledPersonaAccount.attributes,
+          "country-code": country,
+          "address-street-1": address.street1,
+          "address-street-2": address.street2,
+          "address-city": address.city,
+          "address-postal-code": address.postal,
+        },
+      });
+      vi.spyOn(persona, "getDocument").mockResolvedValueOnce(documentResponse);
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce({ ok: true, blob: () => Promise.resolve(new Blob(["front"])) } as Response)
+        .mockResolvedValueOnce({ ok: true, blob: () => Promise.resolve(new Blob(["back"])) } as Response)
+        .mockResolvedValueOnce(fetchResponse({ id: "cust-new", status: "not_started" }));
+
+      await bridge.onboarding({
+        accountType: "consumer",
+        credentialId: "cred-1",
+        customerId: null,
+        acceptedTermsId: "terms-1",
+      });
+
+      const body = JSON.parse(fetchSpy.mock.calls[2]?.[1]?.body as string) as Record<string, unknown>;
+      expect(body.residential_address).toStrictEqual({
+        street_line_1: address.street1,
+        ...(address.street2 && { street_line_2: address.street2 }),
+        postal_code: address.postal,
+        country: transliterated?.country ?? "ARG",
+        city: address.city,
+      });
+      expect(body.transliterated_residential_address).toStrictEqual(transliterated);
+      expect(body.transliterated_first_name).toBeUndefined();
+      expect(body.transliterated_last_name).toBeUndefined();
       expect(captureException).not.toHaveBeenCalled();
     });
 

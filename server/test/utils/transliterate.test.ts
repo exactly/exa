@@ -1,9 +1,9 @@
-// cspell:ignoreRegExp /[\u0370-\u03FF\u0400-\u04FF\u0600-\u06FF\uAC00-\uD7AF]+/g
+// cspell:ignoreRegExp /[\u0370-\u03FF\u0400-\u04FF\u0600-\u06FF\u0980-\u09FF\uAC00-\uD7AF]+/g
 // cspell:ignoreRegExp /"[A-Z][a-z]+([- ][A-Z][a-z]+)*"/g
-// cspell:ignore José Müller Łukasz
+// cspell:ignore Byeol José João Khreshchatyk Mirpur Müller Shar Tahrir Teug Tverskaia Łukasz Ｊｏｈｎ
 import { describe, expect, it } from "vitest";
 
-import { latin, transliterateName } from "../../utils/transliterate";
+import { latin, transliterateAddress, transliterateName } from "../../utils/transliterate";
 
 describe("transliterate", () => {
   describe("latin", () => {
@@ -105,6 +105,22 @@ describe("transliterate", () => {
       { text: "Ｊｏｈｎ", expected: "John" },
     ])("sends the normalized latin name for $text", ({ text, expected }) => {
       expect(transliterateName(text, "ES", { document: "JOSE" })).toBe(expected);
+    });
+  });
+
+  describe("address", () => {
+    it.each([
+      { text: "Rua São João, 12", country: "BR", expected: "Rua São João, 12" },
+      { text: "上海市浦东新区世纪大道100号", country: "CN", expected: "ShangHaiShiPuDongXinQuShiJiDaDao100Hao" },
+      { text: "ул. Тверская, д. 7", country: "RU", expected: "ul. Tverskaia, d. 7" },
+      { text: "вул. Хрещатик, 22", country: "UA", expected: "vul. Khreshchatyk, 22" },
+      { text: "شارع التحرير ١٢", country: "EG", expected: "Shar El-Tahrir 12" },
+      { text: "١٢ب شارع النيل", country: "EG", expected: "12b Shar El-Nil" },
+      { text: "12ب-Block", country: "EG", expected: "12b-Block" },
+      { text: "ঢাকা মিরপুর রোড ১২", country: "BD", expected: "Dhaka Mirpur Rod 12" },
+      { text: "서울특별시 강남구", country: "KR", expected: "SeoUlTeugByeolSi GangNamGu" },
+    ])("romanizes $text from $country", ({ text, country, expected }) => {
+      expect(transliterateAddress(text, country)).toBe(expected);
     });
   });
 });

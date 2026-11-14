@@ -30,6 +30,21 @@ export function transliterateName(
   );
 }
 
+export function transliterateAddress(text: string, country: string) {
+  const input = clean(text);
+  if (latin(input)) return input;
+  return input
+    .split(" ")
+    .map((word) => {
+      const out = romanize(word, country, "address");
+      return /[\p{Ll}\p{Lu}]/u.test(word)
+        ? out
+        : out.replaceAll(/(^|-)(\p{Ll})/gu, (_, start: string, first: string) => `${start}${first.toUpperCase()}`);
+    })
+    .filter(Boolean)
+    .join(" ");
+}
+
 function clean(text: string) {
   return text
     .normalize("NFKC")
@@ -38,12 +53,16 @@ function clean(text: string) {
     .trim();
 }
 
-function romanize(text: string, country: string, kind: "name" | "surname") {
+function romanize(text: string, country: string, kind: "address" | "name" | "surname") {
   return text
     .split(/([^\p{L}\p{M}\u200C\u200D]+|\p{Script=Latin}+)/u)
     .map((word) => {
       if (!/\p{L}/u.test(word) || /\p{Script=Latin}/u.test(word)) return anyAscii(word);
-      if (/\p{Script=Han}/u.test(word) && !/[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(word)) {
+      if (
+        kind !== "address" &&
+        /\p{Script=Han}/u.test(word) &&
+        !/[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(word)
+      ) {
         return anyAscii(
           pinyin(word, {
             toneType: "none",
