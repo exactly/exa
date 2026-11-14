@@ -28,11 +28,12 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
   gcTime: isServer ? Infinity : AUTH_EXPIRY,
   queryFn: async () => {
     const method = queryClient.getQueryData<AuthMethod>(["method"]);
-    const owner =
-      method === "siwe"
-        ? getConnection(ownerConfig).address
-        : queryClient.getQueryData<Credential>(["credential"])?.credentialId;
-    if (method === "siwe" && !owner) return queryClient.getQueryData<number>(["auth"]) ?? 0;
+    const current = queryClient.getQueryData<Credential>(["credential"])?.credentialId;
+    const owner = method === "siwe" ? getConnection(ownerConfig).address : current;
+    if (method === "siwe" && (!owner || (current && owner.toLowerCase() !== current.toLowerCase()))) {
+      return queryClient.getQueryData<number>(["auth"]) ?? 0;
+    }
+    const query = queryClient.getQueryCache().find({ queryKey: ["auth"], exact: true });
     const get = await api.auth.authentication.$get({ query: { credentialId: owner } });
     const sessionId = get.headers.get("x-session-id");
     const options = await get.json();
@@ -64,6 +65,7 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
       });
     }
     const { expires, intercomToken, credentialId, factory, x, y, salt } = await post.json();
+    if (queryClient.getQueryCache().find({ queryKey: ["auth"], exact: true }) !== query) return 0;
     queryClient.setQueryData(["credential"], { credentialId, factory, x, y, salt });
     await loginIntercom(deriveAddress(factory, { x, y, salt }), intercomToken, expires);
     return parse(Auth, expires);

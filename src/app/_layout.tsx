@@ -48,6 +48,7 @@ import SplineSansMonoMedium from "../assets/fonts/SplineSansMono-Medium.otf";
 import AppIcon from "../assets/icon.png";
 import ThemeProvider, { isBaseTheme } from "../components/context/ThemeProvider";
 import Error from "../components/shared/Error";
+import WalletSwitchSheet from "../components/shared/WalletSwitchSheet";
 import release from "../generated/release";
 import en from "../i18n/en.json";
 import esAR from "../i18n/es-AR.json";
@@ -296,7 +297,10 @@ function Navigator() {
   useEffect(() => {
     if (!authenticated) {
       if (authenticatedRef.current)
-        queryClient.removeQueries({ predicate: (query) => query.getObserversCount() === 0 });
+        queryClient.removeQueries({
+          predicate: (query) =>
+            query.getObserversCount() === 0 && (query.queryKey[0] !== "auth" || query.state.fetchStatus === "idle"),
+        });
       authenticatedRef.current = false;
       if (!signedRef.current && href.split(/[/#]/)[1])
         queryClient.setQueryData<string>(["deeplink"], (previous) => previous ?? href);
@@ -344,13 +348,16 @@ function Navigator() {
     SplashScreen.hideAsync().catch(reportError);
   }, [ready, isMiniApp]);
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Protected guard={!authenticated}>
-        <Stack.Screen name="(auth)" />
-      </Stack.Protected>
-      <Stack.Protected guard={authenticated}>
-        <Stack.Screen name="(main)" />
-      </Stack.Protected>
-    </Stack>
+    <>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Protected guard={!authenticated}>
+          <Stack.Screen name="(auth)" />
+        </Stack.Protected>
+        <Stack.Protected guard={authenticated}>
+          <Stack.Screen name="(main)" />
+        </Stack.Protected>
+      </Stack>
+      <WalletSwitchSheet />
+    </>
   );
 }

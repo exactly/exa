@@ -7,8 +7,6 @@ import { useRouter } from "expo-router";
 
 import { ScrollView, Separator, XStack } from "tamagui";
 
-import { useDisconnect } from "wagmi";
-
 import { ArrowLeft } from "../../generated/icons/ArrowLeft";
 import { Check } from "../../generated/icons/Check";
 import { HelpCircle } from "../../generated/icons/HelpCircle";
@@ -16,12 +14,9 @@ import { LogOut } from "../../generated/icons/LogOut";
 import { SendHorizontal } from "../../generated/icons/SendHorizontal";
 import release from "../../generated/release";
 import { useSubmitCoverage } from "../../utils/e2e";
-import { logout as logoutIntercom, present } from "../../utils/intercom";
-import { logout as logoutOnesignal } from "../../utils/onesignal";
-import queryClient from "../../utils/queryClient";
+import { present } from "../../utils/intercom";
+import logout from "../../utils/logout";
 import reportError from "../../utils/reportError";
-import { reset as resetSegment } from "../../utils/segment";
-import useAccount from "../../utils/useAccount";
 import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
@@ -29,9 +24,7 @@ import View from "../shared/View";
 
 export default function Settings() {
   const router = useRouter();
-  const { connector } = useAccount();
   const { t } = useTranslation();
-  const { mutate: disconnectAccount } = useDisconnect();
   const { mutate: submitCoverage, isSuccess: coverageSuccess, isError: coverageError } = useSubmitCoverage();
   return (
     <SafeView fullScreen tab>
@@ -75,17 +68,7 @@ export default function Settings() {
               <Separator borderColor="borderNeutralSoft" />
               <Pressable
                 onPress={() => {
-                  if (!connector) return;
-                  Promise.all([queryClient.cancelQueries(), logoutIntercom()])
-                    .then(async () => {
-                      logoutOnesignal();
-                      resetSegment();
-                      queryClient.getMutationCache().clear();
-                      await queryClient.resetQueries({ queryKey: ["credential"] });
-                      queryClient.unmount();
-                      disconnectAccount({ connector });
-                    })
-                    .catch(reportError);
+                  logout().catch(reportError);
                 }}
               >
                 <XStack justifyContent="space-between" alignItems="center" padding="s4">
