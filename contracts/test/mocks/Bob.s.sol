@@ -289,7 +289,7 @@ contract BobScript is BaseScript {
     vm.startBroadcast(bob);
     usdc.mint(bob, 25e6);
     usdc.approve(swapper, 25e6);
-    MockSwapper(swapper)
+    MockSwapper(payable(swapper))
       .startBridgeTokensViaMock(
         BridgeData({
         transactionId: keccak256("bob in"),
