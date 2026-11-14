@@ -101,4 +101,6 @@
   pnpm nx e2e:webauthn e2e --flow=transfer --screen=760x600
   ```
 
+- **dev runs**: against `pnpm nx e2e:web mobile`, a signer target takes `--app=http://localhost:8081` and runs the app with your edits. a browser you drive yourself, for error paths, states no flow reaches or screenshots to share, gets passkeys from a virtual authenticator over cdp (`WebAuthn.addVirtualAuthenticator`, as `biometrics.patch` does) and takes the signer targets' `--host-resolver-rules` and `--ignore-certificate-errors`. it shares nothing with maestro's browser, so it signs up its own account.
+
 @../common/AGENTS.md

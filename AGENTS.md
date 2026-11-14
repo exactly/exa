@@ -115,7 +115,7 @@ extracting a value into a variable and extracting logic into a function are the 
 
 ### philosophy
 
-- **developer experience is paramount**: the project is designed to work out-of-the-box with no environment variables for local development. use mock services and sensible defaults.
+- **the e2e stack is the dev environment**: `pnpm nx e2e:web mobile` runs everything locally with no environment variables: anvil, the contracts, the server with third parties mocked, and the app with hot reload on `localhost:8081`. when the work doesn't touch the app, `pnpm nx e2e:web:release mobile` serves its static build on `localhost:3000` instead, with no bundler running. start it before any task and keep it up. build, debug and verify every change on it the way users do: through maestro flows (`.maestro/AGENTS.md`), and a browser you drive yourself for what flows don't reach. a change nobody saw work there is not done.
 - **strict automation**: rely on `pnpm nx` for task orchestration. all setup, testing, and generation is automated through nx targets.
 - **monorepo integrity**: all commands must run from the repository root. never operate from within a sub-directory. never use `npm` or `yarn`.
 

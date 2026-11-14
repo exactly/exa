@@ -75,7 +75,7 @@
 
 ## development workflow
 
-- **start dev server**: `pnpm nx start mobile`
+- **start dev server**: `pnpm nx e2e:web mobile`
 - **run on platform**: `pnpm nx android mobile`, `pnpm nx ios mobile`, `pnpm nx web mobile`
 
 @../common/AGENTS.md

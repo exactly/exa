@@ -68,7 +68,7 @@
 
 ## development workflow
 
-- **start dev server**: `pnpm nx dev server` (uses `tsx` for hot-reload).
+- **start dev server**: `pnpm nx e2e:web:release mobile` runs the server in the e2e stack, with the app's static build. it doesn't reload, so restart the stack after server changes.
 - **api generation**: `pnpm nx generate:openapi server` to update the openapi spec.
 
 @../common/AGENTS.md
