@@ -242,6 +242,7 @@ describe("authentication", () => {
 
     expect(payload.user_id).toBe(zeroAddress);
     expect(payload.sub).toBe(zeroAddress);
+    expect(payload).not.toHaveProperty("exa_profile");
     expect(payload.exp).toBeGreaterThan(nowInSeconds + 86_000);
     expect(payload.exp).toBeLessThan(nowInSeconds + 86_500);
     expect(sardineCustomer).not.toHaveBeenCalled();
@@ -419,10 +420,11 @@ describe("authentication", () => {
   it("authenticates a credential with a tenant salt regardless of origin", async () => {
     const id = own(parse(Address, slice(keccak256(toBytes("auth:business-authentication")), 12)));
     const factory = parse(Address, exaAccountFactoryAddress);
+    const account = deriveAddress(factory, { x: zeroHash, y: zeroHash, salt: tenant });
     await database.insert(credentials).values({
       id,
       publicKey: new Uint8Array(65),
-      account: deriveAddress(factory, { x: zeroHash, y: zeroHash, salt: tenant }),
+      account,
       factory,
       salt: tenant,
       transports: [],
@@ -456,7 +458,16 @@ describe("authentication", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual(expect.objectContaining({ salt: tenant }));
+    const json = parse(Authentication, await response.json());
+    expect(json).toEqual(expect.objectContaining({ salt: tenant }));
+    assert.ok(json.intercomToken);
+    expect(decodeJwt(json.intercomToken)).toStrictEqual({
+      sub: account,
+      user_id: account,
+      exa_profile: "business",
+      iat: expect.any(Number) as unknown,
+      exp: expect.any(Number) as unknown,
+    });
     await expect(redis.exists("session:test-session")).resolves.toBe(0);
   });
 
@@ -809,6 +820,7 @@ describe("authentication", () => {
     expect(decodeJwt(json.intercomToken)).toStrictEqual({
       sub: credential.account,
       user_id: credential.account,
+      exa_profile: "business",
       iat: expect.any(Number) as unknown,
       exp: expect.any(Number) as unknown,
     });
@@ -1431,6 +1443,7 @@ describe("registration", () => {
     expect(decodeJwt(json.intercomToken)).toStrictEqual({
       sub: credential.account,
       user_id: credential.account,
+      exa_profile: "business",
       iat: expect.any(Number) as unknown,
       exp: expect.any(Number) as unknown,
     });
