@@ -41,6 +41,7 @@ import {
   exaPluginAddress,
   exaPreviewerAbi,
   firewallAbi,
+  marketAbi,
   proposalManagerAbi,
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
@@ -145,6 +146,12 @@ describe("indexer source", () => {
     await keeper.waitForTransactionReceipt({
       hash: await keeper.writeContract({ address: account, abi: exaPluginAbi, functionName: "poke", args: [market] }),
     });
+    const held = await target.readContract({
+      address: market,
+      abi: marketAbi,
+      functionName: "maxWithdraw",
+      args: [account],
+    });
     const { timestamp } = await target.getBlock();
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(Number(timestamp - 666n) * 1000);
@@ -166,7 +173,7 @@ describe("indexer source", () => {
         encodeFunctionData({
           abi: exaPluginAbi,
           functionName: "propose",
-          args: [market, amount, ProposalType.Withdraw, encodeAbiParameters([{ type: "address" }], [receiver])],
+          args: [market, held, ProposalType.Withdraw, encodeAbiParameters([{ type: "address" }], [receiver])],
         }),
       ],
       gas: 6_666_666n,
@@ -177,23 +184,24 @@ describe("indexer source", () => {
     cursor.mockRestore();
     await target.setAutomine(true);
     const receipt = await target.waitForTransactionReceipt({ hash });
-    expect(receipt.status).toBe("success");
+    expect(receipt).toMatchObject({ status: "success" });
     const [proposed] = parseEventLogs({ abi: proposalManagerAbi, eventName: "Proposed", logs: receipt.logs });
+    if (!proposed) throw new Error("missing proposal");
 
     await vi.waitUntil(
       async () =>
         (await target.readContract({ address: asset, abi: erc20Abi, functionName: "balanceOf", args: [receiver] })) ===
-        amount,
+        held,
       { timeout: 30_000, interval: 200 },
     );
     await expect(
       target.readContract({
-        address: parse(Address, proposed?.address),
+        address: proposed.address,
         abi: proposalManagerAbi,
         functionName: "nonces",
         args: [account],
       }),
-    ).resolves.toBeGreaterThan(proposed?.args.nonce ?? 0n);
+    ).resolves.toBeGreaterThan(proposed.args.nonce);
     await vi.waitUntil(() => queued().then((proposals) => proposals.length === 0), { timeout: 30_000, interval: 200 });
     expect(captured(account)).toStrictEqual([]);
   });
