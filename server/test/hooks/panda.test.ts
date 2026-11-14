@@ -6,9 +6,10 @@ import "../mocks/sentry";
 import "../mocks/wallet";
 
 import { captureException, captureMessage, getClient, setTag, setUser, spanToJSON, startSpan } from "@sentry/node";
+import { serialize } from "@wagmi/core";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
-import { parse } from "valibot";
+import { array, looseObject, number, object, optional, parse, string } from "valibot";
 import {
   BaseError,
   ContractFunctionExecutionError,
@@ -16,6 +17,7 @@ import {
   createPublicClient,
   createWalletClient,
   decodeEventLog,
+  decodeFunctionData,
   encodeAbiParameters,
   encodeErrorResult,
   encodeFunctionData,
@@ -25,6 +27,7 @@ import {
   http,
   keccak256,
   padHex,
+  toBytes,
   toFunctionSelector,
   toHex,
   zeroAddress,
@@ -66,9 +69,11 @@ import { proposalManager } from "@exactly/plugin/deploy.json";
 import database, { cards, credentials, transactions } from "../../database";
 import createPandaHook from "../../hooks/panda";
 import t, { f } from "../../i18n";
+import remember, { key as liquidity } from "../../utils/liquidity";
 import createOnesignal from "../../utils/onesignal";
 import createPanda, * as Panda from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
+import redis from "../../utils/redis";
 import createSardine from "../../utils/sardine";
 import createSegment from "../../utils/segment";
 import traceClient, { type CallFrame } from "../../utils/traceClient";
@@ -97,6 +102,7 @@ const dependencies = {
   issuer,
   onesignal: createOnesignal("onesignal"),
   panda,
+  redis,
   refund,
   sardine: createSardine(sardineConfig.key, sardineConfig.url),
   segment: createSegment("segment"),
@@ -1262,16 +1268,23 @@ describe("card operations", () => {
         const feedback = vi.spyOn(sardine, "feedback");
         const pending: (() => unknown)[] = [];
         let appended: Promise<unknown> | undefined;
+        const sent = Promise.withResolvers<boolean>();
         // @ts-expect-error mock implementation
         vi.spyOn(keeper, "exaSend").mockImplementation(async (...args) => {
           const hash = amountHash(args[1].args?.[0] as bigint);
           pending.push(() => args[2]?.onHash?.(hash));
+          sent.resolve(true);
           if (pending.length === attempts.length)
             appended = Promise.all([...pending, ...pending].map((append) => append()));
           await appended;
         });
 
-        const responses = await Promise.all(attempts.map((json) => appClient.index.$post({ ...authorization, json })));
+        const responses = await Promise.all(
+          attempts.map(async (json, index) => {
+            if (index > 0) await sent.promise;
+            return appClient.index.$post({ ...authorization, json });
+          }),
+        );
         const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
         const bodies = new Map<string, unknown>(
           [existing, ...attempts.map((json) => ({ ...json, createdAt: authorizedAt, chainId: chain.id }))].map(
@@ -3813,6 +3826,799 @@ describe("multi-chain", () => {
   }
 });
 
+describe("partial", () => {
+  const remote = alchemyChains.get(moonbeamDev.id) as Chain;
+  const remoteClient = createPublicClient({ chain: remote, transport: http() });
+  const remoteKeeper = wallet(privateKeyToAccount(padHex("0x69")), remote);
+  const clients = new Map([
+    [chain.id, createPublicClient({ chain, transport: http() })],
+    [remote.id, remoteClient],
+  ]);
+
+  it("authorizes and collects debit split across networks", async () => {
+    const user = await prepare("split");
+    await recall(user);
+
+    await expect(purchase(user, 15_000).then(({ status }) => status)).resolves.toBe(200);
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(200);
+
+    const collections = await collected(user.cardId);
+    expect(collections.map(({ chainId }) => chainId).toSorted()).toStrictEqual([chain.id, remote.id].toSorted());
+    expect(collections.reduce((total, { amount }) => total + amount, 0n)).toBe(150_000_000n);
+    expect(collections.every(({ amount, recorded }) => amount > 0n && recorded === amount)).toBe(true);
+    expect(segment.track).toHaveBeenCalledWith(
+      expect.objectContaining({ event: "TransactionAuthorized", userId: user.account }),
+    );
+    expect(hookQueue.enqueue.mock.calls.filter(([{ receipt }]) => receipt)).toStrictEqual([
+      [
+        {
+          account: user.account,
+          receipt: { blockNumber: expect.any(Number) as number, transactionHash: expect.any(String) as string },
+        },
+        authorization.json.id,
+      ],
+    ]);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("authorizes and collects credit split across networks", async () => {
+    const user = await prepare("credit-split", 1);
+    await recall(user);
+
+    await expect(purchase(user, 15_000).then(({ status }) => status)).resolves.toBe(200);
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(200);
+
+    const collections = await collected(user.cardId);
+    expect(collections.map(({ chainId }) => chainId).toSorted()).toStrictEqual([chain.id, remote.id].toSorted());
+    expect(collections.reduce((total, { amount }) => total + amount, 0n)).toBe(150_000_000n);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("authorizes a split without transaction id", async () => {
+    const user = await prepare("anonymous");
+    await recall(user);
+
+    const response = await appClient.index.$post({
+      ...authorization,
+      json: {
+        ...authorization.json,
+        body: {
+          ...authorization.json.body,
+          id: undefined,
+          spend: {
+            ...authorization.json.body.spend,
+            amount: 15_000,
+            authorizedAt: user.authorizedAt,
+            cardId: user.cardId,
+            userId: user.user,
+          },
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("signs split parts apart from full purchases of the same second", async () => {
+    const user = await prepare("apart");
+    await recall(user);
+    await purchase(user, 15_000);
+    vi.mocked(Panda.signIssuerOp).mockClear();
+
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(200);
+
+    const authorized = Math.floor(new Date(user.authorizedAt).getTime() / 1000);
+    const stamps = vi
+      .mocked(Panda.signIssuerOp)
+      .mock.calls.filter(([{ amount }]) => amount !== 150_000_000n)
+      .map(([{ timestamp }]) => timestamp);
+    expect(stamps).toHaveLength(2);
+    expect(stamps.every((timestamp) => timestamp < authorized && timestamp > authorized - 3600)).toBe(true);
+  });
+
+  it("keeps retried split collection", async () => {
+    const user = await prepare("retry");
+    await recall(user);
+    await purchase(user, 15_000);
+    await purchase(user, 15_000, "created");
+    const before = await database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) });
+
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(200);
+
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) }),
+    ).resolves.toStrictEqual(before);
+    expect(vi.mocked(captureException).mock.calls.map(([, hint]) => hint)).toStrictEqual([
+      { level: "error", fingerprint: ["{{ default }}", "Replay"] },
+    ]);
+  });
+
+  it("completes split collection when a landed part lost its record", async () => {
+    const user = await prepare("lost");
+    await recall(user);
+    await purchase(user, 15_000);
+    await purchase(user, 15_000, "created");
+    const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) });
+    const { bodies } = parse(Bodies, transaction?.payload);
+    await database
+      .update(transactions)
+      .set({ hashes: transaction?.hashes.slice(0, 1), payload: { type: "panda", bodies: bodies.slice(0, 1) } })
+      .where(eq(transactions.id, user.cardId));
+
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(200);
+
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) }),
+    ).resolves.toMatchObject({ hashes: transaction?.hashes.slice(0, 1) });
+    expect(vi.mocked(captureException).mock.calls.map(([, hint]) => hint)).toStrictEqual([
+      { level: "error", fingerprint: ["{{ default }}", "Replay"] },
+    ]);
+  });
+
+  it("reuses the split plan when every record is lost", async () => {
+    const user = await prepare("forgotten");
+    await recall(user);
+    await purchase(user, 15_000);
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(200);
+    await database.delete(transactions).where(eq(transactions.id, user.cardId));
+
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(200);
+
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) }),
+    ).resolves.toBeUndefined();
+    expect(vi.mocked(captureException).mock.calls.map(([, hint]) => hint)).toStrictEqual([
+      { level: "error", fingerprint: ["{{ default }}", "Replay"] },
+    ]);
+  });
+
+  it("reuses the split plan when a settlement finds no record", async () => {
+    const user = await prepare("settled");
+    await recall(user);
+    await purchase(user, 15_000);
+    await purchase(user, 15_000, "created");
+    await database.delete(transactions).where(eq(transactions.id, user.cardId));
+
+    const response = await appClient.index.$post({
+      ...authorization,
+      json: {
+        ...authorization.json,
+        action: "completed",
+        id: "fedcba-654321",
+        body: {
+          ...authorization.json.body,
+          id: user.cardId,
+          spend: {
+            ...authorization.json.body.spend,
+            amount: 15_000,
+            authorizedAmount: 15_000,
+            authorizedAt: user.authorizedAt,
+            postedAt: new Date().toISOString(),
+            cardId: user.cardId,
+            status: "completed",
+            userId: user.user,
+          },
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("replays a recovered single network plan when the settlement amount differs", async () => {
+    const user = await prepare("resettled");
+    await recall(user);
+    await purchase(user, 5000);
+    await purchase(user, 5000, "created");
+    await database.delete(transactions).where(eq(transactions.id, user.cardId));
+
+    const response = await appClient.index.$post({
+      ...authorization,
+      json: {
+        ...authorization.json,
+        action: "completed",
+        id: "fedcba-654321",
+        body: {
+          ...authorization.json.body,
+          id: user.cardId,
+          spend: {
+            ...authorization.json.body.spend,
+            amount: 6000,
+            authorizedAmount: 5000,
+            authorizedAt: user.authorizedAt,
+            postedAt: new Date().toISOString(),
+            cardId: user.cardId,
+            status: "completed",
+            userId: user.user,
+          },
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    const collections = await collected(user.cardId);
+    expect(collections.reduce((total, { amount }) => total + amount, 0n)).toBe(10_000_000n);
+  });
+
+  it("skips a settlement planned before the authorization claimed", async () => {
+    const user = await prepare("overlapped");
+    await recall(user);
+    await purchase(user, 5000);
+    await purchase(user, 5000, "created");
+    await database.delete(transactions).where(eq(transactions.id, user.cardId));
+    vi.spyOn(redis, "hgetall").mockResolvedValueOnce({});
+
+    const response = await appClient.index.$post({
+      ...authorization,
+      json: {
+        ...authorization.json,
+        action: "completed",
+        id: "fedcba-654321",
+        body: {
+          ...authorization.json.body,
+          id: user.cardId,
+          spend: {
+            ...authorization.json.body.spend,
+            amount: 5000,
+            authorizedAmount: 5000,
+            authorizedAt: user.authorizedAt,
+            postedAt: new Date().toISOString(),
+            cardId: user.cardId,
+            status: "completed",
+            userId: user.user,
+          },
+        },
+      },
+    });
+
+    expect(response.status).toBe(569);
+    await expect(response.text()).resolves.toBe("plan changed");
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("skips an authorization already collected by a force capture", async () => {
+    const user = await prepare("forced");
+    await recall(user);
+    await purchase(user, 15_000);
+    await expect(
+      appClient.index
+        .$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "completed",
+            id: "fedcba-654321",
+            body: {
+              ...authorization.json.body,
+              id: user.cardId,
+              spend: {
+                ...authorization.json.body.spend,
+                amount: 15_000,
+                authorizedAmount: 15_000,
+                authorizedAt: user.authorizedAt,
+                postedAt: new Date().toISOString(),
+                cardId: user.cardId,
+                status: "completed",
+                userId: user.user,
+              },
+            },
+          },
+        })
+        .then(({ status }) => status),
+    ).resolves.toBe(200);
+
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(200);
+
+    const collections = await collected(user.cardId);
+    expect(collections.reduce((total, { amount }) => total + amount, 0n)).toBe(150_000_000n);
+  });
+
+  it("skips collection when another plan was saved meanwhile", async () => {
+    const user = await prepare("raced");
+    await recall(user);
+    await purchase(user, 15_000);
+    await redis.hset(
+      `split:${user.cardId}`,
+      `created:${authorization.json.id}`,
+      JSON.stringify([{ chainId: chain.id, collected: "150000000" }]),
+    );
+    vi.spyOn(redis, "hgetall").mockResolvedValueOnce({});
+
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(569);
+
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("skips a single network collection when another plan was saved meanwhile", async () => {
+    const user = await prepare("overtaken");
+    await recall(user);
+    await purchase(user, 5000);
+    await redis.hset(
+      `split:${user.cardId}`,
+      `created:${authorization.json.id}`,
+      JSON.stringify([
+        { chainId: chain.id, collected: "25000000" },
+        { chainId: remote.id, collected: "25000000" },
+      ]),
+    );
+    vi.spyOn(redis, "hgetall").mockResolvedValueOnce({});
+
+    await expect(purchase(user, 5000, "created").then(({ status }) => status)).resolves.toBe(569);
+
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("keeps a claimed part that no longer covers", async () => {
+    const user = await prepare("pinned");
+    await recall(user);
+    await purchase(user, 15_000);
+    await redis.hset(`split:${user.cardId}`, {
+      [`created:${authorization.json.id}`]: JSON.stringify([{ chainId: chain.id, collected: "150000000" }]),
+      version: "1",
+    });
+
+    const response = await purchase(user, 15_000, "created");
+
+    expect(response.status).toBe(569);
+    await expect(response.text()).resolves.toContain("InsufficientAccountLiquidity");
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("skips collection when the plan is out of reach", async () => {
+    const user = await prepare("unplanned");
+    await recall(user);
+    await purchase(user, 15_000);
+    vi.spyOn(redis, "hgetall").mockRejectedValueOnce(new Error("redis failure"));
+
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(500);
+
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("skips collection when the plan read stalls", async () => {
+    const user = await prepare("stalled");
+    await recall(user);
+    await purchase(user, 15_000);
+    vi.spyOn(redis, "hgetall").mockReturnValueOnce(new Promise(() => undefined));
+
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(500);
+
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("skips collection when the plan write stalls", async () => {
+    const user = await prepare("unsaved");
+    await recall(user);
+    await purchase(user, 15_000);
+    vi.spyOn(redis, "eval").mockReturnValueOnce(new Promise(() => undefined));
+
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(569);
+
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("retries a recorded part that never landed on its network", async () => {
+    const user = await prepare("unlanded");
+    const body = {
+      ...authorization.json.body,
+      id: user.cardId,
+      spend: {
+        ...authorization.json.body.spend,
+        amount: 15_000,
+        authorizedAt: user.authorizedAt,
+        cardId: user.cardId,
+        userId: user.user,
+      },
+    };
+    await database.insert(transactions).values([
+      {
+        id: user.cardId,
+        cardId: user.cardId,
+        hashes: [zeroHash],
+        payload: {
+          type: "panda",
+          bodies: [{ ...authorization.json, action: "created", body, chainId: chain.id, collected: "75000000" }],
+        },
+      },
+    ]);
+
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(200);
+
+    const collections = await collected(user.cardId);
+    expect(collections.slice(1).toSorted((a, b) => a.chainId - b.chainId)).toStrictEqual(
+      [
+        { amount: 75_000_000n, chainId: chain.id, recorded: 75_000_000n },
+        { amount: 75_000_000n, chainId: remote.id, recorded: 75_000_000n },
+      ].toSorted((a, b) => a.chainId - b.chainId),
+    );
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("counts a landed part recorded twice once", async () => {
+    const user = await prepare("twice");
+    const authorized = Math.floor(new Date(user.authorizedAt).getTime() / 1000);
+    const part = authorized - Number(BigInt(keccak256(toBytes(user.cardId))) % 3600n);
+    await expect(
+      purchase({ ...user, authorizedAt: new Date(part * 1000).toISOString() }, 7500, "created").then(
+        ({ status }) => status,
+      ),
+    ).resolves.toBe(200);
+    const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) });
+    const [first] = parse(Bodies, transaction?.payload).bodies;
+    const body = {
+      ...authorization.json,
+      action: "created",
+      body: {
+        ...authorization.json.body,
+        id: user.cardId,
+        spend: {
+          ...authorization.json.body.spend,
+          amount: 15_000,
+          authorizedAt: user.authorizedAt,
+          cardId: user.cardId,
+          userId: user.user,
+        },
+      },
+      chainId: first?.chainId,
+      collected: "75000000",
+    };
+    await database
+      .update(transactions)
+      .set({
+        hashes: [transaction?.hashes[0] ?? zeroHash, transaction?.hashes[0] ?? zeroHash],
+        payload: { type: "panda", bodies: [body, body] },
+      })
+      .where(eq(transactions.id, user.cardId));
+
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(200);
+
+    const collections = await collected(user.cardId);
+    expect(collections.slice(2)).toStrictEqual([
+      { amount: 75_000_000n, chainId: first?.chainId === chain.id ? remote.id : chain.id, recorded: 75_000_000n },
+    ]);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("skips collection when a split part fails", async () => {
+    const user = await prepare("overrated");
+    await recall(user);
+    const { traceCall } = traceClient;
+    let drained = false;
+    vi.spyOn(traceClient, "traceCall").mockImplementation(async (parameters) => {
+      if (
+        !drained &&
+        parameters.to === user.account &&
+        parameters.data &&
+        decodeFunctionData({ abi: exaPluginAbi, data: parameters.data }).args[0] !== 190_000_000n
+      ) {
+        drained = true;
+        const timestamp = Math.floor(Date.now() / 1000);
+        await keeper.exaSend(
+          { name: "drain", op: "exa.collect" },
+          {
+            address: user.account,
+            abi: exaPluginAbi,
+            functionName: "collectDebit",
+            args: [
+              60_000_000n,
+              BigInt(timestamp),
+              await Panda.signIssuerOp({ account: user.account, amount: 60_000_000n, timestamp }, issuer),
+            ],
+          },
+        );
+      }
+      return traceCall(parameters);
+    });
+
+    const response = await purchase(user, 19_000, "created");
+
+    expect(response.status).toBe(569);
+    await expect(response.text()).resolves.toBe("bad collection");
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) }),
+    ).resolves.toBeUndefined();
+    expect(captureException).toHaveBeenCalledWith(
+      new Error("bad collection"),
+      expect.objectContaining({ level: "fatal" }),
+    );
+  });
+
+  it("fails collection when a split part replays and another fails", async () => {
+    const user = await prepare("replayed");
+    await recall(user);
+    const failure = new Error("receipt timeout");
+    const failures = [
+      new ContractFunctionExecutionError(
+        new ContractFunctionRevertedError({
+          abi: issuerCheckerAbi,
+          functionName: "collectDebit",
+          data: encodeErrorResult({ abi: issuerCheckerAbi, errorName: "Replay" }),
+        }),
+        { abi: exaPluginAbi, functionName: "collectDebit", args: [] },
+      ),
+      failure,
+    ];
+    const reject = () => Promise.reject(failures.shift() ?? new Error("unexpected collection"));
+    const hook = createPandaHook(dependencies);
+    await hook.ready;
+    const { calls, results } = vi.mocked(wallet).mock;
+    vi.spyOn(keeper, "exaSend").mockImplementationOnce(reject);
+    vi.spyOn(
+      results.findLast((_, index) => calls[index]?.[1]?.id === remote.id)?.value as typeof keeper,
+      "exaSend",
+    ).mockImplementationOnce(reject);
+
+    const response = await testClient(hook.app).index.$post({
+      ...authorization,
+      json: {
+        ...authorization.json,
+        action: "created",
+        body: {
+          ...authorization.json.body,
+          id: user.cardId,
+          spend: {
+            ...authorization.json.body.spend,
+            amount: 15_000,
+            authorizedAt: user.authorizedAt,
+            cardId: user.cardId,
+            userId: user.user,
+          },
+        },
+      },
+    });
+
+    expect(failures).toStrictEqual([]);
+    expect(response.status).toBe(569);
+    expect(captureException).toHaveBeenCalledWith(failure, expect.objectContaining({ level: "fatal" }));
+  });
+
+  it("declines when a part does not cover", async () => {
+    const user = await prepare("stale");
+    const [, positions] = await recall(user);
+    await redis.hset(
+      liquidity(user.user),
+      String(remote.id),
+      serialize(
+        positions.map((position) =>
+          position.market === parse(Address, marketUSDCAddress)
+            ? { ...position, floatingDepositAssets: 180_000_000n }
+            : position,
+        ),
+      ),
+    );
+
+    const response = await purchase(user, 19_000);
+
+    expect(response.status).toBe(557);
+    await expect(response.json()).resolves.toStrictEqual({
+      code: "InsufficientAccountLiquidity",
+      rejectionCode: "INSUFFICIENT_FUNDS",
+    });
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("declines when a split network fails", async () => {
+    const user = await prepare("broken");
+    await recall(user);
+    const failure = new Error("trace failure");
+    vi.spyOn(traceClient, "traceCall").mockRejectedValueOnce(failure);
+
+    const response = await purchase(user, 15_000);
+
+    expect(response.status).toBe(569);
+    expect(captureException).toHaveBeenCalledWith(failure, { level: "warning", tags: { chainId: chain.id } });
+    expect(captureException).toHaveBeenCalledWith(new Error("network failure"));
+  });
+
+  it("races every network when a snapshot is unreadable", async () => {
+    const user = await prepare("unreadable");
+    await recall(user);
+    await redis.hset(liquidity(user.user), String(chain.id), "bad");
+
+    const response = await purchase(user, 15_000);
+
+    expect(response.status).toBe(557);
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(SyntaxError), { level: "warning" });
+  });
+
+  it("races every network when snapshots are out of reach", async () => {
+    const user = await prepare("unreachable");
+    await recall(user);
+    const failure = new Error("redis failure");
+    vi.spyOn(redis, "hgetall").mockRejectedValueOnce(failure);
+
+    const response = await purchase(user, 15_000);
+
+    expect(response.status).toBe(557);
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(failure, { level: "warning" });
+  });
+
+  it("races every network when snapshots are too slow", async () => {
+    const user = await prepare("slow");
+    await recall(user);
+    vi.spyOn(redis, "hgetall").mockReturnValueOnce(new Promise(() => undefined));
+
+    const response = await purchase(user, 15_000);
+
+    expect(response.status).toBe(557);
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("liquidity timeout"), { level: "warning" });
+  });
+
+  it("races every network when snapshots exceed the amount", async () => {
+    const user = await prepare("short");
+    await recall(user);
+
+    const response = await purchase(user, 25_000);
+
+    expect(response.status).toBe(557);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("fails collection when a snapshot cannot be refreshed", async () => {
+    const user = await prepare("forgetful");
+    const failure = new Error("redis failure");
+    vi.spyOn(redis, "hset").mockRejectedValueOnce(failure);
+
+    const response = await purchase(user, 15_000, "created");
+
+    expect(response.status).toBe(569);
+    expect(captureException).toHaveBeenCalledWith(failure, {
+      level: "warning",
+      tags: { chainId: expect.any(Number) as number },
+    });
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("fails collection when a snapshot write stalls", async () => {
+    const user = await prepare("stalled");
+    vi.spyOn(redis, "hset").mockReturnValueOnce(new Promise(() => undefined) as never);
+
+    const response = await purchase(user, 15_000, "created");
+
+    expect(response.status).toBe(569);
+    expect(captureException).toHaveBeenCalledWith(new Error("snapshot timeout"), {
+      level: "warning",
+      tags: { chainId: expect.any(Number) as number },
+    });
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("reports snapshot failures after collection", async () => {
+    const user = await prepare("receipt");
+    const failure = new Error("redis failure");
+    const hset = vi.spyOn(redis, "hset").mockRejectedValue(failure);
+    onTestFinished(() => hset.mockRestore());
+
+    await expect(purchase(user, 5000, "created").then(({ status }) => status)).resolves.toBe(200);
+
+    const [collection] = await collected(user.cardId);
+    await vi.waitFor(() =>
+      expect(captureException).toHaveBeenCalledWith(failure, {
+        level: "warning",
+        tags: { chainId: collection?.chainId },
+      }),
+    );
+  });
+
+  async function prepare(name: string, mode = 0) {
+    const signer = privateKeyToAccount(generatePrivateKey());
+    const address = deriveAddress(exaAccountFactoryAddress, { x: padHex(signer.address), y: zeroHash });
+    const user = {
+      account: address,
+      authorizedAt: new Date().toISOString(),
+      cardId: `${name}-${address}`,
+      user: `${name}-${address}`,
+    };
+    await database.insert(credentials).values([
+      {
+        id: address,
+        publicKey: new Uint8Array(),
+        account: address,
+        factory: exaAccountFactoryAddress,
+        pandaId: user.user,
+      },
+    ]);
+    await database
+      .insert(cards)
+      .values([{ id: user.cardId, credentialId: address, tenant: "OP", lastFour: "3000", mode }]);
+    const create = {
+      address: exaAccountFactoryAddress,
+      abi: exaAccountFactoryAbi,
+      functionName: "createAccount",
+      args: [0n, [{ x: hexToBigInt(signer.address), y: 0n }]],
+    } as const;
+    const mint = {
+      address: usdcAddress,
+      abi: mockERC20Abi,
+      functionName: "mint",
+      args: [address, 100_000_000n],
+    } as const;
+    const poke = { address, abi: exaPluginAbi, functionName: "poke", args: [marketUSDCAddress] } as const;
+    await Promise.all([
+      keeper.exaSend({ name: "create account", op: "exa.account" }, create),
+      remoteKeeper.exaSend(
+        { name: "allow", op: "exa.firewall" },
+        {
+          address: await remoteKeeper
+            .readContract({
+              address: parse(Address, networks.get(remote.id)?.exaPreviewer),
+              abi: exaPreviewerAbi,
+              functionName: "discover",
+              args: [[]],
+            })
+            .then(({ firewall }) => firewall),
+          abi: firewallAbi,
+          functionName: "allow",
+          args: [address, true],
+        },
+      ),
+    ]);
+    await Promise.all([
+      keeper.exaSend({ name: "mint usdc", op: "tx.mint" }, mint),
+      remoteKeeper.exaSend({ name: "create account", op: "exa.account" }, create),
+    ]);
+    await Promise.all([
+      keeper.exaSend({ name: "poke", op: "exa.poke" }, poke),
+      remoteKeeper.exaSend({ name: "mint usdc", op: "tx.mint" }, mint),
+    ]);
+    await remoteKeeper.exaSend({ name: "poke", op: "exa.poke" }, poke);
+    onTestFinished(() => Panda.getMutex(address)?.release());
+    return user;
+  }
+
+  function recall({ account: address, user }: { account: Address; user: string }) {
+    return Promise.all([remember(redis, user, address, chain.id), remember(redis, user, address, remote.id)]);
+  }
+
+  async function collected(cardId: string) {
+    const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
+    const { bodies } = parse(Bodies, transaction?.payload);
+    return Promise.all(
+      bodies.map(async ({ chainId, collected: recorded }, index) => {
+        const hash = transaction?.hashes[index] as Hex;
+        const client = clients.get(chainId);
+        return {
+          amount:
+            hash === zeroHash || !client
+              ? 0n
+              : usdcToAddress(
+                  await client.waitForTransactionReceipt({ hash, confirmations: 0 }),
+                  Panda.collectors(chainId)[0],
+                ),
+          chainId,
+          recorded: recorded === undefined ? undefined : BigInt(recorded),
+        };
+      }),
+    );
+  }
+});
+
+const Bodies = object({
+  bodies: array(looseObject({ chainId: number(), collected: optional(string()) })),
+});
+
 describe("card notification", () => {
   beforeAll(async () => {
     await database.update(credentials).set({ pandaId: "cred" }).where(eq(credentials.id, "cred"));
@@ -5417,6 +6223,25 @@ describe("webhooks", () => {
   });
 });
 
+function purchase(
+  { authorizedAt, cardId, user }: { authorizedAt: string; cardId: string; user: string },
+  amount: number,
+  action: "created" | "requested" = "requested",
+) {
+  return appClient.index.$post({
+    ...authorization,
+    json: {
+      ...authorization.json,
+      action,
+      body: {
+        ...authorization.json.body,
+        id: cardId,
+        spend: { ...authorization.json.body.spend, amount, authorizedAt, cardId, userId: user },
+      },
+    },
+  });
+}
+
 const authorization = {
   header: { signature: "panda-signature" },
   json: {
@@ -5723,8 +6548,9 @@ vi.mock("debug", () => {
   return { default: createDebug };
 });
 
-afterEach(() => {
+afterEach(async () => {
   vi.restoreAllMocks();
+  await redis.del(liquidity(authorization.json.body.spend.userId));
 });
 
 function amountHash(amount: bigint) {
