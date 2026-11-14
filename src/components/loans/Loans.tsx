@@ -11,8 +11,8 @@ import CreditLine from "./CreditLine";
 import { ArrowLeft } from "../../generated/icons/ArrowLeft";
 import { CircleHelp } from "../../generated/icons/CircleHelp";
 import { presentArticle } from "../../utils/intercom";
-import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import { refreshActivity } from "../../utils/server";
 import useAsset from "../../utils/useAsset";
 import useMarkets from "../../utils/useMarkets";
 import PaymentSheet from "../pay/PaymentSheet";
@@ -41,14 +41,7 @@ export default function Loans() {
           showsVerticalScrollIndicator={false}
           flex={1}
           refreshControl={
-            <RefreshControl
-              onRefresh={() =>
-                Promise.all([
-                  account ? refetch() : undefined,
-                  queryClient.invalidateQueries({ queryKey: ["activity"], exact: true }),
-                ])
-              }
-            />
+            <RefreshControl onRefresh={() => Promise.all([account ? refetch() : undefined, refreshActivity()])} />
           }
         >
           <>
