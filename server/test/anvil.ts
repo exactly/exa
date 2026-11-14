@@ -1,3 +1,4 @@
+import { Semaphore } from "async-mutex";
 import { $ } from "execa";
 import { spawn } from "node:child_process";
 import { readdir, readFile } from "node:fs/promises";
@@ -45,11 +46,13 @@ export default async function setup() {
       codeSizeLimit: 69_000,
       blockBaseFeePerGas: 1n,
       chainId: id,
-      port: Number(new URL(rpcUrls.default.http[0]).port) + (env.NODE_ENV === "e2e" ? 1 : 0),
+      ...(env.NODE_ENV !== "e2e" && { noMining: true }),
+      port: Number(new URL(rpcUrls.default.http[0]).port) + 1,
     }),
   );
   await Promise.all(instances.map((instance) => instance.start()));
   const rpcs = env.NODE_ENV === "e2e" ? chains.map((chain) => alchemy(chain)) : [];
+  const miners = env.NODE_ENV === "e2e" ? [] : chains.map((chain) => miner(chain));
   const docker = env.NODE_ENV === "e2e" && !env.CI && (await $`docker info`.then(() => true).catch(() => false));
   if (docker) {
     await $({ cwd: "test" })`docker compose down`;
@@ -332,6 +335,7 @@ export default async function setup() {
   return async function teardown() {
     if (docker) await $({ cwd: "test" })`docker compose down`;
     await Promise.all(rpcs.map((rpc) => rpc.stop()));
+    for (const server of miners) server.close();
     await Promise.all(instances.map((instance) => instance.stop()));
   };
 }
@@ -391,6 +395,45 @@ const Protocol = object({
     object({ transactionType: literal("CREATE"), contractName: literal("ERC1967Proxy"), contractAddress: Address }),
   ]),
 });
+
+function miner(chain: (typeof chains)[number]) {
+  const port = Number(new URL(chain.rpcUrls.default.http[0]).port);
+  const agent = new Agent({ keepAlive: true });
+  const client = createTestClient({ chain, mode: "anvil", transport: http(`http://localhost:${port + 1}`) });
+  const readers = 256;
+  const lock = new Semaphore(readers);
+  const forward = (body: string) =>
+    new Promise<string>((resolve, reject) => {
+      request(
+        { port: port + 1, method: "POST", headers: { "content-type": "application/json" }, agent },
+        (upstream) => {
+          text(upstream).then(resolve, reject);
+        },
+      )
+        .on("error", reject)
+        .end(body);
+    });
+  return createServer((incoming, outgoing) => {
+    text(incoming)
+      .then((body) => {
+        const methods = [JSON.parse(body) as { method: string } | { method: string }[]]
+          .flat()
+          .map(({ method }) => method);
+        const sends = methods.some((method) => method.startsWith("eth_send"));
+        return methods.some((method) => /^(?:eth_send|anvil_|evm_)/.test(method))
+          ? lock.runExclusive(async () => {
+              const response = await forward(body);
+              if (!sends) return response;
+              const { pending } = await client.getTxpoolStatus(); // cspell:ignore txpool
+              if (pending > 0) await client.mine({ blocks: 1 });
+              return response;
+            }, readers)
+          : lock.runExclusive(() => forward(body));
+      })
+      .then((response) => outgoing.writeHead(200, { "content-type": "application/json" }).end(response))
+      .catch((error: unknown) => outgoing.writeHead(502).end(String(error)));
+  }).listen(port);
+}
 
 function alchemy(chain: (typeof chains)[number]) {
   const port = Number(new URL(chain.rpcUrls.default.http[0]).port);
