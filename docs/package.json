@@ -15,7 +15,7 @@
     "node": "^24.14.1"
   },
   "devDependencies": {
-    "@astrojs/starlight": "^0.41.3",
+    "@astrojs/starlight": "^0.42.11",
     "@eslint/markdown": "^8.0.3",
     "@exactly/common": "workspace:^0.0.26",
     "@exactly/server": "workspace:^0.3.2",
