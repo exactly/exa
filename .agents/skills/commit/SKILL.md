@@ -155,7 +155,7 @@ never commit a message that keeps the `# Conflicts:` list or other comment lines
 
 every commit belongs to the developer operating the agent. they are its author, and the agent leaves no trace of itself: no agent or company name as author, committer, co-author, or anywhere else in the commit.
 
-rebasing never takes authorship away: each commit keeps its original author. when the developer reworks someone else's commit along the way, the agent may add the developer as co-author.
+rebasing never takes authorship away: each commit keeps its original author. when the developer reworks someone else's commit along the way, the agent may add the developer as co-author, in a lowercase `co-authored-by:` trailer.
 
 in a local session, every commit carries the developer's signature (`git commit -S`, never `--no-gpg-sign`). a failed signature means no commit: show the error, let the developer unlock their key, and retry. nothing moves on while a local commit is unsigned.
 
@@ -335,6 +335,7 @@ rules for messages:
   - ✅ `user profile` ❌ `UserProfile` ❌ `user_profile`
   - ✅ `rate-limit middleware` ❌ `rateLimitMiddleware`
 - **the project's words** — name things the way the code and the docs do, never with outside jargon or a different spelling
+- **plain words** — spelled out and literal: `mock`, never `fake`; `production`, never `prod`. no apostrophes
 - all lowercase, no trailing punctuation
 - start with an imperative verb (add, fix, implement, update, remove, refactor, replace, extract, etc.)
 - front-load keywords — most important word first after the verb
