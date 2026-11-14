@@ -207,6 +207,7 @@ async function start(dump = false) {
     await forge("script/ExaPreviewer.s.sol");
     await forge("script/ExaPlugin.s.sol");
     await forge("script/ExaAccountFactory.s.sol");
+    await forge("script/Depositor.s.sol");
     await forge("test/mocks/Legacy.s.sol");
 
     await Promise.all([
