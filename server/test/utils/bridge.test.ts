@@ -1,4 +1,4 @@
-// cspell:ignore cust midmarket sepa spei iban COBADEFFXXX Anytown Joao Zdestination Adestination GABCDEFGHIJKLMNOPQRSTUVWXYZSTELLARDESTINATION
+// cspell:ignore cust midmarket sepa spei iban COBADEFFXXX Anytown Joao Zdestination Adestination GABCDEFGHIJKLMNOPQRSTUVWXYZSTELLARDESTINATION Xiaoming Dawen Zeng Zhang Иван Abudula Aili Xiao
 import "../mocks/sentry";
 
 import { captureException, setContext } from "@sentry/core";
@@ -3328,6 +3328,48 @@ describe("bridge utils", () => {
         residential_address: { subdivision?: string };
       };
       expect(address.subdivision).toBeUndefined();
+    });
+
+    it.each([
+      { first: "小明", last: "吕", issuer: "CN", transliterated: { first: "Xiaoming", last: "Lyu" } },
+      { first: "大文", last: "曾", issuer: "CN", transliterated: { first: "Dawen", last: "Zeng" } },
+      { first: "Иван", last: "张", issuer: "CN", transliterated: { last: "Zhang" } },
+      { first: "小明Иван", last: "Doe", issuer: "CN", transliterated: {} },
+      { first: "阿卜杜拉·艾力", last: "吕", issuer: "CN", transliterated: { first: "Abudula Aili", last: "Lyu" } },
+      { first: "小\u3000明", last: "曾", issuer: "CN", transliterated: { first: "Xiao Ming", last: "Zeng" } },
+      { first: "太郎", last: "山田", issuer: "JP", transliterated: {} },
+      { first: "大文", last: "陳", issuer: "HK", transliterated: {} },
+    ])("transliterates han names $first $last from $issuer", async ({ first, last, issuer, transliterated }) => {
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
+        ...enabledPersonaAccount,
+        attributes: {
+          ...enabledPersonaAccount.attributes,
+          fields: {
+            ...enabledPersonaAccount.attributes.fields,
+            name: { value: { first: { value: first }, middle: { value: null }, last: { value: last } } },
+            documents: { value: [{ value: { ...identityDocument, id_issuing_country: { value: issuer } } }] },
+          },
+        },
+      });
+      vi.spyOn(persona, "getDocument").mockResolvedValueOnce(documentResponse);
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce({ ok: true, blob: () => Promise.resolve(new Blob(["front"])) } as Response)
+        .mockResolvedValueOnce({ ok: true, blob: () => Promise.resolve(new Blob(["back"])) } as Response)
+        .mockResolvedValueOnce(fetchResponse({ id: "cust-new", status: "not_started" }));
+
+      await bridge.onboarding({
+        accountType: "consumer",
+        credentialId: "cred-1",
+        customerId: null,
+        acceptedTermsId: "terms-1",
+      });
+
+      const body = JSON.parse(fetchSpy.mock.calls[2]?.[1]?.body as string) as Record<string, unknown>;
+      expect(body).toMatchObject({ first_name: first, last_name: last });
+      expect(body.transliterated_first_name).toBe(transliterated.first);
+      expect(body.transliterated_last_name).toBe(transliterated.last);
+      expect(captureException).not.toHaveBeenCalled();
     });
 
     it("includes spei endorsement for MX country", async () => {

@@ -1118,6 +1118,9 @@ importers:
       pg:
         specifier: ^8.20.0
         version: 8.20.0
+      pinyin-pro:
+        specifier: ^3.29.5
+        version: 3.29.5
       react:
         specifier: 'catalog:'
         version: 19.2.0
@@ -13928,6 +13931,9 @@ packages:
   pino@8.21.0:
     resolution: {integrity: sha512-ip4qdzjkAyDDZklUaZkcRFb2iA118H9SgRh8yzTkSQK8HilsOJF7rSY8HoW5+I0M46AZgX/pxbprf2vvzQCE0Q==}
     hasBin: true
+
+  pinyin-pro@3.29.5:
+    resolution: {integrity: sha512-Fk5YoRmtdHqJWqAuzYVG/NzvzeCbaG+ZEwbY6Nbps3QAIrvQQEtcm49frcyCM8i2b5najnzPDtYqrHRYTTiuwQ==}
 
   pirates@4.0.7:
     resolution: {integrity: sha512-TfySrs/5nm8fQJDcBDuUng3VOUKsd7S+zqvbOTiGXHfxX4wK31ard+hoNuvkicM/2YFzlpDgABOevKSsB4G/FA==}
@@ -33636,6 +33642,8 @@ snapshots:
       safe-stable-stringify: 2.5.0
       sonic-boom: 3.8.1
       thread-stream: 2.7.0
+
+  pinyin-pro@3.29.5: {}
 
   pirates@4.0.7: {}
 

@@ -72,6 +72,7 @@
     "ioredis": "^5.10.1",
     "jose": "^6.2.2",
     "pg": "^8.20.0",
+    "pinyin-pro": "^3.29.5",
     "react": "catalog:",
     "uuid": "^11.1.0",
     "valibot": "catalog:",
