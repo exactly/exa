@@ -15,6 +15,10 @@ this codebase will outlive you. every shortcut becomes someone else's burden. ev
 - **prose style**: **all internal documentation and commit messages must be lowercase**.
 - **diff-friendliness**: diffs matter. avoid adding items at the end of json/array lists (add in the middle or sorted position). trailing commas everywhere. structure code so changes are minimal and reviewable.
 - **obsessive attention to detail**: every line of code, every comment, and every commit message reflects the quality of the project.
+- **fix the cause**: find out why something breaks before changing anything, then fix it at the layer that owns the problem with the smallest idiomatic change. never work around a bug downstream of it.
+- **minimal upstream diffs**: a dependency patch (`patches/`) holds the smallest change that fixes the bug, fit to land upstream as a pr.
+- **no new vendors**: build on the third-party services the project already integrates. adding another one takes an explicit request.
+- **no locks for races**: never add a lock or mutex to fix a race. remove the race instead. a lock belongs only where the design needs one, like the panda authorization mutex that takes one account's authorizations in turn.
 
 ## aesthetics
 
@@ -180,4 +184,5 @@ stack-specific guidance lives in nested `AGENTS.md` files and applies only when 
 - **respect the style guide**: you must follow all rules within the rule files for any code, documentation, or rules you write. this includes meta-rules like the "lowercase prose" convention for all internal documentation, including the rules themselves.
 - **understand the intent**: do not interpret rules in the most literal way possible. understand the spirit and goal behind them. for example, a rule for "concise" messages implies front-loading keywords and removing filler words, not just meeting a character count.
 - **ready means ready for review**: every pr opens as a draft and stays one while work goes on. mark it ready only when it is ready for review: review requests reach reviewers' agents only on ready prs, so request reviews after marking it ready. each push to a ready pr starts the native e2e workflow on eas, by far the most expensive ci, but it waits for a dev to approve it on expo before spending anything. approve it only when native results are all that is left before merging, and in a stack, only on the pr next to merge. a canceled run is still billed for the minutes it ran.
+- **verify before claiming**: docs, types, changelogs and vendor answers are claims. check them against the source or a real call before building on them, say what you checked, and never present a guess as fact.
 - **understand mcp errors**: when an mcp call fails or misbehaves, read the error and work out why before doing anything else. a mistake on your side, like a wrong argument, a missing parameter, or a malformed query, is yours to fix: correct the call and carry on. when the cause is outside your reach, like an unreachable server, missing access, or behavior you cannot explain, stop and ask the user how to proceed. never retry a call unchanged, ignore a failure, switch to another tool to dodge it, or hack around it.
