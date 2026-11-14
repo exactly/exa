@@ -28,7 +28,8 @@ export default function TransactionDetails({
   item: ActivityItem | CreditActivity | DebitActivity | InstallmentsActivity;
 }) {
   const { t } = useTranslation();
-  const chainId = item.type === "bridge" ? item.sourceChainId : chain.id;
+  const chainId =
+    item.type === "bridge" ? item.sourceChainId : (("chainId" in item ? item.chainId : undefined) ?? chain.id);
   const { data: source } = useQuery({
     ...lifiChainsOptions,
     select: (chains) => chains.find(({ id }) => id === chainId),
