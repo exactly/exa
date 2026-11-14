@@ -14,7 +14,7 @@ import webhook from "./webhook";
 import createAuth from "../middleware/auth";
 import createOrg from "../middleware/org";
 import { origins } from "../utils/appOrigin";
-import createBetterAuth from "../utils/auth";
+import createBetterAuth, { signIn as createSignIn } from "../utils/auth";
 import createCredential from "../utils/createCredential";
 
 import type * as schema from "../database/schema";
@@ -65,10 +65,11 @@ export default function api({
   subscribe: ReturnType<typeof createSubscribe>;
   walletExtension: ReturnType<typeof createWalletExtension>;
 }) {
-  const betterAuth = createBetterAuth(database, authSecret);
-  const auth = createAuth(authSecret);
+  const betterAuth = createBetterAuth(database, authSecret, redis);
+  const auth = createAuth(betterAuth, authSecret);
+  const signIn = createSignIn(betterAuth);
   const org = createOrg(betterAuth);
-  const credential = createCredential({ authSecret, database, sardine, segment, subscribe });
+  const credential = createCredential({ database, sardine, segment, signIn, subscribe });
   const app = new Hono()
     .use(
       cors({
@@ -89,7 +90,7 @@ export default function api({
     .route(
       "/auth/authentication",
       authentication({
-        authSecret,
+        signIn,
         business,
         createCredential: credential,
         database,

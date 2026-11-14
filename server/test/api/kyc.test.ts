@@ -50,7 +50,7 @@ const persona = Object.assign(
   Persona,
 );
 const app = route({
-  auth: authenticate(""),
+  auth: authenticate(undefined as never, ""),
   business: true,
   database,
   panda,
@@ -2241,7 +2241,9 @@ describe("authenticated", () => {
     it.each(["business", "panda-business"] as const)(
       "rejects the %s scope when business is disabled",
       async (scope) => {
-        const client = testClient(route({ auth: authenticate(""), business: false, database, panda, persona, redis }));
+        const client = testClient(
+          route({ auth: authenticate(undefined as never, ""), business: false, database, panda, persona, redis }),
+        );
         const headers = { "test-credential-id": businessId, SessionID: "fakeSession", "do-connecting-ip": "127.0.0.1" };
         const getCompanyApplication = vi.spyOn(panda, "getCompanyApplication");
         const getInquiry = vi.spyOn(persona, "getInquiry");

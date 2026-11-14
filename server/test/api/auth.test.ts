@@ -7,7 +7,9 @@ import "../mocks/sentry";
 import { captureException } from "@sentry/node";
 import { verifyAuthenticationResponse, verifyRegistrationResponse } from "@simplewebauthn/server";
 import { eq } from "drizzle-orm";
+import { Hono } from "hono";
 import { testClient } from "hono/testing";
+import { serializeSigned } from "hono/utils/cookie";
 import { decodeJwt, decodeProtectedHeader, jwtVerify } from "jose";
 import assert from "node:assert";
 import { env } from "node:process";
@@ -24,9 +26,11 @@ import { Address } from "@exactly/common/validation";
 
 import authentication, { Authentication } from "../../api/auth/authentication";
 import registration from "../../api/auth/registration";
-import database, { credentials } from "../../database";
+import database, { credentials, users } from "../../database";
+import createAuthMiddleware from "../../middleware/auth";
 import androidOrigins from "../../utils/android/origins";
 import { origins } from "../../utils/appOrigin";
+import createAuth, { signIn as createSignIn } from "../../utils/auth";
 import authSecret from "../../utils/authSecret";
 import createCredentialFactory from "../../utils/createCredential";
 import createIntercom from "../../utils/intercom";
@@ -55,19 +59,21 @@ const subscribe = {
   close: vi.fn<ReturnType<typeof createSubscribe>["close"]>().mockResolvedValue(),
   enqueue: vi.fn<ReturnType<typeof createSubscribe>["enqueue"]>().mockResolvedValue(),
 };
+const betterAuth = createAuth(database, authSecret, redis);
+const signIn = createSignIn(betterAuth);
 const createCredential = createCredentialFactory({
-  authSecret,
   database,
   sardine: createSardine(
     parse(pipe(string(), nonEmpty()), env.SARDINE_API_KEY),
     parse(pipe(string(), nonEmpty()), env.SARDINE_API_URL),
   ),
   segment: createSegment(parse(pipe(string(), nonEmpty()), env.SEGMENT_WRITE_KEY)),
+  signIn,
   subscribe,
 });
 const intercom = createIntercom(parse(pipe(string(), nonEmpty()), env.INTERCOM_IDENTITY_KEY));
 const appClient = testClient(
-  authentication({ authSecret, business: true, createCredential, database, intercom, redis, walletExtension }),
+  authentication({ business: true, createCredential, database, intercom, redis, signIn, walletExtension }),
 );
 const registrationAppClient = testClient(
   registration({ business: true, createCredential, intercom, redis, walletExtension }),
@@ -823,7 +829,7 @@ describe("authentication", () => {
     const id = own(parse(Address, slice(keccak256(toBytes("auth:siwe-business-disabled")), 12)));
 
     const response = await testClient(
-      authentication({ authSecret, business: false, createCredential, database, intercom, redis, walletExtension }),
+      authentication({ business: false, createCredential, database, intercom, redis, signIn, walletExtension }),
     ).index.$post(
       { json: { method: "siwe", id, signature: "0xdeadbeef" } },
       { headers: { cookie: "session_id=test-session", origin: business } },
@@ -1581,6 +1587,51 @@ function postRegistrationWebauthn(override: RegistrationWebauthnAssertionOverrid
 function own<T extends string>(id: T) {
   onTestFinished(async () => {
     await database.delete(credentials).where(eq(credentials.id, id));
+    await database.delete(users).where(eq(users.id, id));
   });
   return id;
+}
+
+describe("session", () => {
+  const app = new Hono().get("/me", createAuthMiddleware(betterAuth, authSecret), (c) => c.json(c.req.valid("cookie")));
+
+  it("authorizes until revoked", async () => {
+    const id = own(parse(Address, slice(keccak256(toBytes("auth:session")), 12)));
+    const { headers } = await betterAuth.api.signInCredential({ body: { credentialId: id }, returnHeaders: true });
+    const cookie = sessionCookie(headers.getSetCookie());
+    const response = await app.request("/me", { headers: { cookie } });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ credentialId: id });
+
+    const { internalAdapter } = await betterAuth.$context;
+    await internalAdapter.deleteUserSessions(id);
+    await expect(app.request("/me", { headers: { cookie } })).resolves.toHaveProperty("status", 401);
+  });
+
+  it("exchanges the legacy signed cookie for a session", async () => {
+    const id = own(parse(Address, slice(keccak256(toBytes("auth:legacy")), 12)));
+    const legacy = cookiePair(await serializeSigned("credential_id", id, authSecret));
+    const response = await app.request("/me", { headers: { cookie: legacy } });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ credentialId: id });
+    expect(response.headers.getSetCookie().some((value) => value.startsWith("credential_id=;"))).toBe(true);
+    const session = await app.request("/me", { headers: { cookie: sessionCookie(response.headers.getSetCookie()) } });
+    await expect(session.json()).resolves.toStrictEqual({ credentialId: id });
+  });
+
+  it("rejects forged and missing cookies", async () => {
+    const forged = cookiePair(await serializeSigned("credential_id", "forged", "secret"));
+    await expect(app.request("/me", { headers: { cookie: forged } })).resolves.toHaveProperty("status", 401);
+    await expect(app.request("/me")).resolves.toHaveProperty("status", 401);
+  });
+});
+
+function sessionCookie(cookies: string[]) {
+  const cookie = cookies.find((value) => value.includes("session_token="));
+  if (!cookie) throw new Error("missing session cookie");
+  return cookiePair(cookie);
+}
+
+function cookiePair(cookie: string) {
+  return cookie.split(";")[0] ?? "";
 }

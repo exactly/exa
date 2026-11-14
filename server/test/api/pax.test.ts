@@ -24,7 +24,7 @@ const pax = createPax({
 
 const appClient = testClient(
   route({
-    auth: authenticate(""),
+    auth: authenticate(undefined as never, ""),
     database,
     pax,
   }),

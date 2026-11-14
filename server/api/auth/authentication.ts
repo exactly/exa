@@ -5,8 +5,8 @@ import {
   type AuthenticatorTransportFuture,
 } from "@simplewebauthn/server";
 import { eq } from "drizzle-orm";
-import { Hono, type Env } from "hono";
-import { setCookie, setSignedCookie } from "hono/cookie";
+import { Hono, type Context, type Env } from "hono";
+import { setCookie } from "hono/cookie";
 import { describeRoute } from "hono-openapi";
 import { resolver, validator as vValidator } from "hono-openapi/valibot";
 import { randomBytes } from "node:crypto";
@@ -36,7 +36,6 @@ import {
 import { isAddress } from "viem";
 import { createSiweMessage, parseSiweMessage, validateSiweMessage } from "viem/siwe";
 
-import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
@@ -140,20 +139,20 @@ export const LegacyAuthentication = object({
 });
 
 export default function route({
-  authSecret,
   business,
   createCredential,
   database,
   intercom,
   redis,
+  signIn,
   walletExtension,
 }: {
-  authSecret: string;
   business: boolean;
   createCredential: ReturnType<typeof createCredentialFactory>;
   database: NodePgDatabase<typeof schema>;
   intercom: ReturnType<typeof createIntercom>;
   redis: Redis;
+  signIn: (c: Context, credentialId: string) => Promise<Date>;
   walletExtension: ReturnType<typeof createWalletExtension>;
 }) {
   return new Hono()
@@ -265,7 +264,7 @@ Authenticates a user using a WebAuthn credential. This endpoint verifies the aut
 
 **SIWE Authentication**
 
-Submit the signed SIWE message to prove ownership of an Ethereum address. The server validates the signature against the original challenge message, verifies the domain and nonce match the session, and checks the message hasn't expired. On successful verification, a signed HTTP-only \`credential_id\` cookie is set for authenticated API access.
+Submit the signed SIWE message to prove ownership of an Ethereum address. The server validates the signature against the original challenge message, verifies the domain and nonce match the session, and checks the message hasn't expired. On successful verification, an HTTP-only session cookie is set for authenticated API access.
 
 `,
         responses: {
@@ -475,17 +474,8 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
           return c.json({ code: "ouch", legacy: "ouch" }, 500);
         }
 
-        const expires = new Date(Date.now() + AUTH_EXPIRY);
-        const [intercomToken] = await Promise.all([
-          intercom(parse(Address, credential.account), expires),
-          setSignedCookie(c, "credential_id", assertion.id, authSecret, {
-            expires,
-            httpOnly: true,
-            ...(domain === "localhost"
-              ? { sameSite: "lax", secure: false }
-              : { sameSite: "none", secure: true, partitioned: true }),
-          }),
-        ]);
+        const expires = await signIn(c, assertion.id);
+        const intercomToken = await intercom(parse(Address, credential.account), expires);
 
         return c.json(
           {

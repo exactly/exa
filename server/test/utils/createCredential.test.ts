@@ -77,10 +77,10 @@ function request() {
   return new Hono()
     .post("/", async (c) => {
       await createCredentialFactory({
-        authSecret: "secret",
         database,
         sardine: createSardine("sardine", "https://api.sardine.ai"),
         segment,
+        signIn: vi.fn<() => Promise<Date>>().mockResolvedValue(new Date()),
         subscribe: { close: vi.fn<() => Promise<void>>().mockResolvedValue(), enqueue },
       })(c, credentialId);
       return c.body(null);

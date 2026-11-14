@@ -152,7 +152,8 @@ describe("api", () => {
         }).app,
       );
 
-      expect(authentication.default).toHaveBeenCalledExactlyOnceWith(database, authSecret);
+      expect(authentication.default).toHaveBeenCalledOnce();
+      expect(vi.mocked(authentication.default).mock.calls[0]?.slice(0, 2)).toStrictEqual([database, authSecret]);
       expect(auth.options.baseURL).toBe(origin);
       expect(auth.options.trustedOrigins).toStrictEqual([origin]);
       expect(auth.options.plugins.find((plugin) => plugin.id === "siwe")?.options.domain).toBe(new URL(origin).host);

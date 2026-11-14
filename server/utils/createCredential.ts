@@ -1,11 +1,8 @@
 import { captureException, setUser } from "@sentry/node";
-import { setSignedCookie } from "hono/cookie";
 import { parse } from "valibot";
 import { hexToBytes, isAddress, zeroAddress } from "viem";
 
-import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import deriveAddress from "@exactly/common/deriveAddress";
-import domain from "@exactly/common/domain";
 import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
@@ -22,16 +19,16 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Context } from "hono";
 
 export default function createCredential({
-  authSecret,
   database,
   sardine,
   segment,
+  signIn,
   subscribe,
 }: {
-  authSecret: string;
   database: NodePgDatabase<typeof schema>;
   sardine: ReturnType<typeof createSardine>;
   segment: ReturnType<typeof createSegment>;
+  signIn: (c: Context, credentialId: string) => Promise<Date>;
   subscribe: ReturnType<typeof createSubscribe>;
 }) {
   return async function credential<C extends string>(
@@ -48,7 +45,6 @@ export default function createCredential({
     const account = deriveAddress(factory, { x, y, salt });
 
     setUser({ id: account });
-    const expires = new Date(Date.now() + AUTH_EXPIRY);
     await database.insert(credentials).values([
       {
         account,
@@ -61,14 +57,8 @@ export default function createCredential({
       },
     ]);
 
-    await Promise.all([
-      setSignedCookie(c, "credential_id", credentialId, authSecret, {
-        expires,
-        httpOnly: true,
-        ...(domain === "localhost"
-          ? { sameSite: "lax", secure: false }
-          : { sameSite: "none", secure: true, partitioned: true }),
-      }),
+    const [expires] = await Promise.all([
+      signIn(c, credentialId),
       sardine
         .customer({
           flow: { name: "signup", type: "signup" },

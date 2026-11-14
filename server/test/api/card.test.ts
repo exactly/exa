@@ -75,7 +75,7 @@ const persona = createPersona(
 );
 const walletExtension = createWalletExtension(WALLET_EXTENSION_SECRET);
 const app = route({
-  auth: authenticate(""),
+  auth: authenticate(undefined as never, ""),
   credit,
   database,
   panda,
