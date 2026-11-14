@@ -106,7 +106,7 @@ describe("e2e", () => {
             request.headers.delete("origin");
             return proxy(`http://localhost:${metro}${pathname}${search}`, { raw: request });
           },
-          port: 443,
+          port: 8443,
           createServer,
           serverOptions: tls,
         });
