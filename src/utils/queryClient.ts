@@ -23,6 +23,7 @@ const INVALIDATE_ON_UPGRADE = new Set([
   "deployed",
   "feeds",
   "swap",
+  "proposal",
   "lifi",
   "network",
   "estimateCalls",

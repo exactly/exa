@@ -121,7 +121,10 @@ export default function Repay() {
     query: { enabled: !!account && !!bytecode && !!maturity },
   });
 
-  const { delay: proposalDelay, isLoading: isProposalDelayLoading } = useProposalPreview({ account });
+  const { delay: proposalDelay, isLoading: isProposalDelayLoading } = useProposalPreview({
+    account,
+    chainId: chain.id,
+  });
   const simulationTimestamp = proposalDelay === undefined ? undefined : Number(timestamp) + Number(proposalDelay);
 
   const borrow = exaUSDC?.fixedBorrowPositions.find((b) => b.maturity === maturity);
@@ -270,6 +273,7 @@ export default function Repay() {
     isPending: isSimulatingRepay,
   } = useSimulateProposal({
     account,
+    chainId: chain.id,
     amount: maxRepay,
     market: selectedAsset.address,
     proposalType: ProposalType.RepayAtMaturity,
@@ -284,6 +288,7 @@ export default function Repay() {
     isPending: isSimulatingCrossRepay,
   } = useSimulateProposal({
     account,
+    chainId: chain.id,
     amount: maxAmountIn,
     market: selectedAsset.address,
     proposalType: ProposalType.CrossRepayAtMaturity,
