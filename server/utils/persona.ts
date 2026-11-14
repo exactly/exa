@@ -573,6 +573,9 @@ const CardLimitAccount = object({
   id: string(),
   type: literal("account"),
   attributes: object({
+    "country-code": nullish(string()),
+    "name-first": nullish(string()),
+    "name-last": nullish(string()),
     fields: object({ card_limit_usd: optional(object({ value: nullable(pipe(number(), minValue(1))) })) }),
   }),
 });

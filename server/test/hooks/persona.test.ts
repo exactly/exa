@@ -947,6 +947,8 @@ describe("business representative", () => {
       CLASSIC_PRODUCT_ID,
       200_000,
       "evt_representative_123",
+      undefined,
+      { country: "", first: "authorized", last: "user" },
     );
     expect(allow.enqueue).toHaveBeenCalledExactlyOnceWith({
       account,
@@ -990,6 +992,8 @@ describe("business representative", () => {
       CLASSIC_PRODUCT_ID,
       undefined,
       "evt_representative_123",
+      undefined,
+      { country: "", first: "authorized", last: "user" },
     );
     expect(captureException).not.toHaveBeenCalled();
     await expect(
@@ -1016,6 +1020,8 @@ describe("business representative", () => {
       CLASSIC_PRODUCT_ID,
       115,
       "evt_representative_123",
+      undefined,
+      { country: "", first: "authorized", last: "user" },
     );
   });
 
@@ -1188,6 +1194,8 @@ describe("business representative", () => {
       CLASSIC_PRODUCT_ID,
       undefined,
       "evt_representative_123",
+      undefined,
+      { country: "", first: "authorized", last: "user" },
     );
     expect(allow.enqueue).toHaveBeenCalledOnce();
     expect(captureException).not.toHaveBeenCalled();
@@ -1359,6 +1367,8 @@ describe("business representative", () => {
       CLASSIC_PRODUCT_ID,
       200_000,
       "evt_representative_123",
+      undefined,
+      { country: "", first: "authorized", last: "user" },
     );
     expect(allow.enqueue).toHaveBeenCalledOnce();
     expect(captureException).not.toHaveBeenCalled();
@@ -1393,6 +1403,8 @@ describe("business representative", () => {
       CLASSIC_PRODUCT_ID,
       undefined,
       "evt_representative_123",
+      undefined,
+      { country: "", first: "authorized", last: "user" },
     );
     await expect(
       database.query.cards.findMany({ columns: { id: true }, where: eq(cards.credentialId, referenceId) }),

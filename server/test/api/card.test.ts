@@ -1167,6 +1167,7 @@ describe("authenticated", () => {
         undefined,
         undefined,
         "some-other-source",
+        undefined,
       );
       await expect(response.json()).resolves.toStrictEqual({
         status: "ACTIVE",
@@ -1200,6 +1201,7 @@ describe("authenticated", () => {
         undefined,
         undefined,
         "5lu2sNu0v0ZElC2m77QR3rAZBHLr8PoG", // cspell:ignore azbh
+        undefined,
       );
       await expect(response.json()).resolves.toStrictEqual({
         status: "ACTIVE",
@@ -1246,7 +1248,14 @@ describe("authenticated", () => {
       const response = await appClient.index.$post({ header: { "test-credential-id": "optimism-credential" } });
 
       expect(response.status).toBe(200);
-      expect(createCard).toHaveBeenCalledWith("optimism-panda", SIGNATURE_PRODUCT_ID, undefined, undefined, null);
+      expect(createCard).toHaveBeenCalledWith(
+        "optimism-panda",
+        SIGNATURE_PRODUCT_ID,
+        undefined,
+        undefined,
+        null,
+        undefined,
+      );
       await expect(response.json()).resolves.toStrictEqual({
         status: "ACTIVE",
         lastFour: "1010",
@@ -2297,7 +2306,63 @@ describe("authenticated", () => {
       const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
 
       expect(response.status).toBe(200);
-      expect(createCardSpy).toHaveBeenCalledWith("limit-sync-panda", SIGNATURE_PRODUCT_ID, 2_000_000, undefined, null);
+      expect(createCardSpy).toHaveBeenCalledWith(
+        "limit-sync-panda",
+        SIGNATURE_PRODUCT_ID,
+        2_000_000,
+        undefined,
+        null,
+        undefined,
+      );
+    });
+
+    it.each([
+      { name: "with country", country: "EG", expected: "EG" },
+      { name: "without country", country: null, expected: "" },
+    ])("passes persona name to createCard $name", async ({ name, country, expected }) => {
+      const credentialId = `card-name-${name.replaceAll(" ", "-")}`;
+      await database.insert(credentials).values({
+        id: credentialId,
+        publicKey: new Uint8Array(),
+        account: padHex(country ? "0xaab1" : "0xaab2", { size: 20 }),
+        factory: exaAccountFactoryAddress,
+        pandaId: credentialId,
+      });
+
+      vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({
+        id: credentialId,
+        applicationStatus: "approved",
+      });
+      const createCardSpy = vi
+        .spyOn(panda, "createCard")
+        .mockResolvedValueOnce({ ...cardTemplate, id: crypto.randomUUID(), last4: "2222" });
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
+        id: "acc_name",
+        type: "account",
+        attributes: {
+          "country-code": country,
+          "name-first": "محمد", // cspell:ignore محمد
+          "name-last": "المصري", // cspell:ignore المصري
+          fields: { card_limit_usd: { value: null } },
+        },
+      });
+
+      const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+
+      expect(response.status).toBe(200);
+      expect(createCardSpy).toHaveBeenCalledExactlyOnceWith(
+        credentialId,
+        SIGNATURE_PRODUCT_ID,
+        undefined,
+        undefined,
+        null,
+        {
+          country: expected,
+          first: "محمد", // cspell:ignore محمد
+          last: "المصري", // cspell:ignore المصري
+        },
+      );
+      expect(captureException).not.toHaveBeenCalled();
     });
 
     it("uses default limit when persona account has no card limit", async () => {
@@ -2326,7 +2391,14 @@ describe("authenticated", () => {
       const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
 
       expect(response.status).toBe(200);
-      expect(createCardSpy).toHaveBeenCalledWith("limit-null-panda", SIGNATURE_PRODUCT_ID, undefined, undefined, null);
+      expect(createCardSpy).toHaveBeenCalledWith(
+        "limit-null-panda",
+        SIGNATURE_PRODUCT_ID,
+        undefined,
+        undefined,
+        null,
+        undefined,
+      );
     });
 
     it("falls back to default limit and captures when getAccount fails", async () => {
@@ -2352,7 +2424,14 @@ describe("authenticated", () => {
       const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
 
       expect(response.status).toBe(200);
-      expect(createCardSpy).toHaveBeenCalledWith("limit-fail-panda", SIGNATURE_PRODUCT_ID, undefined, undefined, null);
+      expect(createCardSpy).toHaveBeenCalledWith(
+        "limit-fail-panda",
+        SIGNATURE_PRODUCT_ID,
+        undefined,
+        undefined,
+        null,
+        undefined,
+      );
       expect(captureException).toHaveBeenCalledWith(
         error,
         expect.objectContaining({

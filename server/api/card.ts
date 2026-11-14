@@ -634,24 +634,29 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
                     });
                     return orphan;
                   } else {
+                    const profile = await persona
+                      .getAccount(credentialId, "cardLimit")
+                      .catch((error: unknown): undefined => {
+                        captureException(error, {
+                          level: "error",
+                          contexts: { details: { credentialId, scope: "cardLimit" } },
+                        });
+                      });
                     return panda.createCard(
                       pandaId,
                       productId,
-                      await persona
-                        .getAccount(credentialId, "cardLimit")
-                        .then((profile) =>
-                          profile?.attributes.fields.card_limit_usd?.value == null
-                            ? undefined
-                            : profile.attributes.fields.card_limit_usd.value * 100,
-                        )
-                        .catch((error: unknown): undefined => {
-                          captureException(error, {
-                            level: "error",
-                            contexts: { details: { credentialId, scope: "cardLimit" } },
-                          });
-                        }),
+                      profile?.attributes.fields.card_limit_usd?.value == null
+                        ? undefined
+                        : profile.attributes.fields.card_limit_usd.value * 100,
                       undefined,
                       credential.source,
+                      profile?.attributes["name-first"] && profile.attributes["name-last"]
+                        ? {
+                            country: profile.attributes["country-code"] ?? "",
+                            first: profile.attributes["name-first"],
+                            last: profile.attributes["name-last"],
+                          }
+                        : undefined,
                     );
                   }
                 });

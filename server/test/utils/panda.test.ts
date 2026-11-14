@@ -522,6 +522,47 @@ describe("create card", () => {
   });
 
   it.each([
+    { first: "John", last: "Doe", country: "US", displayName: undefined },
+    { first: "محمد", last: "المصري", country: "EG", displayName: "Mohamed El-Masry" }, // cspell:ignore Masry المصري محمد
+    { first: "John", last: "张", country: "CN", displayName: "John Zhang" }, // cspell:ignore Zhang
+    { first: "小明", last: "Smith", country: "CN", displayName: "Xiaoming Smith" }, // cspell:ignore Xiaoming
+    { first: "Ｊｏｈｎ", last: "张", country: "CN", displayName: "John Zhang" }, // cspell:ignore Ｊｏｈｎ
+    { first: "Ｊｏｈｎ", last: "Smith", country: "US", displayName: "John Smith" }, // cspell:ignore Ｊｏｈｎ
+    {
+      first: "Александр", // cspell:ignore Александр
+      last: "Александровский-Петров", // cspell:ignore Александровский Петров
+      country: "RU",
+      displayName: "Aleksandr Aleksandrovskii-Petr", // cspell:ignore Aleksandr Aleksandrovskii Petr
+    },
+  ])("sends display name for $first $last", async ({ first, last, country, displayName }) => {
+    chainMock.id = optimism.id;
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      arrayBuffer: () => Promise.resolve(new TextEncoder().encode(JSON.stringify(card)).buffer),
+    } as Response);
+
+    await expect(
+      panda.createCard("user-id", SIGNATURE_PRODUCT_ID, 1_000_000, undefined, null, { country, first, last }),
+    ).resolves.toStrictEqual(card);
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      expect.stringContaining("/issuing/users/user-id/cards"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          type: "virtual",
+          status: "active",
+          limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
+          configuration: {
+            displayName,
+            productId: SIGNATURE_PRODUCT_ID,
+            virtualCardArt: "398c4919514b4ec4927e6a9114a4c816",
+          },
+        }),
+      }),
+    );
+  });
+
+  it.each([
     [base.id, "c4c03256d6764a8390f41b60561d27af"],
     [optimism.id, "398c4919514b4ec4927e6a9114a4c816"],
   ] as const)("sends partner card art only on base (chain %i)", async (id, art) => {
