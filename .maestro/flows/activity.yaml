@@ -8,14 +8,20 @@ env:
     env: { asset: USDC, to: "${output.account}", amount: "20" }
 - runScript: { file: ../dist/mint.js, env: { asset: ETH, to: "${output.account}", amount: "0.04" } }
 - runFlow: ../subflows/verifyIdentity.yaml
+- runScript: { file: ../dist/mint.js, env: { asset: USDC, to: "${output.account}", amount: "25", network: Anvil2 } }
 - tapOn: Card
 - tapOn: Card details
 - runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Accept and enable card } }
 - tapOn: Accept and enable card
 - tapOn: Close
+- evalScript: ${output.deadline = Date.now() + 60000; output.deposited = undefined}
+- repeat:
+    while: { true: "${output.deposited !== 25 && Date.now() < output.deadline}" }
+    commands: [{ runScript: { file: ../dist/deposited.js, env: { account: "${output.account}", network: Anvil2 } } }]
+- assertTrue: ${output.deposited === 25}
 - runScript:
     file: ../dist/purchase.js
-    env: { merchant: Bakery, amount: "12.34", mode: "0", credentialId: "${output.credential}" }
+    env: { merchant: Bakery, amount: "32.10", mode: "0", credentialId: "${output.credential}", account: "${output.account}" }
 - runScript:
     file: ../dist/purchase.js
     env: { merchant: Electronics, amount: "56.78", mode: "0", declinedReason: invalid pin, credentialId: "${output.credential}" }
