@@ -1,0 +1,150 @@
+import { and, desc, eq } from "drizzle-orm";
+import assert from "node:assert";
+import { createPublicClient, http, padHex, zeroHash, type Hex } from "viem";
+import { privateKeyToAddress } from "viem/accounts";
+import { anvil } from "viem/chains";
+import { describe, expect, it, vi } from "vitest";
+
+import deriveAddress from "@exactly/common/deriveAddress";
+import {
+  exaAccountFactoryAbi,
+  exaAccountFactoryAddress,
+  exaPluginAbi,
+  exaPluginAddress,
+  proposalManagerAbi,
+  upgradeableModularAccountAbi,
+} from "@exactly/common/generated/chain";
+
+import { chains } from "./anvil";
+import anvilClient from "./anvilClient";
+import database from "../database";
+import { accounts, collectors, delays, exaPlugins, plugins } from "../database/indexer";
+
+const account = deriveAddress(exaAccountFactoryAddress, {
+  x: padHex(privateKeyToAddress(padHex("0xb0b"))),
+  y: zeroHash,
+});
+
+describe("indexer", () => {
+  it("indexes accounts and their exa plugins", async () => {
+    const [initialized] = await anvilClient.getContractEvents({
+      address: exaAccountFactoryAddress,
+      abi: exaAccountFactoryAbi,
+      eventName: "ExaAccountInitialized",
+      args: { account },
+      fromBlock: 0n,
+      strict: true,
+    });
+    assert.ok(initialized, "expected an ExaAccountInitialized event");
+    const [{ timestamp }, owner, installed] = await Promise.all([
+      anvilClient.getBlock({ blockNumber: initialized.blockNumber }),
+      anvilClient.readContract({
+        address: exaAccountFactoryAddress,
+        abi: exaAccountFactoryAbi,
+        functionName: "WEBAUTHN_OWNER_PLUGIN",
+      }),
+      anvilClient
+        .getContractEvents({
+          address: account,
+          abi: upgradeableModularAccountAbi,
+          eventName: "PluginInstalled",
+          fromBlock: initialized.blockNumber,
+          toBlock: initialized.blockNumber,
+          strict: true,
+        })
+        .then((logs) => logs.find(({ args }) => args.plugin === exaPluginAddress)),
+    ]);
+    assert.ok(installed, "expected the exa plugin to be installed");
+
+    await expect(
+      database
+        .select()
+        .from(accounts)
+        .where(and(eq(accounts.chainId, anvil.id), eq(accounts.address, account.toLowerCase() as Hex))),
+    ).resolves.toStrictEqual([
+      {
+        chainId: anvil.id,
+        address: account.toLowerCase(),
+        factory: exaAccountFactoryAddress.toLowerCase(),
+        owner: owner.toLowerCase(),
+        plugin: exaPluginAddress.toLowerCase(),
+        block: initialized.blockNumber,
+        timestamp,
+      },
+    ]);
+    await expect(
+      database
+        .select()
+        .from(plugins)
+        .where(and(eq(plugins.chainId, anvil.id), eq(plugins.account, account.toLowerCase() as Hex))),
+    ).resolves.toStrictEqual([
+      {
+        chainId: anvil.id,
+        account: account.toLowerCase(),
+        address: exaPluginAddress.toLowerCase(),
+        block: initialized.blockNumber,
+        timestamp,
+        logIndex: installed.logIndex,
+        uninstalled: null,
+      },
+    ]);
+    await expect(
+      database
+        .select()
+        .from(exaPlugins)
+        .where(and(eq(exaPlugins.chainId, anvil.id), eq(exaPlugins.address, exaPluginAddress.toLowerCase() as Hex))),
+    ).resolves.toStrictEqual([{ chainId: anvil.id, address: exaPluginAddress.toLowerCase() }]);
+  });
+
+  it("trusts plugins allowed by an exa plugin", async () => {
+    const allowed = padHex("0xa110", { size: 20 });
+    await anvilClient.waitForTransactionReceipt({
+      hash: await anvilClient.writeContract({
+        address: exaPluginAddress,
+        abi: exaPluginAbi,
+        functionName: "allowPlugin",
+        args: [allowed, true],
+        account: null,
+      }),
+    });
+
+    await vi.waitFor(
+      () =>
+        expect(
+          database
+            .select()
+            .from(exaPlugins)
+            .where(and(eq(exaPlugins.chainId, anvil.id), eq(exaPlugins.address, allowed))),
+        ).resolves.toStrictEqual([{ chainId: anvil.id, address: allowed }]),
+      { timeout: 10_000 },
+    );
+  });
+
+  it.each(chains)("indexes the collector and the proposal manager delay on $name", async (chain) => {
+    const client = createPublicClient({ chain, transport: http() });
+    const [collector, proposalManager] = await Promise.all([
+      client.readContract({ address: exaPluginAddress, abi: exaPluginAbi, functionName: "collector" }),
+      client.readContract({ address: exaPluginAddress, abi: exaPluginAbi, functionName: "proposalManager" }),
+    ]);
+    const delay = await client.readContract({
+      address: proposalManager,
+      abi: proposalManagerAbi,
+      functionName: "delay",
+    });
+
+    await expect(
+      database
+        .select({ address: collectors.address })
+        .from(collectors)
+        .where(and(eq(collectors.chainId, chain.id), eq(collectors.plugin, exaPluginAddress.toLowerCase() as Hex)))
+        .orderBy(desc(collectors.block), desc(collectors.logIndex))
+        .limit(1),
+    ).resolves.toStrictEqual([{ address: collector.toLowerCase() }]);
+    await expect(
+      database
+        .select({ delay: delays.delay })
+        .from(delays)
+        .where(and(eq(delays.chainId, chain.id), eq(delays.proposalManager, proposalManager.toLowerCase() as Hex))),
+    ).resolves.toStrictEqual([{ delay }]);
+  });
+});
