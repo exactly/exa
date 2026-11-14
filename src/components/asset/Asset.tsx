@@ -37,6 +37,7 @@ import {
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
+import useAllowlists from "../../utils/useAllowlists";
 import useInsets from "../../utils/useInsets";
 import usePortfolio from "../../utils/usePortfolio";
 import exaConfig from "../../utils/wagmi/exa";
@@ -67,6 +68,7 @@ export default function Asset() {
   const navigation = useNavigation();
   const params = safeParse(Search, useLocalSearchParams());
   const { data: tokens } = useQuery(lifiTokensOptions);
+  const allowlists = useAllowlists();
   const { markets, externalAssets, crossChainAssets, isBalancesPending } = usePortfolio();
   const { data: country } = useQuery<string>({ queryKey: ["user", "country"] });
   const { data: advanced } = useQuery<boolean>({ queryKey: ["settings", "advanced-mode"] });
@@ -84,7 +86,7 @@ export default function Asset() {
     address: params.success ? params.output.address : undefined,
     abi: stockAbi,
     functionName: "multiplier",
-    query: { enabled: params.success && isStock(params.output) },
+    query: { enabled: params.success && isStock(allowlists, params.output) },
   });
   const [info, setInfo] = useState<(typeof stats)[number]>();
   const [unsupported, setUnsupported] = useState(false);
@@ -111,11 +113,11 @@ export default function Asset() {
   }
   const entry = token ?? external;
   const amount = (protocol?.floatingDepositAssets ?? 0n) + (external?.amount ?? 0n);
-  const stock = !!token && isStock(token);
+  const stock = !!token && isStock(allowlists, token);
   const decimals = protocol?.decimals ?? external?.decimals ?? 18;
   const shares = toShares(amount, decimals, multiplier);
   const symbol = protocol ? (protocol.symbol.slice(3) === "WETH" ? "ETH" : protocol.symbol.slice(3)) : entry?.symbol;
-  const tradable = chainId !== chain.id || swappable(markets).has(address.toLowerCase());
+  const tradable = chainId !== chain.id || swappable(allowlists[chain.id], markets).has(address.toLowerCase());
   function trade(side: "fromToken" | "toToken", selected: Token) {
     queryClient.setQueryData<Swap>(["swap"], (old) =>
       old && sameToken(selected, old[side]?.token) && old[side]?.external === !protocol
@@ -214,7 +216,8 @@ export default function Asset() {
                         key: "send",
                         title: t("Send"),
                         Icon: ArrowUpRight,
-                        supported: !!advanced || chainId !== chain.id || !!protocol || isSendable(address),
+                        supported:
+                          !!advanced || chainId !== chain.id || !!protocol || isSendable(allowlists[chain.id], address),
                         onPress: () => {
                           router.push({
                             pathname: "/send-funds/receiver",

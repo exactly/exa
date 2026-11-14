@@ -23,7 +23,7 @@ import {
 import { base } from "viem/chains";
 import { useReadContract, useSimulateContract } from "wagmi";
 
-import chain, { alchemyChains, allowlists } from "@exactly/common/generated/chain";
+import chain from "@exactly/common/generated/chain";
 import {
   auditorAbi,
   marketAbi,
@@ -60,15 +60,16 @@ import deployedOptions, { requestDeployment } from "../../utils/deployedOptions"
 import executionOptions from "../../utils/executionOptions";
 import { present, presentArticle } from "../../utils/intercom";
 import {
+  allowTokens,
   balancesOptions,
   bridgeSlippage,
   classify,
-  getAllowTokens,
   getRouteFrom,
   isStock,
   lifiChainsOptions,
   lifiTokensOptions,
   marketOpen,
+  marketTokens,
   quoteValidity,
   restrictedCountries,
   routeCalls,
@@ -80,6 +81,7 @@ import { useFeed } from "../../utils/prices";
 import queryClient, { APIError } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
+import useAllowlists, { chains as allowedChains } from "../../utils/useAllowlists";
 import useBeginKYC from "../../utils/useBeginKYC";
 import useKYC from "../../utils/useKYC";
 import useMarkets from "../../utils/useMarkets";
@@ -146,7 +148,6 @@ export default function Swaps() {
   const [acknowledged, setAcknowledged] = useState(false);
   const [flips, setFlips] = useState(0);
   const { markets, queryKey: marketsQueryKey, timestamp } = useMarkets();
-  const protocolMarkets = useMemo(() => markets?.map((m) => ({ asset: m.asset, symbol: m.symbol })) ?? [], [markets]);
   const beginKYC = useBeginKYC();
   const {
     approved: isKYCApproved,
@@ -160,12 +161,23 @@ export default function Swaps() {
   } = useKYC(chain.id === base.id);
   const { data: country } = useQuery<string>({ queryKey: ["user", "country"] });
   const restricted = restrictedCountries.has(country ?? "");
+  const allowlists = useAllowlists();
   const {
-    data: homeTokens,
-    isLoading: isTokensLoading,
+    data: lifiTokens,
     error: tokensError,
-  } = useQuery({ queryKey: ["allowTokens", protocolMarkets], queryFn: () => getAllowTokens(protocolMarkets) });
-  const { data: lifiTokens, isLoading: isLifiLoading } = useQuery(lifiTokensOptions);
+    errorUpdateCount: tokensErrors,
+    isLoading: isTokensLoading,
+  } = useQuery(lifiTokensOptions);
+  const isLifiLoading = isTokensLoading && tokensErrors === 0;
+  const allowlist = allowlists[chain.id];
+  const homeTokens = useMemo(() => {
+    const tokens =
+      lifiTokens ??
+      (tokensErrors > 0 && markets
+        ? marketTokens(markets.map(({ assetSymbol, ...market }) => ({ ...market, symbol: assetSymbol })))
+        : undefined);
+    return tokens && allowTokens(tokens, allowlist, markets);
+  }, [allowlist, lifiTokens, markets, tokensErrors]);
   const {
     data: lifiChains,
     error: chainsError,
@@ -191,29 +203,11 @@ export default function Swaps() {
   const toChain = (toToken?.token.chainId as number | undefined) ?? chain.id;
   const crossChain = fromChain !== toChain;
 
-  const allowedChains = useMemo(
-    () =>
-      Object.keys(allowlists)
-        .map(Number)
-        .filter((id) => Number.isInteger(id) && (id === chain.id || alchemyChains.get(id)?.smartAccount)),
-    [],
-  );
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { data: stocksTabSeen } = useQuery<boolean>({ queryKey: ["settings", "stocks-tab-seen"] });
   const { deployedFactories, isBaseLoading } = useQueries({
     queries: allowedChains.map((chainId) => deployedOptions(credential?.factory, chainId)),
-    combine: useCallback(
-      (results: UseQueryResult<boolean>[]) => {
-        const result = results[allowedChains.indexOf(base.id)];
-        return {
-          deployedFactories: new Set(
-            allowedChains.filter((chainId, index) => chainId === chain.id || results[index]?.data === true),
-          ),
-          isBaseLoading: !!result?.isLoading,
-        };
-      },
-      [allowedChains],
-    ),
+    combine: deployments,
   });
   const networks = useMemo(
     () =>
@@ -230,7 +224,7 @@ export default function Swaps() {
           if (b.id === chain.id) return 1;
           return a.name.localeCompare(b.name);
         }),
-    [allowedChains, deployedFactories, lifiChains],
+    [deployedFactories, lifiChains],
   );
 
   const getSwapAddress = useCallback(
@@ -288,14 +282,16 @@ export default function Swaps() {
     [candidates, held],
   );
   const tabs =
-    !restricted && (isLifiLoading || isChainsLoading || isBaseLoading || candidates.some((token) => isStock(token)));
-  const stocks = tabs && (mode ? mode === "stocks" : toToken ? isStock(toToken.token) : filter === "stocks");
+    !restricted &&
+    (isLifiLoading || isChainsLoading || isBaseLoading || candidates.some((token) => isStock(allowlists, token)));
+  const stocks =
+    tabs && (mode ? mode === "stocks" : toToken ? isStock(allowlists, toToken.token) : filter === "stocks");
   useEffect(() => {
     if (stocks) queryClient.setQueryData(["settings", "stocks-tab-seen"], true);
   }, [stocks]);
   const selectableTokens = useMemo(
-    () => candidates.filter((token) => tokenSelectionType === "from" || isStock(token) === stocks),
-    [candidates, stocks, tokenSelectionType],
+    () => candidates.filter((token) => tokenSelectionType === "from" || isStock(allowlists, token) === stocks),
+    [allowlists, candidates, stocks, tokenSelectionType],
   );
 
   useEffect(() => {
@@ -307,13 +303,13 @@ export default function Swaps() {
       const input = old.fromToken?.token ?? preferred.find(({ symbol }) => symbol === "USDC") ?? preferred[0];
       const target =
         old.toToken?.token ??
-        (stocks ? candidates.find((token) => isStock(token) && !sameToken(token, input)) : undefined) ??
+        (stocks ? candidates.find((token) => isStock(allowlists, token) && !sameToken(token, input)) : undefined) ??
         (stocks && (isLifiLoading || isBaseLoading || isChainsLoading)
           ? undefined
-          : ((input && isStock(input) ? ["USDC", "EXA", "WETH"] : ["EXA", "WETH", "USDC"])
+          : ((input && isStock(allowlists, input) ? ["USDC", "EXA", "WETH"] : ["EXA", "WETH", "USDC"])
               .map((symbol) => homeTokens.find((token) => token.symbol === symbol))
               .find((token) => token !== undefined && !sameToken(token, input)) ??
-            homeTokens.find((token) => !sameToken(token, input) && !isStock(token))));
+            homeTokens.find((token) => !sameToken(token, input) && !isStock(allowlists, token))));
       return {
         ...old,
         fromToken:
@@ -323,6 +319,7 @@ export default function Swaps() {
       };
     });
   }, [
+    allowlists,
     candidates,
     fromToken,
     homeTokens,
@@ -336,7 +333,7 @@ export default function Swaps() {
     toToken,
   ]);
 
-  const locked = !fromToken || !toToken || (restricted && isStock(fromToken.token));
+  const locked = !fromToken || !toToken || (restricted && isStock(allowlists, fromToken.token));
   const processing = chain.id === base.id && isKYCInReview;
   const failed = chain.id === base.id && isKYCFailed;
 
@@ -346,11 +343,11 @@ export default function Swaps() {
     chain.id === base.id && isKYCFetched && (!!kycError || !isKYCApproved) && !processing && !failed && !unverified;
 
   const balancesUnavailable =
-    !!balancesError && !isTokensLoading && fromChain === chain.id && !fromToken && payableTokens.length === 0;
+    !!balancesError && !isLifiLoading && fromChain === chain.id && !fromToken && payableTokens.length === 0;
   const chainsUnavailable = !!chainsError && !lifiChains && fromChain !== chain.id;
 
   const empty =
-    !isTokensLoading &&
+    !isLifiLoading &&
     !tokensError &&
     !isBalancesPending &&
     !balancesError &&
@@ -375,7 +372,7 @@ export default function Swaps() {
         tokenSelectionType === "to"
           ? { token: selected, external }
           : sameToken(selected, toToken?.token)
-            ? fromToken && restricted && isStock(fromToken.token)
+            ? fromToken && restricted && isStock(allowlists, fromToken.token)
               ? undefined
               : fromToken
             : toToken,
@@ -1058,7 +1055,9 @@ export default function Swaps() {
               <View padded>
                 <YStack paddingBottom="s3" gap="s4_5">
                   <MarketClosedBanner
-                    open={[fromToken, toToken].some((side) => !!side && isStock(side.token)) && !marketOpen()}
+                    open={
+                      [fromToken, toToken].some((side) => !!side && isStock(allowlists, side.token)) && !marketOpen()
+                    }
                   />
                   <YStack>
                     {(["from", "to"] as const).map((type) => {
@@ -1116,7 +1115,7 @@ export default function Swaps() {
                             amount={paying ? fromAmount : toAmount}
                             balance={getBalance(tokenData)}
                             disabled={!paying}
-                            isLoading={isTokensLoading || !tokenData || isRouteLoading}
+                            isLoading={isLifiLoading || !tokenData || isRouteLoading}
                             isActive={paying}
                             isDanger={paying && showWarning}
                             onTokenSelect={() => {
@@ -1323,7 +1322,7 @@ export default function Swaps() {
               selected={tokenSelectionType === "from" ? fromToken : toToken}
               onSelect={handleTokenSelect}
               onClose={() => updateSwap((old) => ({ ...old, tokenModalOpen: false }))}
-              isLoading={isTokensLoading || (tokenSelectionType === "to" && !toToken)}
+              isLoading={isLifiLoading || (tokenSelectionType === "to" && !toToken)}
               title={
                 tokenSelectionType === "from"
                   ? t("Select token to pay")
@@ -1415,4 +1414,14 @@ export const swapsScrollReference: RefObject<null | ScrollView> = { current: nul
 function quotedUSD(estimate: Estimate | undefined, type: "from" | "to") {
   const quoted = type === "from" ? estimate?.fromAmountUSD : estimate?.toAmountUSD;
   return quoted === undefined ? undefined : Number(quoted) || undefined;
+}
+
+function deployments(results: UseQueryResult<boolean>[]) {
+  const result = results[allowedChains.indexOf(base.id)];
+  return {
+    deployedFactories: new Set(
+      allowedChains.filter((chainId, index) => chainId === chain.id || results[index]?.data === true),
+    ),
+    isBaseLoading: !!result?.isLoading,
+  };
 }

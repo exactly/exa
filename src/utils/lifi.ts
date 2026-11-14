@@ -59,7 +59,6 @@ import { base } from "viem/chains";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import chain, {
   alchemyChains,
-  allowlists,
   appPreviewerAbi,
   appPreviewerCode,
   auditorAddress,
@@ -67,7 +66,6 @@ import chain, {
   lifiURL,
   marketWETHAddress,
   mockSwapperAbi,
-  stocks,
   swapperAddress,
 } from "@exactly/common/generated/chain";
 import { Address as AddressSchema, Hex } from "@exactly/common/validation";
@@ -122,19 +120,7 @@ export const lifiTokensOptions = queryOptions({
         code: appPreviewerCode,
         args: [auditorAddress],
       });
-      return markets.flatMap(({ asset, decimals, market, symbol, usdPrice }): Token[] => {
-        const token = {
-          address: asset,
-          chainId: chain.id as ChainId,
-          decimals,
-          name: symbol,
-          priceUSD: formatUnits(usdPrice, 18),
-          symbol,
-        };
-        return market === marketWETHAddress
-          ? [token, { ...token, address: zeroAddress, name: "ETH", symbol: "ETH" }]
-          : [token];
-      });
+      return marketTokens(markets);
     }
     ensureConfig();
     const { tokens } = await getTokens({ chainTypes, orderBy: "volumeUSD24H" });
@@ -168,8 +154,12 @@ export function statsOptions(chainId: number, address: string) {
   });
 }
 
-export function isStock({ address, chainId }: { address: string; chainId: number }) {
-  return chainId === base.id && stocks.has(address.toLowerCase());
+export function isStock(allowlists: Allowlists, { address, chainId }: { address: string; chainId: number }) {
+  return (
+    chainId === base.id &&
+    address.slice(0, 5).toLowerCase() === "0xb20" &&
+    !!allowlists[base.id]?.has(address.toLowerCase())
+  );
 }
 
 export const stockAbi = parseAbi(["function multiplier() view returns (uint256)"]);
@@ -339,30 +329,45 @@ export async function getRoute(
   };
 }
 
-export function swappable(markets: readonly { asset: string }[] = []) {
-  return new Set(
-    [...(allowlists[String(chain.id)] ?? []), ...markets.map((m) => m.asset)].map((address) => address.toLowerCase()),
-  );
+export function swappable(allowlist: ReadonlySet<string> = new Set(), markets: readonly { asset: string }[] = []) {
+  return new Set([...allowlist, ...markets.map((m) => m.asset.toLowerCase())]);
 }
 
-export function isSendable(address: string) {
-  return (
-    address === zeroAddress ||
-    !!allowlists[String(chain.id)]?.some((allowed) => allowed.toLowerCase() === address.toLowerCase())
-  );
+export function isSendable(allowlist: ReadonlySet<string> | undefined, address: string) {
+  return address === zeroAddress || !!allowlist?.has(address.toLowerCase());
 }
 
-export async function getAllowTokens(markets: readonly { asset: string; symbol: string }[] = []) {
-  ensureConfig();
+export function marketTokens(
+  markets: readonly { asset: string; decimals: number; market: string; symbol: string; usdPrice: bigint }[],
+) {
+  return markets.flatMap(({ asset, decimals, market, symbol, usdPrice }): Token[] => {
+    const token = {
+      address: asset,
+      chainId: chain.id as ChainId,
+      decimals,
+      name: symbol,
+      priceUSD: formatUnits(usdPrice, 18),
+      symbol,
+    };
+    return market === marketWETHAddress
+      ? [token, { ...token, address: zeroAddress, name: "ETH", symbol: "ETH" }]
+      : [token];
+  });
+}
+
+export function allowTokens(
+  tokens: readonly Token[],
+  allowlist: ReadonlySet<string> | undefined,
+  markets: readonly { asset: string }[] = [],
+) {
   if (!lifiURL) return [];
-  const { tokens } = await getTokens({ chains: [chain.id] });
-  const allowed = swappable(markets);
-  return (
-    tokens[chain.id]
-      ?.filter((token) => allowed.has(token.address.toLowerCase()))
-      .sort((a, b) => Number(b.address === exaAddress) - Number(a.address === exaAddress)) ?? []
-  );
+  const allowed = swappable(allowlist, markets);
+  return tokens
+    .filter((token) => token.chainId === (chain.id as Token["chainId"]) && allowed.has(token.address.toLowerCase()))
+    .sort((a, b) => Number(b.address === exaAddress) - Number(a.address === exaAddress));
 }
+
+export type Allowlists = Record<string, ReadonlySet<string> | undefined>;
 
 export type RouteFrom = {
   chainId: number;
