@@ -116,11 +116,17 @@ export function persona(referenceId: string, event = "approved") {
 }
 
 let purchases = 0;
-export function purchase(cardId: string, amount: number, merchantName: string, declinedReason?: string) {
+export function purchase(
+  cardId: string,
+  userId: string,
+  amount: number,
+  merchantName: string,
+  declinedReason?: string,
+) {
   const id = `${Date.now()}${String(purchases++).padStart(3, "0")}`;
   const cents = Math.round(amount * 100);
   const authorizedAt = new Date().toISOString();
-  for (const action of declinedReason ? ["created"] : ["created", "completed"]) {
+  for (const action of declinedReason ? ["created"] : ["requested", "created", "completed"]) {
     const payload = JSON.stringify({
       id: `${id}-${action}`,
       resource: "transaction",
@@ -142,8 +148,8 @@ export function purchase(cardId: string, amount: number, merchantName: string, d
           merchantCity: "London",
           merchantCountry: "GB",
           merchantName,
-          userId: "e2e",
-          status: declinedReason ? "declined" : action === "created" ? "pending" : "completed",
+          userId,
+          status: declinedReason ? "declined" : action === "completed" ? "completed" : "pending",
           ...(declinedReason && { declinedReason }),
           ...(action === "completed" && { postedAt: new Date().toISOString() }),
         },
