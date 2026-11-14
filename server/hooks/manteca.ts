@@ -174,6 +174,15 @@ export default function hook({
         return c.json({ code: "ok" }, 200);
       }
 
+      if (payload.data.userExternalId.startsWith("Exactly-")) {
+        captureEvent({
+          message: "MantecaCompanyEvent",
+          level: "info",
+          contexts: { details: { event: payload.event, ...payload.data } },
+        });
+        return c.json({ code: "ok" }, 200);
+      }
+
       const rawAccount = `0x${payload.data.userExternalId}`;
       const result = safeParse(Address, rawAccount);
       if (!result.success) {
