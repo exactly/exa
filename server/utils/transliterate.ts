@@ -1,5 +1,7 @@
 // cspell:ignoreRegExp /[\u0600-\u06FF\uAC00-\uD7AF]+/g
 // cspell:ignoreRegExp /"[A-Z][a-z]+(-[A-Z][a-z]+)?"/g
+// cspell:ignore aāeiīoōuūṛ bcdgjkpt brahmic gurmukhi iast αβγδεζηιλμνορυω
+import Sanscript from "@indic-transliteration/sanscript";
 import anyAscii from "any-ascii";
 import cyrillicToTranslit from "cyrillic-to-translit-js";
 import { ICAO_DOC_9303, translate } from "iuliia";
@@ -77,6 +79,9 @@ function romanize(text: string, country: string, kind: "address" | "name" | "sur
         return anyAscii(country === "UA" ? ukrainian.transform(word) : translate(word, ICAO_DOC_9303));
       }
       if (/\p{Script=Arabic}/u.test(word)) return arabic(word, region(country));
+      if (/\p{Script=Greek}/u.test(word)) return greek(word);
+      const indic = /[\u0900-\u0DFF]/u.exec(word)?.[0].codePointAt(0);
+      if (indic !== undefined) return brahmic(word, indic - (indic % 0x80));
       return anyAscii(word);
     })
     .join("")
@@ -89,13 +94,100 @@ function romanize(text: string, country: string, kind: "address" | "name" | "sur
 
 const ukrainian = cyrillicToTranslit({ preset: "uk" });
 
-type Region = "egypt" | "gulf" | "levant" | "maghreb" | "persian";
+function greek(word: string) {
+  const out = word
+    .normalize("NFD")
+    .toLowerCase()
+    .replaceAll(/[\u0301\u0342]/gu, "")
+    .replaceAll(/([αεη])υ(?=[αβγδεζηιλμνορυω])/gu, (_, vowel: string) => `${greekLetters[vowel]}v`)
+    .replaceAll(/([αεη])υ(?!\u0308)/gu, (_, vowel: string) => `${greekLetters[vowel]}f`)
+    .replaceAll(/ου(?!\u0308)/gu, "ou")
+    .replaceAll(/γ(?=[γξχ])/gu, "n")
+    .replaceAll("\u0308", "")
+    .replaceAll(/[\u03B1-\u03C9]/gu, (char) => `${greekLetters[char]}`);
+  return /^\p{Lu}/u.test(word) ? `${out.charAt(0).toUpperCase()}${out.slice(1)}` : out;
+}
+
+function brahmic(word: string, block: number) {
+  const script = brahmicScripts[block];
+  if (!script) return anyAscii(word);
+  const tokens = [...Sanscript.t(word, script, "iast").matchAll(/[bcdgjkpt]h|[ḍṭ]h|[aāeiīoōuūṛ][iu]?[ḥṁṃ]?|./gu)].map(
+    ([token]) => token,
+  );
+  if (syncope.has(block)) {
+    for (let index = tokens.length - 1; index > 1; index--) {
+      if (
+        tokens[index] === "a" &&
+        !vowel(tokens[index - 1]) &&
+        vowel(tokens[index - 2]) &&
+        (index === tokens.length - 1 || (!vowel(tokens[index + 1]) && vowel(tokens[index + 2])))
+      ) {
+        tokens[index] = "";
+      }
+    }
+  }
+  return anyAscii(
+    tokens
+      .join("")
+      .replaceAll(/[śṣ]/gu, "sh")
+      .replaceAll("c", "ch")
+      .replaceAll("ṛ", "ri")
+      .replaceAll(/[ṁṃ](?=[bmp])/gu, "m")
+      .replaceAll(/[ṁṃ]/gu, "n"),
+  );
+}
+
+const brahmicScripts: Record<number, string> = {
+  0x09_00: "devanagari",
+  0x09_80: "bengali",
+  0x0a_00: "gurmukhi",
+  0x0a_80: "gujarati",
+  0x0b_00: "oriya",
+  0x0c_00: "telugu",
+  0x0c_80: "kannada",
+  0x0d_00: "malayalam",
+};
+
+const vowel = (token?: string) => /^[aāeiīoōuūṛ]/u.test(token ?? "");
+
+const syncope = new Set([0x09_00, 0x09_80, 0x0a_00, 0x0a_80]);
+
+const greekLetters: Record<string, string> = {
+  α: "a",
+  β: "v",
+  γ: "g",
+  δ: "d",
+  ε: "e",
+  ζ: "z",
+  η: "i",
+  θ: "th",
+  ι: "i",
+  κ: "k",
+  λ: "l",
+  μ: "m",
+  ν: "n",
+  ξ: "x",
+  ο: "o",
+  π: "p",
+  ρ: "r",
+  σ: "s",
+  ς: "s",
+  τ: "t",
+  υ: "y",
+  φ: "f",
+  χ: "ch",
+  ψ: "ps",
+  ω: "o",
+};
+
+type Region = "egypt" | "gulf" | "levant" | "maghreb" | "persian" | "urdu";
 
 function region(country: string): Region {
   if (["EG", "LY", "SD"].includes(country)) return "egypt";
   if (["DZ", "MA", "MR", "TN"].includes(country)) return "maghreb";
   if (["JO", "LB", "PS", "SY"].includes(country)) return "levant";
   if (["AF", "IR"].includes(country)) return "persian";
+  if (country === "PK") return "urdu";
   return "gulf";
 }
 
@@ -122,8 +214,11 @@ function arabic(word: string, from: Region): string {
 }
 
 function name(text: string, from: Region) {
-  const entry = names.get(text.replace(/^[أإآٱ]/u, "ا"));
-  return typeof entry === "object" ? ((from === "persian" ? entry.levant : entry[from]) ?? entry.gulf) : entry;
+  const key = text.replace(/^[أإآٱ]/u, "ا");
+  const entry = names.get(key) ?? names.get(key.replace(/ي$/u, "ى").replace(/ه$/u, "ة"));
+  return typeof entry === "object"
+    ? (entry[from] ?? (from === "persian" ? entry.levant : undefined) ?? entry.gulf)
+    : entry;
 }
 
 function letters(text: string, from: Region) {
@@ -170,6 +265,9 @@ function letters(text: string, from: Region) {
           break;
         case "ع":
           out = index === 0 || next === "consonant" ? "a" : "";
+          break;
+        case "ه":
+          out = next ? "h" : (({ persian: "eh", urdu: "a" } as Partial<Record<Region, string>>)[from] ?? "h");
           break;
         default:
           if (role === "vowel") out = "a";
@@ -241,23 +339,23 @@ const consonants: Record<string, string> = {
 
 const egyptian: Record<string, string> = { ث: "s", ج: "g", ذ: "z", ق: "k" };
 
-const names = new Map<string, Partial<Record<Exclude<Region, "persian">, string>> | string>([
-  ["محمد", { egypt: "Mohamed", maghreb: "Mohamed", gulf: "Mohammed", levant: "Mohammad" }],
+const names = new Map<string, Partial<Record<Region, string>> | string>([
+  ["محمد", { egypt: "Mohamed", maghreb: "Mohamed", gulf: "Mohammed", levant: "Mohammad", urdu: "Muhammad" }],
   ["احمد", { egypt: "Ahmed", maghreb: "Ahmed", gulf: "Ahmed", levant: "Ahmad" }],
   ["محمود", "Mahmoud"],
-  ["رضا", { egypt: "Reda", gulf: "Rida" }],
+  ["رضا", { egypt: "Reda", gulf: "Rida", persian: "Reza", urdu: "Raza" }],
   ["علاء", "Alaa"],
   ["بكر", "Bakr"],
   ["مصطفى", { egypt: "Mostafa", maghreb: "Mustapha", gulf: "Mustafa" }],
   ["علي", "Ali"],
-  ["حسن", { egypt: "Hassan", gulf: "Hassan", levant: "Hasan" }],
-  ["حسين", { egypt: "Hussein", maghreb: "Hocine", gulf: "Hussain", levant: "Hussein" }],
+  ["حسن", { egypt: "Hassan", gulf: "Hassan", levant: "Hasan", persian: "Hassan" }],
+  ["حسين", { egypt: "Hussein", maghreb: "Hocine", gulf: "Hussain", levant: "Hussein", persian: "Hossein" }],
   ["ابراهيم", "Ibrahim"],
   ["اسماعيل", "Ismail"],
   ["يوسف", { egypt: "Youssef", maghreb: "Youssef", gulf: "Yousef" }],
   ["عمر", "Omar"],
   ["عمرو", "Amr"],
-  ["عثمان", { egypt: "Osman", gulf: "Othman" }],
+  ["عثمان", { egypt: "Osman", gulf: "Othman", urdu: "Usman" }],
   ["خالد", { egypt: "Khaled", maghreb: "Khaled", gulf: "Khalid", levant: "Khaled" }],
   ["طارق", { egypt: "Tarek", maghreb: "Tarek", gulf: "Tariq", levant: "Tarek" }],
   ["كريم", { egypt: "Karim", maghreb: "Karim", gulf: "Kareem", levant: "Karim" }],
@@ -321,6 +419,28 @@ const names = new Map<string, Partial<Record<Exclude<Region, "persian">, string>
   ["رجب", { egypt: "Ragab", gulf: "Rajab" }],
   ["شعبان", "Shaaban"],
   ["عبده", "Abdo"],
+  ["مهدي", { gulf: "Mahdi", persian: "Mehdi" }],
+  ["زهرا", "Zahra"],
+  ["امير", "Amir"],
+  ["عليرضا", "Alireza"],
+  ["محمدرضا", "Mohammadreza"],
+  ["اميرحسين", "Amirhossein"],
+  ["ابوالفضل", "Abolfazl"],
+  ["نرگس", "Narges"],
+  ["پريسا", "Parisa"],
+  ["نازنين", "Nazanin"],
+  ["شيرين", "Shirin"],
+  ["رضايي", "Rezaei"],
+  ["حسيني", { gulf: "Husseini", persian: "Hosseini" }],
+  ["محمدي", { gulf: "Mohammadi", urdu: "Muhammadi" }],
+  ["احمدي", "Ahmadi"],
+  ["موسوي", { gulf: "Mousawi", persian: "Mousavi" }],
+  ["جعفري", { gulf: "Jafari" }],
+  ["عمران", "Imran"],
+  ["خان", "Khan"],
+  ["شاه", "Shah"],
+  ["اقبال", "Iqbal"],
+  ["نواز", "Nawaz"],
   ["السيد", { egypt: "El-Sayed", gulf: "Al-Sayed" }],
   ["سيد", "Sayed"],
   ["ابو", { egypt: "Abou", maghreb: "Abou", gulf: "Abu", levant: "Abu" }],
@@ -328,7 +448,7 @@ const names = new Map<string, Partial<Record<Exclude<Region, "persian">, string>
   ["بنت", "Bint"],
   ["نور", { egypt: "Nour", gulf: "Noor", levant: "Nour", maghreb: "Nour" }],
   ["مريم", { egypt: "Mariam", maghreb: "Meriem", gulf: "Maryam" }],
-  ["فاطمة", { egypt: "Fatma", maghreb: "Fatima", gulf: "Fatima" }],
+  ["فاطمة", { egypt: "Fatma", maghreb: "Fatima", gulf: "Fatima", persian: "Fatemeh" }],
   ["عائشة", "Aisha"],
   ["خديجة", { egypt: "Khadiga", gulf: "Khadija" }],
   ["زينب", { egypt: "Zeinab", gulf: "Zainab" }],
@@ -353,7 +473,7 @@ const names = new Map<string, Partial<Record<Exclude<Region, "persian">, string>
   ["ريم", "Reem"],
   ["لينا", "Lina"],
   ["جنى", "Jana"],
-  ["ملك", "Malak"],
+  ["ملك", { gulf: "Malak", urdu: "Malik" }],
   ["روان", "Rawan"],
   ["دعاء", { egypt: "Doaa", gulf: "Duaa" }],
   ["نهى", { egypt: "Noha", gulf: "Nuha" }],

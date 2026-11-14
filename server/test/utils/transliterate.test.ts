@@ -1,6 +1,6 @@
-// cspell:ignoreRegExp /[\u0370-\u03FF\u0400-\u04FF\u0600-\u06FF\u0980-\u09FF\uAC00-\uD7AF]+/g
+// cspell:ignoreRegExp /[\u0370-\u03FF\u0400-\u04FF\u0600-\u06FF\u0900-\u0DFF\uAC00-\uD7AF]+/g
 // cspell:ignoreRegExp /"[A-Z][a-z]+([- ][A-Z][a-z]+)*"/g
-// cspell:ignore Byeol José João Khreshchatyk Mirpur Müller Shar Tahrir Teug Tverskaia Łukasz Ｊｏｈｎ
+// cspell:ignore Byeol Ermou Odos José João Khreshchatyk Mirpur Müller Rahul Shar Tahrir Teug Tverskaia Łukasz Ｊｏｈｎ
 import { describe, expect, it } from "vitest";
 
 import { latin, transliterateAddress, transliterateName } from "../../utils/transliterate";
@@ -75,10 +75,42 @@ describe("transliterate", () => {
       { text: "ربيع", country: "SA", expected: "Rabi" },
       { text: "حياة", country: "SA", expected: "Hayat" },
       { text: "رائد", country: "SA", expected: "Raed" },
-      { text: "رضا", country: "IR", expected: "Rida" },
+      { text: "رضا", country: "IR", expected: "Reza" },
       { text: "پروین", country: "IR", expected: "Parvin" },
       { text: "ویدا", country: "IR", expected: "Vida" },
       { text: "ٹیپو", country: "PK", expected: "Tipu" },
+      { text: "محمد", country: "PK", expected: "Muhammad" },
+      { text: "فاطمہ", country: "PK", expected: "Fatima" },
+      { text: "ملک", country: "PK", surname: true, expected: "Malik" },
+      { text: "عمران", country: "PK", expected: "Imran" },
+      { text: "حسین", country: "IR", expected: "Hossein" },
+      { text: "احمد", country: "IR", expected: "Ahmad" },
+      { text: "مریم", country: "IR", expected: "Maryam" },
+      { text: "مصطفی", country: "IR", expected: "Mustafa" },
+      { text: "فرشته", country: "IR", expected: "Farshteh" },
+      { text: "وجيه", country: "SA", expected: "Wajih" },
+      { text: "Ελευθέριος", country: "GR", expected: "Eleftherios" },
+      { text: "Παπαδόπουλος", country: "GR", surname: true, expected: "Papadopoulos" },
+      { text: "Ευάγγελος", country: "GR", expected: "Evangelos" },
+      { text: "Χρήστος", country: "GR", expected: "Christos" },
+      { text: "γιώργος", country: "GR", expected: "Giorgos" },
+      { text: "Μαΐστρος", country: "GR", surname: true, expected: "Maistros" },
+      { text: "Προϋπολογισμός", country: "GR", expected: "Proypologismos" },
+      { text: "Μπάμπης", country: "GR", expected: "Mpampis" },
+      { text: "राहुल", country: "IN", expected: "Rahul" },
+      { text: "शर्मा", country: "IN", surname: true, expected: "Sharma" },
+      { text: "कृष्ण", country: "IN", expected: "Krishna" },
+      { text: "चन्द्र", country: "IN", expected: "Chandra" },
+      { text: "आनंद", country: "IN", expected: "Anand" },
+      { text: "क", country: "IN", expected: "Ka" },
+      { text: "कमल्", country: "IN", expected: "Kamal" },
+      { text: "अमरनाथ", country: "IN", expected: "Amarnath" },
+      { text: "রহিম", country: "BD", expected: "Rahim" },
+      { text: "అనిల్", country: "IN", expected: "Anil" },
+      { text: "రాజు", country: "IN", expected: "Raju" },
+      { text: "සුනිල්", country: "LK", expected: "Sunil" },
+      { text: "குமார்", country: "IN", expected: "Kumar" },
+      { text: "राहुल-राहुल", country: "IN", expected: "Rahul-Rahul" },
       { text: "\u200B", country: "US", expected: undefined },
     ])("romanizes $text from $country", ({ text, country, surname, expected }) => {
       expect(transliterateName(text, country, { surname })).toBe(expected);
@@ -118,6 +150,12 @@ describe("transliterate", () => {
       { text: "١٢ب شارع النيل", country: "EG", expected: "12b Shar El-Nil" },
       { text: "12ب-Block", country: "EG", expected: "12b-Block" },
       { text: "ঢাকা মিরপুর রোড ১২", country: "BD", expected: "Dhaka Mirpur Rod 12" },
+      { text: "Οδός Ερμού 15", country: "GR", expected: "Odos Ermou 15" },
+      { text: "मुंबई", country: "IN", expected: "Mumbai" },
+      { text: "சென்னை", country: "IN", expected: "Cennai" },
+      { text: "राहुल,", country: "IN", expected: "Rahul," },
+      { text: "Sector-१२", country: "IN", expected: "Sector-12" },
+      { text: "Block-C१२", country: "IN", expected: "Block-C12" },
       { text: "서울특별시 강남구", country: "KR", expected: "SeoUlTeugByeolSi GangNamGu" },
     ])("romanizes $text from $country", ({ text, country, expected }) => {
       expect(transliterateAddress(text, country)).toBe(expected);
