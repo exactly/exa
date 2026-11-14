@@ -306,6 +306,7 @@ overrides:
   '@bigmi/core': npm:@favware/skip-dependency@1.2.2
   '@exactly/protocol>solmate': '-'
   '@gnosis.pm/safe-contracts': npm:@favware/skip-dependency@1.2.2
+  '@indic-transliteration/sanscript>toml': '-'
   '@mysten/sui': npm:@favware/skip-dependency@1.2.2
   '@mysten/wallet-standard': npm:@favware/skip-dependency@1.2.2
   '@nomiclabs/hardhat-etherscan': npm:@favware/skip-dependency@1.2.2
@@ -896,10 +897,10 @@ importers:
         version: 5.6.1
       modular-account:
         specifier: alchemyplatform/modular-account#c81e7122eb46e13447afa3f2e0d2537cf2792beb
-        version: https://codeload.github.com/alchemyplatform/modular-account/tar.gz/c81e7122eb46e13447afa3f2e0d2537cf2792beb
+        version: git+https://github.com/alchemyplatform/modular-account.git#c81e7122eb46e13447afa3f2e0d2537cf2792beb
       modular-account-libs:
         specifier: erc6900/modular-account-libs#v0.7.1
-        version: https://codeload.github.com/erc6900/modular-account-libs/tar.gz/5d9d0e403332251045eee2954c2a8b7ea0bae953
+        version: git+https://github.com/erc6900/modular-account-libs.git#5d9d0e403332251045eee2954c2a8b7ea0bae953
       solady:
         specifier: ^0.1.26
         version: 0.1.26
@@ -908,10 +909,10 @@ importers:
         version: solady@0.0.227
       webauthn-owner-plugin:
         specifier: exactly/webauthn-owner-plugin#9c0c38b
-        version: https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/9c0c38bd63c2aa70b60c03c815e9de108e264cda
+        version: git+https://github.com/exactly/webauthn-owner-plugin.git#9c0c38bd63c2aa70b60c03c815e9de108e264cda
       webauthn-sol:
         specifier: base/webauthn-sol#v1.0.0
-        version: https://codeload.github.com/base/webauthn-sol/tar.gz/619f20ab0f074fef41066ee4ab24849a913263b2
+        version: git+https://github.com/base/webauthn-sol.git#619f20ab0f074fef41066ee4ab24849a913263b2
     devDependencies:
       '@exactly/protocol':
         specifier: ^0.2.25
@@ -930,22 +931,22 @@ importers:
         version: '@openzeppelin/contracts@4.9.6'
       account-abstraction:
         specifier: eth-infinitism/account-abstraction#v0.6.0
-        version: accountabstraction@https://codeload.github.com/eth-infinitism/account-abstraction/tar.gz/abff2aca61a8f0934e533d0d352978055fddbd96
+        version: accountabstraction@git+https://github.com/eth-infinitism/account-abstraction.git#abff2aca61a8f0934e533d0d352978055fddbd96
       forge-std:
         specifier: foundry-rs/forge-std#v1.15.0
-        version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/0844d7e1fc5e60d77b68e469bff60265f236c398
+        version: git+https://github.com/foundry-rs/forge-std.git#0844d7e1fc5e60d77b68e469bff60265f236c398
       fresh-crypto-lib:
         specifier: rdubois-crypto/FreshCryptoLib#fd2a0e6e64609ade0b0c165e4d66de8106a70db6
-        version: https://codeload.github.com/rdubois-crypto/FreshCryptoLib/tar.gz/fd2a0e6e64609ade0b0c165e4d66de8106a70db6
+        version: git+https://github.com/rdubois-crypto/FreshCryptoLib.git#fd2a0e6e64609ade0b0c165e4d66de8106a70db6
       solhint:
         specifier: ^6.1.0
         version: 6.1.0(typescript@5.9.3)
       solmate:
         specifier: transmissions11/solmate#v7
-        version: '@rari-capital/solmate@https://codeload.github.com/transmissions11/solmate/tar.gz/eaa7041378f9a6c12f943de08a6c41b31a9870fc'
+        version: '@rari-capital/solmate@git+https://github.com/transmissions11/solmate.git#eaa7041378f9a6c12f943de08a6c41b31a9870fc'
       surl:
         specifier: memester-xyz/surl
-        version: https://codeload.github.com/memester-xyz/surl/tar.gz/5f92a5260c8e0198ca3ee6a16255d6cda4e0887a
+        version: git+https://github.com/memester-xyz/surl.git#5f92a5260c8e0198ca3ee6a16255d6cda4e0887a
       typescript:
         specifier: 'catalog:'
         version: 5.9.3
@@ -1037,6 +1038,9 @@ importers:
       '@hono/valibot-validator':
         specifier: ^0.5.3
         version: 0.5.3(hono@4.13.18)(valibot@1.4.2(typescript@5.9.3))
+      '@indic-transliteration/sanscript':
+        specifier: ^1.3.3
+        version: 1.3.3
       '@mastra/core':
         specifier: ^1.63.2
         version: 1.63.2(@grpc/grpc-js@1.14.5)(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(utf-8-validate@5.0.10)(zod@4.6.7)
@@ -1259,7 +1263,7 @@ importers:
         version: 9.0.4(debug@4.4.3)
       webauthn-owner-plugin:
         specifier: exactly/webauthn-owner-plugin#9c0c38b
-        version: https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/9c0c38bd63c2aa70b60c03c815e9de108e264cda
+        version: git+https://github.com/exactly/webauthn-owner-plugin.git#9c0c38bd63c2aa70b60c03c815e9de108e264cda
 
 packages:
 
@@ -4104,6 +4108,12 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@indic-transliteration/common_maps@1.0.6':
+    resolution: {integrity: sha512-OYX+SrpK26FjVZNphOdsQc9Ph0yFDtoWsU7INjhEhhWvGqzxF3Mqi0fF0buUsB4jpRWJe+7U+u9PO4fsTP/lfg==}
+
+  '@indic-transliteration/sanscript@1.3.3':
+    resolution: {integrity: sha512-zNGeARmQTPIlubwgEhl/JumpwTPHrdT/cNsQeCL+G67SQmjJe3qRnMIYghXiVt7+KDso/pU1Ky2ZfD/RBISfJQ==}
+
   '@inquirer/external-editor@1.0.3':
     resolution: {integrity: sha512-RWbSrDiYmO4LbejWY7ttpxczuwQyZLBUyygsA9Nsv95hpzUWwnNTVQmAq3xuh7vNwCp07UTmE5i11XAEExx4RA==}
     engines: {node: '>=18'}
@@ -5521,8 +5531,8 @@ packages:
       '@types/react':
         optional: true
 
-  '@rari-capital/solmate@https://codeload.github.com/transmissions11/solmate/tar.gz/eaa7041378f9a6c12f943de08a6c41b31a9870fc':
-    resolution: {gitHosted: true, integrity: sha512-IDkimq4MCCW59JG5wNc9rnNXYnoqPNeu+BI6d7TmQrn6b7w4Cyd17CF8Si8ch4ZTwboDGMpGmr4lo8PJ5pdNXA==, tarball: https://codeload.github.com/transmissions11/solmate/tar.gz/eaa7041378f9a6c12f943de08a6c41b31a9870fc}
+  '@rari-capital/solmate@git+https://github.com/transmissions11/solmate.git#eaa7041378f9a6c12f943de08a6c41b31a9870fc':
+    resolution: {commit: eaa7041378f9a6c12f943de08a6c41b31a9870fc, repo: https://github.com/transmissions11/solmate.git, type: git}
     version: 7.0.0-alpha.3
 
   '@react-native-async-storage/async-storage@2.2.0':
@@ -8157,8 +8167,8 @@ packages:
     resolution: {integrity: sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng==}
     engines: {node: '>= 0.6'}
 
-  accountabstraction@https://codeload.github.com/eth-infinitism/account-abstraction/tar.gz/abff2aca61a8f0934e533d0d352978055fddbd96:
-    resolution: {gitHosted: true, integrity: sha512-NvWO0tyLOCZdxK4eQ+iPimXRPLcCG5sqJspWxd5qyZnCAWfktg/s2wHhenmz6pIqP5A2cb/KKseodXKZy63sCg==, tarball: https://codeload.github.com/eth-infinitism/account-abstraction/tar.gz/abff2aca61a8f0934e533d0d352978055fddbd96}
+  accountabstraction@git+https://github.com/eth-infinitism/account-abstraction.git#abff2aca61a8f0934e533d0d352978055fddbd96:
+    resolution: {commit: abff2aca61a8f0934e533d0d352978055fddbd96, repo: https://github.com/eth-infinitism/account-abstraction.git, type: git}
     version: 0.6.0
 
   acorn-import-assertions@1.9.0:
@@ -11021,8 +11031,8 @@ packages:
     resolution: {integrity: sha512-gIXjKqtFuWEgzFRJA9WCQeSJLZDjgJUOMCMzxtvFq/37KojM1BFGufqsCy0r4qSQmYLsZYMeyRqzIWOMup03sw==}
     engines: {node: '>=14'}
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/0844d7e1fc5e60d77b68e469bff60265f236c398:
-    resolution: {gitHosted: true, integrity: sha512-nm0eLdbGRP9DY/keWSyz6nGNGLQeXw5o++DsZK2bkOJWliJZiGptMtQ7utvA7JyO0mxbuGJZkNbtYswALq66qg==, tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/0844d7e1fc5e60d77b68e469bff60265f236c398}
+  forge-std@git+https://github.com/foundry-rs/forge-std.git#0844d7e1fc5e60d77b68e469bff60265f236c398:
+    resolution: {commit: 0844d7e1fc5e60d77b68e469bff60265f236c398, repo: https://github.com/foundry-rs/forge-std.git, type: git}
     version: 1.15.0
 
   form-data-encoder@2.1.4:
@@ -11058,8 +11068,8 @@ packages:
   framesync@6.0.1:
     resolution: {integrity: sha512-fUY88kXvGiIItgNC7wcTOl0SNRCVXMKSWW2Yzfmn7EKNc+MpCzcz9DhdHcdjbrtN3c6R4H5dTY2jiCpPdysEjA==}
 
-  fresh-crypto-lib@https://codeload.github.com/rdubois-crypto/FreshCryptoLib/tar.gz/fd2a0e6e64609ade0b0c165e4d66de8106a70db6:
-    resolution: {gitHosted: true, integrity: sha512-9f3WvfKlrlLTfC4Z0TjfnCYz/ZexRumY/mGBx4QBRiNaVVx00aJrA+ersfpIpaadnl2zQRatlv480tjc9ShBbw==, tarball: https://codeload.github.com/rdubois-crypto/FreshCryptoLib/tar.gz/fd2a0e6e64609ade0b0c165e4d66de8106a70db6}
+  fresh-crypto-lib@git+https://github.com/rdubois-crypto/FreshCryptoLib.git#fd2a0e6e64609ade0b0c165e4d66de8106a70db6:
+    resolution: {commit: fd2a0e6e64609ade0b0c165e4d66de8106a70db6, repo: https://github.com/rdubois-crypto/FreshCryptoLib.git, type: git}
     version: 0.0.0
 
   fresh@0.5.2:
@@ -13253,12 +13263,12 @@ packages:
   mlly@1.8.2:
     resolution: {integrity: sha512-d+ObxMQFmbt10sretNDytwt85VrbkhhUA/JBGm1MPaWJ65Cl4wOgLaB1NYvJSZ0Ef03MMEU/0xpPMXUIQ29UfA==}
 
-  modular-account-libs@https://codeload.github.com/erc6900/modular-account-libs/tar.gz/5d9d0e403332251045eee2954c2a8b7ea0bae953:
-    resolution: {gitHosted: true, integrity: sha512-nvoIGwsRt7LfsuZ5B3TyLOHnNXNsVphE6sGOnrTuzmKa77pAQLMXClfz1fp/vIbmCzMs3zgxmLZEpB3fzqHLjA==, tarball: https://codeload.github.com/erc6900/modular-account-libs/tar.gz/5d9d0e403332251045eee2954c2a8b7ea0bae953}
+  modular-account-libs@git+https://github.com/erc6900/modular-account-libs.git#5d9d0e403332251045eee2954c2a8b7ea0bae953:
+    resolution: {commit: 5d9d0e403332251045eee2954c2a8b7ea0bae953, repo: https://github.com/erc6900/modular-account-libs.git, type: git}
     version: 0.7.0
 
-  modular-account@https://codeload.github.com/alchemyplatform/modular-account/tar.gz/c81e7122eb46e13447afa3f2e0d2537cf2792beb:
-    resolution: {gitHosted: true, integrity: sha512-srHbFjSh7iy8d6vFYRxDtkXduu3gau730cKhi8uCB5nOouvZGEuwWMsvHfYWN0VP6oRid96S6V7LP4iM/bpaLA==, tarball: https://codeload.github.com/alchemyplatform/modular-account/tar.gz/c81e7122eb46e13447afa3f2e0d2537cf2792beb}
+  modular-account@git+https://github.com/alchemyplatform/modular-account.git#c81e7122eb46e13447afa3f2e0d2537cf2792beb:
+    resolution: {commit: c81e7122eb46e13447afa3f2e0d2537cf2792beb, repo: https://github.com/alchemyplatform/modular-account.git, type: git}
     version: v1.0.1
 
   module-details-from-path@1.0.4:
@@ -13357,6 +13367,7 @@ packages:
 
   node-abort-controller@3.1.1:
     resolution: {integrity: sha512-AGK2yQKIjRuqnc6VkX2Xj5d+QW8xZ87pa1UK6yA6ouUyuxfHuMP6umE5QK7UmTeOAymo+Zx1Fxiuw9rVx8taHQ==}
+    deprecated: This package is no longer needed on supported Node.js versions. Node.js 16+ includes AbortController and AbortSignal as built-in globals. All Node.js versions requiring this polyfill are end-of-life. Use the built-in globals instead.
 
   node-domexception@1.0.0:
     resolution: {integrity: sha512-/jKZoMpw0F8GRwl4/eLROPA3cfcXtLApP0QzLmUT/HuPCZWyB7IY9ZrMeKw2O/nFIqPQB3PVM9aYm0F312AXDQ==}
@@ -15443,8 +15454,8 @@ packages:
     resolution: {integrity: sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==}
     engines: {node: '>= 0.4'}
 
-  surl@https://codeload.github.com/memester-xyz/surl/tar.gz/5f92a5260c8e0198ca3ee6a16255d6cda4e0887a:
-    resolution: {gitHosted: true, integrity: sha512-DKIsQPjjOnqlUi2/h7oapmNRfwWLNqn6V/tLMUbAiPb0mVnWD1rvLWekMCiEqvP52dn00nhE9vK4sTsrK1AZTQ==, tarball: https://codeload.github.com/memester-xyz/surl/tar.gz/5f92a5260c8e0198ca3ee6a16255d6cda4e0887a}
+  surl@git+https://github.com/memester-xyz/surl.git#5f92a5260c8e0198ca3ee6a16255d6cda4e0887a:
+    resolution: {commit: 5f92a5260c8e0198ca3ee6a16255d6cda4e0887a, repo: https://github.com/memester-xyz/surl.git, type: git}
     version: 0.0.0
 
   svg-arc-to-cubic-bezier@3.2.0:
@@ -16289,15 +16300,15 @@ packages:
     resolution: {integrity: sha512-d2JWLCivmZYTSIoge9MsgFCZrt571BikcWGYkjC1khllbTeDlGqZ2D8vD8E/lJa8WGWbb7Plm8/XJYV7IJHZZw==}
     engines: {node: '>= 8'}
 
-  webauthn-owner-plugin@https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/9c0c38bd63c2aa70b60c03c815e9de108e264cda:
-    resolution: {gitHosted: true, integrity: sha512-yibBPzOEH5biyThe7DG6cYJeP5z5bj4TTvU5F8A8zCq4uJHxABm9AxSbPjhpZmRX9CKgobrFoObcT1wFxqVesg==, tarball: https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/9c0c38bd63c2aa70b60c03c815e9de108e264cda}
+  webauthn-owner-plugin@git+https://github.com/exactly/webauthn-owner-plugin.git#9c0c38bd63c2aa70b60c03c815e9de108e264cda:
+    resolution: {commit: 9c0c38bd63c2aa70b60c03c815e9de108e264cda, repo: https://github.com/exactly/webauthn-owner-plugin.git, type: git}
     version: 0.0.0
 
   webauthn-p256@0.0.10:
     resolution: {integrity: sha512-EeYD+gmIT80YkSIDb2iWq0lq2zbHo1CxHlQTeJ+KkCILWpVy3zASH3ByD4bopzfk0uCwXxLqKGLqp2W4O28VFA==}
 
-  webauthn-sol@https://codeload.github.com/base/webauthn-sol/tar.gz/619f20ab0f074fef41066ee4ab24849a913263b2:
-    resolution: {gitHosted: true, integrity: sha512-pTBB+/Emirl8CQgUGY2vXDWPNAt8+wO251JDofOIjoQ/9uGCwzuebMnSE5EvsgqAse9LsSB7EKdM8pBclLAovA==, tarball: https://codeload.github.com/base/webauthn-sol/tar.gz/619f20ab0f074fef41066ee4ab24849a913263b2}
+  webauthn-sol@git+https://github.com/base/webauthn-sol.git#619f20ab0f074fef41066ee4ab24849a913263b2:
+    resolution: {commit: 619f20ab0f074fef41066ee4ab24849a913263b2, repo: https://github.com/base/webauthn-sol.git, type: git}
     version: 0.0.0
 
   webcrypto-core@1.8.1:
@@ -20325,6 +20336,12 @@ snapshots:
   '@img/sharp-win32-x64@0.35.5':
     optional: true
 
+  '@indic-transliteration/common_maps@1.0.6': {}
+
+  '@indic-transliteration/sanscript@1.3.3':
+    dependencies:
+      '@indic-transliteration/common_maps': 1.0.6
+
   '@inquirer/external-editor@1.0.3(@types/node@25.5.0)':
     dependencies:
       chardet: 2.1.1
@@ -22179,7 +22196,7 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.2.14
 
-  '@rari-capital/solmate@https://codeload.github.com/transmissions11/solmate/tar.gz/eaa7041378f9a6c12f943de08a6c41b31a9870fc': {}
+  '@rari-capital/solmate@git+https://github.com/transmissions11/solmate.git#eaa7041378f9a6c12f943de08a6c41b31a9870fc': {}
 
   '@react-native-async-storage/async-storage@2.2.0(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))':
     dependencies:
@@ -26290,7 +26307,7 @@ snapshots:
       mime-types: 3.0.2
       negotiator: 1.0.0
 
-  accountabstraction@https://codeload.github.com/eth-infinitism/account-abstraction/tar.gz/abff2aca61a8f0934e533d0d352978055fddbd96:
+  accountabstraction@git+https://github.com/eth-infinitism/account-abstraction.git#abff2aca61a8f0934e533d0d352978055fddbd96:
     dependencies:
       '@gnosis.pm/safe-contracts': '@favware/skip-dependency@1.2.2'
       '@nomiclabs/hardhat-etherscan': '@favware/skip-dependency@1.2.2'
@@ -29843,7 +29860,7 @@ snapshots:
       cross-spawn: 7.0.6
       signal-exit: 4.1.0
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/0844d7e1fc5e60d77b68e469bff60265f236c398: {}
+  forge-std@git+https://github.com/foundry-rs/forge-std.git#0844d7e1fc5e60d77b68e469bff60265f236c398: {}
 
   form-data-encoder@2.1.4: {}
 
@@ -29889,7 +29906,7 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
-  fresh-crypto-lib@https://codeload.github.com/rdubois-crypto/FreshCryptoLib/tar.gz/fd2a0e6e64609ade0b0c165e4d66de8106a70db6: {}
+  fresh-crypto-lib@git+https://github.com/rdubois-crypto/FreshCryptoLib.git#fd2a0e6e64609ade0b0c165e4d66de8106a70db6: {}
 
   fresh@0.5.2: {}
 
@@ -32728,9 +32745,9 @@ snapshots:
       pkg-types: 1.3.1
       ufo: 1.6.3
 
-  modular-account-libs@https://codeload.github.com/erc6900/modular-account-libs/tar.gz/5d9d0e403332251045eee2954c2a8b7ea0bae953: {}
+  modular-account-libs@git+https://github.com/erc6900/modular-account-libs.git#5d9d0e403332251045eee2954c2a8b7ea0bae953: {}
 
-  modular-account@https://codeload.github.com/alchemyplatform/modular-account/tar.gz/c81e7122eb46e13447afa3f2e0d2537cf2792beb: {}
+  modular-account@git+https://github.com/alchemyplatform/modular-account.git#c81e7122eb46e13447afa3f2e0d2537cf2792beb: {}
 
   module-details-from-path@1.0.4: {}
 
@@ -35460,7 +35477,7 @@ snapshots:
 
   supports-preserve-symlinks-flag@1.0.0: {}
 
-  surl@https://codeload.github.com/memester-xyz/surl/tar.gz/5f92a5260c8e0198ca3ee6a16255d6cda4e0887a: {}
+  surl@git+https://github.com/memester-xyz/surl.git#5f92a5260c8e0198ca3ee6a16255d6cda4e0887a: {}
 
   svg-arc-to-cubic-bezier@3.2.0: {}
 
@@ -36336,14 +36353,14 @@ snapshots:
 
   web-streams-polyfill@3.3.3: {}
 
-  webauthn-owner-plugin@https://codeload.github.com/exactly/webauthn-owner-plugin/tar.gz/9c0c38bd63c2aa70b60c03c815e9de108e264cda: {}
+  webauthn-owner-plugin@git+https://github.com/exactly/webauthn-owner-plugin.git#9c0c38bd63c2aa70b60c03c815e9de108e264cda: {}
 
   webauthn-p256@0.0.10:
     dependencies:
       '@noble/curves': 1.9.7
       '@noble/hashes': 1.8.0
 
-  webauthn-sol@https://codeload.github.com/base/webauthn-sol/tar.gz/619f20ab0f074fef41066ee4ab24849a913263b2: {}
+  webauthn-sol@git+https://github.com/base/webauthn-sol.git#619f20ab0f074fef41066ee4ab24849a913263b2: {}
 
   webcrypto-core@1.8.1:
     dependencies:
