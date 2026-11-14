@@ -3,7 +3,6 @@ import { readContract } from "@wagmi/core/actions";
 import { BaseError, ExecutionRevertedError, type Address } from "viem";
 
 import accountInit from "@exactly/common/accountInit";
-import chain from "@exactly/common/generated/chain";
 import { exaPluginAbi, useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
 
 import queryClient from "./queryClient";
@@ -12,16 +11,16 @@ import exa from "./wagmi/exa";
 
 import type { Credential } from "@exactly/common/validation";
 
-export default function useProposalManager() {
-  return useProposalManagerQuery().proposalManager;
+export default function useProposalManager(chainId: number) {
+  return useProposalManagerQuery(chainId).proposalManager;
 }
 
-export function useProposalManagerQuery() {
+export function useProposalManagerQuery(chainId: number) {
   const { address } = useAccount();
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const plugins = useReadUpgradeableModularAccountGetInstalledPlugins({
     address,
-    chainId: chain.id,
+    chainId,
     factory: credential?.factory,
     factoryData: credential && accountInit(credential),
     query: {
@@ -31,7 +30,7 @@ export function useProposalManagerQuery() {
     },
   });
   const installed = useQuery({
-    ...installedProposalManagerOptions(plugins.data?.[0]),
+    ...installedProposalManagerOptions(plugins.data?.[0], chainId),
     enabled: !!plugins.data?.[0],
     refetchInterval: ({ state }) => (state.error ? 20_000 : false),
   });
@@ -50,14 +49,14 @@ export function useProposalManagerQuery() {
         plugin = data?.[0];
       }
       if (plugin === undefined) return;
-      return queryClient.fetchQuery(installedProposalManagerOptions(plugin)).catch(() => undefined);
+      return queryClient.fetchQuery(installedProposalManagerOptions(plugin, chainId)).catch(() => undefined);
     },
   };
 }
 
-function installedProposalManagerOptions(plugin: Address | undefined) {
+function installedProposalManagerOptions(plugin: Address | undefined, chainId: number) {
   return queryOptions({
-    queryKey: ["plugin", "proposalManager", chain.id, plugin],
+    queryKey: ["plugin", "proposalManager", chainId, plugin],
     queryFn: async () => {
       if (!plugin) throw new Error("no plugin");
       try {
@@ -65,7 +64,7 @@ function installedProposalManagerOptions(plugin: Address | undefined) {
           address: plugin,
           abi: exaPluginAbi,
           functionName: "proposalManager",
-          chainId: chain.id,
+          chainId,
         });
       } catch (error: unknown) {
         if (error instanceof BaseError && error.walk((cause) => cause instanceof ExecutionRevertedError) !== null) {

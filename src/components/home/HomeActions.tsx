@@ -58,7 +58,7 @@ export default function HomeActions() {
     factoryData: credential && accountInit(credential),
     query: { enabled: !!account && !!credential },
   });
-  const { proposalManager, failed: managerFailed, refetch: refetchManager } = useProposalManagerQuery();
+  const { proposalManager, failed: managerFailed, refetch: refetchManager } = useProposalManagerQuery(chain.id);
   const retryingRef = useRef(false);
   const [retrying, setRetrying] = useState(false);
   const { refetch: fetchProposals, isPending } = useReadContract({

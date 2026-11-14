@@ -9,7 +9,7 @@ import { ScrollView, XStack, YStack } from "tamagui";
 import { useQuery } from "@tanstack/react-query";
 import { formatDistanceStrict } from "date-fns";
 
-import { marketUSDCAddress } from "@exactly/common/generated/chain";
+import chain, { marketUSDCAddress } from "@exactly/common/generated/chain";
 import { WAD } from "@exactly/lib";
 
 import Empty from "./Empty";
@@ -54,7 +54,7 @@ export default function Pay() {
     i18n: { language },
   } = useTranslation();
   const router = useRouter();
-  const proposalManager = useProposalManager();
+  const proposalManager = useProposalManager(chain.id);
   const { market: exaUSDC } = useAsset(marketUSDCAddress);
   const { markets, timestamp, refetch } = useMarkets({ refetchInterval: 30_000 });
 
