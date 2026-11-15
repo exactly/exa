@@ -40,8 +40,10 @@ import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 import { chains } from "./anvil";
 import lifi from "./lifi";
 import database, { cards as cardsTable, credentials } from "../database";
+import auth from "../middleware/auth";
 import createAlchemy from "../utils/alchemy";
 import appOrigin, { origins } from "../utils/appOrigin";
+import authSecret from "../utils/authSecret";
 import createOnesignal from "../utils/onesignal";
 import createPanda from "../utils/panda";
 import createSardine from "../utils/sardine";
@@ -153,7 +155,56 @@ describe("e2e", () => {
           );
           baseline.catch(reject);
 
+          const expiring = new Set<string>();
+          const holds = new Map<string, { held: boolean; released: PromiseWithResolvers<void> }>();
+          const { fetch } = app;
+          app.fetch = async (request, ...rest) => {
+            const response = await fetch(request, ...rest);
+            const { pathname } = new URL(request.url);
+            if (request.method !== "POST" || pathname !== "/api/auth/authentication" || !response.ok) return response;
+            const json = (await response.clone().json()) as { credentialId: string };
+            const id = json.credentialId.toLowerCase();
+            const hold = holds.get(id);
+            if (hold) {
+              hold.held = true;
+              await hold.released.promise;
+            }
+            if (!expiring.delete(id)) return response;
+            const expires = new Date(Date.now() + 5000);
+            const headers = new Headers(response.headers);
+            headers.delete("content-length");
+            headers.delete("set-cookie");
+            for (const cookie of response.headers.getSetCookie()) {
+              headers.append("set-cookie", cookie.replace(/expires=[^;]+/i, `Expires=${expires.toUTCString()}`));
+            }
+            return Response.json(
+              { ...json, auth: expires.getTime(), expires: expires.getTime() },
+              { status: response.status, headers },
+            );
+          };
           app.use("/e2e/*", cors());
+          app.post("/e2e/expiry", async (c) => {
+            const id = await c.req.text();
+            expiring.add(id.toLowerCase());
+            return c.json({ code: "ok" });
+          });
+          app.post("/e2e/hold", async (c) => {
+            const id = await c.req.text();
+            holds.set(id.toLowerCase(), { held: false, released: Promise.withResolvers() });
+            return c.json({ code: "ok" });
+          });
+          app.get("/e2e/hold", (c) =>
+            holds.get(c.req.query("credential")?.toLowerCase() ?? "")?.held
+              ? c.json({ code: "ok" })
+              : c.json({ code: "not held" }, 404),
+          );
+          app.post("/e2e/release", async (c) => {
+            const id = await c.req.text();
+            holds.get(id.toLowerCase())?.released.resolve();
+            holds.delete(id.toLowerCase());
+            return c.json({ code: "ok" });
+          });
+          app.get("/e2e/session", auth(authSecret), (c) => c.json(c.req.valid("cookie")));
           app.route("/e2e/lifi", lifi(chains));
           app.get("/e2e/credential", async (c) => {
             const credential = await database.query.credentials.findFirst({
