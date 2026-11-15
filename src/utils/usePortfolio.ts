@@ -1,15 +1,14 @@
 import { useCallback, useMemo } from "react";
 
-import { useQueries, useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { safeParse } from "valibot";
 import { formatUnits } from "viem";
 
-import chain, { chains } from "@exactly/common/generated/chain";
+import chain from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 import { floatingDepositRates, WAD, withdrawLimit } from "@exactly/lib";
 
 import { balancesOptions } from "./lifi";
-import marketsOptions, { ratesOptions, type NetworkMarkets, type NetworkRates } from "./marketsOptions";
 import useAccount from "./useAccount";
 import useMarkets from "./useMarkets";
 
@@ -47,18 +46,12 @@ export type ExternalAsset = {
 
 export type PortfolioAsset = ExternalAsset | ProtocolAsset;
 
-export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValue" }) {
+export default function usePortfolio(options?: { deposits?: ProtocolAsset[]; sortBy?: "usdcFirst" | "usdValue" }) {
   const { address: account } = useAccount();
+  const deposits = options?.deposits ?? none;
   const { markets, supportedAssets, rateSnapshot, timestamp, isPending: isMarketsPending } = useMarkets();
 
   const { data: balances, isLoading: isBalancesPending } = useQuery(balancesOptions(account));
-
-  const networkMarkets = useQueries({ queries: remotes.map((chainId) => marketsOptions(account, chainId)), combine });
-  const snapshots = useQueries({ queries: remotes.map((chainId) => ratesOptions(chainId)), combine });
-  const deposits = useMemo(
-    () => networkMarkets.flatMap((data, index) => (data ? toProtocolAssets(data, snapshots[index]) : [])),
-    [networkMarkets, snapshots],
-  );
 
   const portfolio = useMemo(() => {
     if (!markets) return { depositMarkets: [], balanceUSD: 0n, collateralUSD: 0n };
@@ -188,7 +181,6 @@ export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValu
     protocolAssets,
     externalAssets,
     crossChainAssets,
-    deposits,
     collateralUSD: useMemo(
       () =>
         portfolio.collateralUSD +
@@ -223,21 +215,4 @@ function toExternalAsset(token: TokenAmount): ExternalAsset | undefined {
   return { ...token, address: address.output, type: "external", usdValue };
 }
 
-function toProtocolAssets(markets: NetworkMarkets, snapshot?: NetworkRates): ProtocolAsset[] {
-  const rates = snapshot ? floatingDepositRates(snapshot.markets, Number(snapshot.timestamp)) : [];
-  return markets
-    .filter(({ floatingDepositAssets }) => floatingDepositAssets > 0n)
-    .map((market) => ({
-      ...market,
-      rate: rates.find(({ market: address }) => address === market.market)?.rate,
-      symbol: market.symbol.slice(3) === "WETH" ? "ETH" : market.symbol.slice(3),
-      type: "protocol" as const,
-      usdValue: Number((market.floatingDepositAssets * market.usdPrice) / 10n ** BigInt(market.decimals)) / 1e18,
-    }));
-}
-
-function combine<T>(results: UseQueryResult<T>[]) {
-  return results.map(({ data }) => data);
-}
-
-const remotes = chains.has(chain.id) ? [...chains.keys()].filter((id) => id !== chain.id) : [];
+const none: ProtocolAsset[] = [];
