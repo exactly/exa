@@ -14,7 +14,18 @@ export default function marketsOptions(account: Address | undefined, chainId: nu
   return queryOptions({
     queryKey: ["markets", account, chainId],
     staleTime: 10_000,
-    queryFn: account ? () => read(account, chainId) : skipToken,
+    queryFn: account
+      ? async () => {
+          const { protocol } = await readContract(exaConfig, {
+            chainId,
+            abi: appPreviewerAbi,
+            functionName: "preview",
+            code: appPreviewerCode,
+            args: [account, [], { ...protocolOf(chainId), ratePreviewer: zeroAddress }],
+          });
+          return protocol.markets.map((row) => ({ ...withFlags(row.market, row), chainId }));
+        }
+      : skipToken,
   });
 }
 
@@ -25,27 +36,15 @@ export function ratesOptions(chainId: number) {
     refetchInterval: ({ state }) => (state.status === "error" ? 60_000 : false),
     queryFn: async () => {
       const contracts = network(chainId);
-      const [markets, timestamp] = await readContracts(exaConfig, {
+      return readContracts(exaConfig, {
         allowFailure: false,
         contracts: [
           { chainId, address: contracts.ratePreviewer, abi: ratePreviewerAbi, functionName: "snapshot" },
           { chainId, address: contracts.multicall3, abi: multicall3Abi, functionName: "getCurrentBlockTimestamp" },
         ],
       });
-      return { markets, timestamp };
     },
   });
-}
-
-async function read(account: Address, chainId: number) {
-  const { protocol } = await readContract(exaConfig, {
-    chainId,
-    abi: appPreviewerAbi,
-    functionName: "preview",
-    code: appPreviewerCode,
-    args: [account, [], { ...protocolOf(chainId), ratePreviewer: zeroAddress }],
-  });
-  return protocol.markets.map((row) => ({ ...withFlags(row.market, row), chainId }));
 }
 
 function network(chainId: number) {
