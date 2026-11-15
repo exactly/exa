@@ -41,7 +41,7 @@ export default function Stocks({
           key: asset.market,
           address: asset.asset,
           amount: asset.floatingDepositAssets,
-          chainId: chain.id,
+          chainId: asset.chainId,
           decimals: asset.decimals,
           logoURI: undefined,
           market: asset.market,
@@ -100,13 +100,19 @@ export default function Stocks({
                   })
             }
             value={usdValue}
-            onPress={() => {
-              selectionAsync().catch(reportError);
-              router.push({
-                pathname: "/asset",
-                params: market ? { chainId: String(chainId), address, market } : { chainId: String(chainId), address },
-              });
-            }}
+            onPress={
+              market && chainId !== chain.id
+                ? undefined
+                : () => {
+                    selectionAsync().catch(reportError);
+                    router.push({
+                      pathname: "/asset",
+                      params: market
+                        ? { chainId: String(chainId), address, market }
+                        : { chainId: String(chainId), address },
+                    });
+                  }
+            }
           >
             <Trend chainId={chainId} address={address} symbol={symbol} />
           </AssetRow>
