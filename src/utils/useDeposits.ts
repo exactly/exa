@@ -19,7 +19,7 @@ export default function useDeposits() {
       markets.flatMap((data, index) => {
         if (!data) return [];
         const snapshot = snapshots[index];
-        const rates = snapshot ? floatingDepositRates(snapshot.markets, Number(snapshot.timestamp)) : [];
+        const rates = snapshot ? floatingDepositRates(snapshot[0], Number(snapshot[1])) : [];
         return data
           .filter(({ floatingDepositAssets }) => floatingDepositAssets > 0n)
           .map((market) => ({
