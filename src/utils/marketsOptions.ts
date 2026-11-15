@@ -19,7 +19,29 @@ export default function marketsOptions(account: Address | undefined, chainId: nu
   return queryOptions({
     queryKey: ["markets", account, chainId],
     staleTime: 10_000,
-    queryFn: account ? () => read(account, chainId) : skipToken,
+    queryFn: account
+      ? async () => {
+          const contracts = network(chainId);
+          return withPreviews(
+            ...(await Promise.all([
+              readContract(exaConfig, {
+                chainId,
+                address: contracts.previewer,
+                abi: previewerAbi,
+                functionName: "exactly",
+                args: [account],
+              }),
+              readContract(exaConfig, {
+                chainId,
+                abi: appPreviewerAbi,
+                functionName: "markets",
+                code: appPreviewerCode,
+                args: [contracts.auditor],
+              }),
+            ])),
+          ).map((market) => ({ ...market, chainId }));
+        }
+      : skipToken,
   });
 }
 
@@ -30,37 +52,15 @@ export function ratesOptions(chainId: number) {
     refetchInterval: ({ state }) => (state.status === "error" ? 60_000 : false),
     queryFn: async () => {
       const contracts = network(chainId);
-      const [markets, timestamp] = await readContracts(exaConfig, {
+      return readContracts(exaConfig, {
         allowFailure: false,
         contracts: [
           { chainId, address: contracts.ratePreviewer, abi: ratePreviewerAbi, functionName: "snapshot" },
           { chainId, address: contracts.multicall3, abi: multicall3Abi, functionName: "getCurrentBlockTimestamp" },
         ],
       });
-      return { markets, timestamp };
     },
   });
-}
-
-async function read(account: Address, chainId: number) {
-  const { auditor, previewer } = network(chainId);
-  const [accountMarkets, previews] = await Promise.all([
-    readContract(exaConfig, {
-      chainId,
-      address: previewer,
-      abi: previewerAbi,
-      functionName: "exactly",
-      args: [account],
-    }),
-    readContract(exaConfig, {
-      chainId,
-      abi: appPreviewerAbi,
-      functionName: "markets",
-      code: appPreviewerCode,
-      args: [auditor],
-    }),
-  ]);
-  return withPreviews(accountMarkets, previews).map((market) => ({ ...market, chainId }));
 }
 
 export function withPreviews<T extends { isCollateral: boolean; market: Address }>(
