@@ -161,8 +161,8 @@ export default function usePortfolio(options?: { deposits?: ProtocolAsset[]; sor
   );
 
   const allAssets = useMemo<PortfolioAsset[]>(
-    () => [...protocolAssets, ...externalAssets, ...crossChainAssets].sort(compareAssets(options?.sortBy)),
-    [protocolAssets, externalAssets, crossChainAssets, options?.sortBy],
+    () => [...protocolAssets, ...externalAssets, ...crossChainAssets, ...deposits].sort(compareAssets(options?.sortBy)),
+    [protocolAssets, externalAssets, crossChainAssets, deposits, options?.sortBy],
   );
 
   const externalUSD = useMemo(() => externalAssets.reduce((sum, asset) => sum + asset.usdValue, 0), [externalAssets]);
