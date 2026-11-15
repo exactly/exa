@@ -1,0 +1,48 @@
+diff --git a/build/fork/createMemoryHistory.js b/build/fork/createMemoryHistory.js
+index 9e67d40b248b3d4a36bb79771a4ea2733bfe18a7..b4cb4b224efa5300743c6eb039d4758cdab1967f 100644
+--- a/build/fork/createMemoryHistory.js
++++ b/build/fork/createMemoryHistory.js
+@@ -108,6 +108,7 @@ function createMemoryHistory() {
+             if (n === 0) {
+                 return;
+             }
++            const targetId = items[index]?.id;
+             // When we call `history.go`, `popstate` will fire when there's history to go back to
+             // So we need to somehow handle following cases:
+             // - There's history to go back, `history.go` is called, and `popstate` fires
+@@ -116,7 +117,11 @@ function createMemoryHistory() {
+             return new Promise((resolve, reject) => {
+                 const done = (interrupted) => {
+                     clearTimeout(timer);
+-                    if (interrupted) {
++                    // The current entry may not be the one we intended to land on:
++                    // - The traversal didn't happen yet, e.g. it took longer than the timeout
++                    // - The user navigated in the browser while our traversal was in-flight
++                    // So we treat it the same as the operation being interrupted
++                    if (interrupted || window.history.state?.id !== targetId) {
+                         reject(new Error('History was changed during navigation.'));
+                         return;
+                     }
+@@ -134,10 +139,11 @@ function createMemoryHistory() {
+                     resolve();
+                 };
+                 pending.push({ ref: done, cb: done });
+-                // If navigation didn't happen within 100ms, assume that it won't happen
++                // If navigation didn't happen within 1000ms, assume that it won't happen
+                 // This may not be accurate, but hopefully it won't take so much time
+                 // In Chrome, navigation seems to happen instantly in next microtask
+-                // But on Firefox, it seems to take much longer, around 50ms from our testing
++                // But on Firefox, the traversal can take much longer when the main thread
++                // is busy, e.g. it was measured to take up to ~900ms while rendering a new screen
+                 // We're using a hacky timeout since there doesn't seem to be way to know for sure
+                 const timer = setTimeout(() => {
+                     const index = pending.findIndex((it) => it.ref === done);
+@@ -145,7 +151,7 @@ function createMemoryHistory() {
+                         pending[index].cb();
+                         pending.splice(index, 1);
+                     }
+-                }, 100);
++                }, 1000);
+                 const onPopState = () => {
+                     const id = window.history.state?.id;
+                     const currentIndex = items.findIndex((item) => item.id === id);
