@@ -26,6 +26,8 @@ const INVALIDATE_ON_UPGRADE = new Set([
   "lifi",
   "network",
   "estimateCalls",
+  "markets",
+  "rates",
 ]);
 export const isServer = typeof window === "undefined";
 
