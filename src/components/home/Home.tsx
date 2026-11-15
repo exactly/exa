@@ -38,6 +38,7 @@ import { activityOptions, cardModeMutationOptions, refreshActivity } from "../..
 import useAccount from "../../utils/useAccount";
 import useBusiness from "../../utils/useBusiness";
 import useCardLimit from "../../utils/useCardLimit";
+import useDeposits from "../../utils/useDeposits";
 import useIsBusiness from "../../utils/useIsBusiness";
 import useKYC from "../../utils/useKYC";
 import useMarkets from "../../utils/useMarkets";
@@ -100,7 +101,7 @@ export default function Home() {
     chainId: chain.id,
     query: { enabled: !!account },
   });
-  const { portfolio, averageRate, allAssets, totalBalanceUSD } = usePortfolio();
+  const { portfolio, averageRate, allAssets, totalBalanceUSD } = usePortfolio({ deposits: useDeposits() });
 
   const { data: activity } = useInfiniteQuery({ ...activityOptions, select: ({ pages }) => pages.flat() });
   const {
