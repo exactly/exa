@@ -89,26 +89,26 @@ export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValu
 
   const collateral = useMemo(() => deposits.filter(({ nonCollateral }) => !nonCollateral), [deposits]);
 
-  const collateralUSD = useMemo(
-    () =>
-      portfolio.collateralUSD + BigInt(Math.round(collateral.reduce((sum, { usdValue }) => sum + usdValue, 0) * 1e18)),
-    [collateral, portfolio.collateralUSD],
-  );
-
   const averageRate = useMemo(() => {
     const rateByMarket = new Map(rates.map(({ market, rate }) => [market, rate]));
-    const earning = [
-      ...portfolio.depositMarkets.flatMap(({ market, usdValue }) => {
-        const rate = rateByMarket.get(market);
-        return rate === undefined ? [] : [rate * usdValue];
-      }),
-      ...collateral.flatMap(({ rate, usdValue }) =>
-        rate === undefined ? [] : [rate * BigInt(Math.round(usdValue * 1e18))],
-      ),
-    ];
-    if (earning.length === 0) return;
-    return earning.reduce((sum, value) => sum + value, 0n) / collateralUSD;
-  }, [collateral, collateralUSD, portfolio.depositMarkets, rates]);
+
+    let weightedRate = 0n;
+    let ratedUSD = 0n;
+    if (rateSnapshot) {
+      for (const { market, usdValue } of portfolio.depositMarkets) {
+        weightedRate += (rateByMarket.get(market) ?? 0n) * usdValue;
+        ratedUSD += usdValue;
+      }
+    }
+    for (const { rate, usdValue } of collateral) {
+      if (rate === undefined) continue;
+      const value = BigInt(Math.round(usdValue * 1e18));
+      weightedRate += rate * value;
+      ratedUSD += value;
+    }
+
+    return ratedUSD === 0n ? undefined : weightedRate / ratedUSD;
+  }, [collateral, portfolio.depositMarkets, rateSnapshot, rates]);
 
   const protocolAssets = useMemo<ProtocolAsset[]>(() => {
     if (!markets) return [];
@@ -189,7 +189,12 @@ export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValu
     externalAssets,
     crossChainAssets,
     deposits,
-    collateralUSD,
+    collateralUSD: useMemo(
+      () =>
+        portfolio.collateralUSD +
+        BigInt(Math.round(collateral.reduce((sum, { usdValue }) => sum + usdValue, 0) * 1e18)),
+      [collateral, portfolio.collateralUSD],
+    ),
     isExternal,
     totalBalanceUSD,
     protocolSymbols: supportedAssets,
