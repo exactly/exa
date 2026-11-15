@@ -9,7 +9,7 @@ import { Address } from "@exactly/common/validation";
 import { floatingDepositRates, WAD, withdrawLimit } from "@exactly/lib";
 
 import { balancesOptions } from "./lifi";
-import marketsOptions, { ratesOptions, type NetworkMarkets } from "./marketsOptions";
+import marketsOptions, { ratesOptions, type NetworkMarkets, type NetworkRates } from "./marketsOptions";
 import useAccount from "./useAccount";
 import useMarkets from "./useMarkets";
 
@@ -218,11 +218,8 @@ function toExternalAsset(token: TokenAmount): ExternalAsset | undefined {
   return { ...token, address: address.output, type: "external", usdValue };
 }
 
-function toProtocolAssets(
-  markets: NetworkMarkets,
-  snapshot?: Parameters<typeof floatingDepositRates>[0],
-): ProtocolAsset[] {
-  const rates = snapshot ? floatingDepositRates(snapshot, Math.floor(Date.now() / 1000)) : [];
+function toProtocolAssets(markets: NetworkMarkets, snapshot?: NetworkRates): ProtocolAsset[] {
+  const rates = snapshot ? floatingDepositRates(snapshot.markets, Number(snapshot.timestamp)) : [];
   return markets
     .filter(({ floatingDepositAssets }) => floatingDepositAssets > 0n)
     .map((market) => ({
