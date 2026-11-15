@@ -1,8 +1,8 @@
 import { queryOptions, skipToken } from "@tanstack/react-query";
-import { readContract } from "@wagmi/core/actions";
-import { zeroAddress } from "viem";
+import { readContract, readContracts } from "@wagmi/core/actions";
+import { multicall3Abi, zeroAddress } from "viem";
 
-import { appPreviewerAbi, appPreviewerCode, chains } from "@exactly/common/generated/chain";
+import { alchemyChains, appPreviewerAbi, appPreviewerCode, chains } from "@exactly/common/generated/chain";
 import { ratePreviewerAbi } from "@exactly/common/generated/hooks";
 
 import { protocolOf, withFlags } from "./networkOptions";
@@ -23,17 +23,12 @@ export function ratesOptions(chainId: number) {
     queryKey: ["rates", chainId],
     staleTime: 10_000,
     refetchInterval: ({ state }) => (state.status === "error" ? 60_000 : false),
-    queryFn: () =>
-      readContract(exaConfig, {
-        chainId,
-        address: network(chainId).ratePreviewer,
-        abi: ratePreviewerAbi,
-        functionName: "snapshot",
-      }),
+    queryFn: () => snapshot(chainId),
   });
 }
 
 export type NetworkMarkets = Awaited<ReturnType<typeof read>>;
+export type NetworkRates = Awaited<ReturnType<typeof snapshot>>;
 
 async function read(account: Address, chainId: number) {
   const { protocol } = await readContract(exaConfig, {
@@ -46,8 +41,21 @@ async function read(account: Address, chainId: number) {
   return protocol.markets.map((row) => ({ ...withFlags(row.market, row), chainId }));
 }
 
+async function snapshot(chainId: number) {
+  const { multicall3, ratePreviewer } = network(chainId);
+  const [markets, timestamp] = await readContracts(exaConfig, {
+    allowFailure: false,
+    contracts: [
+      { chainId, address: ratePreviewer, abi: ratePreviewerAbi, functionName: "snapshot" },
+      { chainId, address: multicall3, abi: multicall3Abi, functionName: "getCurrentBlockTimestamp" },
+    ],
+  });
+  return { markets, timestamp };
+}
+
 function network(chainId: number) {
   const found = chains.get(chainId);
-  if (!found) throw new Error(`unknown network ${chainId}`);
-  return found;
+  const multicall3 = alchemyChains.get(chainId)?.contracts?.multicall3?.address;
+  if (!found || !multicall3) throw new Error(`unknown network ${chainId}`);
+  return { ...found, multicall3 };
 }
