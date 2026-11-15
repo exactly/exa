@@ -25,6 +25,7 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAllowlists from "../../utils/useAllowlists";
+import useDeposits from "../../utils/useDeposits";
 import useInsets from "../../utils/useInsets";
 import useMarkets from "../../utils/useMarkets";
 import usePortfolio from "../../utils/usePortfolio";
@@ -42,7 +43,8 @@ import type { PortfolioAsset } from "../../utils/usePortfolio";
 
 export default function Portfolio() {
   const { address } = useAccount();
-  const { averageRate, rates, collateralUSD, deposits, totalBalanceUSD, allAssets, isPending } = usePortfolio();
+  const deposits = useDeposits();
+  const { averageRate, rates, collateralUSD, totalBalanceUSD, allAssets, isPending } = usePortfolio({ deposits });
   const allowlists = useAllowlists();
   const router = useRouter();
   const insets = useInsets();
