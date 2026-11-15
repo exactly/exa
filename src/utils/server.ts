@@ -2,7 +2,7 @@ import { AppState, Platform } from "react-native";
 import { get as assert, create } from "react-native-passkeys";
 
 import { sdk } from "@farcaster/miniapp-sdk";
-import { getConnection, signMessage } from "@wagmi/core";
+import { getConnection, signMessage, watchConnection } from "@wagmi/core";
 import { hc, parseResponse, type InferRequestType, type InferResponseType } from "hono/client";
 import { check, number, object, parse, picklist, pipe, safeParse, string, ValiError } from "valibot";
 
@@ -21,6 +21,7 @@ import ownerConfig from "./wagmi/owner";
 import type { ExaAPI } from "@exactly/server/api"; // eslint-disable-line @nx/enforce-module-boundaries
 import type { InferOutput } from "valibot";
 
+let reconnection: Promise<void> | undefined;
 queryClient.setQueryDefaults<number | undefined>(["auth"], {
   retry: false,
   enabled: false,
@@ -28,12 +29,27 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
   gcTime: isServer ? Infinity : AUTH_EXPIRY,
   queryFn: async () => {
     const method = queryClient.getQueryData<AuthMethod>(["method"]);
+    const query = queryClient.getQueryCache().find({ queryKey: ["auth"], exact: true });
+    if (method === "siwe" && ownerConfig.state.status === "reconnecting") {
+      await (reconnection ??= new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error("wallet reconnection timeout")), 10_000);
+        const unwatch = watchConnection(ownerConfig, {
+          onChange({ status }) {
+            if (status === "reconnecting") return;
+            clearTimeout(timeout);
+            unwatch();
+            reconnection = undefined;
+            resolve();
+          },
+        });
+      }));
+      if (queryClient.getQueryCache().find({ queryKey: ["auth"], exact: true }) !== query) return 0;
+    }
     const current = queryClient.getQueryData<Credential>(["credential"])?.credentialId;
     const owner = method === "siwe" ? getConnection(ownerConfig).address : current;
     if (method === "siwe" && (!owner || (current && owner.toLowerCase() !== current.toLowerCase()))) {
       return queryClient.getQueryData<number>(["auth"]) ?? 0;
     }
-    const query = queryClient.getQueryCache().find({ queryKey: ["auth"], exact: true });
     const get = await api.auth.authentication.$get({ query: { credentialId: owner } });
     const sessionId = get.headers.get("x-session-id");
     const options = await get.json();
@@ -76,7 +92,9 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
       const { bundleCancelled, passkeyCancelled, passkeyNotAllowed, walletRejected } = classifyError(error);
       return bundleCancelled || passkeyCancelled || passkeyNotAllowed || walletRejected;
     },
-    warnError: (error) => classifyError(error).passkeyWarning,
+    warnError: (error) =>
+      classifyError(error).passkeyWarning ||
+      (error instanceof Error && error.message === "wallet reconnection timeout"),
   },
 });
 
