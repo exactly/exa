@@ -1,7 +1,14 @@
 import { queryOptions, skipToken } from "@tanstack/react-query";
-import { readContract } from "@wagmi/core/actions";
+import { readContract, readContracts } from "@wagmi/core/actions";
+import { multicall3Abi } from "viem";
 
-import { appPreviewerAbi, appPreviewerCode, networks, previewerAbi } from "@exactly/common/generated/chain";
+import {
+  alchemyChains,
+  appPreviewerAbi,
+  appPreviewerCode,
+  networks,
+  previewerAbi,
+} from "@exactly/common/generated/chain";
 import { ratePreviewerAbi } from "@exactly/common/generated/hooks";
 
 import exaConfig from "./wagmi/exa";
@@ -21,17 +28,12 @@ export function ratesOptions(chainId: number) {
     queryKey: ["rates", chainId],
     staleTime: 10_000,
     refetchInterval: ({ state }) => (state.status === "error" ? 60_000 : false),
-    queryFn: () =>
-      readContract(exaConfig, {
-        chainId,
-        address: network(chainId).ratePreviewer,
-        abi: ratePreviewerAbi,
-        functionName: "snapshot",
-      }),
+    queryFn: () => snapshot(chainId),
   });
 }
 
 export type NetworkMarkets = Awaited<ReturnType<typeof read>>;
+export type NetworkRates = Awaited<ReturnType<typeof snapshot>>;
 
 async function read(account: Address, chainId: number) {
   const { auditor, previewer } = network(chainId);
@@ -54,6 +56,18 @@ async function read(account: Address, chainId: number) {
   return withPreviews(accountMarkets, previews).map((market) => ({ ...market, chainId }));
 }
 
+async function snapshot(chainId: number) {
+  const { multicall3, ratePreviewer } = network(chainId);
+  const [markets, timestamp] = await readContracts(exaConfig, {
+    allowFailure: false,
+    contracts: [
+      { chainId, address: ratePreviewer, abi: ratePreviewerAbi, functionName: "snapshot" },
+      { chainId, address: multicall3, abi: multicall3Abi, functionName: "getCurrentBlockTimestamp" },
+    ],
+  });
+  return { markets, timestamp };
+}
+
 export function withPreviews<T extends { isCollateral: boolean; market: Address }>(
   markets: readonly T[],
   previews: readonly { isFrozen: boolean; market: Address; nonCollateral: boolean }[],
@@ -71,6 +85,7 @@ export function withPreviews<T extends { isCollateral: boolean; market: Address 
 
 function network(chainId: number) {
   const found = networks.get(chainId);
-  if (!found) throw new Error(`unknown network ${chainId}`);
-  return found;
+  const multicall3 = alchemyChains.get(chainId)?.contracts?.multicall3?.address;
+  if (!found || !multicall3) throw new Error(`unknown network ${chainId}`);
+  return { ...found, multicall3 };
 }
