@@ -233,7 +233,7 @@ export default defineConfig([
               { id: anvil.id, source: "chain" },
               {
                 id: moonbeamDev.id,
-                source: `defineChain(${JSON.stringify({ ...moonbeamDev, name: "Anvil2", smartAccount: true, rpcUrls: { ...moonbeamDev.rpcUrls, alchemy: moonbeamDev.rpcUrls.default }, alchemyNetwork: "ANVIL2", ...chainFields(moonbeamDev.id) })})`,
+                source: `defineChain(${JSON.stringify({ ...moonbeamDev, name: "Anvil2", smartAccount: true, contracts: { multicall3: { address: optimism.contracts.multicall3.address } }, rpcUrls: { ...moonbeamDev.rpcUrls, alchemy: moonbeamDev.rpcUrls.default }, alchemyNetwork: "ANVIL2", ...chainFields(moonbeamDev.id) })})`,
               },
             );
             allowlists[moonbeamDev.id] = { "0x345108DA76464B8115ABcDBf0E8C969c470aE02c": "USDC.e" };
