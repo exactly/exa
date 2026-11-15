@@ -23,12 +23,19 @@ export function ratesOptions(chainId: number) {
     queryKey: ["rates", chainId],
     staleTime: 10_000,
     refetchInterval: ({ state }) => (state.status === "error" ? 60_000 : false),
-    queryFn: () => snapshot(chainId),
+    queryFn: async () => {
+      const contracts = network(chainId);
+      const [markets, timestamp] = await readContracts(exaConfig, {
+        allowFailure: false,
+        contracts: [
+          { chainId, address: contracts.ratePreviewer, abi: ratePreviewerAbi, functionName: "snapshot" },
+          { chainId, address: contracts.multicall3, abi: multicall3Abi, functionName: "getCurrentBlockTimestamp" },
+        ],
+      });
+      return { markets, timestamp };
+    },
   });
 }
-
-export type NetworkMarkets = Awaited<ReturnType<typeof read>>;
-export type NetworkRates = Awaited<ReturnType<typeof snapshot>>;
 
 async function read(account: Address, chainId: number) {
   const { protocol } = await readContract(exaConfig, {
@@ -39,18 +46,6 @@ async function read(account: Address, chainId: number) {
     args: [account, [], { ...protocolOf(chainId), ratePreviewer: zeroAddress }],
   });
   return protocol.markets.map((row) => ({ ...withFlags(row.market, row), chainId }));
-}
-
-async function snapshot(chainId: number) {
-  const { multicall3, ratePreviewer } = network(chainId);
-  const [markets, timestamp] = await readContracts(exaConfig, {
-    allowFailure: false,
-    contracts: [
-      { chainId, address: ratePreviewer, abi: ratePreviewerAbi, functionName: "snapshot" },
-      { chainId, address: multicall3, abi: multicall3Abi, functionName: "getCurrentBlockTimestamp" },
-    ],
-  });
-  return { markets, timestamp };
 }
 
 function network(chainId: number) {
