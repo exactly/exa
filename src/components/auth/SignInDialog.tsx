@@ -1,6 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { Linking } from "react-native";
+import { Linking, Platform } from "react-native";
 
 import { RefreshCw } from "../../generated/icons/RefreshCw";
 import { Settings } from "../../generated/icons/Settings";
@@ -63,6 +63,31 @@ export default function SignInDialog({
             onClose();
             loginUnidentified()
               .then(() => newMessage(t("I can’t sign in. No passkey was found on my device.")))
+              .catch(reportError);
+          }}
+        />
+      );
+    case "backup":
+      return (
+        <ErrorDialog
+          open={open}
+          title={t("This passkey can’t be backed up")}
+          description={`${t(
+            "The password manager you picked keeps this passkey only on this device, so losing the device would mean losing your account. Try again and save it to a password manager that syncs, like Google Password Manager, iCloud Keychain or 1Password.",
+          )}${Platform.OS === "web" ? ` ${t("You can also save it on your phone.")}` : ""}`}
+          action={{
+            icon: <RefreshCw />,
+            label: t("Try again"),
+            onPress: () => {
+              onClose();
+              onRetry();
+            },
+          }}
+          onClose={onClose}
+          onContact={() => {
+            onClose();
+            loginUnidentified()
+              .then(() => newMessage(t("I can’t create my account. My password manager can’t back up passkeys.")))
               .catch(reportError);
           }}
         />

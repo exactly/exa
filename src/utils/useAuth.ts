@@ -90,9 +90,7 @@ function handleError(error: unknown, onIssue: (issue: SignInIssue) => void, t: T
   }
   if (error instanceof APIError && error.text === "backup eligibility required") {
     reportError(error, { level: "warning" });
-    toast.error(t("Your password manager does not support passkey backups. Please try a different one"), {
-      duration: 1000,
-    });
+    onIssue("backup");
     return;
   }
   if (
@@ -109,4 +107,4 @@ function handleError(error: unknown, onIssue: (issue: SignInIssue) => void, t: T
   reportError(error);
 }
 
-export type SignInIssue = "biometrics" | "domain" | "passkey";
+export type SignInIssue = "backup" | "biometrics" | "domain" | "passkey";
