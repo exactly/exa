@@ -54,7 +54,7 @@ export default function AssetList({
             symbol={market.symbol}
             value={market.usdValue}
           >
-            {market.rate === undefined ? null : <Rate compact rate={market.rate} />}
+            {market.rate ? <Rate compact rate={market.rate} /> : null}
           </MarketRow>
         ))}
     </AssetSection>
