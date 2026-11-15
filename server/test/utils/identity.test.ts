@@ -2,7 +2,7 @@
 // cspell:ignore Aleksandrovskii ELMASRY João José Kahra Konstantinopolskii Konstantinopolskiialeksandr Masry Müller Petrov Qahtani Shaka Shamri Shar Tahrir Xiaoming Zhang Ｊｏｈｎ
 import { describe, expect, it } from "vitest";
 
-import { latinAddress, latinName, normalizePostalCode } from "../../utils/identity";
+import { cardName, latinAddress, latinName, normalizePostalCode } from "../../utils/identity";
 
 describe("identity", () => {
   describe("name", () => {
@@ -94,6 +94,43 @@ describe("identity", () => {
       ["\u{11DE0}1511", "\u{11DE0}1511"],
     ])("normalizes %s", (code, expected) => {
       expect(normalizePostalCode(code)).toBe(expected);
+    });
+  });
+
+  describe("card", () => {
+    it.each([
+      { first: "John", last: "Doe", country: "US", displayName: undefined },
+      { first: "محمد", last: "المصري", country: "EG", displayName: "Mohamed El-Masry" },
+      { first: "John", last: "张", country: "CN", displayName: "John Zhang" },
+      { first: "小明", last: "Smith", country: "CN", displayName: "Xiaoming Smith" },
+      { first: "Ｊｏｈｎ", last: "张", country: "CN", displayName: "John Zhang" },
+      { first: "Ｊｏｈｎ", last: "Smith", country: "US", displayName: "John Smith" },
+      {
+        first: "Александр",
+        last: "Александровский-Петров",
+        country: "RU",
+        displayName: "A. Aleksandrovskii-Petrov",
+      },
+      {
+        first: "عبد الرحمن",
+        last: "الشمري القحطاني الدوسري",
+        country: "SA",
+        displayName: "A. Al-Shamri Al-Qahtani",
+      },
+      {
+        first: "Константин",
+        last: "Константинопольский-Александровский",
+        country: "RU",
+        displayName: "K. Konstantinopolskii",
+      },
+      {
+        first: "Константин",
+        last: "Константинопольскийалександровский",
+        country: "RU",
+        displayName: "K. Konstantinopolskiialeksandr",
+      },
+    ])("fits $first $last", ({ first, last, country, displayName }) => {
+      expect(cardName({ first, last }, country)).toBe(displayName);
     });
   });
 });

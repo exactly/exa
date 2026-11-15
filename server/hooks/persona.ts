@@ -36,6 +36,7 @@ import { CLASSIC_PRODUCT_ID } from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
 
 import { cards, credentials } from "../database/schema";
+import { cardName } from "../utils/identity";
 import {
   ADDRESS_TEMPLATE,
   BUSINESS_PANDA_REPRESENTATIVE_TEMPLATE,
@@ -444,7 +445,7 @@ export default function hook({
                   c.req.valid("json").data.id,
                 )),
             )
-            .then(({ id }) =>
+            .then(({ id, address }) =>
               panda.createCard(
                 id,
                 CLASSIC_PRODUCT_ID,
@@ -452,6 +453,14 @@ export default function hook({
                   ? undefined
                   : Math.round(payload.data.attributes.fields.weeklyCardLimit.value * 100),
                 c.req.valid("json").data.id,
+                undefined,
+                cardName(
+                  {
+                    first: payload.data.attributes.fields.authUserName.value,
+                    last: payload.data.attributes.fields.authUserLastName.value,
+                  },
+                  address?.countryCode ?? "",
+                ),
               ),
             );
           await database.insert(cards).values([

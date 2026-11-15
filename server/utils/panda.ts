@@ -88,6 +88,7 @@ export default function panda({ key, url }: { key: string; url: string }) {
     amount = 1_000_000,
     idempotencyKey?: string,
     source?: null | string,
+    displayName?: string,
   ) {
     return await request(
       CardResponse,
@@ -98,6 +99,7 @@ export default function panda({ key, url }: { key: string; url: string }) {
         status: "active",
         limit: { amount, frequency: "per7DayPeriod" },
         configuration: {
+          displayName,
           productId,
           virtualCardArt:
             chain.id === baseSepolia.id || chain.id === optimismSepolia.id
@@ -195,6 +197,7 @@ export default function panda({ key, url }: { key: string; url: string }) {
     return request(
       array(
         object({
+          address: nullish(object({ countryCode: string() })),
           companyId: optional(string()),
           email: optional(string()),
           id: string(),
@@ -693,6 +696,7 @@ const CreateCardRequest = object({
     ]),
   }),
   configuration: object({
+    displayName: optional(pipe(string(), maxLength(30))),
     productId: picklist([BASE_PRODUCT_ID, CLASSIC_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
     virtualCardArt: string(),
   }),
