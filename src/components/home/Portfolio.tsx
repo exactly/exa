@@ -7,8 +7,6 @@ import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
-import chain from "@exactly/common/generated/chain";
-
 import AssetList from "./AssetList";
 import ExternalAssets from "./ExternalAssets";
 import Stocks from "./Stocks";
@@ -56,7 +54,7 @@ export default function Portfolio() {
 
   const stocks = allAssets.flatMap<PortfolioAsset>((asset) => {
     if (asset.type === "external") return isStock(allowlists, asset) ? [asset] : [];
-    if (tab !== "stocks" || !isStock(allowlists, { address: asset.asset, chainId: chain.id })) return [];
+    if (tab !== "stocks" || !isStock(allowlists, { address: asset.asset, chainId: asset.chainId })) return [];
     return [
       {
         ...asset,
@@ -171,7 +169,7 @@ export default function Portfolio() {
             )}
             {tab === "all" ? (
               <ExternalAssets
-                assets={[...allAssets, ...deposits].filter((asset) =>
+                assets={allAssets.filter((asset) =>
                   asset.type === "external" ? !isStock(allowlists, asset) : asset.nonCollateral,
                 )}
               />
