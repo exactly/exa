@@ -1,5 +1,16 @@
 # @exactly/mobile
 
+## 1.2.50
+
+### Patch Changes
+
+- [#1890](https://github.com/exactly/exa/pull/1890) [`eb2c780`](https://github.com/exactly/exa/commit/eb2c7801c6f19d8765b346ee865b6f51d0dd3be9) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 treat fetch failures as network
+
+- [#1893](https://github.com/exactly/exa/pull/1893) [`0201cb2`](https://github.com/exactly/exa/commit/0201cb2bf3878f80bcfe0da080ba53b91058becb) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 confirm wallet switch
+
+- Updated dependencies [[`c61f176`](https://github.com/exactly/exa/commit/c61f176e662bd0e0f91f3aaa0e6593b9cfc71cd5)]:
+  - @exactly/server@0.3.8
+
 ## 1.2.49
 
 ### Patch Changes
