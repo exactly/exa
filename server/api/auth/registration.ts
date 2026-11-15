@@ -410,7 +410,7 @@ export default function route({
                 return c.json({ code: "bad registration", legacy: "bad registration" }, 400);
               }
               if (credentialDeviceType !== "multiDevice") {
-                return c.json({ code: "backup eligibility required", legacy: "backup eligibility required" }, 400); // TODO improve ux
+                return c.json({ code: "backup eligibility required", legacy: "backup eligibility required" }, 400);
               }
               webauthn = credential;
             }
