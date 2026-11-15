@@ -96,11 +96,13 @@ function parseError(error: unknown) {
       : undefined;
   let status: string | undefined;
   let route: string | undefined;
+  const seen = new WeakSet<object>();
   for (
     let cause: unknown = error;
-    cause != null && typeof cause === "object" && (status === undefined || route === undefined);
+    cause != null && typeof cause === "object" && !seen.has(cause) && (status === undefined || route === undefined);
     cause = (cause as { cause?: unknown }).cause
   ) {
+    seen.add(cause);
     if (status === undefined && "code" in cause && typeof cause.code === "number" && Number.isFinite(cause.code)) {
       status = String(cause.code);
     }
