@@ -27,7 +27,7 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
   enabled: false,
   staleTime: AUTH_EXPIRY,
   gcTime: isServer ? Infinity : AUTH_EXPIRY,
-  queryFn: async () => {
+  queryFn: async ({ signal }) => {
     const method = queryClient.getQueryData<AuthMethod>(["method"]);
     const query = queryClient.getQueryCache().find({ queryKey: ["auth"], exact: true });
     if (method === "siwe" && ownerConfig.state.status === "reconnecting") {
@@ -50,7 +50,7 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
     if (method === "siwe" && (!owner || (current && owner.toLowerCase() !== current.toLowerCase()))) {
       return queryClient.getQueryData<number>(["auth"]) ?? 0;
     }
-    const get = await api.auth.authentication.$get({ query: { credentialId: owner } });
+    const get = await api.auth.authentication.$get({ query: { credentialId: owner } }, { init: { signal } });
     const sessionId = get.headers.get("x-session-id");
     const options = await get.json();
     if (options.method === "webauthn" && Platform.OS === "android") delete options.allowCredentials; // HACK fix android credential filtering
@@ -71,7 +71,7 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
           });
     const post = await api.auth.authentication.$post(
       { json },
-      sessionId ? { headers: { "x-session-id": sessionId } } : undefined,
+      { init: { signal }, ...(sessionId && { headers: { "x-session-id": sessionId } }) },
     );
     if (!post.ok) {
       throw Object.assign(new APIError("POST", post, stringOrLegacy(await post.json())), {
