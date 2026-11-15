@@ -1,6 +1,6 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
-- tapOn: Home
+- tapOn: { text: Home, leftOf: Card }
 - tapOn: Send
 - tapOn: Bank transfers
 - tapOn: Dollars via ACH or WIRE

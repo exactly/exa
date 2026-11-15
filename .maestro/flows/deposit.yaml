@@ -36,14 +36,14 @@ appId: ${APP_ID ?? "app.exactly"}
 - runScript: { file: ../dist/getBalance.js, env: { asset: USDT, account: "${output.deposit}" } }
 - assertTrue: ${output.balance - output.usdtBefore === 1}
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
-- tapOn: Home
+- tapOn: { text: Home, leftOf: Card }
 - runFlow: ../subflows/readPortfolio.yaml
 - runScript: { file: ../dist/deposited.js, env: { account: "${output.deposit}" } }
 - repeat:
     times: 20
     while: { true: "${output.portfolio - output.portfolioBefore !== 101 || output.deposited !== 100}" }
     commands:
-      - tapOn: Home
+      - tapOn: { text: Home, leftOf: Card }
       - runFlow: ../subflows/readPortfolio.yaml
       - runScript: { file: ../dist/deposited.js, env: { account: "${output.deposit}" } }
 - assertTrue: ${output.portfolio - output.portfolioBefore === 101}
@@ -54,7 +54,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - evalScript: ${output.portfolioBefore = output.portfolio}
 - tapOn: Swap
 - assertVisible: LI.FI
-- tapOn: { id: Select token, index: 1 }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Select token, index: 1 } }
 - tapOn: Search by token name or address
 - inputText: eth
 - tapOn: WETH

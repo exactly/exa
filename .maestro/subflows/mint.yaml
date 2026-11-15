@@ -5,9 +5,9 @@ appId: ${APP_ID ?? "app.exactly"}
 - evalScript: ${output.portfolioBefore = output.portfolio}
 - runFlow: getAccount.yaml
 - runScript: { file: ../dist/mint.js }
-- tapOn: Home
+- tapOn: { text: Home, leftOf: Card }
 - runFlow: ../subflows/readPortfolio.yaml
 - runFlow:
     when: { true: "${output.portfolio === output.portfolioBefore}" }
-    commands: [{ tapOn: Home }, { runFlow: ../subflows/readPortfolio.yaml }]
+    commands: [{ tapOn: { text: Home, leftOf: Card } }, { runFlow: ../subflows/readPortfolio.yaml }]
 - assertTrue: ${output.portfolio - output.portfolioBefore === output.usd}

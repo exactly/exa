@@ -6,7 +6,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Explore funding options
 - runFlow: { file: tapAria.yaml, env: { aria: Amount } }
 - inputText: ${amount}
-- pressKey: enter
+- runFlow: hideKeyboard.yaml
 - tapOn: Continue
 - tapOn: "${installments + ' installment' + (installments > 1 ? 's' : '') + ' of'}"
 - tapOn: Continue

@@ -1,0 +1,8 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- runFlow:
+    when: { platform: ios }
+    commands: [{ pressKey: enter }]
+- runFlow:
+    when: { true: "${maestro.platform != 'ios'}" }
+    commands: [hideKeyboard]

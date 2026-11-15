@@ -17,8 +17,9 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Continue
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Amount } }
 - inputText: "100"
+- runFlow: ../subflows/hideKeyboard.yaml
 - tapOn: Review
-- tapOn: Send USDT
+- runFlow: { file: ../subflows/confirmSend.yaml, env: { asset: USDT } }
 - assertVisible: Sent to .*
 - runScript:
     file: ../dist/hookActivity.js
@@ -28,23 +29,24 @@ appId: ${APP_ID ?? "app.exactly"}
       amount: "100"
       asset: USDT
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
-- tapOn: Home
+- tapOn: { text: Home, leftOf: Card }
 - runFlow: ../subflows/verifyIdentity.yaml
 - tapOn: Swap assets
 - tapOn: { text: "0", index: 0 }
 - inputText: "20000"
+- runFlow: ../subflows/hideKeyboard.yaml
 - assertVisible: "High price impact: you receive 2\\.2% less value than you pay\\."
 - tapOn: Swap USDT for USDC
-- assertVisible: completed
+- assertVisible: "(Swap )?completed"
 - runScript:
     file: ../dist/hookActivity.js
     env: { account: "${output.account}" }
 - tapOn: Close
-- tapOn: Home
+- tapOn: { text: Home, leftOf: Card }
 - extendedWaitUntil: { visible: "^[\\d.,]+% APR$", timeout: 30000 }
 - runFlow:
     file: ../subflows/borrow.yaml
     env: { amount: "100", installments: "1", receiver: "0x000000000000000000000000000000000000dEaD" }
 - runFlow: { file: ../subflows/repay.yaml, env: { external: USDT } }
-- tapOn: Home
+- tapOn: { text: Home, leftOf: Card }
 - runFlow: ../subflows/storeCoverage.yaml

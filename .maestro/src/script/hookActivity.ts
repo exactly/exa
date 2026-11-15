@@ -1,6 +1,6 @@
 import { erc20Abi, formatUnits, parseEventLogs, type Address } from "viem";
 import { entryPoint06Abi, entryPoint06Address } from "viem/account-abstraction";
-import { encodeEventTopics, isAddress, isHex } from "viem/utils";
+import { encodeEventTopics, isAddress, isAddressEqual, isHex, toHex } from "viem/utils";
 
 import { marketAbi } from "@exactly/common/generated/chain";
 
@@ -25,8 +25,18 @@ const operation = anvil("eth_getLogs", [
     topics: encodeEventTopics({ abi: entryPoint06Abi, eventName: "UserOperationEvent", args: { sender: account } }),
   },
 ]).pop();
-if (!operation?.transactionHash) throw new Error("no user operation");
-const logs = anvil("eth_getTransactionReceipt", [operation.transactionHash])?.logs ?? [];
+let hash = operation?.transactionHash;
+for (let number = BigInt(anvil("eth_blockNumber", [])); number > BigInt(operation?.blockNumber ?? -1); number--) {
+  const sent = anvil("eth_getBlockByNumber", [toHex(number), true])?.transactions.find(
+    ({ to }) => !!to && isAddressEqual(to, account),
+  );
+  if (sent) {
+    hash = sent.hash;
+    break;
+  }
+}
+if (!hash) throw new Error("no account transaction");
+const logs = anvil("eth_getTransactionReceipt", [hash])?.logs ?? [];
 
 if (receiver) {
   const [sent, ...rest] = transfers({ from: account, to: receiver });

@@ -10,7 +10,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Bank transfers
 - tapOn: Dollars via ACH or WIRE
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Edit contact } }
-- tapOn: Edit contact
+- tapOn: { text: Edit contact, index: -1 }
 - tapOn: Select
 - tapOn: Checking
 - tapOn: Save changes
