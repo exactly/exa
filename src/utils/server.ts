@@ -2,6 +2,7 @@ import { AppState, Platform } from "react-native";
 import { get as assert, create } from "react-native-passkeys";
 
 import { sdk } from "@farcaster/miniapp-sdk";
+import { base64URLStringToBuffer } from "@simplewebauthn/browser";
 import { getConnection, signMessage, watchConnection } from "@wagmi/core";
 import { hc, parseResponse, type InferRequestType, type InferResponseType } from "hono/client";
 import { check, number, object, parse, picklist, pipe, safeParse, string, ValiError } from "valibot";
@@ -78,6 +79,10 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
         assertion: json.id,
         owner,
         attachment: "authenticatorAttachment" in json ? json.authenticatorAttachment : undefined,
+        backupEligible:
+          json.method === "webauthn"
+            ? ((new Uint8Array(base64URLStringToBuffer(json.response.authenticatorData))[32] ?? 0) & 0x08) !== 0
+            : undefined,
       });
     }
     const { expires, intercomToken, credentialId, factory, x, y, salt } = await post.json();
@@ -94,9 +99,19 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
     },
     warnError: (error) =>
       classifyError(error).passkeyWarning ||
-      (error instanceof Error && error.message === "wallet reconnection timeout"),
+      (error instanceof Error && error.message === "wallet reconnection timeout") ||
+      isUnlinked(error),
   },
 });
+
+export function isUnlinked(error: unknown) {
+  return (
+    error instanceof APIError &&
+    error.text === "no credential" &&
+    "backupEligible" in error &&
+    error.backupEligible === false
+  );
+}
 
 export const origin = Platform.OS === "web" && !isServer ? window.location.origin : `https://${domain}`;
 

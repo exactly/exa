@@ -92,6 +92,31 @@ export default function SignInDialog({
           }}
         />
       );
+    case "unlinked":
+      return (
+        <ErrorDialog
+          open={open}
+          title={t("This passkey isn’t linked to an account")}
+          description={t(
+            "It was saved only on this device, so it couldn’t be used to create an account. If you have an account, try again and pick the passkey you created it with. If not, create your account again and save the passkey to a password manager that syncs.",
+          )}
+          action={{
+            icon: <RefreshCw />,
+            label: t("Try again"),
+            onPress: () => {
+              onClose();
+              onRetry();
+            },
+          }}
+          onClose={onClose}
+          onContact={() => {
+            onClose();
+            loginUnidentified()
+              .then(() => newMessage(t("I can’t sign in. My passkey isn’t linked to an account.")))
+              .catch(reportError);
+          }}
+        />
+      );
     case "domain":
       return (
         <ErrorDialog

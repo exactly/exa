@@ -13,7 +13,7 @@ import chain from "@exactly/common/generated/chain";
 import alchemyConnector from "./alchemyConnector";
 import queryClient, { type AuthMethod } from "./queryClient";
 import reportError, { classifyError } from "./reportError";
-import { APIError, createCredential, getCredential } from "./server";
+import { APIError, createCredential, getCredential, isUnlinked } from "./server";
 import ownerConfig, { getConnector as getOwnerConnector } from "./wagmi/owner";
 
 import type { Credential } from "@exactly/common/validation";
@@ -100,6 +100,8 @@ function handleError(error: unknown, onIssue: (issue: SignInIssue) => void, t: T
     onIssue("domain");
   } else if (error instanceof Error && error.message === "NoCredentials") {
     onIssue("passkey");
+  } else if (isUnlinked(error)) {
+    onIssue("unlinked");
   } else {
     toast.error(t("Something went wrong. Please try again."), { duration: 1000 });
   }
@@ -107,4 +109,4 @@ function handleError(error: unknown, onIssue: (issue: SignInIssue) => void, t: T
   reportError(error);
 }
 
-export type SignInIssue = "backup" | "biometrics" | "domain" | "passkey";
+export type SignInIssue = "backup" | "biometrics" | "domain" | "passkey" | "unlinked";
