@@ -51,11 +51,17 @@ async function read(account: Address, chainId: number) {
       args: [auditor],
     }),
   ]);
-  return accountMarkets.map((market) => {
+  return withPreviews(accountMarkets, previews).map((market) => ({ ...market, chainId }));
+}
+
+export function withPreviews<T extends { isCollateral: boolean; market: Address }>(
+  markets: readonly T[],
+  previews: readonly { isFrozen: boolean; market: Address; nonCollateral: boolean }[],
+) {
+  return markets.map((market) => {
     const preview = previews.find(({ market: address }) => address === market.market);
     return {
       ...market,
-      chainId,
       isCollateral: market.isCollateral && !preview?.nonCollateral,
       isFrozen: !!preview?.isFrozen,
       nonCollateral: !!preview?.nonCollateral,
