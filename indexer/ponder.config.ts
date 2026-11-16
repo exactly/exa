@@ -1,6 +1,6 @@
 import { env } from "node:process";
 import { createConfig, factory } from "ponder";
-import { getAbiItem } from "viem";
+import { getAbiItem, zeroAddress } from "viem";
 import { anvil, base, baseSepolia, moonbeamDev, optimism, optimismSepolia } from "viem/chains";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
@@ -14,9 +14,15 @@ import chain, {
   marketAbi,
   proposalManagerAbi,
   upgradeableModularAccountAbi,
+  webauthnOwnerPluginAbi,
 } from "@exactly/common/generated/chain";
 
-const sources = [...chains].map(([id, { auditor, factories }]) => {
+const ownerUpdated = getAbiItem({
+  abi: webauthnOwnerPluginAbi,
+  name: "OwnerUpdated",
+  args: [zeroAddress, [{ x: 0n, y: 0n }], []],
+});
+const sources = [...chains].map(([id, { auditor, factories, webauthnOwnerPlugin }]) => {
   const network = id === chain.id ? chain : alchemyChains.get(id);
   const rpc = network?.rpcUrls.alchemy.http[0];
   if (!network || !rpc) throw new Error(`missing network ${id}`);
@@ -24,6 +30,7 @@ const sources = [...chains].map(([id, { auditor, factories }]) => {
     auditor,
     factories: [...factories.versions, ...factories.legacy],
     network,
+    webauthnOwnerPlugin,
     rpc: `${rpc}/${alchemyAPIKey}`,
     auditorBlock: {
       [optimism.id]: 78_310_663,
@@ -51,14 +58,10 @@ export default createConfig({
     ExaAccount: {
       abi: upgradeableModularAccountAbi,
       chain: Object.fromEntries(
-        sources.map(({ factories, network, startBlock }) => [
+        sources.map(({ network, startBlock, webauthnOwnerPlugin }) => [
           network.name,
           {
-            address: factory({
-              address: factories,
-              event: getAbiItem({ abi: exaAccountFactoryAbi, name: "ExaAccountInitialized" }),
-              parameter: "account",
-            }),
+            address: factory({ address: webauthnOwnerPlugin, event: ownerUpdated, parameter: "account" }),
             startBlock,
           },
         ]),
@@ -88,6 +91,15 @@ export default createConfig({
             }),
             startBlock,
           },
+        ]),
+      ),
+    },
+    WebauthnOwnerPlugin: {
+      abi: webauthnOwnerPluginAbi,
+      chain: Object.fromEntries(
+        sources.map(({ network, startBlock, webauthnOwnerPlugin }) => [
+          network.name,
+          { address: webauthnOwnerPlugin, startBlock },
         ]),
       ),
     },
