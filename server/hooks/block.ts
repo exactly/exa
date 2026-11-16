@@ -102,7 +102,7 @@ export default function hook({
         for (const message of messages) scheduleMessage(message);
       })
       .catch((error: unknown) => captureException(error)),
-    initializeAlchemy(alchemy, signingKeys).catch((error: unknown) => {
+    initializeAlchemy(alchemy, redis, signingKeys).catch((error: unknown) => {
       if (signingKeys.size === 0) throw error;
       captureException(error, { level: "warning" });
     }),
@@ -643,7 +643,7 @@ const isTerminalWithdrawReason = (reason: string) =>
     reason.endsWith(`,${encodeErrorResult({ errorName: "NoProposal", abi: proposalManagerAbi })})`));
 
 const url = `${appOrigin}/hooks/block`;
-async function initializeAlchemy(alchemy: ReturnType<typeof createAlchemy>, signingKeys: Set<string>) {
+async function initializeAlchemy(alchemy: ReturnType<typeof createAlchemy>, redis: Redis, signingKeys: Set<string>) {
   const currentHook = await alchemy.findWebhook(
     ({ webhook_type, webhook_url }) => webhook_type === "GRAPHQL" && webhook_url === url,
   );
@@ -651,14 +651,9 @@ async function initializeAlchemy(alchemy: ReturnType<typeof createAlchemy>, sign
   let currentAddresses: string[] = [];
   if (currentHook) {
     signingKeys.add(currentHook.signing_key);
-
-    const queryResponse = await fetch(
-      `https://dashboard.alchemy.com/api/dashboard-webhook-graphql-query?webhook_id=${currentHook.id}`,
-      { headers: alchemy.headers },
-    );
-    if (!queryResponse.ok) throw new ServiceError("Alchemy", queryResponse.status, await queryResponse.text());
-    const { data: query } = (await queryResponse.json()) as { data: { graphql_query: string } };
-    visit(parse(query.graphql_query), {
+    const query = await redis.get(`alchemy:block:${currentHook.id}`);
+    if (query === null) return;
+    visit(parse(query), {
       Field(node) {
         if (node.name.value === "block") {
           shouldUpdate ||= !node.selectionSet?.selections.find(
@@ -686,12 +681,7 @@ async function initializeAlchemy(alchemy: ReturnType<typeof createAlchemy>, sign
   }
   if (!shouldUpdate) return;
 
-  const newHook = await alchemy.createWebhook({
-    webhook_type: "GRAPHQL",
-    webhook_url: url,
-    graphql_query: {
-      skip_empty_messages: true,
-      query: `#graphql
+  const query = `#graphql
 {
   block {
     number
@@ -716,16 +706,21 @@ async function initializeAlchemy(alchemy: ReturnType<typeof createAlchemy>, sign
       }
     }
   }
-}`,
-    },
+}`;
+  const newHook = await alchemy.createWebhook({
+    webhook_type: "GRAPHQL",
+    webhook_url: url,
+    graphql_query: { skip_empty_messages: true, query },
   });
   signingKeys.add(newHook.signing_key);
+  await redis.set(`alchemy:block:${newHook.id}`, query);
   if (currentHook) {
     const deleteResponse = await fetch(
       `https://dashboard.alchemy.com/api/delete-webhook?webhook_id=${currentHook.id}`,
       { headers: alchemy.headers, method: "DELETE" },
     );
     if (!deleteResponse.ok) throw new ServiceError("Alchemy", deleteResponse.status, await deleteResponse.text());
+    await redis.del(`alchemy:block:${currentHook.id}`);
     await setTimeout(5000);
     signingKeys.delete(currentHook.signing_key);
   }

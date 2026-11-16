@@ -97,41 +97,71 @@ beforeAll(async () => {
 });
 
 describe("initialization", () => {
+  const existing: NonNullable<Awaited<ReturnType<typeof findWebhook>>> = {
+    id: "existing",
+    is_active: true,
+    network: "ANVIL",
+    signing_key: "existing-signing-key",
+    webhook_type: "GRAPHQL",
+    webhook_url: "http://localhost:8081/hooks/block",
+  };
+
+  beforeEach(async () => {
+    await redis.del(`alchemy:block:${existing.id}`);
+  });
+
   it("starts with a discovered key when reconciliation fails", async () => {
-    const existing: NonNullable<Awaited<ReturnType<typeof findWebhook>>> = {
-      id: "existing",
-      is_active: true,
-      network: "ANVIL",
-      signing_key: "existing-signing-key",
-      webhook_type: "GRAPHQL",
-      webhook_url: "http://localhost:8081/hooks/block",
-    };
+    const error = new Error("redis unavailable");
     vi.mocked(findWebhook).mockResolvedValueOnce(existing);
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("not found", { status: 404 }));
+    vi.spyOn(redis, "get").mockRejectedValueOnce(error);
     const currentHook = createBlockHook(defaults);
 
     await expect(currentHook.ready).resolves.toBeDefined();
     expect(createWebhook).not.toHaveBeenCalled();
     expect(headerValidator).toHaveBeenLastCalledWith(new Set([existing.signing_key]));
-    expect(captureException).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "Alchemy404", message: "not found", status: 404 }),
-      { level: "warning" },
-    );
+    expect(captureException).toHaveBeenCalledWith(error, { level: "warning" });
+  });
+
+  it("keeps a webhook without a known query", async () => {
+    vi.mocked(findWebhook).mockResolvedValueOnce(existing);
+    const currentHook = createBlockHook(defaults);
+
+    await expect(currentHook.ready).resolves.toBeDefined();
+    expect(createWebhook).not.toHaveBeenCalled();
+    expect(headerValidator).toHaveBeenLastCalledWith(new Set([existing.signing_key]));
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("replaces a webhook with an outdated query", async () => {
+    vi.mocked(findWebhook).mockResolvedValueOnce(existing);
+    await redis.set(`alchemy:block:${existing.id}`, "{ block { timestamp } }");
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("ok"));
+    const currentHook = createBlockHook(defaults);
+
+    await expect(currentHook.ready).resolves.toBeDefined();
+    expect(createWebhook).toHaveBeenCalledOnce();
+    await expect(redis.get("alchemy:block:mock-webhook-id")).resolves.toMatch(proposalManagerAddress);
+    await expect(redis.get(`alchemy:block:${existing.id}`)).resolves.toBeNull();
+    expect(headerValidator).toHaveBeenLastCalledWith(new Set(["mock-signing-key"]));
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("keeps a webhook with the current query", async () => {
+    await createBlockHook(defaults).ready;
+    vi.mocked(createWebhook).mockClear();
+    vi.mocked(findWebhook).mockResolvedValueOnce({ ...existing, id: "mock-webhook-id" });
+    const currentHook = createBlockHook(defaults);
+
+    await expect(currentHook.ready).resolves.toBeDefined();
+    expect(createWebhook).not.toHaveBeenCalled();
+    expect(headerValidator).toHaveBeenLastCalledWith(new Set([existing.signing_key]));
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it("keeps both keys when the old webhook deletion fails", async () => {
-    const existing: NonNullable<Awaited<ReturnType<typeof findWebhook>>> = {
-      id: "stale",
-      is_active: true,
-      network: "ANVIL",
-      signing_key: "stale-signing-key",
-      webhook_type: "GRAPHQL",
-      webhook_url: "http://localhost:8081/hooks/block",
-    };
     vi.mocked(findWebhook).mockResolvedValueOnce(existing);
-    vi.spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(Response.json({ data: { graphql_query: "{ block { timestamp } }" } }))
-      .mockResolvedValueOnce(new Response("unavailable", { status: 503 }));
+    await redis.set(`alchemy:block:${existing.id}`, "{ block { timestamp } }");
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("unavailable", { status: 503 }));
     const currentHook = createBlockHook(defaults);
 
     await expect(currentHook.ready).resolves.toBeDefined();
