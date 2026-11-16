@@ -6,8 +6,31 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     file: send.yaml
     env: { asset: USDC, network: Anvil, to: "0x000000000000000000000000000000000000dEaD", amount: "${max ? 'max' : '69'}" }
+- runFlow:
+    when: { true: "${!!max}" }
+    commands: [{ runFlow: { file: mint.yaml, env: { asset: USDC, to: "${output.account}", amount: "420" } } }]
 - tapOn: Send
 - tapOn: Digital assets
+- assertVisible: Send to
+- runFlow: { file: tapAria.yaml, env: { aria: "0x000000000000000000000000000000000000dEaD" } }
+- runFlow: { file: tapAria.yaml, env: { aria: Select network } }
+- tapOn: { text: Anvil, below: All networks }
+- tapOn: Search assets
+- inputText: USDC
+- runFlow: { file: tapAria.yaml, env: { aria: "^USDC, [\\s\\d,.\\xa0]+ available$" } }
+- runFlow: { file: tapAria.yaml, env: { aria: Amount } }
+- runFlow:
+    when: { true: "${!!max}" }
+    commands: [{ tapOn: MAX }]
+- runFlow:
+    when: { true: "${!max}" }
+    commands: [{ inputText: "69" }]
+- tapOn: "^Send .+ on .+$"
+- tapOn: Review
+- assertVisible: You recently sent this amount to this address. Check your activity before sending it again.
+- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: tapAria.yaml, env: { aria: Back } }
 - assertVisible: Send to
 - runFlow: { file: tapAria.yaml, env: { aria: Edit contact } }
 - assertVisible: Delete contact
