@@ -376,6 +376,29 @@ describe("card operations", () => {
         expect(response.status).toBe(200);
       });
 
+      it("authorizes debit without waiting for risk assessment", async () => {
+        const { promise, resolve } = Promise.withResolvers<Awaited<ReturnType<typeof sardine.risk>>>();
+        vi.spyOn(sardine, "risk").mockReturnValueOnce(promise);
+        const span = spyRiskSpan();
+        await database.insert(cards).values([{ id: "risk-pending", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId: "risk-pending" } },
+          },
+        });
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+        expect(sardine.risk).toHaveBeenCalledWith(expect.objectContaining({ card: { id: "risk-pending" } }));
+        resolve({ sessionKey: "risk-pending", level: "low", status: "Success", amlLevel: "low" });
+        await expect(span).resolves.toStrictEqual([
+          "tx.risk.authorization",
+          { "exa.level": "low", "exa.score": undefined, "exa.status": "Success" },
+        ]);
+      });
+
       it("authorizes installments", async () => {
         await database.insert(cards).values([{ id: "inst", credentialId: "cred", lastFour: "5678", mode: 6 }]);
 

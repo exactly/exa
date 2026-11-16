@@ -39,7 +39,7 @@ export default function sardine(key: string, url: string) {
   }
 
   async function risk(data: InferInput<typeof RiskRequest>) {
-    return await request(RiskResponse, "/v1/issuing/risks", {}, parse(RiskRequest, data), "POST", 500);
+    return await request(RiskResponse, "/v1/issuing/risks", {}, parse(RiskRequest, data), "POST", 10_000);
   }
 
   async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
