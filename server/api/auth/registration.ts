@@ -6,6 +6,7 @@ import {
   type WebAuthnCredential,
 } from "@simplewebauthn/server";
 import { cose } from "@simplewebauthn/server/helpers";
+import { DrizzleQueryError } from "drizzle-orm";
 import { Hono, type Env } from "hono";
 import { setCookie } from "hono/cookie";
 import { describeRoute } from "hono-openapi";
@@ -440,6 +441,14 @@ export default function route({
             200,
           );
         } catch (error) {
+          if (
+            error instanceof DrizzleQueryError &&
+            error.cause &&
+            "code" in error.cause &&
+            error.cause.code === "23505"
+          ) {
+            return c.json({ code: "already registered" }, 409);
+          }
           captureException(error, { level: "error", tags: { unhandled: true } });
           return c.json({ code: "ouch", legacy: "ouch" }, 500);
         }

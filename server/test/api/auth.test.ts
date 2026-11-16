@@ -1,12 +1,12 @@
 import "../expect";
 
 import sardineCustomer from "../mocks/sardine";
-import "../mocks/segment";
+import { identify } from "../mocks/segment";
 import "../mocks/sentry";
 
 import { captureException } from "@sentry/node";
 import { verifyAuthenticationResponse, verifyRegistrationResponse } from "@simplewebauthn/server";
-import { eq } from "drizzle-orm";
+import { DrizzleQueryError, eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { decodeJwt, decodeProtectedHeader, jwtVerify } from "jose";
 import assert from "node:assert";
@@ -1128,6 +1128,23 @@ describe("registration", () => {
     expect(await secondResponse.json()).toEqual(expect.objectContaining({ code: "no registration" }));
   });
 
+  it.each([
+    ["no cause", undefined],
+    ["a cause without code", new Error("boom")],
+    ["another database error", Object.assign(new Error("foreign key"), { code: "23503" })],
+  ])("reports registration database errors with %s", async (_, cause) => {
+    const error = new DrizzleQueryError("insert into credentials", [], cause);
+    vi.spyOn(derive, "default").mockImplementationOnce(() => {
+      throw error;
+    });
+
+    const response = await postRegistrationWebauthn();
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toStrictEqual({ code: "ouch", legacy: "ouch" });
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(error, { level: "error", tags: { unhandled: true } });
+  });
+
   it("handles exceptions in post-verification registration path", async () => {
     vi.spyOn(derive, "default").mockImplementationOnce(() => {
       throw new Error("boom");
@@ -1171,6 +1188,35 @@ describe("registration", () => {
     });
     expect(credential?.id).toBe(id);
     await expect(redis.exists("session:test-session")).resolves.toBe(0);
+  });
+
+  it("rejects siwe registration of a registered credential", async () => {
+    vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
+    const id = own(parse(Address, slice(keccak256(toBytes("auth:siwe-registered")), 12)));
+    const first = await registrationAppClient.index.$post(
+      { json: { method: "siwe", id, signature: "0xdeadbeef" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
+    );
+    expect(first.status).toBe(200);
+    expect(sardineCustomer).toHaveBeenCalledOnce();
+    expect(subscribe.enqueue).toHaveBeenCalledOnce();
+    expect(identify).toHaveBeenCalledOnce();
+    sardineCustomer.mockClear();
+    subscribe.enqueue.mockClear();
+    identify.mockClear();
+    await redis.set("session:test-session", "test-challenge");
+
+    const response = await registrationAppClient.index.$post(
+      { json: { method: "siwe", id, signature: "0xdeadbeef" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
+    );
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toStrictEqual({ code: "already registered" });
+    expect(sardineCustomer).not.toHaveBeenCalled();
+    expect(subscribe.enqueue).not.toHaveBeenCalled();
+    expect(identify).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it("consumes challenge after failed siwe registration to prevent replay", async () => {
