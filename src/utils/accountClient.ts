@@ -45,7 +45,6 @@ import {
   sendTransaction,
   signMessage,
   switchChain,
-  waitForCallsStatus,
   waitForTransactionReceipt,
 } from "@wagmi/core/actions";
 import {
@@ -119,6 +118,7 @@ import queryClient, { type AuthMethod } from "./queryClient";
 import reportError, { classifyError } from "./reportError";
 import { identify } from "./segment";
 import ownerConfig from "./wagmi/owner";
+import waitForCalls from "./waitForCalls";
 
 import type { Credential } from "@exactly/common/validation";
 import type { Token } from "@lifi/sdk";
@@ -783,7 +783,7 @@ export async function callsStatus(config: Config, id: string, chainId?: number) 
       if (receipt.status === "reverted" || reason === "cancelled" || reason === "replaced") return "failure";
       return "success";
     }
-    const { status } = await waitForCallsStatus(config, { id: bundle });
+    const { status } = await waitForCalls(config, bundle);
     return status;
   } catch (error) {
     reportError(error, { level: "warning" });

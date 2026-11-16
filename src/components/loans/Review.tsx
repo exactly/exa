@@ -6,7 +6,6 @@ import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { ScrollView, Separator, Square, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
-import { waitForCallsStatus } from "@wagmi/core/actions";
 import { parse } from "valibot";
 import { encodeAbiParameters, encodeFunctionData, maxUint256, type Address, type Hex } from "viem";
 import { useBytecode, useSendCalls } from "wagmi";
@@ -39,6 +38,7 @@ import useInsets from "../../utils/useInsets";
 import useInstallments from "../../utils/useInstallments";
 import useSingleMutation from "../../utils/useSingleMutation";
 import exa from "../../utils/wagmi/exa";
+import waitForCalls from "../../utils/waitForCalls";
 import AssetLogo from "../shared/AssetLogo";
 import GradientScrollView from "../shared/GradientScrollView";
 import IconButton from "../shared/IconButton";
@@ -143,7 +143,7 @@ export default function Review() {
         chainId: chain.id,
         calls,
       });
-      const { status } = await waitForCallsStatus(exa, { id });
+      const { status } = await waitForCalls(exa, id);
       if (status === "failure") throw new Error("failed to submit borrow proposal");
     },
     onError(error) {
