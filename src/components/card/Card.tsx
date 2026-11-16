@@ -174,7 +174,7 @@ export default function Card() {
       }
       try {
         const data = await queryClient.fetchQuery<CardSecrets>({
-          queryKey: ["card", "secrets", cardDetails?.cardId],
+          queryKey: ["card", "secrets", cardDetails?.lastFour],
           staleTime: 0,
         });
         if (data) {
@@ -256,7 +256,7 @@ export default function Card() {
     submittedAt: generateSubmittedAt,
   } = useMutation({
     mutationKey: ["card", "create"],
-    retry: (_, error) => error instanceof APIError && error.code !== 504 && !error.text.includes("already created"),
+    retry: (_, error) => error instanceof APIError && error.code !== 504 && !existing.has(error.text),
     retryDelay: (failureCount, error) => (error instanceof APIError ? failureCount * 5000 : 1000),
     mutationFn: async () => {
       if (!credential) return;
@@ -269,16 +269,13 @@ export default function Card() {
       if (card) queryClient.setQueryData(["card-details-open"], true);
     },
     onError: async (error: Error) => {
-      if (!(error instanceof APIError)) {
-        reportError(error);
-        toast.error(t("Error activating card"), { duration: 1000 });
-        return;
-      }
-      if (error.text.includes("already created")) {
-        queryClient.setQueryData<boolean>(["settings", "card-support-contacted"], false);
-        await queryClient.refetchQueries({ queryKey: ["card", "details"] });
-        await queryClient.setQueryData(["card-details-open"], true);
-        return;
+      if (error instanceof APIError && existing.has(error.text)) {
+        const { data: card } = await refetchCard();
+        if (card) {
+          queryClient.setQueryData<boolean>(["settings", "card-support-contacted"], false);
+          queryClient.setQueryData(["card-details-open"], true);
+          return;
+        }
       }
       reportError(error);
       toast.error(t("Error activating card"), { duration: 1000 });
@@ -627,3 +624,5 @@ export default function Card() {
     </SafeView>
   );
 }
+
+const existing = new Set(["already created", "card limit reached"]);
