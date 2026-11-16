@@ -175,10 +175,10 @@ describe("hook worker", () => {
         },
       ]);
       await tx.insert(cards).values([
-        { id: "webhook-card", credentialId: "webhook-cred", lastFour: "1234" },
-        { id: "webhook-card-multi", credentialId: "webhook-cred-multi", lastFour: "1235" },
-        { id: "webhook-card-broken", credentialId: "webhook-cred-broken", lastFour: "1236" },
-        { id: "webhook-card-sourceless", credentialId: "webhook-cred-sourceless", lastFour: "1237" },
+        { id: "webhook-card", credentialId: "webhook-cred", tenant: "OP", lastFour: "1234" },
+        { id: "webhook-card-multi", credentialId: "webhook-cred-multi", tenant: "OP", lastFour: "1235" },
+        { id: "webhook-card-broken", credentialId: "webhook-cred-broken", tenant: "OP", lastFour: "1236" },
+        { id: "webhook-card-sourceless", credentialId: "webhook-cred-sourceless", tenant: "OP", lastFour: "1237" },
       ]);
     });
     connection = connect(redisUrl);

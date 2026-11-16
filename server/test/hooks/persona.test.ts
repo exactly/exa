@@ -650,7 +650,9 @@ describe("card limit case", () => {
 
   it("updates card with dynamic limit when approved", async () => {
     await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, referenceId));
-    await database.insert(cards).values([{ id: "case-card", credentialId: referenceId, lastFour: "1234" }]);
+    await database
+      .insert(cards)
+      .values([{ id: "case-card", credentialId: referenceId, tenant: "OP", lastFour: "1234" }]);
     vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
       data: { attributes: { "reference-id": referenceId } },
     });
@@ -672,7 +674,7 @@ describe("card limit case", () => {
     await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, referenceId));
     await database
       .insert(cards)
-      .values([{ id: "case-card", credentialId: referenceId, lastFour: "1234", status: "FROZEN" }]);
+      .values([{ id: "case-card", credentialId: referenceId, tenant: "OP", lastFour: "1234", status: "FROZEN" }]);
     vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
       data: { attributes: { "reference-id": referenceId } },
     });
@@ -693,8 +695,8 @@ describe("card limit case", () => {
   it("captures and skips limit updates when credential has multiple cards", async () => {
     await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, referenceId));
     await database.insert(cards).values([
-      { id: "case-card", credentialId: referenceId, lastFour: "1234" },
-      { id: "case-card-frozen", credentialId: referenceId, lastFour: "5678", status: "FROZEN" },
+      { id: "case-card", credentialId: referenceId, tenant: "OP", lastFour: "1234" },
+      { id: "case-card-frozen", credentialId: referenceId, tenant: "OP", lastFour: "5678", status: "FROZEN" },
     ]);
     vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
       data: { attributes: { "reference-id": referenceId } },
@@ -709,6 +711,52 @@ describe("card limit case", () => {
       level: "error",
       contexts: { credential: { referenceId } },
     });
+  });
+
+  it.each([
+    { isBase: false, own: "OP", other: "BASE" },
+    { isBase: true, own: "BASE", other: "OP" },
+  ] as const)("updates the card limit of $own tenant", async ({ isBase, own, other }) => {
+    mocks.isBase.mockReturnValue(isBase);
+    await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, referenceId));
+    await database.insert(cards).values([
+      { id: "case-card-other", credentialId: referenceId, tenant: other, lastFour: "4321" },
+      { id: "case-card", credentialId: referenceId, tenant: own, lastFour: "1234" },
+    ]);
+    vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
+      data: { attributes: { "reference-id": referenceId } },
+    });
+    vi.spyOn(persona, "updateCardLimit").mockResolvedValueOnce(cardLimitUpdateResponse);
+    vi.spyOn(panda, "updateCard").mockResolvedValueOnce(cardUpdateResponse);
+    const response = await postCase(casePayload({ status: "Approved", cardLimitUsd: 20_000 }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000);
+    expect(panda.updateCard).toHaveBeenCalledExactlyOnceWith({
+      id: "case-card",
+      limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
+    });
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("does not update the card limit of another tenant", async () => {
+    await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, referenceId));
+    await database
+      .insert(cards)
+      .values([{ id: "case-card-other", credentialId: referenceId, tenant: "BASE", lastFour: "4321" }]);
+    vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
+      data: { attributes: { "reference-id": referenceId } },
+    });
+    vi.spyOn(persona, "updateCardLimit").mockResolvedValueOnce(cardLimitUpdateResponse);
+    vi.spyOn(panda, "updateCard");
+    const response = await postCase(casePayload({ status: "Approved", cardLimitUsd: 20_000 }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000);
+    expect(panda.updateCard).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it("updates persona account when credential has no pandaId", async () => {
@@ -742,7 +790,9 @@ describe("card limit case", () => {
 
   it("returns 500 and captures drift context when updateCard fails after updateCardLimit succeeds", async () => {
     await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, referenceId));
-    await database.insert(cards).values([{ id: "case-card", credentialId: referenceId, lastFour: "1234" }]);
+    await database
+      .insert(cards)
+      .values([{ id: "case-card", credentialId: referenceId, tenant: "OP", lastFour: "1234" }]);
     vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
       data: { attributes: { "reference-id": referenceId } },
     });
@@ -769,7 +819,9 @@ describe("card limit case", () => {
 
   it("returns 500 when updateCardLimit fails before updateCard", async () => {
     await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, referenceId));
-    await database.insert(cards).values([{ id: "case-card", credentialId: referenceId, lastFour: "1234" }]);
+    await database
+      .insert(cards)
+      .values([{ id: "case-card", credentialId: referenceId, tenant: "OP", lastFour: "1234" }]);
     vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
       data: { attributes: { "reference-id": referenceId } },
     });
@@ -992,11 +1044,11 @@ describe("business representative", () => {
     ).resolves.toStrictEqual({ pandaId: "business-user" });
     await expect(
       database.query.cards.findMany({
-        columns: { id: true, lastFour: true, productId: true, status: true },
+        columns: { id: true, lastFour: true, productId: true, status: true, tenant: true },
         where: eq(cards.credentialId, referenceId),
       }),
     ).resolves.toStrictEqual([
-      { id: "business-card", lastFour: "4321", productId: CLASSIC_PRODUCT_ID, status: "ACTIVE" },
+      { id: "business-card", lastFour: "4321", productId: CLASSIC_PRODUCT_ID, status: "ACTIVE", tenant: "BASE" },
     ]);
   });
 
@@ -1189,7 +1241,9 @@ describe("business representative", () => {
   });
 
   it("returns already created when an active card exists", async () => {
-    await database.insert(cards).values([{ id: "business-card", credentialId: referenceId, lastFour: "4321" }]);
+    await database
+      .insert(cards)
+      .values([{ id: "business-card", credentialId: referenceId, tenant: "BASE", lastFour: "4321" }]);
 
     const response = await appClient.index.$post({
       header: { "persona-signature": "t=1,v1=sha256" },

@@ -37,20 +37,28 @@ describe("authenticated", () => {
       { id: "cards-physical", publicKey, factory, account: padHex("0xca7d5", { size: 20 }), pandaId: "cards-physical" },
     ]);
     await database.insert(cards).values([
-      { id: second, credentialId: "cards", lastFour: "2222", status: "FROZEN", mode: 3 },
-      { id: first, credentialId: "cards", lastFour: "1111", productId: SIGNATURE_PRODUCT_ID },
-      { id: third, credentialId: "cards", lastFour: "3333", status: "DELETED" },
-      { id: "ca7d0000-0000-4000-8000-000000000005", credentialId: "cards-no-panda", lastFour: "5555" },
-      { id: "ca7d0000-0000-4000-8000-000000000006", credentialId: "cards-frozen", lastFour: "6666", status: "FROZEN" },
+      { id: second, credentialId: "cards", tenant: "OP", lastFour: "2222", status: "FROZEN", mode: 3 },
+      { id: first, credentialId: "cards", tenant: "OP", lastFour: "1111", productId: SIGNATURE_PRODUCT_ID },
+      { id: third, credentialId: "cards", tenant: "OP", lastFour: "3333", status: "DELETED" },
+      { id: "ca7d0000-0000-4000-8000-000000000005", credentialId: "cards-no-panda", tenant: "OP", lastFour: "5555" },
+      {
+        id: "ca7d0000-0000-4000-8000-000000000006",
+        credentialId: "cards-frozen",
+        tenant: "OP",
+        lastFour: "6666",
+        status: "FROZEN",
+      },
       {
         id: "ca7d0000-0000-4000-8000-000000000007",
         credentialId: "cards-physical",
+        tenant: "OP",
         lastFour: "7777",
         productId: SIGNATURE_PRODUCT_ID,
       },
       {
         id: "ca7d0000-0000-4000-8000-000000000008",
         credentialId: "cards-physical",
+        tenant: "OP",
         lastFour: "8888",
         status: "FROZEN",
         productId: PHYSICAL_SIGNATURE_PRODUCT_ID,
