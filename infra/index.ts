@@ -37,6 +37,7 @@ const enabled = <Spec>(specs: Readonly<Record<string, Spec>>) =>
   Object.entries(specs).filter(([name]) => !disabled.has(name));
 const project = new Config("gcp").require("project");
 const location = config.get("location") ?? "us-west1";
+const rollout = hash("sha256", `${config.require("serverImage")}:${config.require("rollout")}`).slice(0, 16);
 const run = new projects.Service("run", { service: "run.googleapis.com" });
 const engine = new projects.Service("compute", { service: "compute.googleapis.com" });
 const registry = new projects.Service("artifactregistry", { service: "artifactregistry.googleapis.com" });
@@ -194,7 +195,7 @@ const pools = workers.map(({ dependencies, name, template }) => {
       deletionProtection: false,
       location,
       name: `${stack}-${name}-check`,
-      runExecutionToken: hash("sha256", `${config.require("serverImage")}:${config.require("rollout")}`).slice(0, 16),
+      runExecutionToken: rollout,
       template: {
         template: {
           ...template,
@@ -263,6 +264,7 @@ new cloudrunv2.Service(
     scaling: { scalingMode: "MANUAL", manualInstanceCount: 1 },
     ingress: "INGRESS_TRAFFIC_INTERNAL_ONLY",
     template: {
+      labels: { rollout },
       serviceAccount: crema.email,
       vpcAccess: { egress: "ALL_TRAFFIC", networkInterfaces: [{ network: network.id, subnetwork: subnet.id }] },
       containers: [
