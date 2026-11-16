@@ -17,12 +17,15 @@ import {
   type InferInput,
   type InferOutput,
 } from "valibot";
+import { isAddressEqual } from "viem";
 
+import * as nonceKey from "@exactly/common/nonceKey";
 import { business } from "@exactly/common/tenants";
-import { Address } from "@exactly/common/validation";
+import { Address, Hash } from "@exactly/common/validation";
 
 import { canRetry } from "./kyc";
 import { credentials } from "../database/schema";
+import findAccount from "../utils/findAccount";
 import { BusinessApplicationError } from "../utils/panda";
 import { ADDRESS_TEMPLATE, MANTECA_TEMPLATE_EXTRA_FIELDS, PANDA_TEMPLATE } from "../utils/persona";
 import * as Bridge from "../utils/ramps/bridge";
@@ -48,6 +51,8 @@ const ErrorCodes = {
   NOT_APPROVED: "not approved",
   NOT_STARTED: "not started",
   NOT_SUPPORTED: "not supported",
+  PAYMENT_NOT_EXECUTED: "payment not executed",
+  PAYMENT_NOT_FOUND: "payment not found",
   POSTAL_CODE_REQUIRED: "postal code required",
   TRANSFER_NOT_FOUND: "transfer not found",
   WITHDRAWAL_IN_PROGRESS: "withdrawal in progress",
@@ -445,6 +450,66 @@ export default function route({
         return c.json({ code: "ok" }, 200);
       },
     )
+    .post(
+      "/qr",
+      auth,
+      vValidator("json", object({ qr: string(), amount: optional(string()) }), validatorHook({ code: "bad qr" })),
+      async (c) => {
+        const { credentialId } = c.req.valid("cookie");
+        const payment = c.req.valid("json");
+        const credential = await database.query.credentials.findFirst({
+          where: eq(credentials.id, credentialId),
+          columns: { account: true },
+        });
+        if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
+        setUser({ id: parse(Address, credential.account) });
+
+        const personaAccount = await persona.getAccount(credentialId, "basic");
+        if (!personaAccount) return c.json({ code: Manteca.ErrorCodes.NO_PERSONA_ACCOUNT }, 400);
+        const document = Manteca.nationalId(personaAccount);
+        if (!document) return c.json({ code: Manteca.ErrorCodes.NO_DOCUMENT }, 400);
+        const lock = await manteca.lockQrPayment({
+          paymentDestination: payment.qr,
+          amount: payment.amount,
+          against: "USDC",
+          sender: {
+            legalIdNationality: document.id_issuing_country.value,
+            legalId: document.id_number.value,
+            name: personaAccount.attributes.fields.name.value.first.value,
+            surname: personaAccount.attributes.fields.name.value.last.value,
+          },
+        });
+        if (!lock.code) return c.json({ recipient: lock.paymentRecipientName }, 206);
+        return c.json(
+          {
+            code: lock.code,
+            nonceKey: nonceKey.encode(lock.code),
+            amount: lock.paymentAgainstAmount,
+            expireAt: lock.expireAt,
+            recipient: lock.paymentRecipientName,
+            receiver: await manteca.getSettlement(lock.paymentAsset),
+          },
+          200,
+        );
+      },
+    )
+    .get("/qr/:userOpHash", auth, vValidator("param", object({ userOpHash: Hash }), validatorHook()), async (c) => {
+      const { credentialId } = c.req.valid("cookie");
+      const { userOpHash } = c.req.valid("param");
+      const credential = await database.query.credentials.findFirst({
+        where: eq(credentials.id, credentialId),
+        columns: { account: true },
+      });
+      if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
+      const account = parse(Address, credential.account);
+      setUser({ id: account });
+
+      const sender = await findAccount(userOpHash);
+      if (!sender || !isAddressEqual(sender, account)) return c.json({ code: ErrorCodes.PAYMENT_NOT_FOUND }, 404);
+      const synthetic = await manteca.getSynthetic(userOpHash);
+      if (!synthetic) return c.json({ code: ErrorCodes.PAYMENT_NOT_EXECUTED }, 404);
+      return c.json({ id: synthetic.id, status: synthetic.status }, 200);
+    })
     .post("/external-account", auth, vValidator("json", Bridge.ExternalAccountInput, validatorHook()), async (c) => {
       const { credentialId } = c.req.valid("cookie");
       const credential = await database.query.credentials.findFirst({
