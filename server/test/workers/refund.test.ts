@@ -188,7 +188,9 @@ describe("refund worker", () => {
         await tx
           .insert(credentials)
           .values([{ id: "refund-cred", publicKey: new Uint8Array(), account, factory: exaAccountFactoryAddress }]);
-        await tx.insert(cards).values([{ id: "refund-card", credentialId: "refund-cred", lastFour: "1234" }]);
+        await tx
+          .insert(cards)
+          .values([{ id: "refund-card", credentialId: "refund-cred", tenant: "OP", lastFour: "1234" }]);
       }),
     ]);
     connection = connect(redisUrl);
@@ -476,7 +478,9 @@ describe("refund worker", () => {
   });
 
   it("fails when the transaction belongs to another card", async () => {
-    await database.insert(cards).values([{ id: "other-refund-card", credentialId: "refund-cred", lastFour: "4321" }]);
+    await database
+      .insert(cards)
+      .values([{ id: "other-refund-card", credentialId: "refund-cred", tenant: "OP", lastFour: "4321" }]);
     await database
       .insert(transactions)
       .values([
