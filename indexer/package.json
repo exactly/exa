@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@exactly/common": "workspace:^0.0.26",
+    "@google-cloud/secret-manager": "^7.0.0",
     "hono": "catalog:",
     "pg": "^8.20.0",
     "ponder": "^0.18.9",
