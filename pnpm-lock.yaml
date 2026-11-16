@@ -339,6 +339,7 @@ patchedDependencies:
   embedded-postgres: cb5e37525b1810f2af136570b38d5e0cec4cc2455408896ed1943d27f3f61b38
   eslint-config-universe: cfe35ddf48bd80b3df25a30d7d8878394712a39321d2855dcb90a64df2ccc280
   nx: c172c800349b5ff79a768314f5b352739f68bb2d5a5199160e72e7f5fc90cb6c
+  ponder@0.18.9: 35b88a5b775384aaa6319ba872ccef22e87c2d6881d5f563a56d0a0da015c1d0
   prool@0.2.17: c8576988b7c6649c8f0fa61ec9eef3064a03c2697e3c4ce9f214f76aa8fb565f
   react-native-wagmi-charts: ee91092da416d3fb1dc2ab2310f93cc8dea186ac233a9b08fac5dec211024d3a
 
@@ -1014,7 +1015,7 @@ importers:
         version: 8.20.0
       ponder:
         specifier: ^0.18.9
-        version: 0.18.9(@opentelemetry/api@1.9.1)(@types/node@25.5.0)(@types/pg@8.20.0)(bufferutil@4.1.0)(esbuild@0.28.1)(hono@4.13.18)(kysely@0.28.17)(terser@5.46.1)(tsx@4.22.4)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7))(yaml@2.9.1)(zod@4.6.7)
+        version: 0.18.9(patch_hash=35b88a5b775384aaa6319ba872ccef22e87c2d6881d5f563a56d0a0da015c1d0)(@opentelemetry/api@1.9.1)(@types/node@25.5.0)(@types/pg@8.20.0)(bufferutil@4.1.0)(esbuild@0.28.1)(hono@4.13.18)(kysely@0.28.17)(terser@5.46.1)(tsx@4.22.4)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7))(yaml@2.9.1)(zod@4.6.7)
       viem:
         specifier: 'catalog:'
         version: 2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7)
@@ -33381,7 +33382,7 @@ snapshots:
       path-data-parser: 0.1.0
       points-on-curve: 0.2.0
 
-  ponder@0.18.9(@opentelemetry/api@1.9.1)(@types/node@25.5.0)(@types/pg@8.20.0)(bufferutil@4.1.0)(esbuild@0.28.1)(hono@4.13.18)(kysely@0.28.17)(terser@5.46.1)(tsx@4.22.4)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7))(yaml@2.9.1)(zod@4.6.7):
+  ponder@0.18.9(patch_hash=35b88a5b775384aaa6319ba872ccef22e87c2d6881d5f563a56d0a0da015c1d0)(@opentelemetry/api@1.9.1)(@types/node@25.5.0)(@types/pg@8.20.0)(bufferutil@4.1.0)(esbuild@0.28.1)(hono@4.13.18)(kysely@0.28.17)(terser@5.46.1)(tsx@4.22.4)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7))(yaml@2.9.1)(zod@4.6.7):
     dependencies:
       '@babel/code-frame': 7.29.7
       '@commander-js/extra-typings': 12.1.0(commander@12.1.0)
