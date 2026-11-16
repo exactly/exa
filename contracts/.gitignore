@@ -24,6 +24,9 @@ out/
 !/broadcast/Refunder.s.sol
 /broadcast/Refunder.s.sol/*/*
 !/broadcast/Refunder.s.sol/*/run-latest.json
+!/broadcast/Swapper.s.sol
+/broadcast/Swapper.s.sol/*/*
+!/broadcast/Swapper.s.sol/*/run-latest.json
 
 .env
 lcov.info
