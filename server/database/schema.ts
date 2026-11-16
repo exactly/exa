@@ -19,6 +19,7 @@ import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 const bytea = customType<{ data: Uint8Array<ArrayBuffer>; driverData: string }>({ dataType: () => "bytea" });
 
 export const cardStatus = pgEnum("card_status", ["ACTIVE", "FROZEN", "DELETED"]);
+export const cardTenant = pgEnum("card_tenant", ["BASE", "OP"]);
 
 export const credentials = pgTable(
   "credentials",
@@ -30,6 +31,7 @@ export const credentials = pgTable(
     transports: text("transports").array(),
     kycId: text("kyc_id"),
     pandaId: text("panda_id"),
+    bambooId: text("bamboo_id"),
     bridgeId: text("bridge_id"),
     source: text("source"),
     salt: text("salt").notNull().default(zeroAddress),
@@ -49,6 +51,7 @@ export const cards = pgTable(
       .references(() => credentials.id)
       .notNull(),
     status: cardStatus("status").notNull().default("ACTIVE"),
+    tenant: cardTenant("tenant"),
     lastFour: text("last_four").notNull(),
     mode: integer("mode").notNull().default(0),
     productId: text("product_id").notNull().default(PLATINUM_PRODUCT_ID),
