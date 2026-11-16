@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Platform, StyleSheet } from "react-native";
 import { Easing, useAnimatedStyle, useSharedValue, withSequence, withTiming } from "react-native-reanimated";
@@ -100,6 +100,7 @@ export default function Confirm() {
     toChain,
     toToken,
     amount,
+    entry,
     fromAmount: fromAmountParameter,
     max: maxParameter,
     receiver: receiverParameter,
@@ -715,6 +716,32 @@ export default function Confirm() {
     );
   }, [success, receiver, chainType, ens]);
 
+  const { data: sends } = useQuery<Record<string, number> | undefined>({ queryKey: ["sends"] });
+  const sendPrefix = `${address}:${destinationChain}:${destinationAddress}:${receiver.toLowerCase()}`;
+  const amountKey = `${sendPrefix}:${String(amount)}`;
+  const entryKey = `${sendPrefix}:${String(entry ?? amount)}`;
+  const repeated = Math.max(sends?.[amountKey] ?? 0, sends?.[entryKey] ?? 0) > now - 3_600_000;
+  const recordRef = useRef<{ before: Record<string, number>; keys: string[] }>(undefined);
+  useEffect(() => {
+    if (!submitted) return;
+    queryClient.setQueryData<Record<string, number>>(["sends"], (old = {}) => {
+      recordRef.current ??= { before: old, keys: [amountKey, entryKey] };
+      const date = Date.now();
+      return { ...old, [amountKey]: date, [entryKey]: date };
+    });
+  }, [submitted, amountKey, entryKey]);
+  useEffect(() => {
+    if (!failed || !recordRef.current) return;
+    const { before, keys } = recordRef.current;
+    recordRef.current = undefined;
+    queryClient.setQueryData<Record<string, number>>(["sends"], (old = {}) =>
+      Object.fromEntries([
+        ...Object.entries(old).filter(([key]) => !keys.includes(key)),
+        ...Object.entries(before).filter(([key]) => keys.includes(key)),
+      ]),
+    );
+  }, [failed]);
+
   const received = useMemo(() => {
     const settled =
       routeStatus && "receiving" in routeStatus ? (routeStatus.receiving as ExtendedTransactionInfo) : undefined;
@@ -1061,6 +1088,21 @@ export default function Confirm() {
               </YStack>
             </ScrollView>
             <YStack gap="s4">
+              {repeated && (
+                <XStack
+                  gap="s4"
+                  alignItems="center"
+                  backgroundColor="interactiveBaseWarningSoftDefault"
+                  borderRadius="r3"
+                  paddingHorizontal="s4"
+                  paddingVertical="s3"
+                >
+                  <TriangleAlert size={16} color="uiWarningSecondary" />
+                  <Text caption2 color="uiWarningSecondary" flex={1}>
+                    {t("You recently sent this amount to this address. Check your activity before sending it again.")}
+                  </Text>
+                </XStack>
+              )}
               {shortfall ? (
                 <XStack
                   gap="s4"

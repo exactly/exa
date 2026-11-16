@@ -252,6 +252,7 @@ export default function Amount() {
         toToken: destination.address,
         toSymbol: destination.symbol,
         amount: String(destinationAmount),
+        entry: max ? "max" : `${entry.mode}:${String(amount)}`,
         fromAmount: String(fromAmount),
         ...(max && !routed && payMarket && available >= payMarket.floatingDepositAssets && { max: "true" }),
       },
