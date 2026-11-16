@@ -148,7 +148,7 @@ export default function Home() {
   const { data: promoSeen } = useQuery<boolean>({ queryKey: ["settings", "promo-seen", PROMO.id] });
   const { data: stocksIntroShown } = useQuery<boolean>({ queryKey: ["settings", "stocks-intro-shown"] });
   const { data: country } = useQuery<string>({ queryKey: ["user", "country"] });
-  const stocksAvailable = !!country && !restrictedCountries.has(country);
+  const stocksAvailable = !restrictedCountries.has(country ?? "");
   const spotlightVisible = !!card && card.mode > 0 && !spotlightShown && focused;
   const promoSheetOpen =
     isPromoActive() && !promoSeen && !!card && card.status !== "FROZEN" && !spotlightVisible && focused;
