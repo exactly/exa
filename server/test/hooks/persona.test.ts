@@ -26,6 +26,7 @@ import createSardine from "../../utils/sardine";
 import ServiceError from "../../utils/ServiceError";
 
 import type createAllow from "../../workers/allow/queue";
+import type * as C from "@exactly/common/generated/chain";
 
 const allow = {
   backfill: vi.fn<ReturnType<typeof createAllow>["backfill"]>(),
@@ -49,10 +50,21 @@ const personaHook = createPersonaHook({
 });
 const app = personaHook.app;
 const appClient = testClient(app);
+const mocks = vi.hoisted(() => ({ isBase: vi.fn<(base: boolean) => boolean>() }));
 
 vi.mock("@sentry/node", { spy: true });
+vi.mock("@exactly/common/generated/chain", async (importOriginal) => {
+  const original = await importOriginal<typeof C>();
+  return {
+    ...original,
+    get isBase() {
+      return mocks.isBase(original.isBase);
+    },
+  };
+});
 
 beforeEach(() => {
+  mocks.isBase.mockReset().mockImplementation((base) => base);
   allow.close.mockReset().mockResolvedValue();
   allow.enqueue.mockReset().mockResolvedValue();
 });
@@ -911,6 +923,7 @@ describe("business representative", () => {
   });
 
   beforeEach(() => {
+    mocks.isBase.mockReturnValue(true);
     vi.spyOn(panda, "createCard");
     vi.spyOn(panda, "createCompanyUser");
     vi.spyOn(panda, "getCompanyApplication");
@@ -1105,6 +1118,31 @@ describe("business representative", () => {
     expect(panda.createCompanyUser).not.toHaveBeenCalled();
     expect(panda.createCard).not.toHaveBeenCalled();
     expect(allow.enqueue).not.toHaveBeenCalled();
+    await expect(database.query.cards.findMany({ where: eq(cards.credentialId, referenceId) })).resolves.toStrictEqual(
+      [],
+    );
+  });
+
+  it("ignores the representative inquiry outside base", async () => {
+    mocks.isBase.mockReturnValue(false);
+
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: representativePayload({ referenceId, status: "approved", weeklyCardLimit: 2000 }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(panda.getCompanyApplication).not.toHaveBeenCalled();
+    expect(panda.getCompanyUsers).not.toHaveBeenCalled();
+    expect(panda.createCompanyUser).not.toHaveBeenCalled();
+    expect(panda.createCard).not.toHaveBeenCalled();
+    expect(allow.enqueue).not.toHaveBeenCalled();
+    expect(setUser).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+    await expect(
+      database.query.credentials.findFirst({ columns: { pandaId: true }, where: eq(credentials.id, referenceId) }),
+    ).resolves.toStrictEqual({ pandaId: null });
     await expect(database.query.cards.findMany({ where: eq(cards.credentialId, referenceId) })).resolves.toStrictEqual(
       [],
     );
