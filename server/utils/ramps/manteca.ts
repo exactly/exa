@@ -23,6 +23,7 @@ import { MantecaCountryCode } from "../persona";
 import ServiceError from "../ServiceError";
 
 import type createPersona from "../persona";
+import type { AccountOutput } from "../persona";
 
 export const name = "manteca" as const;
 
@@ -584,6 +585,12 @@ export default function manteca(key: string, url: string) {
         throw new Error(ErrorCodes.NOT_SUPPORTED_CURRENCY);
     }
   }
+}
+
+export function nationalId(account: AccountOutput<"basic">) {
+  return account.attributes.fields.documents.value.find(
+    ({ value }) => value.id_class.value === "id" && value.id_issuing_country.value === "AR",
+  )?.value;
 }
 
 // #region schemas
