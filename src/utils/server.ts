@@ -139,24 +139,24 @@ const api = hc<ExaAPI>(new URL(origin).hostname === "localhost" ? "http://localh
   },
 });
 
-async function getCard(sessionid?: string) {
-  await auth();
-  const response = await api.card.$get({ header: sessionid ? { sessionid } : {} });
-  if (!response.ok) {
-    const { code } = await response.json();
-    if (response.status === 404 && code === "no card") return null;
-    if (response.status === 403 && code === "no panda") return null;
-    throw new APIError("GET", response, code);
-  }
-  const card = await response.json();
-  if (card.mode > 0) queryClient.setQueryData(["settings", "installments"], card.mode);
-  return card;
-}
 queryClient.setQueryDefaults(["card", "details"], {
-  queryFn: () => getCard(),
+  queryFn: async () => {
+    await auth();
+    const response = await api.cards.$get();
+    if (!response.ok) {
+      const { code } = await response.json();
+      if (response.status === 403 && code === "no panda") return null;
+      throw new APIError("GET", response, code);
+    }
+    const cards = await response.json();
+    const card = cards.find(({ status }) => status !== "DELETED");
+    if (!card) return null;
+    if (card.mode > 0) queryClient.setQueryData(["settings", "installments"], card.mode);
+    return card;
+  },
   meta: {
     persist: (card: Card) => ({
-      cardId: card.cardId,
+      lastFour: card.lastFour,
       limit: card.limit,
       mode: card.mode,
       productId: card.productId,
@@ -164,13 +164,23 @@ queryClient.setQueryDefaults(["card", "details"], {
     }),
   },
 });
-export type CardDetails = null | (Partial<Card> & Pick<Card, "cardId" | "limit" | "mode" | "productId" | "status">);
-type Card = NonNullable<Awaited<ReturnType<typeof getCard>>>;
+export type CardDetails = null | (Partial<Card> & Pick<Card, "lastFour" | "limit" | "mode" | "productId" | "status">);
+type Card = InferResponseType<typeof api.cards.$get, 200>[number];
 
 async function getSecrets() {
   const { id, secret } = await session();
-  const card = await getCard(id);
-  if (!card) return card;
+  await auth();
+  const response = await api.card.$get({
+    header: { sessionid: id },
+    query: { lastFour: queryClient.getQueryData<CardDetails>(["card", "details"])?.lastFour },
+  });
+  if (!response.ok) {
+    const { code } = await response.json();
+    if (response.status === 404 && code === "no card") return null;
+    if (response.status === 403 && code === "no panda") return null;
+    throw new APIError("GET", response, code);
+  }
+  const card = await response.json();
   const { encryptedPan, encryptedCvc } = card;
   const [pan, cvc] =
     encryptedPan && encryptedCvc
@@ -208,7 +218,9 @@ export async function createCard() {
 
 export async function setCardStatus(status: "ACTIVE" | "DELETED" | "FROZEN") {
   await auth();
-  const response = await api.card.$patch({ json: { status } });
+  const response = await api.card.$patch({
+    json: { lastFour: queryClient.getQueryData<CardDetails>(["card", "details"])?.lastFour, status },
+  });
   if (response.ok) return response.json();
   const body = await response.json();
   if ("code" in body && body.code === "already set") return { status };
@@ -217,7 +229,9 @@ export async function setCardStatus(status: "ACTIVE" | "DELETED" | "FROZEN") {
 
 async function setCardMode(mode: number) {
   await auth();
-  const response = await api.card.$patch({ json: { mode } });
+  const response = await api.card.$patch({
+    json: { lastFour: queryClient.getQueryData<CardDetails>(["card", "details"])?.lastFour, mode },
+  });
   if (response.ok) return response.json();
   const body = await response.json();
   if ("code" in body && body.code === "already set") return { mode };
@@ -248,7 +262,9 @@ queryClient.setMutationDefaults(cardModeMutationOptions.mutationKey, {
 export async function setCardPIN(pin: string) {
   await auth();
   const json = await encryptPIN(pin);
-  const response = await api.card.$patch({ json });
+  const response = await api.card.$patch({
+    json: { ...json, lastFour: queryClient.getQueryData<CardDetails>(["card", "details"])?.lastFour },
+  });
   if (!response.ok) throw new APIError("PATCH", response, stringOrLegacy(await response.json()));
 }
 
