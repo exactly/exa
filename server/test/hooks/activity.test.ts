@@ -816,13 +816,15 @@ describe("webhook authentication", () => {
     await hook.ready;
     vi.setSystemTime(2000);
 
-    const response = await deliver(hook.app, payload("activity", "OPT_SEPOLIA"), "activity-key");
+    const known = await deliver(hook.app, payload("activity", "OPT_SEPOLIA"), "activity-key");
+    const unknown = await deliver(hook.app, payload("unknown", "OTHER"), "unknown-key");
 
-    expect(response.status).toBe(401);
-    expect(current.getWebhooks).toHaveBeenCalledTimes(2);
+    expect(known.status).toBe(401);
+    expect(unknown.status).toBe(401);
+    expect(current.getWebhooks).toHaveBeenCalledOnce();
   });
 
-  it("rejects an invalid signature after refreshing", async () => {
+  it("rejects an invalid signature without refreshing", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(1000);
     const current = api();
@@ -834,7 +836,7 @@ describe("webhook authentication", () => {
     const response = await deliver(hook.app, payload("activity", "ANVIL"), "wrong-key");
 
     expect(response.status).toBe(401);
-    expect(current.getWebhooks).toHaveBeenCalledTimes(2);
+    expect(current.getWebhooks).toHaveBeenCalledOnce();
   });
 
   it("rejects malformed and unidentified payloads", async () => {

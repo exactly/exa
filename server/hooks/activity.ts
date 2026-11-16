@@ -68,8 +68,10 @@ export default function hook({
       const identity = v.safeParse(Identity, parsed);
       if (!identity.success) return c.json({ code: "unauthorized" }, 401);
       if (valid(identity.output, signature, payload)) return;
-      await refresh(true);
-      if (valid(identity.output, signature, payload)) return;
+      if (!entries.has(identity.output.webhookId) && networks.has(identity.output.event.network)) {
+        await refresh(true);
+        if (valid(identity.output, signature, payload)) return;
+      }
       return c.json({ code: "unauthorized" }, 401);
     }),
     vValidator(
