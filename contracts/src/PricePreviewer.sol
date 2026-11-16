@@ -9,7 +9,7 @@ contract PricePreviewer {
     feeds_ = new Feed[](markets.length);
     for (uint256 i = 0; i < markets.length; ++i) {
       // slither-disable-next-line calls-loop
-      feeds_[i] = Feed({ asset: markets[i].asset(), feed: auditor.markets(markets[i]).priceFeed });
+      feeds_[i] = Feed({ asset: markets[i].asset(), feed: auditor.markets(markets[i]).priceFeed }); // forge-lint: disable-line(calls-loop)
     }
   }
 
@@ -57,7 +57,7 @@ contract PricePreviewer {
 
   function _read(IPriceFeed feed, uint256 id) internal view returns (Price memory) {
     // slither-disable-next-line calls-loop
-    try feed.getRoundData(uint80(id)) returns (uint80, int256 answer, uint256, uint256 updatedAt, uint80) { // forge-lint: disable-line(unsafe-typecast)
+    try feed.getRoundData(uint80(id)) returns (uint80, int256 answer, uint256, uint256 updatedAt, uint80) { // forge-lint: disable-line(unsafe-typecast,calls-loop)
       return Price({ timestamp: updatedAt, answer: answer });
     } catch {
       return Price({ timestamp: 0, answer: 0 });

@@ -266,14 +266,14 @@ contract ProposalManager is IProposalManager, AccessControl {
     uint256 marketCount = AUDITOR.allMarkets().length;
     for (uint256 i = 0; i < marketCount; ++i) {
       // slither-disable-next-line calls-loop -- won't revert
-      IMarket market = AUDITOR.marketList(i);
+      IMarket market = AUDITOR.marketList(i); // forge-lint: disable-line(calls-loop)
       if ((marketMap & (1 << i)) != 0) {
         // slither-disable-next-line calls-loop -- won't revert
-        MarketData memory md = AUDITOR.markets(market);
+        MarketData memory md = AUDITOR.markets(market); // forge-lint: disable-line(calls-loop)
         // slither-disable-next-line calls-loop -- won't revert
-        uint256 price = uint256(md.priceFeed.latestAnswer());
+        uint256 price = uint256(md.priceFeed.latestAnswer()); // forge-lint: disable-line(unsafe-typecast,calls-loop) -- feeds report positive prices
         // slither-disable-next-line calls-loop -- won't revert
-        (uint256 balance, uint256 borrowBalance) = market.accountSnapshot(account);
+        (uint256 balance, uint256 borrowBalance) = market.accountSnapshot(account); // forge-lint: disable-line(calls-loop)
 
         sumCollateral += balance.mulDiv(price, 10 ** md.decimals).mulWad(md.adjustFactor);
         sumDebtPlusEffects += borrowBalance.mulDivUp(price, 10 ** md.decimals).divWadUp(md.adjustFactor);
@@ -286,21 +286,23 @@ contract ProposalManager is IProposalManager, AccessControl {
       Proposal memory proposal = proposals[account][i];
       if (proposal.amount == 0) continue;
       // slither-disable-next-line calls-loop -- won't revert
-      MarketData memory md = AUDITOR.markets(proposal.market);
+      MarketData memory md = AUDITOR.markets(proposal.market); // forge-lint: disable-line(calls-loop)
       // slither-disable-next-line calls-loop -- won't revert
-      uint256 price = uint256(md.priceFeed.latestAnswer());
+      uint256 price = uint256(md.priceFeed.latestAnswer()); // forge-lint: disable-line(unsafe-typecast,calls-loop) -- feeds report positive prices
       if (proposal.proposalType == ProposalType.ROLL_DEBT) {
         sumDebtPlusEffects += proposal.amount.mulDivUp(price, 10 ** md.decimals).divWadUp(md.adjustFactor);
       } else if (proposal.proposalType == ProposalType.BORROW_AT_MATURITY) {
         BorrowAtMaturityData memory borrowData = abi.decode(proposal.data, (BorrowAtMaturityData));
         sumDebtPlusEffects += borrowData.maxAssets.mulDivUp(price, 10 ** md.decimals).divWadUp(md.adjustFactor);
       } else {
+        // forge-lint: disable-start(calls-loop)
         // slither-disable-next-line calls-loop -- won't revert
         uint256 assets = proposal.proposalType == ProposalType.REDEEM
           ? proposal.market.convertToAssets(proposal.amount)
           : proposal.amount;
         uint256 collateral = assets.mulDiv(price, 10 ** md.decimals).mulWad(md.adjustFactor);
-        if (sumCollateral < collateral) revert InsufficientLiquidity();
+        // forge-lint: disable-end(calls-loop)
+        if (sumCollateral < collateral) revert InsufficientLiquidity(); // forge-lint: disable-line(require-revert-in-loop) -- intended revert
         sumCollateral -= collateral;
       }
     }
@@ -309,7 +311,7 @@ contract ProposalManager is IProposalManager, AccessControl {
   }
 
   function _allowTarget(address target, bool allowed) internal {
-    if (target == address(0)) revert ZeroAddress();
+    if (target == address(0)) revert ZeroAddress(); // forge-lint: disable-line(require-revert-in-loop) -- intended revert
 
     allowlist[target] = allowed;
     emit TargetAllowed(target, msg.sender, allowed);

@@ -194,7 +194,8 @@ contract RedeployerTest is ForkTest {
     vm.startPrank(acct("admin"));
     ProposalManager(
         address(ExaPlugin(payable(address(ExaAccountFactory(payable(factoryOP)).EXA_PLUGIN()))).proposalManager())
-      ).allowTarget(address(usdc), true);
+      )
+      .allowTarget(address(usdc), true);
     vm.stopPrank();
 
     PublicKey[] memory owners = new PublicKey[](1);

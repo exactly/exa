@@ -33,6 +33,7 @@ exclude_lints = [
   "mixed-case-function",
   "mixed-case-variable",
   "pascal-case-struct",
+  "unused-return", # also excluded in slither
 ]
 ignore = ["test/**/*.t.sol", "test/mocks/**/*.sol"]
 

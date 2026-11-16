@@ -22,11 +22,11 @@ contract ExaPluginExtension {
   // slither-disable-next-line unused-state,constable-states -- storage gap
   uint256 private __gap0;
   // slither-disable-next-line uninitialized-state,constable-states -- implementation contract
-  address private flashLoaner;
+  address private flashLoaner; // forge-lint: disable-line(uninitialized-state) -- implementation contract
   // slither-disable-next-line unused-state,constable-states -- storage gap
   uint256 private __gap1;
   // slither-disable-next-line uninitialized-state,constable-states -- implementation contract
-  address private swapper;
+  address private swapper; // forge-lint: disable-line(uninitialized-state) -- implementation contract
   // slither-disable-next-line unused-state -- storage gap
   uint256[2] private __gap2;
   bytes32 private callHash;

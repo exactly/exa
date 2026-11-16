@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y ca-certificates curl git rsync unzip --
   corepack enable && \
   curl -fsSL https://foundry.paradigm.xyz | bash
 ENV PATH="$PATH:/root/.foundry/bin"
-RUN foundryup -i v1.7.1
+RUN foundryup -i v1.9.0
 WORKDIR /usr/src/app
 COPY . .
 ENV NX_DAEMON=false

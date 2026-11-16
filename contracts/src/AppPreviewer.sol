@@ -17,6 +17,7 @@ contract AppPreviewer {
       IMarket market = allMarkets[i];
       // slither-disable-next-line calls-loop
       bytes memory data = LibCall.staticCallContract(address(auditor), abi.encodeCall(IAuditor.markets, (market)));
+      // forge-lint: disable-start(calls-loop)
       // slither-disable-next-line calls-loop
       markets_[i] = MarketPreview({
         market: address(market),
@@ -27,6 +28,7 @@ contract AppPreviewer {
         usdPrice: auditor.assetPrice(abi.decode(data, (MarketData)).priceFeed),
         symbol: market.symbol().slice(3)
       });
+      // forge-lint: disable-end(calls-loop)
     }
   }
 }

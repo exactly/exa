@@ -49,7 +49,8 @@ contract IssuerChecker is AccessControl, EIP712 {
           keccak256(
             abi.encode(keccak256("Refund(address account,uint256 amount,uint40 timestamp)"), account, amount, timestamp)
           )
-        ).recoverCalldata(signature);
+        )
+        .recoverCalldata(signature);
     } else {
       if (collections[account][hash]) revert Replay();
       collections[account][hash] = true;
@@ -60,7 +61,8 @@ contract IssuerChecker is AccessControl, EIP712 {
               keccak256("Collection(address account,uint256 amount,uint40 timestamp)"), account, amount, timestamp
             )
           )
-        ).recoverCalldata(signature);
+        )
+        .recoverCalldata(signature);
     }
     // solhint-enable gas-small-strings
 

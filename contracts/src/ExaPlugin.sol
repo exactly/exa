@@ -127,29 +127,29 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     nonReentrant
     returns (uint256 amountIn, uint256 amountOut)
   {
-    if (_isMarket(IMarket(address(assetIn)))) revert Unauthorized();
+    if (_isMarket(IMarket(address(assetIn)))) revert Unauthorized(); // forge-lint: disable-line(require-revert-in-loop) -- intended revert
 
-    uint256 balanceIn = assetIn.balanceOf(msg.sender);
-    uint256 balanceOut = assetOut.balanceOf(msg.sender);
+    uint256 balanceIn = assetIn.balanceOf(msg.sender); // forge-lint: disable-line(calls-loop)
+    uint256 balanceOut = assetOut.balanceOf(msg.sender); // forge-lint: disable-line(calls-loop)
     address _swapper = swapper;
 
     _approveAndExecuteFromSender(_swapper, address(assetIn), maxAmountIn, route);
 
-    amountOut = assetOut.balanceOf(msg.sender) - balanceOut;
-    if (amountOut < minAmountOut) revert Disagreement();
+    amountOut = assetOut.balanceOf(msg.sender) - balanceOut; // forge-lint: disable-line(calls-loop)
+    if (amountOut < minAmountOut) revert Disagreement(); // forge-lint: disable-line(require-revert-in-loop) -- intended revert
 
     _approveFromSender(address(assetIn), _swapper, 0);
-    amountIn = balanceIn - assetIn.balanceOf(msg.sender);
+    amountIn = balanceIn - assetIn.balanceOf(msg.sender); // forge-lint: disable-line(calls-loop)
   }
 
   function executeProposal(uint256 nonce) public {
     IProposalManager _proposalManager = proposalManager;
     // slither-disable-next-line calls-loop
-    (uint256 nextNonce, Proposal memory proposal) = _proposalManager.nextProposal(msg.sender);
-    if (nonce != nextNonce) revert NotNext();
+    (uint256 nextNonce, Proposal memory proposal) = _proposalManager.nextProposal(msg.sender); // forge-lint: disable-line(calls-loop)
+    if (nonce != nextNonce) revert NotNext(); // forge-lint: disable-line(require-revert-in-loop) -- intended revert
 
     // slither-disable-next-line calls-loop
-    if (proposal.timestamp + _proposalManager.delay() > block.timestamp) revert Timelocked();
+    if (proposal.timestamp + _proposalManager.delay() > block.timestamp) revert Timelocked(); // forge-lint: disable-line(require-revert-in-loop,calls-loop) -- intended revert
 
     if (proposal.proposalType == ProposalType.WITHDRAW || proposal.proposalType == ProposalType.REDEEM) {
       _withdraw(proposal);
@@ -285,7 +285,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
   function receiveFlashLoan(IERC20[] calldata, uint256[] calldata, uint256[] calldata, bytes calldata) external {
     // solhint-disable avoid-low-level-calls
     // slither-disable-next-line controlled-delegatecall,low-level-calls -- extension is safe
-    (bool success, bytes memory returnData) = address(EXTENSION).delegatecall(msg.data);
+    (bool success, bytes memory returnData) = address(EXTENSION).delegatecall(msg.data); // forge-lint: disable-line(controlled-delegatecall) -- extension is safe
     // solhint-enable avoid-low-level-calls
     if (!success) {
       if (returnData.length == 0) revert ExtensionFailed();
@@ -323,9 +323,11 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
   }
 
   /// @inheritdoc BasePlugin
+  // forge-lint: disable-next-line(empty-block) -- nothing to install
   function onInstall(bytes calldata) external override { } // solhint-disable-line no-empty-blocks
 
   /// @inheritdoc BasePlugin
+  // forge-lint: disable-next-line(empty-block) -- nothing to uninstall
   function onUninstall(bytes calldata) external override { } // solhint-disable-line no-empty-blocks
 
   /// @inheritdoc BasePlugin
@@ -339,7 +341,9 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     executionFunctions[4] = this.setProposalNonce.selector;
     executionFunctions[5] = this.proposeRepay.selector;
     executionFunctions[6] = this.collectCollateral.selector;
+    // forge-lint: disable-next-line(unsafe-typecast) -- selector
     executionFunctions[7] = bytes4(keccak256("collectCredit(uint256,uint256,uint256,bytes)")); // solhint-disable-line gas-small-strings
+    // forge-lint: disable-next-line(unsafe-typecast) -- selector
     executionFunctions[8] = bytes4(keccak256("collectCredit(uint256,uint256,uint256,uint256,bytes)")); // solhint-disable-line gas-small-strings
     executionFunctions[9] = this.collectDebit.selector;
     executionFunctions[10] = this.collectInstallments.selector;
@@ -388,10 +392,12 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
       executionSelector: IExaAccount.collectCollateral.selector, associatedFunction: keeperRuntimeValidationFunction
     });
     runtimeValidationFunctions[7] = ManifestAssociatedFunction({
+      // forge-lint: disable-next-line(unsafe-typecast) -- selector
       executionSelector: bytes4(keccak256("collectCredit(uint256,uint256,uint256,bytes)")), // solhint-disable-line gas-small-strings
       associatedFunction: keeperRuntimeValidationFunction
     });
     runtimeValidationFunctions[8] = ManifestAssociatedFunction({
+      // forge-lint: disable-next-line(unsafe-typecast) -- selector
       executionSelector: bytes4(keccak256("collectCredit(uint256,uint256,uint256,uint256,bytes)")), // solhint-disable-line gas-small-strings
       associatedFunction: keeperRuntimeValidationFunction
     });
@@ -501,20 +507,23 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
   function _checkBatch(Call[] memory calls) internal {
     for (uint256 i = 0; i < calls.length; ++i) {
       Call memory call = calls[i];
+      // forge-lint: disable-next-line(unsafe-typecast) -- selector
       bytes4 selector = bytes4(call.data.slice(0, 4));
       bytes memory data = call.data.slice(4, call.data.length);
       if (call.target == msg.sender) {
         if (selector == IPluginManager.uninstallPlugin.selector && _willUninstallThis(data)) {
+          // forge-lint: disable-start(unsafe-typecast,require-revert-in-loop) -- selector, intended revert
           if (
             i == calls.length - 1 || bytes4(calls[i + 1].data.slice(0, 4)) != IPluginManager.installPlugin.selector
               || calls[i + 1].target != msg.sender
           ) revert Unauthorized();
+          // forge-lint: disable-end(unsafe-typecast,require-revert-in-loop)
           bytes memory nextCallData = calls[i + 1].data.slice(4, calls[i + 1].data.length);
           (address newPlugin,,,) = abi.decode(nextCallData, (address, bytes32, bytes, FunctionReference[]));
-          if (!allowlist[newPlugin]) revert Unauthorized();
+          if (!allowlist[newPlugin]) revert Unauthorized(); // forge-lint: disable-line(require-revert-in-loop) -- intended revert
           // slither-disable-next-line calls-loop -- should deny service on revert
-          try this.hasPendingProposals(msg.sender) returns (bool pending) {
-            if (pending) revert PendingProposals();
+          try this.hasPendingProposals(msg.sender) returns (bool pending) { // forge-lint: disable-line(calls-loop)
+            if (pending) revert PendingProposals(); // forge-lint: disable-line(require-revert-in-loop) -- intended revert
           } catch { } // solhint-disable-line no-empty-blocks
           uninstalling = msg.sender;
         }
@@ -536,7 +545,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
 
   function _preExecutionChecker(address target, bytes4 selector, bytes memory callData) internal {
     // slither-disable-next-line calls-loop -- should deny service on revert
-    proposalManager.preExecutionChecker(msg.sender, target, selector, callData);
+    proposalManager.preExecutionChecker(msg.sender, target, selector, callData); // forge-lint: disable-line(calls-loop)
   }
 
   /// @inheritdoc BasePlugin
@@ -609,12 +618,12 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
       )
     );
     // slither-disable-next-line calls-loop
-    _flashLoan(crossData.maxRepay, IERC20(crossData.marketOut.asset()), data);
+    _flashLoan(crossData.maxRepay, IERC20(crossData.marketOut.asset()), data); // forge-lint: disable-line(calls-loop)
   }
 
   function _execute(address account, address target, uint256 value, bytes memory data) internal {
     // slither-disable-next-line calls-loop
-    IPluginExecutor(account).executeFromPluginExternal(target, value, data);
+    IPluginExecutor(account).executeFromPluginExternal(target, value, data); // forge-lint: disable-line(calls-loop)
   }
 
   function _executeFromSender(address target, uint256 value, bytes memory data) internal {
@@ -628,7 +637,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
     amounts[0] = amount;
 
     // slither-disable-next-line calls-loop
-    flashLoaner.flashLoan(address(this), tokens, amounts, data);
+    flashLoaner.flashLoan(address(this), tokens, amounts, data); // forge-lint: disable-line(calls-loop)
   }
 
   function _depositUnspent(IMarket market, uint256 unspent, address receiver) internal {
@@ -644,7 +653,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
 
   function _isMarket(IMarket market) internal view returns (bool) {
     // slither-disable-next-line calls-loop
-    return AUDITOR.markets(market).isListed;
+    return AUDITOR.markets(market).isListed; // forge-lint: disable-line(calls-loop)
   }
 
   function _poke(IMarket market) internal {
@@ -679,7 +688,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
       )
     );
     // slither-disable-next-line calls-loop
-    _flashLoan(proposal.amount, IERC20(proposal.market.asset()), data);
+    _flashLoan(proposal.amount, IERC20(proposal.market.asset()), data); // forge-lint: disable-line(calls-loop)
   }
 
   function _rollDebt(Proposal memory proposal) internal {
@@ -706,32 +715,32 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
   function _setFlashLoaner(IFlashLoaner flashLoaner_) internal {
     if (address(flashLoaner_) == address(0)) revert ZeroAddress();
     flashLoaner = flashLoaner_;
-    emit FlashLoanerSet(msg.sender, flashLoaner_);
+    emit FlashLoanerSet(msg.sender, flashLoaner_); // forge-lint: disable-line(reentrancy-events) -- after trusted constructor calls
   }
 
   function _setCollector(address collector_) internal {
     if (collector_ == address(0)) revert ZeroAddress();
     collector = collector_;
-    emit CollectorSet(collector_, msg.sender);
+    emit CollectorSet(collector_, msg.sender); // forge-lint: disable-line(reentrancy-events) -- after trusted constructor calls
   }
 
   function _setProposalManager(IProposalManager proposalManager_) internal {
     if (address(proposalManager_) == address(0)) revert ZeroAddress();
     proposalManager = proposalManager_;
-    emit ProposalManagerSet(proposalManager_, msg.sender);
+    emit ProposalManagerSet(proposalManager_, msg.sender); // forge-lint: disable-line(reentrancy-events) -- after trusted constructor calls
   }
 
   function _setSwapper(address swapper_) internal {
     if (swapper_ == address(0)) revert ZeroAddress();
     swapper = swapper_;
-    emit SwapperSet(swapper_, msg.sender);
+    emit SwapperSet(swapper_, msg.sender); // forge-lint: disable-line(reentrancy-events) -- after trusted constructor calls
   }
 
   function _swap(Proposal memory proposal) internal {
     _withdrawFromSender(proposal.market, proposal.amount, msg.sender);
     SwapData memory data = abi.decode(proposal.data, (SwapData));
     // slither-disable-next-line calls-loop
-    swap(IERC20(proposal.market.asset()), data.assetOut, proposal.amount, data.minAmountOut, data.route);
+    swap(IERC20(proposal.market.asset()), data.assetOut, proposal.amount, data.minAmountOut, data.route); // forge-lint: disable-line(calls-loop)
   }
 
   // slither-disable-next-line reentrancy-balance -- protected by nonReentrant and minAmountOut check
@@ -781,6 +790,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
 
     uint256 assets = 0;
     if (proposal.proposalType == ProposalType.REDEEM) {
+      // forge-lint: disable-start(calls-loop)
       // slither-disable-next-line calls-loop
       assets = abi.decode(
         IPluginExecutor(msg.sender)
@@ -791,6 +801,7 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
           ),
         (uint256)
       );
+      // forge-lint: disable-end(calls-loop)
     } else {
       assets = proposal.amount;
       _withdrawFromSender(proposal.market, assets, isWETH ? address(this) : receiver);
@@ -800,8 +811,8 @@ contract ExaPlugin is AccessControl, BasePlugin, IExaAccount, ReentrancyGuard {
       // slither-disable-next-line reentrancy-benign,costly-loop -- markets are safe
       delete callHash;
       // slither-disable-next-line calls-loop
-      WETH.withdraw(assets);
-      receiver.safeTransferETH(assets);
+      WETH.withdraw(assets); // forge-lint: disable-line(calls-loop)
+      receiver.safeTransferETH(assets); // forge-lint: disable-line(arbitrary-send-eth) -- receiver set by the account
     }
   }
 

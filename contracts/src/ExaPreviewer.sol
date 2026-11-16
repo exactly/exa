@@ -36,7 +36,7 @@ contract ExaPreviewer {
     assets_ = new Asset[](allMarkets.length);
     for (uint256 i = 0; i < allMarkets.length; ++i) {
       // slither-disable-next-line calls-loop
-      assets_[i] = Asset({ market: address(allMarkets[i]), asset: allMarkets[i].asset() });
+      assets_[i] = Asset({ market: address(allMarkets[i]), asset: allMarkets[i].asset() }); // forge-lint: disable-line(calls-loop)
     }
   }
 
@@ -45,7 +45,8 @@ contract ExaPreviewer {
     markets_ = new MarketPreview[](allMarkets.length);
     for (uint256 i = 0; i < allMarkets.length; ++i) {
       // slither-disable-next-line calls-loop
-      MarketData memory market = AUDITOR.markets(allMarkets[i]);
+      MarketData memory market = AUDITOR.markets(allMarkets[i]); // forge-lint: disable-line(calls-loop)
+      // forge-lint: disable-start(calls-loop)
       // slither-disable-next-line calls-loop
       markets_[i] = MarketPreview({
         market: address(allMarkets[i]),
@@ -54,6 +55,7 @@ contract ExaPreviewer {
         usdPrice: AUDITOR.assetPrice(market.priceFeed),
         symbol: allMarkets[i].symbol().slice(3)
       });
+      // forge-lint: disable-end(calls-loop)
     }
   }
 
@@ -63,6 +65,7 @@ contract ExaPreviewer {
     uint256 delay = PROPOSAL_MANAGER.delay();
     proposals = new PendingProposal[](queueNonce - nonce);
     for (uint256 i = nonce; i < queueNonce; ++i) {
+      // forge-lint: disable-start(calls-loop)
       // slither-disable-next-line calls-loop
       (uint256 amount, IMarket market, uint256 timestamp, ProposalType proposalType, bytes memory data) =
         PROPOSAL_MANAGER.proposals(account, i);
@@ -73,6 +76,7 @@ contract ExaPreviewer {
           amount: amount, market: market, timestamp: timestamp, proposalType: proposalType, data: data
         })
       });
+      // forge-lint: disable-end(calls-loop)
     }
   }
 
@@ -124,7 +128,7 @@ contract ExaPreviewer {
       // slither-disable-next-line weak-prng
       uint256 maturity = block.timestamp + (i + 1) * FIXED_INTERVAL - (block.timestamp % FIXED_INTERVAL);
       // slither-disable-next-line calls-loop
-      FixedPool memory pool = EXA_USDC.fixedPools(maturity);
+      FixedPool memory pool = EXA_USDC.fixedPools(maturity); // forge-lint: disable-line(calls-loop)
       fixedUtilizations[i] = FixedUtilization({
         maturity: maturity,
         utilization: floatingAssets != 0 && pool.borrowed > pool.supplied
