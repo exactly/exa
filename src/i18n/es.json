@@ -68,6 +68,7 @@
   "<rate>{{rate}}</rate> APR": "<rate>{{rate}}</rate> TNA",
   "{{source}} on {{network}} matches {{destination}} on {{chain}}. You can swap and bridge between these assets or just select another supported asset.": "{{source}} en {{network}} coincide con {{destination}} en {{chain}}. Puedes hacer swap y bridge entre estos activos o simplemente seleccionar otro activo soportado.",
   "{{rate}} FIXED APR": "{{rate}} TNA FIJA",
+  "{{symbol}} can’t represent this amount. ${{amount}} will be sent.": "{{symbol}} no puede representar este monto. Se enviarán ${{amount}}.",
   "{{symbol}} on {{network}}": "{{symbol}} en {{network}}",
   "{{symbol}} price": "Precio de {{symbol}}",
   "{{symbol}}, {{balance}} available": "{{symbol}}, {{balance}} disponible",

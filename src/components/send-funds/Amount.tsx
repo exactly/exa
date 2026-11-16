@@ -13,7 +13,7 @@ import { formatUnits, zeroAddress } from "viem";
 
 import chain, { alchemyChains, marketWETHAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
-import { WAD, withdrawLimit } from "@exactly/lib";
+import { withdrawLimit } from "@exactly/lib";
 
 import PaySheet from "./PaySheet";
 import SwapSheet from "./SwapSheet";
@@ -24,7 +24,9 @@ import { ArrowUp } from "../../generated/icons/ArrowUp";
 import { ChevronRight } from "../../generated/icons/ChevronRight";
 import { CircleHelp } from "../../generated/icons/CircleHelp";
 import { CircleX } from "../../generated/icons/CircleX";
+import { TriangleAlert } from "../../generated/icons/TriangleAlert";
 import deployedOptions from "../../utils/deployedOptions";
+import floorCents from "../../utils/floorCents";
 import { presentArticle } from "../../utils/intercom";
 import { isSendable, lifiChainsOptions, lifiTokensOptions, reachOptions } from "../../utils/lifi";
 import parseAmount from "../../utils/parseAmount";
@@ -144,19 +146,22 @@ export default function Amount() {
         ? withdrawLimit(markets, pay.market)
         : 0n
     : 0n;
+  const payUSD = (available * payPrice) / 10n ** BigInt(payDecimals);
+  const direct =
+    !!payDelivered &&
+    destinationChain === payChain &&
+    typeof toToken === "string" &&
+    toToken.toLowerCase() === payDelivered.toLowerCase();
 
   const destination = destinationToken
     ? {
         address: destinationToken.address,
         decimals: destinationToken.decimals,
         logoURI: destinationToken.logoURI,
-        price: parseAmount(destinationToken.priceUSD, 18),
+        price: direct && payPrice > 0n ? payPrice : parseAmount(destinationToken.priceUSD, 18),
         symbol: destinationToken.symbol,
       }
-    : payDelivered &&
-        paySymbol &&
-        (typeof toToken !== "string" ||
-          (destinationChain === payChain && toToken.toLowerCase() === payDelivered.toLowerCase()))
+    : payDelivered && paySymbol && (typeof toToken !== "string" || direct)
       ? {
           address: payDelivered,
           decimals: payDecimals,
@@ -180,7 +185,7 @@ export default function Amount() {
       ? 0n
       : entry.mode === "token"
         ? amount
-        : (amount * destinationUnit) / destination.price;
+        : (amount * destinationUnit + destination.price - 1n) / destination.price;
   const [whole = "0", part = ""] = formatUnits(
     mode === "usd" ? usdAmount : destinationAmount,
     mode === "usd" ? 18 : destinationDecimals,
@@ -196,6 +201,8 @@ export default function Amount() {
       : 0n
     : destinationAmount;
   const exceeds = !!pay && fromAmount > available;
+  const sentUSD = destination ? floorCents((destinationAmount * destination.price) / destinationUnit) : 0n;
+  const coarse = entry.mode === "usd" && !routed && amount > 0n && sentUSD > amount;
   const unpriced = !!destination && destination.price <= 0n && (mode === "usd" || entry.mode === "usd" || routed);
   const unpricedPay = !unpriced && routed && !!paySymbol && payPrice <= 0n;
   const unavailable = typeof toToken === "string" && !isTokensPending && !destination;
@@ -361,7 +368,7 @@ export default function Amount() {
                 <Text title3 color="uiNeutralPlaceholder">
                   {mode === "usd"
                     ? `${Number(formatUnits(destinationAmount, destinationDecimals)).toLocaleString(language, { maximumFractionDigits: 8 })} ${destination?.symbol ?? ""}`
-                    : `$${Number(formatUnits(usdAmount, 18)).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                    : `$${Number(formatUnits(floorCents(usdAmount), 18)).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                 </Text>
               </XStack>
             </YStack>
@@ -401,7 +408,7 @@ export default function Amount() {
                             {paySymbol}
                           </Text>
                           <Text footnote secondary>
-                            {`$${Number(formatUnits((available * payPrice) / WAD, payDecimals)).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} `}
+                            {`$${Number(formatUnits(floorCents(payUSD), 18)).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} `}
                             <Text footnote color="uiNeutralPlaceholder">
                               {`(${Number(formatUnits(available, payDecimals)).toLocaleString(language, { maximumFractionDigits: 8 })})`}
                             </Text>
@@ -432,6 +439,27 @@ export default function Amount() {
                   <CircleX size={16} color="uiErrorSecondary" />
                   <Text caption2 color="uiErrorSecondary" flex={1}>
                     {t("Insufficient balance. Try a different amount.")}
+                  </Text>
+                </XStack>
+              )}
+              {coarse && !exceeds && (
+                <XStack
+                  gap="s4"
+                  alignItems="center"
+                  backgroundColor="interactiveBaseWarningSoftDefault"
+                  borderRadius="r3"
+                  paddingHorizontal="s4"
+                  paddingVertical="s3_5"
+                >
+                  <TriangleAlert size={16} color="uiWarningSecondary" />
+                  <Text caption2 color="uiWarningSecondary" flex={1}>
+                    {t("{{symbol}} can’t represent this amount. ${{amount}} will be sent.", {
+                      symbol: destination?.symbol,
+                      amount: Number(formatUnits(sentUSD, 18)).toLocaleString(language, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      }),
+                    })}
                   </Text>
                 </XStack>
               )}

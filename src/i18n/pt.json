@@ -68,6 +68,7 @@
   "<rate>{{rate}}</rate> APR": "<rate>{{rate}}</rate> APR",
   "{{source}} on {{network}} matches {{destination}} on {{chain}}. You can swap and bridge between these assets or just select another supported asset.": "{{source}} em {{network}} corresponde a {{destination}} em {{chain}}. Você pode fazer swap e bridge entre esses ativos ou simplesmente selecionar outro ativo suportado.",
   "{{rate}} FIXED APR": "{{rate}} APR FIXA",
+  "{{symbol}} can’t represent this amount. ${{amount}} will be sent.": "{{symbol}} não consegue representar esse valor. Serão enviados ${{amount}}.",
   "{{symbol}} on {{network}}": "{{symbol}} em {{network}}",
   "{{symbol}} price": "Preço de {{symbol}}",
   "{{symbol}}, {{balance}} available": "{{symbol}}, {{balance}} disponível",
