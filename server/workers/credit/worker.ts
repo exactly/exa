@@ -1,7 +1,7 @@
 import { captureException, withScope } from "@sentry/node";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
-import { marketUSDCAddress, previewerAbi, previewerAddress } from "@exactly/common/generated/chain";
+import { isBase, marketUSDCAddress, previewerAbi, previewerAddress } from "@exactly/common/generated/chain";
 
 import { attempts, name, type Job } from "./job";
 import { cards, credentials } from "../../database/schema";
@@ -61,7 +61,7 @@ export default function worker({
           with: {
             cards: {
               columns: { id: true, mode: true },
-              where: inArray(cards.status, ["ACTIVE", "FROZEN"]),
+              where: and(inArray(cards.status, ["ACTIVE", "FROZEN"]), eq(cards.tenant, isBase ? "BASE" : "OP")),
             },
           },
         });
