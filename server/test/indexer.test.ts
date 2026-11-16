@@ -1,7 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import assert from "node:assert";
-import { createPublicClient, http, padHex, zeroHash, type Hex } from "viem";
-import { privateKeyToAddress } from "viem/accounts";
+import { createPublicClient, erc20Abi, hexToBigInt, http, padHex, parseEventLogs, zeroHash, type Hex } from "viem";
+import { generatePrivateKey, privateKeyToAddress } from "viem/accounts";
 import { anvil } from "viem/chains";
 import { describe, expect, it, vi } from "vitest";
 
@@ -11,14 +11,18 @@ import {
   exaAccountFactoryAddress,
   exaPluginAbi,
   exaPluginAddress,
+  factories,
+  marketAbi,
+  marketUSDCAddress,
   proposalManagerAbi,
   upgradeableModularAccountAbi,
+  usdcAddress,
 } from "@exactly/common/generated/chain";
 
 import { chains } from "./anvil";
 import anvilClient from "./anvilClient";
 import database from "../database";
-import { accounts, collectors, delays, exaPlugins, plugins } from "../database/indexer";
+import { accounts, collectors, delays, deposits, exaPlugins, plugins } from "../database/indexer";
 
 const account = deriveAddress(exaAccountFactoryAddress, {
   x: padHex(privateKeyToAddress(padHex("0xb0b"))),
@@ -94,6 +98,92 @@ describe("indexer", () => {
         .from(exaPlugins)
         .where(and(eq(exaPlugins.chainId, anvil.id), eq(exaPlugins.address, exaPluginAddress.toLowerCase() as Hex))),
     ).resolves.toStrictEqual([{ chainId: anvil.id, address: exaPluginAddress.toLowerCase() }]);
+  });
+
+  it("indexes accounts of legacy factories without initialization events", async () => {
+    const [legacy] = factories.legacy;
+    assert.ok(legacy, "expected a legacy factory");
+    const owner = privateKeyToAddress(generatePrivateKey());
+    const legacyAccount = deriveAddress(legacy, { x: padHex(owner), y: zeroHash });
+    const created = await anvilClient.waitForTransactionReceipt({
+      hash: await anvilClient.writeContract({
+        address: legacy,
+        abi: exaAccountFactoryAbi,
+        functionName: "createAccount",
+        args: [0n, [{ x: hexToBigInt(owner), y: 0n }]],
+        account: null,
+      }),
+    });
+    expect(parseEventLogs({ abi: exaAccountFactoryAbi, logs: created.logs })).toStrictEqual([]);
+    const [depositor] = await anvilClient.getAddresses();
+    assert.ok(depositor, "expected an anvil account");
+    await anvilClient.waitForTransactionReceipt({
+      hash: await anvilClient.writeContract({
+        address: usdcAddress,
+        abi: [
+          {
+            type: "function",
+            name: "mint",
+            inputs: [{ type: "address" }, { type: "uint256" }],
+            outputs: [],
+            stateMutability: "nonpayable",
+          },
+        ],
+        functionName: "mint",
+        args: [depositor, 1_000_000n],
+        account: depositor,
+      }),
+    });
+    await anvilClient.waitForTransactionReceipt({
+      hash: await anvilClient.writeContract({
+        address: usdcAddress,
+        abi: erc20Abi,
+        functionName: "approve",
+        args: [marketUSDCAddress, 1_000_000n],
+        account: depositor,
+      }),
+    });
+    await anvilClient.waitForTransactionReceipt({
+      hash: await anvilClient.writeContract({
+        address: marketUSDCAddress,
+        abi: marketAbi,
+        functionName: "deposit",
+        args: [1_000_000n, legacyAccount],
+        account: depositor,
+      }),
+    });
+    const [{ timestamp }, ownerPlugin] = await Promise.all([
+      anvilClient.getBlock({ blockNumber: created.blockNumber }),
+      anvilClient.readContract({ address: legacy, abi: exaAccountFactoryAbi, functionName: "WEBAUTHN_OWNER_PLUGIN" }),
+    ]);
+
+    await vi.waitFor(
+      async () => {
+        await expect(
+          database
+            .select()
+            .from(accounts)
+            .where(and(eq(accounts.chainId, anvil.id), eq(accounts.address, legacyAccount.toLowerCase() as Hex))),
+        ).resolves.toStrictEqual([
+          {
+            chainId: anvil.id,
+            address: legacyAccount.toLowerCase(),
+            factory: legacy.toLowerCase(),
+            owner: ownerPlugin.toLowerCase(),
+            plugin: exaPluginAddress.toLowerCase(),
+            block: created.blockNumber,
+            timestamp,
+          },
+        ]);
+        await expect(
+          database
+            .select({ market: deposits.market, assets: deposits.assets })
+            .from(deposits)
+            .where(and(eq(deposits.chainId, anvil.id), eq(deposits.account, legacyAccount.toLowerCase() as Hex))),
+        ).resolves.toStrictEqual([{ market: marketUSDCAddress.toLowerCase(), assets: 1_000_000n }]);
+      },
+      { timeout: 10_000 },
+    );
   });
 
   it("trusts plugins allowed by an exa plugin", async () => {
