@@ -211,7 +211,11 @@ function ProposalItem({ chainId, proposal }: { chainId: number; proposal: Propos
   const { label, icon, decoded, market: proposalMarket, proposalType } = getProposal(proposal, t);
   const { market } = useAsset(proposalMarket, chainId);
   const symbol = market ? (market.symbol.slice(3) === "WETH" ? "ETH" : market.symbol.slice(3)) : null;
-  const usdValue = market ? (proposal.amount * market.usdPrice) / BigInt(10 ** market.decimals) : 0n;
+  const amount =
+    proposalType === ProposalType.Redeem && market && market.totalFloatingDepositShares > 0n
+      ? (proposal.amount * market.totalFloatingDepositAssets) / market.totalFloatingDepositShares
+      : proposal.amount;
+  const usdValue = market ? (amount * market.usdPrice) / BigInt(10 ** market.decimals) : 0n;
 
   const renderMaturity = () => {
     if (!decoded) return null;
@@ -272,14 +276,11 @@ function ProposalItem({ chainId, proposal }: { chainId: number; proposal: Propos
           </Text>
           {rendersAmount ? (
             <Text secondary footnote maxFontSizeMultiplier={1} numberOfLines={1}>
-              {`${(Number(proposal.amount) / 10 ** (market?.decimals ?? 18)).toLocaleString(language, {
+              {`${(Number(amount) / 10 ** (market?.decimals ?? 18)).toLocaleString(language, {
                 minimumFractionDigits: 0,
                 maximumFractionDigits: Math.min(
                   8,
-                  Math.max(
-                    0,
-                    (market?.decimals ?? 18) - Math.ceil(Math.log10(Math.max(1, Number(proposal.amount) / 1e18))),
-                  ),
+                  Math.max(0, (market?.decimals ?? 18) - Math.ceil(Math.log10(Math.max(1, Number(amount) / 1e18)))),
                 ),
               })} ${symbol}`}
             </Text>

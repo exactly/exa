@@ -97,6 +97,7 @@ export default function Confirm() {
     toToken,
     amount,
     fromAmount: fromAmountParameter,
+    shares: sharesParameter,
     receiver: receiverParameter,
     ens: ensParameter,
     chainType,
@@ -184,6 +185,11 @@ export default function Confirm() {
   const [room, setRoom] = useState(0);
   const [longest, setLongest] = useState(0);
 
+  const shares =
+    !routed && market && typeof sharesParameter === "string" && /^\d+$/.test(sharesParameter)
+      ? BigInt(sharesParameter)
+      : undefined;
+  const redeem = shares !== undefined && shares > 0n && !!market && shares <= market.floatingDepositShares;
   const {
     request: proposeSimulation,
     error: proposeError,
@@ -194,9 +200,9 @@ export default function Confirm() {
   } = useSimulateProposal({
     account: address,
     chainId: payChain,
-    amount: fromAmount,
+    amount: redeem ? shares : fromAmount,
     market: market?.market,
-    proposalType: ProposalType.Withdraw,
+    ...(redeem ? { proposalType: ProposalType.Redeem, assets: fromAmount } : { proposalType: ProposalType.Withdraw }),
     receiver: receiverHex,
     enabled:
       enableSimulations &&
