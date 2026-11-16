@@ -25,6 +25,8 @@ export default function worker<Job extends { sentryBaggage?: string; sentryTrace
   ready?: Promise<Ready>;
 }) {
   const check = argv.includes("--check");
+  let started = false;
+  let pending: Error | undefined;
   const queue = new Worker<Job, void>(
     name,
     (job, token) => {
@@ -76,9 +78,17 @@ export default function worker<Job extends { sentryBaggage?: string; sentryTrace
       failed(job, error);
     })
     .on("error", (error) => {
-      captureException(error, { level: "error", tags: { queue: name } });
+      if (started) captureException(error, { level: "error", tags: { queue: name } });
+      else pending = error;
     });
-  return own({ check, queue, ready: Promise.all([queue.waitUntilReady(), ready]) }, () => queue.close());
+  const connected = queue.waitUntilReady().then((client) => {
+    started = true;
+    return client;
+  });
+  return own({ check, queue, ready: Promise.all([connected, ready]) }, () => {
+    if (!started && pending) captureException(pending, { level: "error", tags: { queue: name } });
+    return queue.close();
+  });
 }
 
 export function connect(redisUrl: string) {

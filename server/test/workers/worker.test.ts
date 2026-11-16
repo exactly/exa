@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import "../mocks/sentry";
 
-import { getIsolationScope, setUser } from "@sentry/node";
+import { captureException, getIsolationScope, setUser } from "@sentry/node";
 import { Queue, QueueEvents } from "bullmq";
 import { argv, env } from "node:process";
 import { nonEmpty, parse, pipe, string } from "valibot";
@@ -80,6 +80,45 @@ describe("worker", () => {
       await handle.close();
       await bullmq.quit();
     }
+  });
+
+  it("captures errors once ready", async () => {
+    vi.mocked(captureException).mockClear();
+    const name = `worker-${crypto.randomUUID()}`;
+    const bullmq = connect(redisUrl);
+    const handle = worker({ attempts: 1, bullmq, failed: vi.fn(), name, process: vi.fn(() => Promise.resolve()) });
+    const timeout = new Error("connect ETIMEDOUT");
+    const lost = new Error("connection lost");
+
+    try {
+      handle.queue.emit("error", timeout);
+      await handle.ready;
+      handle.queue.emit("error", lost);
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(lost, { level: "error", tags: { queue: name } });
+    } finally {
+      await handle.close();
+      await bullmq.quit();
+    }
+  });
+
+  it("reports the last error when closed before ready", async () => {
+    argv.push("--check");
+    vi.mocked(captureException).mockClear();
+    const name = `worker-${crypto.randomUUID()}`;
+    const bullmq = connect(redisUrl);
+    const handle = worker({ attempts: 1, bullmq, failed: vi.fn(), name, process: vi.fn(() => Promise.resolve()) });
+    handle.ready.catch(() => undefined);
+    const last = new Error("connect ETIMEDOUT");
+
+    try {
+      handle.queue.emit("error", new Error("connect ETIMEDOUT"));
+      handle.queue.emit("error", last);
+      expect(captureException).not.toHaveBeenCalled();
+    } finally {
+      await handle.close();
+      await bullmq.quit();
+    }
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(last, { level: "error", tags: { queue: name } });
   });
 
   it("isolates scope per job", async () => {
