@@ -28,11 +28,14 @@ import {
   encodeErrorResult,
   ExecutionRevertedError,
   formatUnits,
+  getAbiItem,
   getAddress,
   isAddressEqual,
   parseEventLogs,
+  toEventSelector,
   type LocalAccount,
 } from "viem";
+import { entryPoint06Abi, entryPoint06Address } from "viem/account-abstraction";
 import { optimismSepolia } from "viem/chains";
 
 import chain, {
@@ -44,6 +47,7 @@ import chain, {
   exaPreviewerAbi,
   exaPreviewerAddress,
   marketAbi,
+  marketUSDCAddress,
   marketWETHAddress,
   proposalManagerAbi,
   upgradeableModularAccountAbi,
@@ -54,11 +58,13 @@ import shortenHex from "@exactly/common/shortenHex";
 import { Address, Hash, Hex } from "@exactly/common/validation";
 
 import * as indexer from "../database/indexer";
+import { credentials } from "../database/schema";
 import t, { f } from "../i18n";
 import { headerValidator } from "../utils/alchemy";
 import appOrigin from "../utils/appOrigin";
 import ensClient from "../utils/ensClient";
 import publicClient from "../utils/publicClient";
+import pay from "../utils/ramps/pay";
 import revertFingerprint from "../utils/revertFingerprint";
 import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
@@ -67,6 +73,8 @@ import createWallet from "../utils/wallet";
 import type * as schema from "../database/schema";
 import type createAlchemy from "../utils/alchemy";
 import type createOnesignal from "../utils/onesignal";
+import type createPersona from "../utils/persona";
+import type createManteca from "../utils/ramps/manteca";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Redis } from "ioredis";
 
@@ -78,14 +86,18 @@ export default function hook({
   blockKey,
   database,
   executor,
+  manteca,
   onesignal,
+  persona,
   redis,
 }: {
   alchemy: ReturnType<typeof createAlchemy>;
   blockKey?: string;
   database: NodePgDatabase<typeof schema>;
   executor: LocalAccount;
+  manteca: ReturnType<typeof createManteca>;
   onesignal: ReturnType<typeof createOnesignal>;
+  persona: ReturnType<typeof createPersona>;
   redis: Redis;
 }) {
   const wallet = createWallet(executor);
@@ -129,7 +141,12 @@ export default function hook({
               number: v.optional(v.number()), // TODO remove optional after migration
               timestamp: v.number(),
               logs: v.array(
-                v.object({ topics: v.tupleWithRest([Hash], Hash), data: Hex, account: v.object({ address: Address }) }),
+                v.object({
+                  topics: v.tupleWithRest([Hash], Hash),
+                  data: Hex,
+                  account: v.object({ address: Address }),
+                  transaction: v.optional(v.object({ hash: Hash })),
+                }),
               ),
             }),
           }),
@@ -147,6 +164,21 @@ export default function hook({
       const { timestamp, logs } = c.req.valid("json").event.data.block;
 
       if (logs.length === 0) {
+        setExtra("exa.ignore", true);
+        return c.json({}, 200);
+      }
+
+      const outflows = logs.filter(
+        ({ topics, account }) => topics[0] === withdrawTopic && isAddressEqual(account.address, marketUSDCAddress),
+      );
+      const settlements = outflows.length > 0 ? Object.values(await manteca.getSettlements()) : [];
+      const payments = outflows
+        .map(({ topics, data, transaction }) => ({
+          transaction,
+          ...decodeEventLog({ abi: marketAbi, eventName: "Withdraw", topics, data }),
+        }))
+        .filter(({ args }) => settlements.some((settlement) => isAddressEqual(settlement, args.receiver)));
+      if (payments.length === 0 && logs.every(({ topics }) => topics[0] === withdrawTopic)) {
         setExtra("exa.ignore", true);
         return c.json({}, 200);
       }
@@ -272,6 +304,31 @@ export default function hook({
               return added;
             },
           );
+        }),
+        ...new Set(payments.map(({ transaction }) => transaction?.hash)).values().map(async (hash) => {
+          if (!hash) return;
+          const receipt = await publicClient.getTransactionReceipt({ hash });
+          const operations = parseEventLogs({
+            abi: entryPoint06Abi,
+            eventName: "UserOperationEvent",
+            logs: receipt.logs,
+          }).filter(({ address }) => isAddressEqual(address, entryPoint06Address));
+          for (const [index, { args, logIndex }] of operations.entries()) {
+            if (!payments.some((p) => p.transaction?.hash === hash && isAddressEqual(p.args.owner, args.sender))) {
+              continue;
+            }
+            const credential = await database.query.credentials.findFirst({
+              where: eq(credentials.account, args.sender),
+              columns: { id: true },
+            });
+            if (!credential) continue;
+            const start = operations[index - 1]?.logIndex ?? -1;
+            await pay(manteca, persona, credential.id, {
+              ...args,
+              sender: v.parse(Address, args.sender),
+              logs: receipt.logs.filter((log) => log.logIndex > start && log.logIndex < logIndex),
+            });
+          }
         }),
       ]);
       return c.json({});
@@ -713,6 +770,7 @@ const isTerminalWithdrawReason = (reason: string) =>
     reason.endsWith(`,${encodeErrorResult({ errorName: "NoProposal", abi: proposalManagerAbi })})`));
 
 const url = `${appOrigin}/hooks/block`;
+const withdrawTopic = toEventSelector(getAbiItem({ abi: marketAbi, name: "Withdraw" }));
 async function initializeAlchemy(
   alchemy: ReturnType<typeof createAlchemy>,
   database: NodePgDatabase<typeof schema>,
@@ -725,7 +783,7 @@ async function initializeAlchemy(
   if (currentHook) signingKeys.add(currentHook.signing_key);
   const [currentQuery, addresses] = await Promise.all([
     currentHook && redis.get(`alchemy:block:${currentHook.id}`),
-    proposalEmitters(database),
+    proposalEmitters(database).then((emitters) => [...new Set([...emitters, marketUSDCAddress])].toSorted()),
   ]);
   const query = `#graphql
 {
@@ -739,6 +797,7 @@ async function initializeAlchemy(
           [
             "0x4cf7794d9c19185f7d95767c53e511e2e67ae50f68ece9c9079c6ae83403a3e7" # Proposed
             "0x0c652a21d96e4efed065c3ef5961e4be681be99b95dd55126669ae9be95767e0" # Proposed (legacy)
+            "${withdrawTopic}" # Withdraw
           ]
         ]
       }
@@ -747,6 +806,9 @@ async function initializeAlchemy(
       data
       account {
         address
+      }
+      transaction {
+        hash
       }
     }
   }
