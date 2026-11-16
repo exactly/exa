@@ -167,7 +167,16 @@ export default defineConfig([
           }
           const factories = {
             versions: deploy.factory.versions.map((v) => factory(v)),
-            legacy: perChain(deploy.factory.legacy).map((address) => getAddress(address)),
+            legacy: chain
+              ? perChain(deploy.factory.legacy).map((address) => getAddress(address))
+              : [
+                  factory("legacy"),
+                  ...(["factory", "v0Factory"] as const).map((name) => {
+                    const address = loadBroadcast("Legacy").returns?.[name]?.value;
+                    if (!address) throw new Error(`missing legacy ${name}`);
+                    return getAddress(address);
+                  }),
+                ],
           };
           function chainFields(id: number | string) {
             return {
@@ -392,7 +401,7 @@ function loadBroadcast(script: string, id = chainId, root = "@exactly/plugin") {
       `node_modules/${root}/broadcast/${script}.s.sol/${id === moonbeamDev.id ? anvil.id : id}/run-latest.json`,
       "utf8",
     ),
-  ) as { transactions: { contractAddress: string }[] };
+  ) as { returns?: Partial<Record<string, { value: string }>>; transactions: { contractAddress: string }[] };
 }
 
 function perChain<T>(values: Record<string, T> & { default: T }, id = chainId) {
