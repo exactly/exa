@@ -1,0 +1,61 @@
+diff --git a/dist/esm/build/config.js b/dist/esm/build/config.js
+index dc5e342e47f5f02223fe7f42751a0a291ab3a024..bf64af7b65b066028ecd44b579ec10641cb8f760 100644
+--- a/dist/esm/build/config.js
++++ b/dist/esm/build/config.js
+@@ -697,6 +697,7 @@ export function buildConfig({ common, config, }) {
+             pollingInterval: chain.pollingInterval ?? 1_000,
+             reorgWindow: chain.reorgWindow ?? DEFAULT_REORG_WINDOW,
+             cacheRpcRequests: chain.cacheRpcRequests ?? true,
++            rateLimitRpcRequests: chain.rateLimitRpcRequests ?? true,
+             ethGetLogsBlockRange: chain.ethGetLogsBlockRange,
+             viemChain: matchedChain,
+         };
+diff --git a/dist/esm/rpc/index.js b/dist/esm/rpc/index.js
+index 04f280f54d91cfdce126f560cbbb568e28cfca1a..79c36e588f22b12148ea2c891744c9bd7e20688e 100644
+--- a/dist/esm/rpc/index.js
++++ b/dist/esm/rpc/index.js
+@@ -54,6 +54,8 @@ const addLatency = (bucket, latency, success) => {
+ const isAvailable = (bucket) => {
+     if (bucket.isActive === false)
+         return false;
++    if (bucket.isRateLimited === false)
++        return true;
+     const now = Math.floor(Date.now() / 1000);
+     const currentRPS = bucket.rps.find((r) => r.timestamp === now);
+     if (currentRPS && currentRPS.count + 1 > bucket.rpsLimit) {
+@@ -196,6 +198,7 @@ export const createRpc = ({ common, chain, concurrency = 25, }) => {
+         rps: [],
+         consecutiveSuccessfulRequests: 0,
+         rpsLimit: INITIAL_MAX_RPS,
++        isRateLimited: chain.rateLimitRpcRequests,
+         request,
+     }));
+     let noAvailableBucketsTimer;
+diff --git a/dist/types/config/index.d.ts b/dist/types/config/index.d.ts
+index 22b8ed48be21f671eb2e5559b31797933ed2991c..b9c16c05ce92af6a28eab26c09d3e9f033359d3e 100644
+--- a/dist/types/config/index.d.ts
++++ b/dist/types/config/index.d.ts
+@@ -93,6 +93,11 @@ type ChainConfig<chain> = {
+      * addresses, and `context.client` requests. Default: `true`.
+      */
+     cacheRpcRequests?: boolean;
++    /**
++     * Throttle JSON-RPC requests to each provider, adapting to its rate limits.
++     * Disable for providers without rate limits, like a local node. Default: `true`.
++     */
++    rateLimitRpcRequests?: boolean;
+     /**
+      * Maximum block range for eth_getLogs. If undefined, Ponder will
+      * attempt to determine the block range automatically based on error messages.
+diff --git a/dist/types/internal/types.d.ts b/dist/types/internal/types.d.ts
+index 979bd16f53d630c14035312b0eb6dd7ddbaf426c..affaff59c37b0c039f9385921b22d503ba4fddec 100644
+--- a/dist/types/internal/types.d.ts
++++ b/dist/types/internal/types.d.ts
+@@ -210,6 +210,7 @@ export type Chain = {
+     pollingInterval: number;
+     reorgWindow: number;
+     cacheRpcRequests: boolean;
++    rateLimitRpcRequests: boolean;
+     ethGetLogsBlockRange: number | undefined;
+     viemChain: ViemChain | undefined;
+ };
