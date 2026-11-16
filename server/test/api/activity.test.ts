@@ -9,7 +9,7 @@ import { testClient } from "hono/testing";
 import assert from "node:assert";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { safeParse, type InferOutput } from "valibot";
+import { parse, safeParse, type InferOutput } from "valibot";
 import {
   createWalletClient,
   encodeFunctionData,
@@ -315,6 +315,51 @@ describe.concurrent("authenticated", () => {
       expect(declined).toStrictEqual(httpSerialize(activity.find(({ id }) => id === txId)));
     });
 
+    it("keeps the landed retry of a debit", async () => {
+      const [landed] = await anvilClient.getContractEvents({
+        abi: marketAbi,
+        eventName: "Withdraw",
+        address: marketUSDCAddress,
+        args: { caller: account, owner: account },
+        toBlock: "latest",
+        fromBlock: 0n,
+        strict: true,
+      });
+      assert.ok(landed, "expected a usdc withdraw");
+      const bodies = [retried(0), retried(1)];
+      await database.insert(transactions).values([
+        {
+          id: "retried",
+          cardId: "first-activity-card",
+          hashes: [padHex("0x1", { size: 32 }), landed.transactionHash],
+          payload: { type: "panda", bodies },
+        },
+      ]);
+      try {
+        const response = await appClient.index.$get(
+          { query: { include: "card" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(response.status).toBe(200);
+        const json = (await response.json()) as { id: string }[];
+        expect(json.find(({ id }) => id === "retried")).toStrictEqual(
+          httpSerialize({
+            ...parse(PandaActivity, {
+              type: "panda",
+              hashes: [landed.transactionHash],
+              borrows: [null],
+              bodies: [bodies[1]],
+            }),
+            cardId: "first-activity-card",
+            lastFour: "1234",
+          }),
+        );
+      } finally {
+        await database.delete(transactions).where(eq(transactions.id, "retried"));
+      }
+    });
+
     it("accepts panda activity with zero exchange rate", () => {
       const panda = safeParse(PandaActivity, {
         type: "panda",
@@ -335,6 +380,70 @@ describe.concurrent("authenticated", () => {
       expect(panda.output.amount).toBe(0);
       expect(panda.output.usdAmount).toBe(1);
       expect(panda.output.status).toBe("pending");
+    });
+
+    describe("retried collects", () => {
+      const hashes = [padHex("0x1", { size: 32 }), padHex("0x2", { size: 32 }), padHex("0x3", { size: 32 })];
+      const borrow = { timestamp: 1n, events: [{ maturity: 2_419_200n, assets: 232_530_000n, fee: 1_160_000n }] };
+
+      it("counts a pending retry once", () => {
+        const panda = parse(PandaActivity, {
+          type: "panda",
+          hashes,
+          borrows: [null, null, null],
+          bodies: [retried(0), retried(1), retried(2)],
+        });
+
+        expect(panda).toStrictEqual(
+          parse(PandaActivity, { type: "panda", hashes: [hashes[0]], borrows: [null], bodies: [retried(0)] }),
+        );
+        expect(panda.usdAmount).toBeCloseTo(232.53);
+        expect(panda.status).toBe("pending");
+      });
+
+      it("keeps the mined retry", () => {
+        const panda = parse(PandaActivity, {
+          type: "panda",
+          hashes: hashes.slice(0, 2),
+          borrows: [null, borrow],
+          bodies: [retried(0), retried(1)],
+        });
+
+        expect(panda).toStrictEqual(
+          parse(PandaActivity, { type: "panda", hashes: [hashes[1]], borrows: [borrow], bodies: [retried(1)] }),
+        );
+        expect(panda.operations[0]).toMatchObject({ transactionHash: hashes[1], borrow: { maturity: 2_419_200 } });
+        expect(panda.usdAmount).toBeCloseTo(232.53);
+      });
+
+      it("keeps the first attempt when it was mined", () => {
+        const panda = parse(PandaActivity, {
+          type: "panda",
+          hashes: hashes.slice(0, 2),
+          borrows: [borrow, null],
+          bodies: [retried(0), retried(1)],
+        });
+
+        expect(panda).toStrictEqual(
+          parse(PandaActivity, { type: "panda", hashes: [hashes[0]], borrows: [borrow], bodies: [retried(0)] }),
+        );
+        expect(panda.operations[0]).toMatchObject({ transactionHash: hashes[0], borrow: { maturity: 2_419_200 } });
+      });
+
+      it("keeps the mined debit retry", () => {
+        const panda = parse(PandaActivity, {
+          type: "panda",
+          hashes: hashes.slice(0, 2),
+          borrows: [null, null],
+          mined: [false, true],
+          bodies: [retried(0), retried(1)],
+        });
+
+        expect(panda).toStrictEqual(
+          parse(PandaActivity, { type: "panda", hashes: [hashes[1]], borrows: [null], bodies: [retried(1)] }),
+        );
+        expect(panda.operations[0]).toMatchObject({ transactionHash: hashes[1], mode: 0 });
+      });
     });
 
     it("reports bad transaction", async () => {
@@ -1106,3 +1215,18 @@ const spendTemplate = {
   userId: "f5eb6ea9-e9ba-4e2f-b16a-94a99f32385c",
   userLastName: "SAMPLEapproved",
 };
+
+function retried(createdAt: number) {
+  return {
+    id: "retried-event",
+    chainId: 10,
+    action: "created",
+    resource: "transaction",
+    createdAt: new Date(createdAt).toISOString(),
+    body: {
+      id: "retried",
+      type: "spend",
+      spend: { ...spendTemplate, amount: 23_253, localAmount: 23_253, localCurrency: "usd" },
+    },
+  };
+}

@@ -34,7 +34,7 @@ import {
   type InferInput,
   type InferOutput,
 } from "valibot";
-import { decodeFunctionData, zeroHash, type Log } from "viem";
+import { decodeFunctionData, isAddressEqual, zeroHash, type Log } from "viem";
 
 import fixedRate from "@exactly/common/fixedRate";
 import chain, {
@@ -143,27 +143,46 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
             })
           : Promise.resolve(forbid([]));
 
-      const [deposits, repays, withdraws, borrows] = await Promise.all([
+      const collect = !ignore("card") && maturity === undefined;
+      const depositPromise =
+        !ignore("received") || collect
+          ? publicClient.getContractEvents({
+              abi: marketAbi,
+              eventName: "Deposit",
+              address: [...markets.keys()],
+              args: { owner: account },
+              toBlock: "latest",
+              fromBlock: 0n,
+              strict: true,
+            })
+          : Promise.resolve(forbid([]));
+
+      const withdrawPromise =
+        !ignore("sent") || collect
+          ? publicClient.getContractEvents({
+              abi: marketAbi,
+              eventName: "Withdraw",
+              address: [...markets.keys()],
+              args: { caller: account, owner: account },
+              toBlock: "latest",
+              fromBlock: 0n,
+              strict: true,
+            })
+          : Promise.resolve(forbid([]));
+
+      const [deposits, repays, withdraws, borrows, collected] = await Promise.all([
         ignore("received")
           ? []
           : Promise.all([
-              publicClient
-                .getContractEvents({
-                  abi: marketAbi,
-                  eventName: "Deposit",
-                  address: [...markets.keys()],
-                  args: { caller: account, owner: account },
-                  toBlock: "latest",
-                  fromBlock: 0n,
-                  strict: true,
-                })
-                .then((logs) =>
-                  logs.map((log) =>
+              depositPromise.then((logs) =>
+                logs
+                  .filter(({ args }) => isAddressEqual(args.caller, account))
+                  .map((log) =>
                     parse(DepositActivity, { ...log, market: market(log.address) } satisfies InferInput<
                       typeof DepositActivity
                     >),
                   ),
-                ),
+              ),
               repayPromise,
             ]).then(([deposit, repay]) =>
               deposit.filter(
@@ -185,15 +204,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
         ignore("sent")
           ? []
           : Promise.all([
-              publicClient.getContractEvents({
-                abi: marketAbi,
-                eventName: "Withdraw",
-                address: [...markets.keys()],
-                args: { caller: account, owner: account },
-                toBlock: "latest",
-                fromBlock: 0n,
-                strict: true,
-              }),
+              withdrawPromise,
               publicClient.getContractEvents({
                 abi: proposalManagerAbi,
                 eventName: "Proposed",
@@ -259,6 +270,12 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                   return map;
                 }, new Map<Hash, { blockNumber: bigint; events: (typeof logs)[number]["args"][] }>()),
               ),
+        collect
+          ? Promise.all([depositPromise, withdrawPromise]).then(
+              ([deposited, withdrawn]) =>
+                new Set([...deposited, ...withdrawn].map(({ transactionHash }) => transactionHash)),
+            )
+          : new Set<Hash>(),
       ]);
       const blocks = await Promise.all(
         [
@@ -303,6 +320,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
             const panda = safeParse(PandaActivity, {
               ...(payload as object),
               hashes,
+              mined: hashes.map((h) => !!borrows?.has(h as Hash) || collected.has(h as Hash)),
               borrows: hashes.map((h) => {
                 const b = borrows?.get(h as Hash);
                 if (!b) return null;
@@ -509,19 +527,39 @@ export const PandaActivity = pipe(
         body: looseObject({
           spend: looseObject({ declinedReason: nullish(string()) }),
         }),
+        chainId: optional(number()),
+        id: optional(string()),
         reason: optional(string()),
         status: optional(string()),
       }),
     ),
     borrows: array(nullable(object({ timestamp: optional(bigint()), events: array(Borrow) }))),
     hashes: array(Hash),
+    mined: optional(array(boolean()), []),
     type: literal("panda"),
   }),
-  transform(({ bodies, borrows, hashes, type }) => {
+  transform(({ bodies, borrows, hashes, mined, type }) => {
     const requestedBody = bodies.findLast((body) => body.action === "requested" && body.status === "declined");
     const requestedReason = requestedBody?.body.spend.declinedReason ?? requestedBody?.reason;
+    function attempt(index: number) {
+      const body = bodies[index];
+      return body?.id === undefined ? undefined : `${body.id}:${body.chainId}`;
+    }
+    const landed = (index: number) => !!borrows[index] || mined[index] === true;
+    const kept = new Map<string, number>();
+    for (const index of hashes.keys()) {
+      const key = attempt(index);
+      if (key === undefined) continue;
+      const previous = kept.get(key);
+      if (previous === undefined || (!landed(previous) && landed(index))) kept.set(key, index);
+    }
     const operations = hashes
-      .map((hash, index) => {
+      .map((hash, index) => ({ hash, index }))
+      .filter(({ index }) => {
+        const key = attempt(index);
+        return key === undefined || kept.get(key) === index;
+      })
+      .map(({ hash, index }) => {
         const borrow = borrows[index];
         const body = bodies[index];
         const declinedReason =
