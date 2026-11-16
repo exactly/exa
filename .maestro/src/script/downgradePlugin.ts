@@ -7,19 +7,24 @@ import { exaPluginAbi, exaPluginAddress, upgradeableModularAccountAbi } from "@e
 import anvil, { readContract } from "../anvil";
 
 declare const account: string | undefined;
+declare const network: string | undefined;
 
 if (!account || !isHex(account)) throw new Error("bad account");
 
-const release = anvil("eth_getLogs", [
-  {
-    fromBlock: "0x0",
-    topics: [toEventSelector(getAbiItem({ abi: exaPluginAbi, name: "PluginAllowed" })), padHex(exaPluginAddress)],
-  },
-])[0]?.address;
+const release = anvil(
+  "eth_getLogs",
+  [
+    {
+      fromBlock: "0x0",
+      topics: [toEventSelector(getAbiItem({ abi: exaPluginAbi, name: "PluginAllowed" })), padHex(exaPluginAddress)],
+    },
+  ],
+  network,
+)[0]?.address;
 if (!release) throw new Error("no release");
 send(exaPluginAddress, encodeFunctionData({ abi: exaPluginAbi, functionName: "allowPlugin", args: [release, true] }));
 
-anvil("anvil_impersonateAccount", [entryPoint06Address]);
+anvil("anvil_impersonateAccount", [entryPoint06Address], network);
 send(
   account,
   encodeFunctionData({
@@ -62,7 +67,7 @@ send(
               release,
               keccak256(
                 encodeAbiParameters(getAbiItem({ abi: exaPluginAbi, name: "pluginManifest" }).outputs, [
-                  readContract({ address: release, functionName: "pluginManifest", abi: exaPluginAbi }),
+                  readContract({ address: release, functionName: "pluginManifest", abi: exaPluginAbi }, network),
                 ]),
               ),
               "0x",
@@ -77,6 +82,6 @@ send(
 );
 
 function send(to: Address, data: Hex, from?: Address) {
-  const receipt = anvil("eth_sendTransactionSync", [{ from, to, data }]);
+  const receipt = anvil("eth_sendTransactionSync", [{ from, to, data }], network);
   if (receipt.status !== "0x1") throw new Error(`reverted ${receipt.transactionHash}`);
 }

@@ -12,3 +12,12 @@ appId: ${APP_ID ?? "app.exactly"}
 - runScript:
     file: ../dist/awaitDeployment.js
     env: { account: "${output.account}", network: Anvil2 }
+- runScript: { file: ../dist/downgradePlugin.js, env: { account: "${output.account}" } }
+- runScript: { file: ../dist/downgradePlugin.js, env: { account: "${output.account}", network: Anvil2 } }
+- tapOn: Card
+- tapOn: Upgrade account now
+- runFlow: sign.yaml
+- runFlow: sign.yaml
+- runScript: { file: ../dist/awaitUpgrade.js, env: { account: "${output.account}" } }
+- runScript: { file: ../dist/awaitUpgrade.js, env: { account: "${output.account}", network: Anvil2 } }
+- tapOn: Home

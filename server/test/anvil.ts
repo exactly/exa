@@ -256,6 +256,8 @@ async function start(dump = false) {
       await $(shell)`forge script test/mocks/Protocol.s.sol
           --sig anvil2() --disable-code-size-limit
           --unlocked --sender ${deployer} --rpc-url ${chain.rpcUrls.default.http[0]} --broadcast --skip-simulation --offline`;
+      await $(shell)`forge script test/mocks/Bob.s.sol --sig deployRelease()
+          --unlocked --rpc-url ${chain.rpcUrls.default.http[0]} --broadcast --skip-simulation --offline`;
       const firewall = await client.readContract({
         address: auditor,
         functionName: "firewall",
