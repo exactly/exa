@@ -111,7 +111,7 @@ export default function Confirm() {
   const receiverHex = receiverParse.success ? receiverParse.output : undefined;
   const payChain = typeof fromChain === "string" ? Number(fromChain) : chain.id;
   const destinationChain = typeof toChain === "string" ? Number(toChain) : chain.id;
-  const destinationAmount = typeof amount === "string" && /^\d+$/.test(amount) ? BigInt(amount) : 0n;
+  const requestedAmount = typeof amount === "string" && /^\d+$/.test(amount) ? BigInt(amount) : 0n;
   const { data: resolved } = useQuery(ensOptions(name, destinationChain));
   const ens = name && resolved === receiverHex ? name : "";
 
@@ -127,6 +127,13 @@ export default function Confirm() {
   const payPrice = market ? market.usdPrice : parseAmount(external?.priceUSD, 18);
   const payUnderlying = market?.asset ?? external?.address;
   const payDelivered = market?.market === marketWETHAddress ? zeroAddress : payUnderlying;
+
+  const externalAddress = useMemo(() => {
+    const { success, output } = safeParse(Address, external?.address);
+    return success ? output : zeroAddress;
+  }, [external?.address, zeroAddress]);
+
+  const isNativeTransfer = !!external && externalAddress === zeroAddress;
 
   const { data: chains } = useQuery(lifiChainsOptions);
   const { data: tokens, isFetching: isTokensFetching, refetch: refetchTokens } = useQuery(lifiTokensOptions);
@@ -171,6 +178,13 @@ export default function Confirm() {
   const routed =
     destinationChain !== payChain ||
     (typeof toToken === "string" && toToken.toLowerCase() !== payDelivered?.toLowerCase());
+  const sponsored = payChain === chain.id;
+  const [gasReserve, setGasReserve] = useState(0n);
+  const balance = isNativeTransfer && !routed && !sponsored ? external.amount : undefined;
+  const destinationAmount =
+    balance !== undefined && gasReserve > 0n && requestedAmount + gasReserve > balance
+      ? balance - gasReserve
+      : requestedAmount;
 
   const fromAmount = routed
     ? typeof fromAmountParameter === "string" && /^\d+$/.test(fromAmountParameter)
@@ -305,12 +319,6 @@ export default function Confirm() {
     enabled: enableSimulations && routed && !!market && !!address && !!route && !!neutralAsset && fromAmount > 0n,
   });
 
-  const externalAddress = useMemo(() => {
-    const { success, output } = safeParse(Address, external?.address);
-    return success ? output : zeroAddress;
-  }, [external?.address, zeroAddress]);
-
-  const isNativeTransfer = !!external && externalAddress === zeroAddress;
   const payNetwork = chains?.find((item) => item.id === payChain);
   const {
     data: wrap,
@@ -487,7 +495,6 @@ export default function Confirm() {
   });
 
   const nativeToken = payNetwork?.nativeToken;
-  const sponsored = payChain === chain.id;
   const networkCost = sponsored ? 0n : nativeToken ? transferEstimate?.cost : undefined;
   const networkFeeUSD = sponsored
     ? 0
@@ -495,6 +502,15 @@ export default function Confirm() {
       ? Number(formatUnits(networkCost, nativeToken.decimals)) * Number(nativeToken.priceUSD)
       : undefined;
   const deficit = transferEstimate?.shortfall;
+  if (
+    balance !== undefined &&
+    requestedAmount <= balance &&
+    deficit?.native &&
+    deficit.amount > gasReserve &&
+    deficit.amount < balance
+  ) {
+    setGasReserve(deficit.amount);
+  }
   const insufficientGas = !!deficit;
   useQuery({
     ...balancesOptions(address),
