@@ -510,6 +510,7 @@ describe.concurrent("authenticated", () => {
     });
 
     it("stops receipt reads after a failure", async () => {
+      const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
       const hashes = Array.from({ length: 30 }, (_, index) => padHex(toHex(0x20_00 + index), { size: 32 }));
       const read = publicClient.getTransactionReceipt.bind(publicClient);
       const receipt = vi.spyOn(publicClient, "getTransactionReceipt").mockImplementation(async (parameters) => {
@@ -532,6 +533,7 @@ describe.concurrent("authenticated", () => {
         );
 
         expect(response.status).toBe(500);
+        expect(error).toHaveBeenCalledExactlyOnceWith(new Error("receipt"));
         await new Promise((resolve) => setTimeout(resolve, 50));
         expect(receipt.mock.calls.filter(([{ hash }]) => hashes.includes(hash))).toHaveLength(8);
       } finally {

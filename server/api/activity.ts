@@ -292,6 +292,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
           : credential.cards;
 
       const receipts = new Semaphore(8);
+      let failed = false;
       const landed = new Set(
         maturity === undefined
           ? await Promise.all(
@@ -305,14 +306,16 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                 .filter((hash) => hash !== zeroHash && !borrows?.has(hash))
                 .map((hash) =>
                   receipts.runExclusive(() =>
-                    publicClient.getTransactionReceipt({ hash }).then(
-                      ({ status }) => (status === "success" ? hash : undefined),
-                      (error: unknown) => {
-                        if (error instanceof TransactionReceiptNotFoundError) return;
-                        receipts.cancel();
-                        throw error;
-                      },
-                    ),
+                    failed
+                      ? undefined
+                      : publicClient.getTransactionReceipt({ hash }).then(
+                          ({ status }) => (status === "success" ? hash : undefined),
+                          (error: unknown) => {
+                            if (error instanceof TransactionReceiptNotFoundError) return;
+                            failed = true;
+                            throw error;
+                          },
+                        ),
                   ),
                 ),
             )
