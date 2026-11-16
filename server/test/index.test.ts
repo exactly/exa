@@ -22,6 +22,7 @@ const closers = {
   hook: vi.fn<() => Promise<void>>(),
   maturity: vi.fn<() => Promise<void>>(),
 };
+const replication = { close: vi.fn<() => Promise<void>>(), create: vi.fn<() => Worker>() };
 const mocks = {
   api: vi.fn<() => Hook>(),
   supervise: vi.fn<(name: string, created: Promise<Handle>) => void>(),
@@ -30,6 +31,7 @@ const mocks = {
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.doUnmock("@hono/node-server/serve-static");
+  vi.doUnmock("@exactly/common/generated/chain");
 });
 
 beforeEach(() => {
@@ -49,6 +51,9 @@ beforeEach(() => {
     closers[name].mockReset().mockResolvedValue();
     workers[name].mockReset().mockReturnValue({ close: closers[name], ready: Promise.resolve() });
   }
+  replication.close.mockReset().mockResolvedValue();
+  replication.create.mockReset().mockReturnValue({ close: replication.close, ready: Promise.resolve() });
+  vi.doMock("../workers/replication/worker", () => ({ default: replication.create }));
   vi.doMock("../api", () => ({ default: mocks.api }));
   vi.doMock("../supervise", async (importOriginal) => ({
     ...(await importOriginal<typeof Supervise>()),
@@ -96,6 +101,29 @@ describe("server", () => {
     for (const [name, close] of Object.entries(closers)) {
       expect(close).toHaveBeenCalledTimes(enabled.includes(name) ? 1 : 0);
     }
+    expect(replication.create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { disabled: undefined, started: true },
+    { disabled: "replication", started: false },
+  ])("monitors replication on base when disabling $disabled", async ({ disabled, started }) => {
+    if (disabled !== undefined) vi.stubEnv("DISABLED_MODULES", disabled);
+    vi.doMock("@exactly/common/generated/chain", async (importOriginal) => ({
+      ...(await importOriginal<typeof Chain>()),
+      isBase: true,
+    }));
+
+    await import("../index");
+    const created = mocks.supervise.mock.calls[0]?.[1];
+    if (!created) throw new Error("missing server");
+    const handle = await created;
+    const [{ bullmq }, { default: database }] = await Promise.all([import("../utils/redis"), import("../database")]);
+
+    await expect(handle.ready).resolves.toHaveLength(started ? 10 : 9);
+    expect(replication.create.mock.calls).toStrictEqual(started ? [[{ bullmq, database }]] : []);
+    await handle.close();
+    expect(replication.close).toHaveBeenCalledTimes(started ? 1 : 0);
   });
 
   it.each([

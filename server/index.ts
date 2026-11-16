@@ -10,7 +10,7 @@ import { array, nonEmpty, optional, parse, picklist, pipe, string, transform } f
 import { base } from "viem/chains";
 
 import domain from "@exactly/common/domain";
-import chain, { lifiURL } from "@exactly/common/generated/chain";
+import chain, { isBase, lifiURL } from "@exactly/common/generated/chain";
 import { tenantScript } from "@exactly/common/tenants";
 
 import createApi from "./api";
@@ -44,6 +44,7 @@ import createHook from "./workers/hook/queue";
 import createHookWorker from "./workers/hook/worker";
 import createPoke from "./workers/poke/queue";
 import createRefund from "./workers/refund/queue";
+import createReplicationWorker from "./workers/replication/worker";
 import createSubscribe from "./workers/subscribe/queue";
 
 const alchemy = createAlchemy(parse(pipe(string("alchemy"), nonEmpty("alchemy")), env.ALCHEMY_WEBHOOKS_KEY));
@@ -148,6 +149,7 @@ const hooks = {
 const workers = {
   hook: () => createHookWorker({ bullmq, database, panda }),
   maturity: () => createMaturity(onesignal),
+  ...(isBase && { replication: () => createReplicationWorker({ bullmq, database }) }),
 };
 const disabled = new Set<string>(
   parse(
