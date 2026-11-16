@@ -617,7 +617,10 @@ export const PandaActivity = pipe(
         if (validation.success) return { index, operation: validation.output };
         throw new Error("bad panda activity");
       })
-      .flatMap(({ index, operation }) => (operation.provider === "panda" ? [{ index, operation }] : []));
+      .filter(
+        (entry): entry is { index: number; operation: Extract<(typeof entry)["operation"], { provider: "panda" }> } =>
+          entry.operation.provider === "panda",
+      );
     const operations = entries.map(({ operation }) => operation);
 
     const declined = (function () {
