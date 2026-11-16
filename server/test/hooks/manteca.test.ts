@@ -3,11 +3,12 @@ import sendPushNotificationMock from "../mocks/onesignal";
 import * as segment from "../mocks/segment";
 import "../mocks/sentry";
 
-import { captureException } from "@sentry/core";
+import { captureEvent, captureException, setUser } from "@sentry/core";
 import { testClient } from "hono/testing";
 import { createHmac } from "node:crypto";
 import { v5 } from "uuid";
-import { hexToBytes, padHex, zeroHash } from "viem";
+import { hexToBytes, padHex, zeroAddress, zeroHash } from "viem";
+import { entryPoint06Address } from "viem/account-abstraction";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -18,6 +19,7 @@ import database, { credentials } from "../../database";
 import createMantecaHook from "../../hooks/manteca";
 import t, { f } from "../../i18n";
 import createOnesignal from "../../utils/onesignal";
+import publicClient from "../../utils/publicClient";
 import createManteca from "../../utils/ramps/manteca";
 import createSegment from "../../utils/segment";
 
@@ -173,18 +175,26 @@ describe("manteca hook", () => {
   });
 
   it("returns ok for PAYMENT_REFUND", async () => {
+    vi.spyOn(manteca, "withdrawBalance").mockResolvedValue();
     const payload = {
       event: "PAYMENT_REFUND",
       data: {
-        amount: "100",
-        asset: "USDC",
-        network: "OPTIMISM",
-        partial: false,
-        paymentNumberId: "123",
-        refundReason: "test refund",
-        refundedAt: "2024-01-01T00:00:00Z",
-        userId: "user123",
-        userNumberId: "456",
+        refundId: "9b1c8e7a-2f4d-4a6b-8c3e-1d5f7a9b0c2d",
+        amount: "5000.00",
+        totalAmount: "10000.00",
+        asset: "ARS",
+        amountToRefund: "4.00",
+        totalAmountToRefund: "8.00",
+        assetToRefund: "USDT",
+        paymentNumberId: "98765",
+        paymentExternalId: "my-external-ref-001",
+        networkId: "xxx-xxx-xxx-xxx",
+        refundReason: "Refund",
+        partial: true,
+        refundedAt: "2026-02-21T15:35:00.000Z",
+        userId: "64a1b2c3d4e5f6a7b8c9d0e2",
+        userNumberId: "12345",
+        userExternalId: "ext-001",
       },
     };
     const response = await appClient.index.$post({
@@ -194,6 +204,364 @@ describe("manteca hook", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(captureEvent).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        message: "MantecaPaymentRefund",
+        level: "warning",
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        contexts: expect.objectContaining({
+          details: {
+            amount: "5000.00",
+            amountToRefund: "4.00",
+            asset: "ARS",
+            assetToRefund: "USDT",
+            partial: true,
+            paymentExternalId: "my-external-ref-001",
+            paymentNumberId: "98765",
+            refundId: "9b1c8e7a-2f4d-4a6b-8c3e-1d5f7a9b0c2d",
+            refundReason: "Refund",
+            refundedAt: "2026-02-21T15:35:00.000Z",
+            userId: "64a1b2c3d4e5f6a7b8c9d0e2",
+            userNumberId: "12345",
+          },
+        }),
+      }),
+    );
+    expect(captureException).not.toHaveBeenCalled();
+    expect(manteca.withdrawBalance).not.toHaveBeenCalled();
+    expect(setUser).not.toHaveBeenCalled();
+  });
+
+  it("finds the account of a payment refund by the user operation hash", async () => {
+    const request = vi.spyOn(publicClient, "request").mockResolvedValueOnce(operation(account));
+    const payload = {
+      event: "PAYMENT_REFUND",
+      data: {
+        amount: "4128.09",
+        amountToRefund: "5.92562980",
+        asset: "ARS",
+        assetToRefund: "USDC",
+        networkId: "e49507ed-33f0-4189-a67c-f232f446d33f",
+        partial: false,
+        paymentExternalId: userOpHash,
+        paymentNumberId: "70516",
+        paymentRefundedAmount: "4128.09",
+        paymentTotalRefundedAmount: "4128.09",
+        refundId: "AAA:e49507ed-33f0-4189-a67c-f232f446d33f:4128.09",
+        refundReason: "User initiated refund",
+        refundedAt: "2026-11-11T14:16:04.288-03:00",
+        totalAmount: "4128.09",
+        totalAmountToRefund: "5.92562980",
+        userExternalId: "Exactly-argentina",
+        userId: "6adff39f0ee31861fc20cdaf",
+        userNumberId: "100114168",
+      },
+    };
+    const response = await appClient.index.$post({
+      header: { "md-webhook-signature": createSignature(payload) },
+      json: payload as never,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(request).toHaveBeenCalledExactlyOnceWith(receiptQuery, { dedupe: true });
+    expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
+    expect(captureEvent).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        message: "MantecaPaymentRefund",
+        level: "warning",
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        contexts: expect.objectContaining({
+          details: {
+            amount: "4128.09",
+            amountToRefund: "5.92562980",
+            asset: "ARS",
+            assetToRefund: "USDC",
+            partial: false,
+            paymentExternalId: userOpHash,
+            paymentNumberId: "70516",
+            refundId: "AAA:e49507ed-33f0-4189-a67c-f232f446d33f:4128.09",
+            refundReason: "User initiated refund",
+            refundedAt: "2026-11-11T14:16:04.288-03:00",
+            userId: "6adff39f0ee31861fc20cdaf",
+            userNumberId: "100114168",
+          },
+        }),
+      }),
+    );
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("captures a payment refund when the account lookup fails", async () => {
+    const error = new Error("bundler down");
+    vi.spyOn(publicClient, "request").mockRejectedValueOnce(error);
+    const payload = {
+      event: "PAYMENT_REFUND",
+      data: {
+        amount: "4128.09",
+        asset: "ARS",
+        partial: false,
+        paymentExternalId: userOpHash,
+        paymentNumberId: "70516",
+        refundReason: "User initiated refund",
+        refundedAt: "2026-11-11T14:16:04.288-03:00",
+        userId: "6adff39f0ee31861fc20cdaf",
+        userNumberId: "100114168",
+      },
+    };
+    const response = await appClient.index.$post({
+      header: { "md-webhook-signature": createSignature(payload) },
+      json: payload as never,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(error, { level: "warning" });
+    expect(setUser).not.toHaveBeenCalled();
+    expect(captureEvent).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        message: "MantecaPaymentRefund",
+        level: "warning",
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        contexts: expect.objectContaining({ details: payload.data }),
+      }),
+    );
+  });
+
+  it("does not look up a payment refund without external id", async () => {
+    const request = vi.spyOn(publicClient, "request");
+    const payload = {
+      event: "PAYMENT_REFUND",
+      data: {
+        amount: "4128.09",
+        asset: "ARS",
+        paymentNumberId: "70516",
+        refundReason: "User initiated refund",
+        partial: false,
+        refundedAt: "2026-11-11T14:16:04.288-03:00",
+        userId: "6adff39f0ee31861fc20cdaf",
+        userNumberId: "100114168",
+      },
+    };
+    const response = await appClient.index.$post({
+      header: { "md-webhook-signature": createSignature(payload) },
+      json: payload as never,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(request).not.toHaveBeenCalled();
+    expect(setUser).not.toHaveBeenCalled();
+  });
+
+  describe("when a synthetic status is updated", () => {
+    it("finds the account of a qr payment by the user operation hash", async () => {
+      vi.spyOn(manteca, "withdrawBalance").mockResolvedValue();
+      vi.spyOn(manteca, "convertBalanceToUsdc").mockResolvedValue();
+      const request = vi.spyOn(publicClient, "request").mockResolvedValueOnce(operation(account));
+      const payload = { event: "SYNTHETIC_STATUS_UPDATE", data: { ...refundedSynthetic, externalId: userOpHash } };
+      const response = await appClient.index.$post({
+        header: { "md-webhook-signature": createSignature(payload) },
+        json: payload as never,
+      });
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+      expect(request).toHaveBeenCalledExactlyOnceWith(receiptQuery, { dedupe: true });
+      expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
+      expect(captureEvent).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          message: "MantecaSyntheticStatusUpdate",
+          level: "info",
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          contexts: expect.objectContaining({
+            details: { id: "6af4a2b4f66675b8af775fbe", externalId: userOpHash, status: "WAITING", type: "QR3_PAYMENT" },
+          }),
+        }),
+      );
+      expect(captureException).not.toHaveBeenCalled();
+      expect(manteca.withdrawBalance).not.toHaveBeenCalled();
+      expect(manteca.convertBalanceToUsdc).not.toHaveBeenCalled();
+    });
+
+    it("captures a qr payment when the account lookup fails", async () => {
+      const error = new Error("bundler down");
+      const request = vi.spyOn(publicClient, "request").mockRejectedValueOnce(error);
+      const payload = { event: "SYNTHETIC_STATUS_UPDATE", data: { ...refundedSynthetic, externalId: userOpHash } };
+      const response = await appClient.index.$post({
+        header: { "md-webhook-signature": createSignature(payload) },
+        json: payload as never,
+      });
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+      expect(request).toHaveBeenCalledExactlyOnceWith(receiptQuery, { dedupe: true });
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(error, { level: "warning" });
+      expect(setUser).not.toHaveBeenCalled();
+      expect(captureEvent).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          message: "MantecaSyntheticStatusUpdate",
+          level: "info",
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          contexts: expect.objectContaining({
+            details: { id: "6af4a2b4f66675b8af775fbe", externalId: userOpHash, status: "WAITING", type: "QR3_PAYMENT" },
+          }),
+        }),
+      );
+    });
+
+    it("captures a qr payment whose user operation is not found", async () => {
+      const request = vi.spyOn(publicClient, "request").mockResolvedValueOnce(null);
+      const payload = {
+        event: "SYNTHETIC_STATUS_UPDATE",
+        data: { ...refundedSynthetic, externalId: userOpHash, status: "CANCELLED", currentStage: 5 },
+      };
+      const response = await appClient.index.$post({
+        header: { "md-webhook-signature": createSignature(payload) },
+        json: payload as never,
+      });
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+      expect(request).toHaveBeenCalledExactlyOnceWith(receiptQuery, { dedupe: true });
+      expect(setUser).not.toHaveBeenCalled();
+      expect(captureException).not.toHaveBeenCalled();
+      expect(captureEvent).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ message: "MantecaSyntheticStatusUpdate", level: "info" }),
+      );
+    });
+
+    it("returns ok for a qr payment", async () => {
+      vi.spyOn(manteca, "withdrawBalance").mockResolvedValue();
+      vi.spyOn(manteca, "convertBalanceToUsdc").mockResolvedValue();
+      const payload = {
+        event: "SYNTHETIC_STATUS_UPDATE",
+        data: {
+          id: "65b2c3d4e5f6a7b8c9d0e1f2",
+          numberId: "98765",
+          externalId: "my-external-ref-001",
+          userId: "64a1b2c3d4e5f6a7b8c9d0e2",
+          userNumberId: "12345",
+          userExternalId: "ext-001",
+          sessionId: "session-abc-123",
+          status: "COMPLETED",
+          type: "QR3_PAYMENT",
+          details: {
+            depositAddress: "0x1a2b3c4d5e6f...",
+            paymentAssetAmount: "15000.00",
+            paymentAsset: "ARS",
+            paymentAgainstAmount: "12.00",
+            paymentAgainst: "USDT",
+            paymentPrice: "1250.50",
+            priceExpireAt: "2026-02-21T15:30:00.000Z",
+            qrType: "QR3",
+            nationalId: "2026022100009876",
+          },
+          currentStage: 2,
+          stages: {
+            "0": { stageType: "ORDER", asset: "USDT_ARS", operation: "SELL", amount: "12.00" },
+            "1": { stageType: "WITHDRAW", asset: "ARS", network: "QR3", amount: "15000.00" },
+          },
+          creationTime: "2026-02-21T15:25:30.000Z",
+          updatedAt: "2026-02-21T15:26:45.000Z",
+        },
+      };
+      const response = await appClient.index.$post({
+        header: { "md-webhook-signature": createSignature(payload) },
+        json: payload as never,
+      });
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+      expect(captureEvent).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          message: "MantecaSyntheticStatusUpdate",
+          level: "info",
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          contexts: expect.objectContaining({
+            details: {
+              id: "65b2c3d4e5f6a7b8c9d0e1f2",
+              externalId: "my-external-ref-001",
+              status: "COMPLETED",
+              type: "QR3_PAYMENT",
+            },
+          }),
+        }),
+      );
+      expect(captureException).not.toHaveBeenCalled();
+      expect(manteca.withdrawBalance).not.toHaveBeenCalled();
+      expect(manteca.convertBalanceToUsdc).not.toHaveBeenCalled();
+      expect(setUser).not.toHaveBeenCalled();
+    });
+
+    it("returns ok for a waiting qr payment of the company", async () => {
+      const payload = { event: "SYNTHETIC_STATUS_UPDATE", data: refundedSynthetic };
+      const response = await appClient.index.$post({
+        header: { "md-webhook-signature": createSignature(payload) },
+        json: payload as never,
+      });
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+      expect(captureEvent).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          message: "MantecaSyntheticStatusUpdate",
+          level: "info",
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          contexts: expect.objectContaining({
+            details: {
+              id: "6af4a2b4f66675b8af775fbe",
+              externalId: "exa-sandbox-mwcdqru6-qr3-refund",
+              status: "WAITING",
+              type: "QR3_PAYMENT",
+            },
+          }),
+        }),
+      );
+      expect(captureException).not.toHaveBeenCalled();
+    });
+
+    it("returns ok for a synthetic without user external id", async () => {
+      const payload = {
+        event: "SYNTHETIC_STATUS_UPDATE",
+        data: {
+          id: "687f839bc536d39525e68a6e",
+          numberId: "5987",
+          externalId: "ramp-ref-478",
+          status: "CANCELLED",
+          type: "RAMP_OPERATION",
+          currentStage: 4,
+          details: { depositAddress: "4310001343800000045110", depositAlias: "COMPANY.ARS", price: "1637.70" },
+          userId: "685eba4842d304517432f6c5",
+          userNumberId: "100009791",
+          creationTime: "2025-07-22T09:27:07.506-03:00",
+          updatedAt: "2025-07-22T09:33:19.701-03:00",
+        },
+      };
+      const response = await appClient.index.$post({
+        header: { "md-webhook-signature": createSignature(payload) },
+        json: payload as never,
+      });
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+      expect(captureEvent).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          message: "MantecaSyntheticStatusUpdate",
+          level: "info",
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          contexts: expect.objectContaining({
+            details: {
+              id: "687f839bc536d39525e68a6e",
+              externalId: "ramp-ref-478",
+              status: "CANCELLED",
+              type: "RAMP_OPERATION",
+            },
+          }),
+        }),
+      );
+      expect(captureException).not.toHaveBeenCalled();
+    });
   });
 
   describe("when a deposit is detected", () => {
@@ -504,6 +872,68 @@ describe("manteca hook", () => {
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
     });
+
+    it("rejects a withdrawal of a user without destination", async () => {
+      vi.spyOn(manteca, "withdrawBalance").mockResolvedValue();
+      const payload = {
+        event: "WITHDRAW_STATUS_UPDATE",
+        data: {
+          id: "withdraw123",
+          asset: "USDC",
+          amount: "100",
+          userExternalId,
+          status: "CANCELLED",
+          userNumberId: "456",
+        },
+      };
+      const response = await appClient.index.$post({
+        header: { "md-webhook-signature": createSignature(payload) },
+        json: payload as never,
+      });
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({ code: "bad manteca" });
+      expect(captureEvent).not.toHaveBeenCalled();
+      expect(manteca.withdrawBalance).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("when a merchant withdrawal status is updated", () => {
+    it("captures a withdrawal of the company as an error without retrying", async () => {
+      vi.spyOn(manteca, "withdrawBalance").mockResolvedValue();
+      const payload = {
+        event: "WITHDRAW_STATUS_UPDATE",
+        data: {
+          amount: "4128.09",
+          asset: "ARS",
+          externalId: userOpHash,
+          id: "6af4a2b5f66675b8af775fd8",
+          status: "CANCELLED",
+          userExternalId: "Exactly-argentina",
+        },
+      };
+      const response = await appClient.index.$post({
+        header: { "md-webhook-signature": createSignature(payload) },
+        json: payload as never,
+      });
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual({ code: "invalid account address" });
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("invalid account address"), {
+        level: "error",
+        contexts: {
+          details: {
+            event: "WITHDRAW_STATUS_UPDATE",
+            id: "6af4a2b5f66675b8af775fd8",
+            externalId: userOpHash,
+            asset: "ARS",
+            amount: "4128.09",
+            status: "CANCELLED",
+          },
+        },
+      });
+      expect(manteca.withdrawBalance).not.toHaveBeenCalled();
+    });
   });
 
   describe("when a user onboarding is updated", () => {
@@ -689,3 +1119,98 @@ describe("manteca hook", () => {
 });
 
 vi.mock("@sentry/core", { spy: true });
+
+const userOpHash = padHex("0x4337", { size: 32 });
+
+const receiptQuery = { method: "eth_getUserOperationReceipt", params: [userOpHash] };
+
+function operation(sender: string) {
+  return {
+    userOpHash,
+    entryPoint: entryPoint06Address,
+    sender,
+    nonce: "0x0",
+    paymaster: zeroAddress,
+    actualGasCost: "0x0",
+    actualGasUsed: "0x0",
+    success: true,
+    reason: "",
+    logs: [],
+  };
+}
+
+const refundedSynthetic = {
+  creationTime: "2026-11-11T14:15:32.965-03:00",
+  currentStage: 4,
+  details: {
+    againstAmountOperated: "4128.09",
+    assetAmountOperated: "5.92562980",
+    merchant: { category: "UNKNOWN", categoryCode: "0000", legalId: "20608344401", name: "Jorge hanne" },
+    nationalId: "fake-nationalId-100069655",
+    paymentAgainst: "USDC",
+    paymentAgainstAmount: "5.92562980",
+    paymentAsset: "ARS",
+    paymentAssetAmount: "4128.09",
+    paymentEffectivePrice: "696.64999997",
+    paymentPrice: "696.65000000",
+    priceExpireAt: "2026-11-11T14:20:32.749-03:00",
+    qrType: "QR3",
+    refundedByRecipient: true,
+    sender: { exchange: "ARGENTINA", legalId: "30123456", name: "Juan", surname: "Perez" },
+  },
+  externalId: "exa-sandbox-mwcdqru6-qr3-refund", // cspell:ignore mwcdqru6
+  id: "6af4a2b4f66675b8af775fbe",
+  numberId: "70516",
+  platform: "CRIPTO", // cspell:ignore CRIPTO
+  stages: {
+    "1": {
+      against: "ARS",
+      asset: "USDC",
+      assetAmount: "5.92562980",
+      disallowDebt: false,
+      legalEntity: "WALLET_ARG",
+      orderId: "6af4a2b5f66675b8af775fc4",
+      price: "696.65",
+      side: "SELL",
+      stageType: "ORDER",
+      type: "MARKET",
+    },
+    "2": {
+      amount: "4128.09",
+      asset: "ARS",
+      destination: {
+        address: "ARS-.-4128.09-.-Jorge hanne-.-ARG-.-20608344401-.-qr3refund-.-PLUSBILLETERA",
+        network: "QR3",
+      },
+      legalEntity: "WALLET_ARG",
+      stageType: "WITHDRAW",
+      withdrawId: "6af4a2b5f66675b8af775fd8",
+    },
+    "3": {
+      amount: "4128.09",
+      amountToRefund: "5.92562980",
+      asset: "ARS",
+      assetToRefund: "USDC",
+      fullyRefunded: true,
+      internalRefund: false,
+      legalEntity: "WALLET_ARG",
+      networkId: "e49507ed-33f0-4189-a67c-f232f446d33f",
+      partial: false,
+      paymentRefundedAmount: "4128.09",
+      paymentTotalRefundedAmount: "4128.09",
+      refundId: "AAA:e49507ed-33f0-4189-a67c-f232f446d33f:4128.09",
+      refundReason: "User initiated refund",
+      refundedAt: "2026-11-11T14:16:04.288-03:00",
+      stageType: "REFUND",
+      totalAmount: "4128.09",
+      totalAmountToRefund: "5.92562980",
+    },
+    "4": { orderId: "6af4a2b5f66675b8af775fc4", stageType: "ORDER_REVERSAL" },
+  },
+  status: "WAITING",
+  type: "QR3_PAYMENT",
+  updatedAt: "2026-11-11T14:16:04.383-03:00",
+  userExternalId: "Exactly-argentina",
+  userId: "6adff39f0ee31861fc20cdaf",
+  userNumberId: "100114168",
+};
