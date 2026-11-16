@@ -51,7 +51,11 @@ export default createConfig({
       {
         id: network.id,
         rpc,
-        ...((network.id === anvil.id || network.id === moonbeamDev.id) && { cacheRpcRequests: false, reorgWindow: 0 }),
+        ...((network.id === anvil.id || network.id === moonbeamDev.id) && {
+          cacheRpcRequests: false,
+          rateLimitRpcRequests: false,
+          reorgWindow: 0,
+        }),
       },
     ]),
   ),
