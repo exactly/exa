@@ -21,6 +21,7 @@ import { CrossRepayData, IExaAccount, IMarket, ProposalType, RepayData, RollDebt
 import { IssuerChecker } from "../../src/IssuerChecker.sol";
 import { ProposalManager } from "../../src/ProposalManager.sol";
 
+import { LegacyExaAccountFactory } from "./LegacyExaAccountFactory.sol";
 import { MockSwapper } from "./MockSwapper.sol";
 
 contract BobScript is BaseScript {
@@ -210,6 +211,14 @@ contract BobScript is BaseScript {
     );
     releaseProposalManager.grantRole(keccak256("PROPOSER_ROLE"), address(release));
     release.allowPlugin(address(exaPlugin), true);
+    create3(
+      admin,
+      keccak256(abi.encode(exaPlugin.pluginMetadata().name, "legacy")),
+      abi.encodePacked(
+        type(LegacyExaAccountFactory).creationCode,
+        abi.encode(admin, factory.WEBAUTHN_OWNER_PLUGIN(), exaPlugin, factory.IMPL(), factory.ENTRYPOINT())
+      )
+    );
     vm.stopBroadcast();
   }
 
