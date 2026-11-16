@@ -50,6 +50,7 @@ export const cards = pgTable(
       .references(() => credentials.id)
       .notNull(),
     status: cardStatus("status").notNull().default("ACTIVE"),
+    tenant: text("tenant", { enum: ["BASE", "OP"] }).notNull(),
     lastFour: text("last_four").notNull(),
     mode: integer("mode").notNull().default(0),
     productId: text("product_id").notNull().default(PLATINUM_PRODUCT_ID),
