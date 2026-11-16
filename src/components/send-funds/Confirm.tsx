@@ -45,6 +45,7 @@ import { estimateCalls } from "../../utils/accountClient";
 import ensOptions, { ensName } from "../../utils/ensOptions";
 import estimate from "../../utils/estimate";
 import executionOptions from "../../utils/executionOptions";
+import floorCents from "../../utils/floorCents";
 import { presentArticle } from "../../utils/intercom";
 import {
   balancesOptions,
@@ -657,7 +658,9 @@ export default function Confirm() {
     return destination && quoted !== undefined ? { ...destination, amount: quoted } : undefined;
   }, [routeStatus, routed, route?.toAmount, destination, destinationAmount]);
   const receivedTokens = received ? Number(formatUnits(received.amount, received.decimals)) : 0;
-  const receivedUSD = received ? Number(formatUnits((received.amount * received.price) / WAD, received.decimals)) : 0;
+  const receivedUSD = received
+    ? Number(formatUnits(floorCents((received.amount * received.price) / 10n ** BigInt(received.decimals)), 18))
+    : 0;
   const receivedAmount = receivedTokens.toLocaleString(language, { maximumFractionDigits: 8 });
   const receivedSymbol = received?.symbol ?? "";
   const receivedSize = room && longest ? Math.min(36, Math.max(14, Math.floor((probe * room * 0.9) / longest))) : 36;
@@ -972,7 +975,7 @@ export default function Confirm() {
                               </Text>
                             </XStack>
                             <Text subHeadline secondary>
-                              {`$${Number(formatUnits((totalAmount * payPrice) / WAD, payDecimals)).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                              {`$${Number(formatUnits(floorCents((totalAmount * payPrice) / 10n ** BigInt(payDecimals)), 18)).toLocaleString(language, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                             </Text>
                           </YStack>
                         ) : (
