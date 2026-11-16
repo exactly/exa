@@ -411,7 +411,7 @@ export default function hook({
               if (!user) throw new Error("company user not found");
               return database
                 .update(credentials)
-                .set({ pandaId: user.id })
+                .set({ pandaId: user.id, bambooId: user.id })
                 .where(eq(credentials.id, referenceId))
                 .then(() => user.id);
             }));
@@ -585,7 +585,10 @@ export default function hook({
         personaShareToken,
       });
 
-      await database.update(credentials).set({ pandaId: id }).where(eq(credentials.id, referenceId));
+      await database
+        .update(credentials)
+        .set({ pandaId: id, bambooId: isBase ? id : undefined })
+        .where(eq(credentials.id, referenceId));
 
       getActiveSpan()?.setAttributes({ "exa.pandaId": id });
       setContext("persona", { inquiryId: personaShareToken, pandaId: id });

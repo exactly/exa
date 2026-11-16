@@ -32,6 +32,7 @@ import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
 import ServiceError from "../../utils/ServiceError";
 
+import type * as C from "@exactly/common/generated/chain";
 import type * as v from "valibot";
 
 const auth = createAuth(database, authSecret);
@@ -59,7 +60,18 @@ const app = route({
 });
 const appClient = testClient(app);
 
+const mocks = vi.hoisted(() => ({ isBase: vi.fn<(base: boolean) => boolean>((base) => base) }));
+
 vi.mock("@sentry/node", { spy: true });
+vi.mock("@exactly/common/generated/chain", async (importOriginal) => {
+  const original = await importOriginal<typeof C>();
+  return {
+    ...original,
+    get isBase() {
+      return mocks.isBase(original.isBase);
+    },
+  };
+});
 
 describe("authenticated", () => {
   beforeEach(async () => {
@@ -68,6 +80,7 @@ describe("authenticated", () => {
 
   afterEach(async () => {
     vi.restoreAllMocks();
+    mocks.isBase.mockReset();
     const keys = await Promise.all(
       ["bob", "bob-business", "bob-panda-business"].map((id) => redis.keys(`kyc:inquiry:${id}:*`)),
     );
@@ -3809,7 +3822,11 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
             return { key, iv, ciphertext, tag };
           }
 
-          it("returns ok when payload is valid", async () => {
+          it.each([
+            { tenant: "OP", isBase: false, bambooId: null },
+            { tenant: "BASE", isBase: true, bambooId: "pandaId" },
+          ])("returns ok when payload is valid on $tenant", async ({ isBase, bambooId }) => {
+            mocks.isBase.mockReturnValue(isBase);
             const credential = await database.query.credentials.findFirst({
               where: eq(credentials.id, account),
             });
@@ -3835,7 +3852,10 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
               chainId: chain.id,
             };
 
-            await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, account));
+            await database
+              .update(credentials)
+              .set({ pandaId: null, bambooId: null })
+              .where(eq(credentials.id, account));
             const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
               ok: true,
               status: 200,
@@ -3871,6 +3891,7 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
 
             expect(response.status).toBe(200);
             expect(updatedCredential?.pandaId).toBe("pandaId");
+            expect(updatedCredential?.bambooId).toBe(bambooId);
             expect(mockFetch).toHaveBeenCalledWith(
               expect.stringContaining("/issuing/applications/user"),
               expect.objectContaining({

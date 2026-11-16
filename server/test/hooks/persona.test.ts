@@ -398,7 +398,10 @@ describe("persona hook", () => {
 
   afterEach(async () => {
     await new Promise((resolve) => setImmediate(resolve));
-    await database.update(credentials).set({ account, pandaId: null }).where(eq(credentials.id, "persona-ref"));
+    await database
+      .update(credentials)
+      .set({ account, pandaId: null, bambooId: null })
+      .where(eq(credentials.id, "persona-ref"));
     vi.restoreAllMocks();
   });
 
@@ -452,6 +455,27 @@ describe("persona hook", () => {
       ),
       product: "travel insurance",
     });
+    await expect(
+      database.query.credentials.findFirst({
+        columns: { pandaId: true, bambooId: true },
+        where: eq(credentials.id, "persona-ref"),
+      }),
+    ).resolves.toStrictEqual({ pandaId: "new-panda-id", bambooId: null });
+  });
+
+  it("stores both panda ids on base", async () => {
+    mocks.isBase.mockReturnValue(true);
+
+    const response = await postInquiry();
+
+    expect(response.status).toBe(200);
+    expect(panda.createUser).toHaveBeenCalledOnce();
+    await expect(
+      database.query.credentials.findFirst({
+        columns: { pandaId: true, bambooId: true },
+        where: eq(credentials.id, "persona-ref"),
+      }),
+    ).resolves.toStrictEqual({ pandaId: "new-panda-id", bambooId: "new-panda-id" });
   });
 
   it("does not allow very high risk accounts", async () => {
@@ -962,7 +986,7 @@ describe("business representative", () => {
   afterEach(async () => {
     vi.resetAllMocks();
     await database.delete(cards).where(eq(cards.credentialId, referenceId));
-    await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, referenceId));
+    await database.update(credentials).set({ pandaId: null, bambooId: null }).where(eq(credentials.id, referenceId));
   });
 
   afterAll(async () => {
@@ -1013,8 +1037,11 @@ describe("business representative", () => {
     expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
     expect(captureException).not.toHaveBeenCalled();
     await expect(
-      database.query.credentials.findFirst({ columns: { pandaId: true }, where: eq(credentials.id, referenceId) }),
-    ).resolves.toStrictEqual({ pandaId: "business-user" });
+      database.query.credentials.findFirst({
+        columns: { pandaId: true, bambooId: true },
+        where: eq(credentials.id, referenceId),
+      }),
+    ).resolves.toStrictEqual({ pandaId: "business-user", bambooId: "business-user" });
     await expect(
       database.query.cards.findMany({
         columns: { id: true, lastFour: true, productId: true, status: true, tenant: true },

@@ -37,6 +37,7 @@ import accountInit from "@exactly/common/accountInit";
 import chain, {
   exaAccountFactoryAddress,
   exaPluginAddress,
+  isBase,
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
 import { Address, Hex } from "@exactly/common/validation";
@@ -894,7 +895,11 @@ The admin should add a member using [addMember method](https://www.better-auth.c
           const application = await panda.submitApplication(body);
           await database
             .update(credentials)
-            .set({ pandaId: application.id, source: member.organization.id })
+            .set({
+              pandaId: application.id,
+              bambooId: isBase ? application.id : undefined,
+              source: member.organization.id,
+            })
             .where(eq(credentials.id, credentialId));
           return c.json({ status: application.applicationStatus }, 200);
         } catch (error) {
