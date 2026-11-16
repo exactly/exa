@@ -237,10 +237,7 @@ if (!disabled.has("indexer")) {
   const indexerContainer = {
     image,
     workingDir: "/prod/indexer",
-    envs: Object.entries({ POSTGRES_URL: "indexer-postgres-url" }).map(([name, secret]) => ({
-      name,
-      valueSource: { secretKeyRef: { secret: `${stack}-${secret}`, version: "latest" } },
-    })),
+    envs: [{ name: "APP_STACK", value: stack }],
   };
   const indexerAccess = modules.indexer.map(
     (secret) =>
@@ -262,8 +259,8 @@ if (!disabled.has("indexer")) {
         containers: [
           {
             ...indexerContainer,
-            commands: ["dumb-init", "node_modules/.bin/ponder"],
-            args: ["start", "--schema", indexerDeployment, "--log-format", "json"],
+            commands: ["dumb-init", "node", "run.ts"],
+            args: ["node_modules/.bin/ponder", "start", "--schema", indexerDeployment, "--log-format", "json"],
             resources: { limits: { memory: "1Gi" } },
           },
         ],
@@ -284,8 +281,8 @@ if (!disabled.has("indexer")) {
           containers: [
             {
               ...indexerContainer,
-              commands: ["node", "promote.ts"],
-              args: [indexerDeployment],
+              commands: ["node", "run.ts"],
+              args: ["node", "promote.ts", indexerDeployment],
             },
           ],
           maxRetries: 0,
