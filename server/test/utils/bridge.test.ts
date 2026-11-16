@@ -2363,10 +2363,8 @@ describe("bridge utils", () => {
 
       it("returns NOT_AVAILABLE when incomplete account has unsupported id class", async () => {
         const fetchSpy = vi.spyOn(globalThis, "fetch");
-        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({ data: [incompletePersonaAccount] });
-        vi.spyOn(persona, "getDocumentForBridge").mockReturnValueOnce({
-          ...identityDocument,
-          id_class: { value: "wp" },
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({
+          data: [withDocumentClass(incompletePersonaAccount, "wp")],
         });
 
         await expect(bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" })).resolves.toStrictEqual({
@@ -2375,7 +2373,7 @@ describe("bridge utils", () => {
           status: "NOT_AVAILABLE",
         });
         expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("bridge not found identification class"), {
-          contexts: { bridge: { credentialId: "cred-1", idClass: "wp" } },
+          contexts: { bridge: { credentialId: "cred-1", idClasses: ["wp"] } },
           level: "warning",
         });
         expect(fetchSpy).not.toHaveBeenCalled();
@@ -2486,15 +2484,6 @@ describe("bridge utils", () => {
         expect(setContext).not.toHaveBeenCalled();
       });
 
-      it("throws when no valid document found", async () => {
-        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({ data: [enabledPersonaAccount] });
-        vi.spyOn(persona, "getDocumentForBridge").mockReturnValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
-
-        await expect(bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" })).rejects.toThrow(
-          bridge.ErrorCodes.NO_DOCUMENT,
-        );
-      });
-
       it("returns NOT_AVAILABLE when country is denylisted", async () => {
         const fetchSpy = vi.spyOn(globalThis, "fetch");
         vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({
@@ -2598,10 +2587,8 @@ describe("bridge utils", () => {
       });
 
       it("returns NOT_AVAILABLE when id class is not mappable to bridge type", async () => {
-        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({ data: [enabledPersonaAccount] });
-        vi.spyOn(persona, "getDocumentForBridge").mockReturnValueOnce({
-          ...identityDocument,
-          id_class: { value: "wp" },
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({
+          data: [withDocumentClass(enabledPersonaAccount, "wp")],
         });
 
         const result = await bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" });
@@ -2614,17 +2601,15 @@ describe("bridge utils", () => {
         expect(captureException).toHaveBeenCalledWith(
           expect.objectContaining({ message: "bridge not found identification class" }),
           expect.objectContaining({
-            contexts: { bridge: { credentialId: "cred-1", idClass: "wp" } },
+            contexts: { bridge: { credentialId: "cred-1", idClasses: ["wp"] } },
             level: "warning",
           }),
         );
       });
 
       it("returns NOT_AVAILABLE when id class is not listed in IdentificationClasses", async () => {
-        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({ data: [enabledPersonaAccount] });
-        vi.spyOn(persona, "getDocumentForBridge").mockReturnValueOnce({
-          ...identityDocument,
-          id_class: { value: "unknown_type" },
+        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({
+          data: [withDocumentClass(enabledPersonaAccount, "unknown_type")],
         });
 
         const result = await bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" });
@@ -2637,7 +2622,7 @@ describe("bridge utils", () => {
         expect(captureException).toHaveBeenCalledWith(
           expect.objectContaining({ message: "bridge not found identification class" }),
           expect.objectContaining({
-            contexts: { bridge: { credentialId: "cred-1", idClass: "unknown_type" } },
+            contexts: { bridge: { credentialId: "cred-1", idClasses: ["unknown_type"] } },
             level: "warning",
           }),
         );
@@ -6503,6 +6488,19 @@ const incompletePersonaAccount = {
     },
   },
 };
+
+function withDocumentClass<T extends { attributes: { fields: object } }>(account: T, idClass: string) {
+  return {
+    ...account,
+    attributes: {
+      ...account.attributes,
+      fields: {
+        ...account.attributes.fields,
+        documents: { value: [{ value: { ...identityDocument, id_class: { value: idClass } } }] },
+      },
+    },
+  };
+}
 
 function endorsement(
   name: "base" | "faster_payments" | "pix" | "pix_offramp" | "pix_onramp" | "sepa" | "spei",
