@@ -1016,6 +1016,8 @@
   "I can’t sign in. My passkey isn’t linked to an account.": "No puedo iniciar sesión. Mi llave de acceso no está vinculada a una cuenta.",
   "Use Face ID or Touch ID": "Usa Face ID o Touch ID",
   "Stolen Device Protection is on, so away from familiar places like home or work your passkey can only be unlocked with Face ID or Touch ID, not your passcode. Try again and unlock it with Face ID or Touch ID.": "La Protección en caso de robo del dispositivo está activada, así que lejos de lugares conocidos como tu casa o tu trabajo tu llave de acceso solo se puede desbloquear con Face ID o Touch ID, no con tu código. Intenta de nuevo y usa Face ID o Touch ID.",
+  "Another passkey request is open": "Hay otra solicitud de llave de acceso abierta",
+  "Finish or close the passkey prompt that is already open, then try again. If you don’t see one, close the app completely and open it again.": "Termina o cierra la solicitud de llave de acceso que ya está abierta y luego intenta de nuevo. Si no ves ninguna, cierra la app por completo y vuelve a abrirla.",
   "Your transactions will show up here once you start using your card.": "Tus transacciones aparecerán aquí cuando empieces a usar tu tarjeta.",
   "Your Visa Signature Exa Card comes with multiple benefits including car rental discounts, travel assistance, and more.": "Tu Exa Card Visa Signature incluye múltiples beneficios como descuentos en alquiler de autos, asistencia de viaje, y más.",
   "Zip code": "Código postal",

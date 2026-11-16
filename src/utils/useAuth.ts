@@ -77,7 +77,10 @@ function handleError(error: unknown, onIssue: (issue: SignInIssue) => void, t: T
         ? "biometrics"
         : error.message.includes("Stolen Device Protection is enabled")
           ? "stolen"
-          : undefined
+          : ("code" in error && error.code === "ERR_PENDING_PASSKEY_REQUEST") ||
+              error.message.includes("There is already a pending passkey request")
+            ? "pending"
+            : undefined
       : undefined;
   if (passkey) {
     if (!auth) reportError(error);
@@ -114,4 +117,4 @@ function handleError(error: unknown, onIssue: (issue: SignInIssue) => void, t: T
   reportError(error);
 }
 
-export type SignInIssue = "backup" | "biometrics" | "domain" | "passkey" | "stolen" | "unlinked";
+export type SignInIssue = "backup" | "biometrics" | "domain" | "passkey" | "pending" | "stolen" | "unlinked";

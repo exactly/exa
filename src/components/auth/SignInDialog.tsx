@@ -61,6 +61,25 @@ export default function SignInDialog({
           onClose={onClose}
         />
       );
+    case "pending":
+      return (
+        <ErrorDialog
+          open={open}
+          title={t("Another passkey request is open")}
+          description={t(
+            "Finish or close the passkey prompt that is already open, then try again. If you don’t see one, close the app completely and open it again.",
+          )}
+          action={{
+            icon: <RefreshCw />,
+            label: t("Try again"),
+            onPress: () => {
+              onClose();
+              onRetry();
+            },
+          }}
+          onClose={onClose}
+        />
+      );
     case "passkey":
       return (
         <ErrorDialog
