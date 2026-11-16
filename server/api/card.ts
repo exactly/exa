@@ -36,7 +36,7 @@ import { isAddressEqual } from "viem";
 import { base, optimism } from "viem/chains";
 import { createSiweMessage, parseSiweMessage, verifySiweMessage } from "viem/siwe";
 
-import chain from "@exactly/common/generated/chain";
+import chain, { isBase } from "@exactly/common/generated/chain";
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 import {
   BASE_PRODUCT_ID,
@@ -371,6 +371,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
               where: and(
                 inArray(cards.status, ["ACTIVE", "FROZEN"]),
                 query.lastFour ? eq(cards.lastFour, query.lastFour) : undefined,
+                eq(cards.tenant, isBase ? "BASE" : "OP"),
               ),
             },
           },
@@ -540,7 +541,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
           with: {
             cards: {
               columns: { id: true },
-              where: inArray(cards.status, ["ACTIVE", "FROZEN"]),
+              where: and(inArray(cards.status, ["ACTIVE", "FROZEN"]), eq(cards.tenant, isBase ? "BASE" : "OP")),
             },
           },
         });
@@ -636,7 +637,10 @@ Send a \`shipping\` object with the address, and optionally the \`displayName\` 
               with: {
                 cards: {
                   columns: { id: true, status: true, productId: true },
-                  where: inArray(cards.status, ["ACTIVE", "FROZEN", "DELETED"]),
+                  where: and(
+                    inArray(cards.status, ["ACTIVE", "FROZEN", "DELETED"]),
+                    eq(cards.tenant, isBase ? "BASE" : "OP"),
+                  ),
                 },
               },
             });
@@ -748,6 +752,7 @@ Send a \`shipping\` object with the address, and optionally the \`displayName\` 
                 {
                   id: card.id,
                   credentialId,
+                  tenant: isBase ? "BASE" : "OP",
                   lastFour: card.last4,
                   status: "shipping" in json ? "FROZEN" : "ACTIVE",
                   productId,
@@ -972,6 +977,7 @@ async function encryptPIN(pin: string) {
                   where: and(
                     ne(cards.status, "DELETED"),
                     patch.lastFour ? eq(cards.lastFour, patch.lastFour) : undefined,
+                    eq(cards.tenant, isBase ? "BASE" : "OP"),
                   ),
                 },
               },

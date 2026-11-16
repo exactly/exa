@@ -33,6 +33,7 @@ import creditWorker from "../../workers/credit/worker";
 import { finished, tip } from "../redis";
 
 import type { Job as Credit } from "../../workers/credit/job";
+import type * as C from "@exactly/common/generated/chain";
 import type { Address } from "@exactly/common/validation";
 import type * as sentry from "@sentry/node";
 import type { JobsOptions } from "bullmq";
@@ -49,6 +50,21 @@ const queue = new Queue<Credit, void, "credit">("credit", { connection: bullmq }
 const events = new QueueEvents("credit", { connection: bullmq, lastEventId: await tip(bullmq, queue) });
 const readContract = publicClient.readContract;
 let worker: ReturnType<typeof creditWorker>;
+const tenants = [
+  { isBase: false, own: "OP", other: "BASE" },
+  { isBase: true, own: "BASE", other: "OP" },
+] as const;
+const mocks = vi.hoisted(() => ({ isBase: vi.fn<(base: boolean) => boolean>() }));
+
+vi.mock("@exactly/common/generated/chain", async (importOriginal) => {
+  const original = await importOriginal<typeof C>();
+  return {
+    ...original,
+    get isBase() {
+      return mocks.isBase(original.isBase);
+    },
+  };
+});
 
 beforeAll(async () => {
   await database.insert(credentials).values([
@@ -58,13 +74,13 @@ beforeAll(async () => {
     { id: "credit-holder", account: holder, factory: exaAccountFactoryAddress, publicKey: new Uint8Array() },
   ]);
   await database.insert(cards).values([
-    { id: "credit-card", credentialId: "credit-worker", lastFour: "1234" },
-    { id: "credit-debit-card", credentialId: "credit-debit", lastFour: "1234" },
-    { id: "credit-empty-card", credentialId: "credit-empty", lastFour: "1234" },
-    { id: "credit-active", credentialId: "credit-holder", lastFour: "1111" },
-    { id: "credit-deleted", credentialId: "credit-holder", lastFour: "2222", status: "DELETED" },
-    { id: "credit-frozen", credentialId: "credit-holder", lastFour: "3333", status: "FROZEN" },
-    { id: "credit-installments", credentialId: "credit-holder", lastFour: "4444", mode: 3 },
+    { id: "credit-card", credentialId: "credit-worker", tenant: "OP", lastFour: "1234" },
+    { id: "credit-debit-card", credentialId: "credit-debit", tenant: "OP", lastFour: "1234" },
+    { id: "credit-empty-card", credentialId: "credit-empty", tenant: "OP", lastFour: "1234" },
+    { id: "credit-active", credentialId: "credit-holder", tenant: "OP", lastFour: "1111" },
+    { id: "credit-deleted", credentialId: "credit-holder", tenant: "OP", lastFour: "2222", status: "DELETED" },
+    { id: "credit-frozen", credentialId: "credit-holder", tenant: "OP", lastFour: "3333", status: "FROZEN" },
+    { id: "credit-installments", credentialId: "credit-holder", tenant: "OP", lastFour: "4444", mode: 3 },
   ]);
   await Promise.all([
     collateralize("0xc12ed1", [wethAddress, marketWETHAddress, parseEther("1")]),
@@ -80,8 +96,12 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   vi.restoreAllMocks();
+  mocks.isBase.mockReset().mockImplementation((base) => base);
   sendPushNotificationMock.mockResolvedValue({});
-  await database.update(cards).set({ mode: 0, status: "ACTIVE" }).where(eq(cards.credentialId, "credit-worker"));
+  await database
+    .update(cards)
+    .set({ mode: 0, status: "ACTIVE", tenant: "OP" })
+    .where(eq(cards.credentialId, "credit-worker"));
 });
 
 afterAll(async () => {
@@ -238,6 +258,34 @@ describe("credit worker", () => {
 
   it("does not change deleted cards", async () => {
     await database.update(cards).set({ status: "DELETED" }).where(eq(cards.id, "credit-card"));
+
+    await jobFinished(account);
+
+    await expect(
+      database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-card") }),
+    ).resolves.toStrictEqual({ mode: 0 });
+    expect(sendPushNotificationMock).not.toHaveBeenCalled();
+  });
+
+  it.each(tenants)("activates credit mode on cards of $own tenant", async ({ isBase, own }) => {
+    mocks.isBase.mockReturnValue(isBase);
+    await database.update(cards).set({ tenant: own }).where(eq(cards.id, "credit-card"));
+
+    await jobFinished(account);
+
+    await expect(
+      database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-card") }),
+    ).resolves.toStrictEqual({ mode: 1 });
+    expect(sendPushNotificationMock).toHaveBeenCalledExactlyOnceWith({
+      userId: account,
+      headings: t("Credit mode activated"),
+      contents: t("Your card is now in credit mode"),
+    });
+  });
+
+  it.each(tenants)("does not change cards from $other tenant", async ({ isBase, other }) => {
+    mocks.isBase.mockReturnValue(isBase);
+    await database.update(cards).set({ tenant: other }).where(eq(cards.id, "credit-card"));
 
     await jobFinished(account);
 
