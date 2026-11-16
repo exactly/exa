@@ -11,8 +11,10 @@ import { HTTPException } from "hono/http-exception";
 import { testClient } from "hono/testing";
 import { env } from "node:process";
 import { nonEmpty, parse, pipe, string } from "valibot";
-import { hexToBytes, padHex, zeroAddress, zeroHash } from "viem";
+import { getAbiItem, hexToBytes, padHex, zeroAddress, zeroHash } from "viem";
+import { entryPoint06Abi, entryPoint06Address } from "viem/account-abstraction";
 import { privateKeyToAddress } from "viem/accounts";
+import { moonbeamDev } from "viem/chains";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
@@ -25,6 +27,7 @@ import database, { credentials } from "../../database";
 import authenticate from "../../middleware/auth";
 import { BusinessApplicationError } from "../../utils/panda";
 import createPersona, * as Persona from "../../utils/persona";
+import publicClient, { clients } from "../../utils/publicClient";
 import createBridge, * as Bridge from "../../utils/ramps/bridge";
 import createManteca, * as Manteca from "../../utils/ramps/manteca";
 import ServiceError from "../../utils/ServiceError";
@@ -61,6 +64,8 @@ const app = route({
   persona,
 });
 const appClient = testClient(app);
+const remote = clients.get(moonbeamDev.id);
+if (!remote) throw new Error("missing remote client");
 
 describe("ramp api", () => {
   const owner = privateKeyToAddress(padHex("0xdef"));
@@ -1693,6 +1698,232 @@ describe("ramp api", () => {
     });
   });
 
+  describe("qr", () => {
+    const settlement = parse(Address, padHex("0x5e7", { size: 20 }));
+    const code = "8d0f05d6-fb17-4adc-8003-de9a0ec9c77a";
+    const userOpHash = padHex("0x4337", { size: 32 });
+    const lock = {
+      code,
+      type: "QR3",
+      companyId: "68a6270d62a6d9f582f40c00",
+      userId: "6adff39f0ee31861fc20cdaf",
+      userNumberId: "100114168",
+      userExternalId: "Exactly-argentina",
+      sender: { exchange: "ARGENTINA", legalId: "30123456", name: "Jane", surname: "Doe" },
+      paymentRecipientName: "Ricardo Fort",
+      paymentRecipientLegalId: "20505736195",
+      paymentAssetAmount: "1706.37",
+      paymentAsset: "ARS",
+      paymentPrice: "696.70000000",
+      paymentAgainstAmount: "2.44921774",
+      expireAt: "2026-11-11T11:33:26.000-03:00",
+      creationTime: "2026-11-11T11:28:26.096-03:00",
+    };
+    const synthetic = {
+      id: "synthetic",
+      numberId: "70009",
+      externalId: userOpHash,
+      status: "STARTING" as const,
+      type: "QR3_PAYMENT",
+    };
+
+    it("returns 400 for no credential", async () => {
+      const response = await appClient.qr.$post(
+        { json: { qr: "qr3" } },
+        { headers: { "test-credential-id": "non-existent" } },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({ code: "no credential" });
+    });
+
+    describe("lock", () => {
+      it("locks with the persona dni as sender", async () => {
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(basicAccount);
+        const lockQrPayment = vi.spyOn(manteca, "lockQrPayment").mockResolvedValueOnce(lock);
+        vi.spyOn(manteca, "getSettlement").mockResolvedValueOnce(settlement);
+
+        const response = await appClient.qr.$post(
+          { json: { qr: "qr3" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({
+          code,
+          nonceKey: "0x6578612d717200018d0f05d6fb174adc8003de9a0ec9c77a",
+          amount: "2.44921774",
+          expireAt: lock.expireAt,
+          recipient: "Ricardo Fort",
+          receiver: settlement,
+        });
+        expect(lockQrPayment).toHaveBeenCalledWith({
+          paymentDestination: "qr3",
+          against: "USDC",
+          sender: { legalIdNationality: "AR", legalId: "30123456", name: "Jane", surname: "Doe" },
+        });
+        expect(manteca.getSettlement).toHaveBeenCalledWith("ARS");
+      });
+
+      it("returns 206 when the qr has no amount", async () => {
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(basicAccount);
+        vi.spyOn(manteca, "lockQrPayment").mockResolvedValueOnce({ ...lock, code: "", paymentAgainstAmount: "0" });
+
+        const response = await appClient.qr.$post(
+          { json: { qr: "qr3manualamount" } }, // cspell:ignore manualamount
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(206);
+        await expect(response.json()).resolves.toStrictEqual({ recipient: "Ricardo Fort" });
+      });
+
+      it("returns 400 without a persona account", async () => {
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        const lockQrPayment = vi.spyOn(manteca, "lockQrPayment");
+
+        const response = await appClient.qr.$post(
+          { json: { qr: "qr3" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code: "no persona account" });
+        expect(lockQrPayment).not.toHaveBeenCalled();
+      });
+
+      it("returns 400 without a national id", async () => {
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(passportAccount);
+        const lockQrPayment = vi.spyOn(manteca, "lockQrPayment");
+
+        const response = await appClient.qr.$post(
+          { json: { qr: "qr3" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code: "no document" });
+        expect(lockQrPayment).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("status", () => {
+      it("returns the synthetic of a payment of the account", async () => {
+        const getLogs = vi.spyOn(publicClient, "getLogs").mockResolvedValueOnce([operationEvent(account)] as never);
+        const remoteLogs = vi.spyOn(remote, "getLogs").mockResolvedValueOnce([]);
+        const getSynthetic = vi.spyOn(manteca, "getSynthetic").mockResolvedValueOnce(synthetic);
+
+        const response = await appClient.qr[":userOpHash"].$get(
+          { param: { userOpHash } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({ id: "synthetic", status: "STARTING" });
+        expect(getLogs).toHaveBeenCalledExactlyOnceWith(logsQuery);
+        expect(remoteLogs).toHaveBeenCalledExactlyOnceWith(logsQuery);
+        expect(getSynthetic).toHaveBeenCalledExactlyOnceWith(userOpHash);
+        expect(captureException).not.toHaveBeenCalled();
+      });
+
+      it("returns the synthetic of a payment made on another network", async () => {
+        vi.spyOn(publicClient, "getLogs").mockResolvedValueOnce([]);
+        const remoteLogs = vi.spyOn(remote, "getLogs").mockResolvedValueOnce([operationEvent(account)] as never);
+        const getSynthetic = vi.spyOn(manteca, "getSynthetic").mockResolvedValueOnce(synthetic);
+
+        const response = await appClient.qr[":userOpHash"].$get(
+          { param: { userOpHash } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({ id: "synthetic", status: "STARTING" });
+        expect(remoteLogs).toHaveBeenCalledExactlyOnceWith(logsQuery);
+        expect(getSynthetic).toHaveBeenCalledExactlyOnceWith(userOpHash);
+        expect(captureException).not.toHaveBeenCalled();
+      });
+
+      it.each([
+        ["another account", [operationEvent(deposit)]],
+        ["an unknown user operation", []],
+      ])("returns 404 for %s", async (_, logs) => {
+        vi.spyOn(publicClient, "getLogs").mockResolvedValueOnce(logs as never);
+        vi.spyOn(remote, "getLogs").mockResolvedValueOnce([]);
+        const getSynthetic = vi.spyOn(manteca, "getSynthetic");
+
+        const response = await appClient.qr[":userOpHash"].$get(
+          { param: { userOpHash } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(404);
+        await expect(response.json()).resolves.toStrictEqual({ code: "payment not found" });
+        expect(getSynthetic).not.toHaveBeenCalled();
+        expect(captureException).not.toHaveBeenCalled();
+      });
+
+      it("returns 404 for a payment not executed", async () => {
+        vi.spyOn(publicClient, "getLogs").mockResolvedValueOnce([operationEvent(account)] as never);
+        vi.spyOn(remote, "getLogs").mockResolvedValueOnce([]);
+        const getSynthetic = vi.spyOn(manteca, "getSynthetic").mockResolvedValueOnce(null);
+
+        const response = await appClient.qr[":userOpHash"].$get(
+          { param: { userOpHash } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(404);
+        await expect(response.json()).resolves.toStrictEqual({ code: "payment not executed" });
+        expect(getSynthetic).toHaveBeenCalledExactlyOnceWith(userOpHash);
+        expect(captureException).not.toHaveBeenCalled();
+      });
+
+      it("returns 400 for no credential", async () => {
+        const getLogs = vi.spyOn(publicClient, "getLogs");
+        const remoteLogs = vi.spyOn(remote, "getLogs");
+
+        const response = await appClient.qr[":userOpHash"].$get(
+          { param: { userOpHash } },
+          { headers: { "test-credential-id": "non-existent" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code: "no credential" });
+        expect(getLogs).not.toHaveBeenCalled();
+        expect(remoteLogs).not.toHaveBeenCalled();
+      });
+
+      it("returns 400 for a bad user operation hash", async () => {
+        const getLogs = vi.spyOn(publicClient, "getLogs");
+        const remoteLogs = vi.spyOn(remote, "getLogs");
+
+        const response = await appClient.qr[":userOpHash"].$get(
+          { param: { userOpHash: "0x4337" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(400);
+        expect(getLogs).not.toHaveBeenCalled();
+        expect(remoteLogs).not.toHaveBeenCalled();
+      });
+
+      it("rejects a user operation hash on the lock route", async () => {
+        const getPaymentLock = vi.spyOn(manteca, "getPaymentLock");
+        const executeQrPayment = vi.spyOn(manteca, "executeQrPayment");
+
+        const response = await appClient.qr.$post(
+          { json: { userOpHash } as never },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toMatchObject({ code: "bad qr" });
+        expect(getPaymentLock).not.toHaveBeenCalled();
+        expect(executeQrPayment).not.toHaveBeenCalled();
+      });
+    });
+  });
+
   describe("create external account", () => {
     const input = {
       currency: "USD" as const,
@@ -2263,3 +2494,92 @@ const externalAccount = {
 function setBridgeCredential(values: { bridgeId?: null | string; salt?: string } = bridgeCredential) {
   return database.update(credentials).set(values).where(eq(credentials.id, "ramp-bridge"));
 }
+
+function operationEvent(sender: Address) {
+  return { args: { userOpHash: padHex("0x4337", { size: 32 }), sender, success: true } };
+}
+
+const logsQuery = {
+  address: entryPoint06Address,
+  event: getAbiItem({ abi: entryPoint06Abi, name: "UserOperationEvent" }),
+  args: { userOpHash: padHex("0x4337", { size: 32 }) },
+  fromBlock: "earliest",
+  strict: true,
+};
+
+const passport = {
+  value: {
+    id_class: { value: "pp" },
+    id_number: { value: "AAA123456" },
+    id_issuing_country: { value: "AR" },
+    id_document_id: { value: "doc_pp" },
+  },
+};
+
+const basicAccount = {
+  id: "act_qr",
+  type: "account" as const,
+  attributes: {
+    "country-code": "AR",
+    "email-address": "jane@example.com",
+    "name-first": "Jane",
+    "name-middle": null,
+    "name-last": "Doe",
+    "address-street-1": "123 Main St",
+    "address-street-2": null,
+    "address-city": "Buenos Aires",
+    "address-subdivision": "CABA", // cspell:ignore CABA
+    "address-postal-code": "1000",
+    "social-security-number": null,
+    "phone-number": "+5491123456789",
+    birthdate: "1990-01-01",
+    fields: {
+      name: { value: { first: { value: "Jane" }, middle: { value: null }, last: { value: "Doe" } } },
+      address: {
+        value: {
+          street_1: { value: "123 Main St" },
+          street_2: { value: null },
+          city: { value: "Buenos Aires" },
+          subdivision: { value: "CABA" },
+          postal_code: { value: "1000" },
+          country_code: { value: "AR" },
+        },
+      },
+      birthdate: { value: "1990-01-01" },
+      phone_number: { value: "+5491123456789" },
+      email_address: { value: "jane@example.com" },
+      selfie_photo: { value: { filename: "selfie.jpg", url: "https://example.com/selfie.jpg" } },
+      rain_e_sign_consent: { value: true },
+      exa_card_tc: { value: true },
+      privacy__policy: { value: true },
+      account_opening_disclosure: { value: null },
+      economic_activity: { value: "Developer" },
+      annual_salary: { value: "50000" },
+      expected_monthly_volume: { value: "1000" },
+      accurate_info_confirmation: { value: true },
+      non_unauthorized_solicitation: { value: true },
+      non_illegal_activities_2: { value: "No" as const },
+      documents: {
+        value: [
+          passport,
+          {
+            value: {
+              id_class: { value: "id" },
+              id_number: { value: "30123456" },
+              id_issuing_country: { value: "AR" },
+              id_document_id: { value: "doc_id" },
+            },
+          },
+        ],
+      },
+    },
+  },
+};
+
+const passportAccount = {
+  ...basicAccount,
+  attributes: {
+    ...basicAccount.attributes,
+    fields: { ...basicAccount.attributes.fields, documents: { value: [passport] } },
+  },
+};
