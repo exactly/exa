@@ -91,6 +91,7 @@ export default defineConfig([
           "ProposalManager.sol/ProposalManager.json",
           "Refunder.sol/Refunder.json",
           "UpgradeableModularAccount.sol/UpgradeableModularAccount.json",
+          "WebauthnOwnerPlugin.sol/WebauthnOwnerPlugin.json",
         ],
       }),
       {
@@ -117,6 +118,12 @@ export default defineConfig([
           const networkContracts = (chain ? sameSide.map(([{ id }]) => id) : [anvil.id, moonbeamDev.id]).map((id) => {
             const exaPreviewer = loadBroadcast("ExaPreviewer", id).transactions[0]?.contractAddress;
             if (!exaPreviewer) throw new Error(`missing exaPreviewer on ${id}`);
+            const webauthnOwnerPlugin = (
+              id === anvil.id || id === moonbeamDev.id
+                ? loadBroadcast("Account", id)
+                : loadBroadcast("Plugin", id, "@exactly/plugin/node_modules/webauthn-owner-plugin")
+            ).transactions[0]?.contractAddress;
+            if (!webauthnOwnerPlugin) throw new Error(`missing webauthnOwnerPlugin on ${id}`);
             return [
               id,
               {
@@ -125,6 +132,7 @@ export default defineConfig([
                 previewer: getAddress(loadDeployment("Previewer", true, id).address),
                 ratePreviewer: getAddress(loadDeployment("RatePreviewer", true, id).address),
                 swapper: getAddress(perChain(deploy.accounts.swapper, id)),
+                webauthnOwnerPlugin: getAddress(webauthnOwnerPlugin),
               },
             ] as const;
           });
@@ -275,7 +283,7 @@ export default defineConfig([
               `export const factories: Readonly<Record<"legacy" | "versions", readonly \`0x\${string}\`[]>> = ${JSON.stringify(factories)}`,
               `export const factoryChains: ReadonlyMap<number, Readonly<{ network: string; startBlock: number; swapper: \`0x\${string}\` }>> = new Map(${JSON.stringify(factoryChains.map(({ id, network, startBlock }) => [id, { network, startBlock, swapper: getAddress(perChain(deploy.accounts.swapper, id)) }]))})`,
               `export const issuerCheckerPreviewerCode: \`0x\${string}\` = "${IssuerCheckerPreviewer.deployedBytecode.object}"`,
-              `export const networks: ReadonlyMap<number, Readonly<Record<"auditor" | "exaPreviewer" | "previewer" | "ratePreviewer" | "swapper", \`0x\${string}\`>>> = new Map(${JSON.stringify(networkContracts)})`,
+              `export const networks: ReadonlyMap<number, Readonly<Record<"auditor" | "exaPreviewer" | "previewer" | "ratePreviewer" | "swapper" | "webauthnOwnerPlugin", \`0x\${string}\`>>> = new Map(${JSON.stringify(networkContracts)})`,
               `export const pricePreviewerCode: \`0x\${string}\` = "${PricePreviewer.bytecode.object}"`,
               'type AlchemyChain = ((Chain & { smartAccount: true }) | (Omit<Chain, "nativeCurrency"> & { nativeCurrency?: Chain["nativeCurrency"]; smartAccount?: never })) & { rpcUrls: { alchemy: { http: readonly [string] } } }',
               ...(chain
@@ -338,10 +346,10 @@ function loadDeployment<R extends boolean = true>(
   }
 }
 
-function loadBroadcast(script: string, id = chainId) {
+function loadBroadcast(script: string, id = chainId, root = "@exactly/plugin") {
   return JSON.parse(
     readFileSync(
-      `node_modules/@exactly/plugin/broadcast/${script}.s.sol/${id === moonbeamDev.id ? anvil.id : id}/run-latest.json`,
+      `node_modules/${root}/broadcast/${script}.s.sol/${id === moonbeamDev.id ? anvil.id : id}/run-latest.json`,
       "utf8",
     ),
   ) as { transactions: { contractAddress: string }[] };
