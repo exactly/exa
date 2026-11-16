@@ -73,7 +73,8 @@ export function startKYC() {
             handleCancel();
             resolve({ status: "cancel" });
           },
-          onError: (error) => {
+          onError: (error: { code: string }) => {
+            if (error.code === "camera_error") return;
             signal.removeEventListener("abort", onAbort);
             globalThis.removeEventListener("pagehide", onPageHide);
             client.destroy();
@@ -191,7 +192,8 @@ function startScopedInquiry(
             queryClient.invalidateQueries({ queryKey }).catch(reportError);
             resolve({ status: "cancel" });
           },
-          onError: (error) => {
+          onError: (error: { code: string }) => {
+            if (error.code === "camera_error") return;
             signal.removeEventListener("abort", onAbort);
             globalThis.removeEventListener("pagehide", onPageHide);
             client.destroy();
