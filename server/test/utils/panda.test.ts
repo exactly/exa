@@ -41,11 +41,9 @@ describe("decline reasons", () => {
 
 describe("panda request", () => {
   it("extracts entity from url on not found", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-      ok: false,
-      status: 404,
-      text: () => Promise.resolve('{"message":"Not Found","error":"NotFoundError","statusCode":404}'),
-    } as Response);
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response('{"message":"Not Found","error":"NotFoundError","statusCode":404}', { status: 404 }),
+    );
 
     const rejection = panda.getUser("some-id");
     await expect(rejection).rejects.toBeInstanceOf(ServiceError);
@@ -53,11 +51,9 @@ describe("panda request", () => {
   });
 
   it("classifies generic not found as not found", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-      ok: false,
-      status: 404,
-      text: () => Promise.resolve('{"statusCode":404,"error":"Not Found","message":"Not Found"}'),
-    } as Response);
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response('{"statusCode":404,"error":"Not Found","message":"Not Found"}', { status: 404 }),
+    );
 
     const rejection = panda.getUser("some-id");
     await expect(rejection).rejects.toBeInstanceOf(ServiceError);
@@ -65,16 +61,24 @@ describe("panda request", () => {
   });
 
   it("keeps typed non-404 classification", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-      ok: false,
-      status: 400,
-      text: () => Promise.resolve('{"statusCode":400,"error":"Not Found","message":"invalid"}'),
-    } as Response);
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response('{"statusCode":400,"error":"Not Found","message":"invalid"}', { status: 400 }),
+    );
 
     await expect(panda.getUser("some-id")).rejects.toMatchObject({
       name: "PandaNotFound",
       status: 400,
       message: "invalid",
+    });
+  });
+
+  it("keeps the status in plain-text errors", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("Not Found", { status: 404 }));
+
+    await expect(panda.getUser("some-id")).rejects.toMatchObject({
+      name: "PandaNotFound",
+      status: 404,
+      message: "404 Not Found",
     });
   });
 
@@ -98,11 +102,9 @@ describe("panda request", () => {
   });
 
   it("extracts card entity from url on not found", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-      ok: false,
-      status: 404,
-      text: () => Promise.resolve('{"message":"Not Found","error":"NotFoundError","statusCode":404}'),
-    } as Response);
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response('{"message":"Not Found","error":"NotFoundError","statusCode":404}', { status: 404 }),
+    );
 
     const rejection = panda.getCard("some-id");
     await expect(rejection).rejects.toBeInstanceOf(ServiceError);
@@ -120,10 +122,7 @@ describe("panda request", () => {
         expirationYear: "2029",
       },
     ];
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-      ok: true,
-      arrayBuffer: () => Promise.resolve(new TextEncoder().encode(JSON.stringify(cards)).buffer),
-    } as Response);
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(cards));
 
     await expect(panda.getCards("e5cd86bb-a19e-4a66-9728-9e6c5d97e616")).resolves.toStrictEqual(cards);
     expect(fetchSpy).toHaveBeenCalledWith(
@@ -225,10 +224,10 @@ describe("business application", () => {
     });
     expect(fetchSpy).toHaveBeenLastCalledWith(
       expect.stringContaining("/issuing/applications/company"),
-      expect.objectContaining({
-        method: "POST",
-        headers: expect.objectContaining({ "Idempotency-Key": "business-application:reference-id" }) as unknown,
-      }),
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(new Headers(fetchSpy.mock.lastCall?.[1]?.headers).get("Idempotency-Key")).toBe(
+      "business-application:reference-id",
     );
     expect(JSON.parse(fetchSpy.mock.lastCall?.[1]?.body as string)).toStrictEqual({
       ...company,
@@ -264,11 +263,9 @@ describe("business application", () => {
     await expect(panda.createCompanyUser("company-1", user, "evt-1")).resolves.toStrictEqual(created);
     expect(fetchSpy).toHaveBeenLastCalledWith(
       expect.stringContaining("/issuing/companies/company-1/users"),
-      expect.objectContaining({
-        method: "POST",
-        headers: expect.objectContaining({ "Idempotency-Key": "company-user:evt-1" }) as unknown,
-      }),
+      expect.objectContaining({ method: "POST" }),
     );
+    expect(new Headers(fetchSpy.mock.lastCall?.[1]?.headers).get("Idempotency-Key")).toBe("company-user:evt-1");
     expect(JSON.parse(fetchSpy.mock.lastCall?.[1]?.body as string)).toStrictEqual(user);
   });
 
@@ -381,33 +378,6 @@ describe("withdrawals", () => {
   });
 });
 
-describe("create user", () => {
-  afterEach(() => vi.restoreAllMocks());
-
-  it("creates the user with the idempotency key", async () => {
-    const user = {
-      accountPurpose: "business",
-      annualSalary: "100000",
-      expectedMonthlyVolume: "1000",
-      ipAddress: "127.0.0.1",
-      isTermsOfServiceAccepted: true as const,
-      occupation: "engineer",
-      personaShareToken: "inq_123",
-    };
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json({ id: "user-1" }));
-
-    await expect(panda.createUser(user, "evt_123")).resolves.toStrictEqual({ id: "user-1" });
-    expect(fetchSpy).toHaveBeenCalledExactlyOnceWith(
-      expect.stringContaining("/issuing/applications/user"),
-      expect.objectContaining({
-        method: "POST",
-        headers: expect.objectContaining({ "Idempotency-Key": "user:evt_123" }) as unknown,
-      }),
-    );
-    expect(JSON.parse(fetchSpy.mock.lastCall?.[1]?.body as string)).toStrictEqual(user);
-  });
-});
-
 describe("create card", () => {
   const card = {
     id: "card-id",
@@ -422,10 +392,7 @@ describe("create card", () => {
 
   it("sends sandbox card art on base sepolia", async () => {
     chainMock.id = baseSepolia.id;
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-      ok: true,
-      arrayBuffer: () => Promise.resolve(new TextEncoder().encode(JSON.stringify(card)).buffer),
-    } as Response);
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(card));
 
     await expect(panda.createCard("user-id", PLATINUM_PRODUCT_ID)).resolves.toStrictEqual(card);
     expect(fetchSpy).toHaveBeenLastCalledWith(
@@ -444,10 +411,7 @@ describe("create card", () => {
 
   it("sends sandbox card art on optimism sepolia", async () => {
     chainMock.id = optimismSepolia.id;
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-      ok: true,
-      arrayBuffer: () => Promise.resolve(new TextEncoder().encode(JSON.stringify(card)).buffer),
-    } as Response);
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(card));
 
     await expect(panda.createCard("user-id", SIGNATURE_PRODUCT_ID)).resolves.toStrictEqual(card);
     expect(fetchSpy).toHaveBeenLastCalledWith(
@@ -466,10 +430,7 @@ describe("create card", () => {
 
   it("sends platinum card art on optimism", async () => {
     chainMock.id = optimism.id;
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-      ok: true,
-      arrayBuffer: () => Promise.resolve(new TextEncoder().encode(JSON.stringify(card)).buffer),
-    } as Response);
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(card));
 
     await expect(panda.createCard("user-id", PLATINUM_PRODUCT_ID)).resolves.toStrictEqual(card);
     expect(fetchSpy).toHaveBeenLastCalledWith(
@@ -488,10 +449,7 @@ describe("create card", () => {
 
   it("sends signature card art on base", async () => {
     chainMock.id = base.id;
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-      ok: true,
-      arrayBuffer: () => Promise.resolve(new TextEncoder().encode(JSON.stringify(card)).buffer),
-    } as Response);
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(card));
 
     await expect(panda.createCard("user-id", SIGNATURE_PRODUCT_ID)).resolves.toStrictEqual(card);
     expect(fetchSpy).toHaveBeenLastCalledWith(
@@ -511,10 +469,7 @@ describe("create card", () => {
 
   it("sends classic card art on base", async () => {
     chainMock.id = base.id;
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-      ok: true,
-      arrayBuffer: () => Promise.resolve(new TextEncoder().encode(JSON.stringify(card)).buffer),
-    } as Response);
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(card));
 
     await expect(panda.createCard("user-id", CLASSIC_PRODUCT_ID)).resolves.toStrictEqual(card);
     expect(fetchSpy).toHaveBeenLastCalledWith(
@@ -533,17 +488,13 @@ describe("create card", () => {
 
   it("sends the idempotency key", async () => {
     chainMock.id = base.id;
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-      ok: true,
-      arrayBuffer: () => Promise.resolve(new TextEncoder().encode(JSON.stringify(card)).buffer),
-    } as Response);
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(card));
 
     await expect(panda.createCard("user-id", SIGNATURE_PRODUCT_ID, 200_000, "evt_123")).resolves.toStrictEqual(card);
     expect(fetchSpy).toHaveBeenLastCalledWith(
       expect.stringContaining("/issuing/users/user-id/cards"),
       expect.objectContaining({
         method: "POST",
-        headers: expect.objectContaining({ "Idempotency-Key": "card:evt_123" }) as unknown,
         body: JSON.stringify({
           type: "virtual",
           status: "active",
@@ -552,6 +503,7 @@ describe("create card", () => {
         }),
       }),
     );
+    expect(new Headers(fetchSpy.mock.lastCall?.[1]?.headers).get("Idempotency-Key")).toBe("card:evt_123");
   });
 
   it.each([
@@ -559,10 +511,7 @@ describe("create card", () => {
     [optimism.id, "398c4919514b4ec4927e6a9114a4c816"],
   ] as const)("sends partner card art only on base (chain %i)", async (id, art) => {
     chainMock.id = id;
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-      ok: true,
-      arrayBuffer: () => Promise.resolve(new TextEncoder().encode(JSON.stringify(card)).buffer),
-    } as Response);
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(card));
 
     await expect(
       panda.createCard("user-id", SIGNATURE_PRODUCT_ID, 1_000_000, undefined, Panda.partner),
@@ -571,7 +520,6 @@ describe("create card", () => {
       expect.stringContaining("/issuing/users/user-id/cards"),
       expect.objectContaining({
         method: "POST",
-        headers: { "Api-Key": "panda", accept: "application/json", "content-type": "application/json" },
         body: JSON.stringify({
           type: "virtual",
           status: "active",
@@ -580,6 +528,7 @@ describe("create card", () => {
         }),
       }),
     );
+    expect(new Headers(fetchSpy.mock.lastCall?.[1]?.headers).get("Api-Key")).toBe("panda");
   });
 
   it("ships a us physical card with standard method", async () => {
@@ -671,10 +620,11 @@ describe("create card", () => {
 
 describe("siwe", () => {
   it("returns the generated nonce", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-      ok: true,
-      arrayBuffer: () => Promise.resolve(new TextEncoder().encode('{"nonce":"Db2ItfTPLuZ2dV0ZQ"}').buffer),
-    } as Response);
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response('{"nonce":"Db2ItfTPLuZ2dV0ZQ"}', { headers: { "content-type": "application/json" } }),
+      );
 
     await expect(panda.getNonce("e5cd86bb-a19e-4a66-9728-9e6c5d97e616")).resolves.toStrictEqual({
       nonce: "Db2ItfTPLuZ2dV0ZQ",
@@ -691,15 +641,263 @@ describe("siwe", () => {
       message: "I authorize the account 0xabc to be linked with the card ending in 1234 for my user (e5cd86bb).",
       signature: "0x57d2c1f0c01b9173e080bd3cdd40600924cc0c4c31dfe45353d9d967c35d16944a",
     };
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-      ok: true,
-      arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
-    } as Response);
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response());
 
     await expect(panda.verify("e5cd86bb-a19e-4a66-9728-9e6c5d97e616", payload)).resolves.toStrictEqual({});
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.stringContaining("/issuing/users/e5cd86bb-a19e-4a66-9728-9e6c5d97e616/signatures/verify"),
       expect.objectContaining({ method: "PUT", body: JSON.stringify(payload) }),
+    );
+  });
+});
+
+describe("card", () => {
+  const card = {
+    id: "card-id",
+    userId: "user-id",
+    type: "virtual",
+    status: "locked",
+    limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
+    last4: "1234",
+    expirationMonth: "12",
+    expirationYear: "2030",
+  };
+  const encrypted = { iv: "iv", data: "data" };
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it("updates a card", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(card));
+
+    await expect(panda.updateCard({ id: "card-id", status: "locked" })).resolves.toStrictEqual(card);
+    expect(fetchSpy).toHaveBeenCalledOnce();
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      "https://panda.test/issuing/cards/card-id",
+      expect.objectContaining({ method: "PATCH", body: JSON.stringify({ id: "card-id", status: "locked" }) }),
+    );
+  });
+
+  it("gets the encrypted secrets", async () => {
+    const secrets = { encryptedPan: encrypted, encryptedCvc: encrypted };
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(secrets));
+
+    await expect(panda.getSecrets("card-id", "session")).resolves.toStrictEqual(secrets);
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      "https://panda.test/issuing/cards/card-id/secrets",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(new Headers(fetchSpy.mock.lastCall?.[1]?.headers).get("SessionId")).toBe("session");
+  });
+
+  it("gets the processor details", async () => {
+    const details = { processorCardId: "processor", timeBasedSecret: "secret" };
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(details));
+
+    await expect(panda.getProcessorDetails("card-id")).resolves.toStrictEqual(details);
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      "https://panda.test/issuing/cards/card-id/processorDetails",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("gets the encrypted pin", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json({ encryptedPin: encrypted }));
+
+    await expect(panda.getPIN("card-id", "session")).resolves.toStrictEqual({ pin: encrypted });
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      "https://panda.test/issuing/cards/card-id/pin",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(new Headers(fetchSpy.mock.lastCall?.[1]?.headers).get("SessionId")).toBe("session");
+  });
+
+  it("returns no pin when the card has none", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json(
+        { statusCode: 400, error: "BadRequestError", message: "Failed to get PIN, card does not have PIN set" },
+        { status: 400 },
+      ),
+    );
+
+    await expect(panda.getPIN("card-id", "session")).resolves.toStrictEqual({ pin: null });
+  });
+
+  it("rethrows other pin errors", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({ error: "BadRequestError", message: "invalid session" }, { status: 400 }),
+    );
+
+    await expect(panda.getPIN("card-id", "session")).rejects.toMatchObject({
+      name: "PandaBadRequest",
+      status: 400,
+      message: "invalid session",
+    });
+  });
+
+  it("sets the encrypted pin", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response());
+
+    await expect(panda.setPIN("card-id", "session", encrypted)).resolves.toStrictEqual({});
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      "https://panda.test/issuing/cards/card-id/pin",
+      expect.objectContaining({ method: "PUT", body: JSON.stringify({ encryptedPin: encrypted }) }),
+    );
+    expect(new Headers(fetchSpy.mock.lastCall?.[1]?.headers).get("SessionId")).toBe("session");
+  });
+});
+
+describe("user", () => {
+  const user = {
+    id: "user-id",
+    firstName: "John",
+    lastName: "Doe",
+    email: "john@example.com",
+    isActive: false,
+    applicationStatus: "approved",
+    applicationReason: "",
+  };
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it("creates a user application", async () => {
+    const application = {
+      accountPurpose: "purchases",
+      annualSalary: "100000",
+      expectedMonthlyVolume: "1000",
+      ipAddress: "127.0.0.1",
+      isTermsOfServiceAccepted: true as const,
+      occupation: "engineer",
+      personaShareToken: "token",
+    };
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json({ id: "user-id" }));
+
+    await expect(panda.createUser(application, "evt_123")).resolves.toStrictEqual({ id: "user-id" });
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      "https://panda.test/issuing/applications/user",
+      expect.objectContaining({ method: "POST", body: JSON.stringify(application) }),
+    );
+    expect(new Headers(fetchSpy.mock.lastCall?.[1]?.headers).get("Idempotency-Key")).toBe("user:evt_123");
+  });
+
+  it("gets the application status", async () => {
+    const status = { id: "user-id", applicationStatus: "approved" };
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(status));
+
+    await expect(panda.getApplicationStatus("user-id")).resolves.toStrictEqual(status);
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      "https://panda.test/issuing/applications/user/user-id",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("updates a user", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(user));
+
+    await expect(panda.updateUser({ id: "user-id", isActive: false })).resolves.toStrictEqual(user);
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      "https://panda.test/issuing/users/user-id",
+      expect.objectContaining({ method: "PATCH", body: JSON.stringify({ id: "user-id", isActive: false }) }),
+    );
+  });
+
+  it("classifies users not approved as forbidden", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({ message: "User not approved" }, { status: 403 }),
+    );
+
+    await expect(panda.getUser("user-id")).rejects.toMatchObject({
+      name: "PandaForbidden",
+      status: 403,
+      message: "User not approved",
+    });
+  });
+
+  it("keeps other forbidden errors unclassified", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json({ error: 403 }, { status: 403 }));
+
+    await expect(panda.getUser("user-id")).rejects.toMatchObject({
+      name: "Panda403",
+      status: 403,
+      message: '{"error":403}',
+    });
+  });
+
+  it("does not retry failed requests", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("busy", { status: 503 }));
+
+    await expect(panda.getUser("user-id")).rejects.toMatchObject({ name: "Panda503", status: 503 });
+    expect(fetchSpy).toHaveBeenCalledOnce();
+  });
+
+  it("parses json without a json content type", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json(user, { headers: { "content-type": "text/plain" } }),
+    );
+
+    await expect(panda.getUser("user-id")).resolves.toStrictEqual(user);
+  });
+
+  it("rejects a null body", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(null));
+
+    await expect(panda.getUser("user-id")).rejects.toThrow(ValiError);
+  });
+
+  it("accepts an empty json body without length", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response("", { headers: { "content-type": "application/json" } }),
+    );
+
+    await expect(
+      panda.verify("user-id", { authType: "siwe", message: "message", signature: "0x" }),
+    ).resolves.toStrictEqual({});
+  });
+
+  it("keeps the deadline while reading the body", async () => {
+    const deadline = new AbortController();
+    vi.spyOn(AbortSignal, "timeout").mockReturnValueOnce(deadline.signal);
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementationOnce((_, init) =>
+      Promise.resolve(
+        new Response(
+          new ReadableStream({
+            start(stream) {
+              init?.signal?.addEventListener("abort", () => stream.error(init.signal?.reason));
+            },
+          }),
+        ),
+      ),
+    );
+
+    const rejection = panda.getUser("user-id");
+    await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledOnce());
+    deadline.abort(new DOMException("timeout", "TimeoutError"));
+    await expect(rejection).rejects.toThrow("timeout");
+    expect(fetchSpy.mock.lastCall?.[1]?.signal).toBe(deadline.signal);
+  });
+
+  it("does not retry connection errors", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(new TypeError("fetch failed"));
+
+    const rejection = panda.getUser("user-id");
+    await expect(rejection).rejects.toThrow("Connection error.");
+    await expect(rejection).rejects.not.toBeInstanceOf(ServiceError);
+    expect(fetchSpy).toHaveBeenCalledOnce();
+  });
+});
+
+describe("webhook", () => {
+  it("gets a webhook", async () => {
+    const webhook = {
+      id: "webhook-id",
+      requestBody: { id: "event-id", resource: "dispute", action: "created", body: { id: "dispute-id" } },
+      requestSentAt: "2026-11-16T00:00:00.000Z",
+    };
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(webhook));
+
+    await expect(panda.getWebhook("webhook-id")).resolves.toStrictEqual(webhook);
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      "https://panda.test/issuing/webhooks/webhook-id",
+      expect.objectContaining({ method: "GET" }),
     );
   });
 });
