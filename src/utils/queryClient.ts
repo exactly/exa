@@ -22,6 +22,7 @@ const INVALIDATE_ON_UPGRADE = new Set([
   "bridge",
   "deployed",
   "feeds",
+  "pluginUpgrade",
   "swap",
   "lifi",
   "network",
