@@ -37,7 +37,7 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
   const { data: alertShown } = useQuery({ queryKey: ["settings", "alertShown"] });
   const { data: details } = useQuery<CardDetailsData>({ queryKey: ["card", "details"] });
   const { data, isPending } = useQuery<CardSecrets>({
-    queryKey: ["card", "secrets", details?.cardId],
+    queryKey: ["card", "secrets", details?.lastFour],
     enabled: open,
     staleTime: (query) => (query.state.data ? Infinity : 0),
   });
