@@ -16,7 +16,9 @@ import release from "../../generated/release";
 import { useSubmitCoverage } from "../../utils/e2e";
 import { present } from "../../utils/intercom";
 import logout from "../../utils/logout";
+import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import { reload } from "../../utils/update";
 import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
@@ -68,7 +70,10 @@ export default function Settings() {
               <Separator borderColor="borderNeutralSoft" />
               <Pressable
                 onPress={() => {
-                  logout().catch(reportError);
+                  const idle = queryClient.isMutating() === 0;
+                  logout()
+                    .then(() => (idle ? reload("/(auth)") : false))
+                    .catch(reportError);
                 }}
               >
                 <XStack justifyContent="space-between" alignItems="center" padding="s4">
