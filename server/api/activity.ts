@@ -1,6 +1,7 @@
 import { renderToBuffer } from "@react-pdf/renderer";
 
 import { captureException, setUser } from "@sentry/node";
+import { Semaphore } from "async-mutex";
 import { arrayOverlaps, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { accepts } from "hono/accepts";
@@ -290,6 +291,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
             })()
           : credential.cards;
 
+      const receipts = new Semaphore(8);
       const landed = new Set(
         maturity === undefined
           ? await Promise.all(
@@ -302,12 +304,15 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
               ]
                 .filter((hash) => hash !== zeroHash && !borrows?.has(hash))
                 .map((hash) =>
-                  publicClient.getTransactionReceipt({ hash }).then(
-                    ({ status }) => (status === "success" ? hash : undefined),
-                    (error: unknown) => {
-                      if (error instanceof TransactionReceiptNotFoundError) return;
-                      throw error;
-                    },
+                  receipts.runExclusive(() =>
+                    publicClient.getTransactionReceipt({ hash }).then(
+                      ({ status }) => (status === "success" ? hash : undefined),
+                      (error: unknown) => {
+                        if (error instanceof TransactionReceiptNotFoundError) return;
+                        receipts.cancel();
+                        throw error;
+                      },
+                    ),
                   ),
                 ),
             )
@@ -578,7 +583,7 @@ export const PandaActivity = pipe(
         return picked.filter((index, n) => picked.findIndex((other) => hashes[other] === hashes[index]) === n);
       }),
     );
-    const operations = hashes
+    const entries = hashes
       .map((hash, index) => ({ hash, index }))
       .filter(({ index }) => attempt(bodies[index]) === undefined || kept.has(index))
       .map(({ hash, index }) => {
@@ -606,10 +611,11 @@ export const PandaActivity = pipe(
             blockTimestamp: borrow?.timestamp,
           },
         );
-        if (validation.success) return validation.output;
+        if (validation.success) return { index, operation: validation.output };
         throw new Error("bad panda activity");
       })
-      .filter((p) => p.provider === "panda");
+      .flatMap(({ index, operation }) => (operation.provider === "panda" ? [{ index, operation }] : []));
+    const operations = entries.map(({ operation }) => operation);
 
     const declined = (function () {
       const operation = operations.findLast((b) => b.action === "created" && b.status === "declined");
@@ -660,9 +666,14 @@ export const PandaActivity = pipe(
       timestamp,
       merchant: { city, country, name, state },
     } = details;
-    const usdAmount = operations
-      .filter((op) => op.action !== "requested")
-      .reduce((sum, { usdAmount: amount }) => sum + amount, 0);
+    const usdAmount = entries
+      .filter(
+        ({ index, operation }, n) =>
+          operation.action !== "requested" &&
+          (attempt(bodies[index]) === undefined ||
+            entries.findIndex((other) => attempt(bodies[other.index]) === attempt(bodies[index])) === n),
+      )
+      .reduce((sum, { operation }) => sum + operation.usdAmount, 0);
     const exchangeRate = flow.completed?.exchangeRate ?? [flow.created, ...flow.updates].at(-1)?.exchangeRate;
     if (exchangeRate === undefined) throw new Error("no exchange rate");
     return {

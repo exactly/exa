@@ -18,6 +18,7 @@ import {
   http,
   padHex,
   parseEventLogs,
+  toHex,
   zeroHash,
   type Hash,
 } from "viem";
@@ -400,6 +401,174 @@ describe.concurrent("authenticated", () => {
       }
     });
 
+    it("counts two settled attempts of one event once", async () => {
+      const sender = privateKeyToAccount(generatePrivateKey());
+      await anvilClient.setBalance({ address: sender.address, value: 10n ** 18n });
+      const hashes = await Promise.all(
+        [0, 1].map(async (nonce) =>
+          anvilClient
+            .waitForTransactionReceipt({
+              hash: await anvilClient.sendTransaction({ account: sender, to: account, value: 1n, nonce }),
+            })
+            .then(({ status, transactionHash }) => {
+              expect(status).toBe("success");
+              return transactionHash;
+            }),
+        ),
+      );
+      const bodies = [retried(0), retried(1)];
+      await database
+        .insert(transactions)
+        .values([{ id: "settled-twice", cardId: "first-activity-card", hashes, payload: { type: "panda", bodies } }]);
+      try {
+        const response = await appClient.index.$get(
+          { query: { include: "card" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(response.status).toBe(200);
+        const json = (await response.json()) as { id: string; operations: unknown[]; usdAmount: number }[];
+        const item = json.find(({ id }) => id === "retried");
+        expect(item).toStrictEqual(
+          httpSerialize({
+            ...parse(PandaActivity, { type: "panda", hashes, borrows: [null, null], mined: [true, true], bodies }),
+            cardId: "first-activity-card",
+            lastFour: "1234",
+          }),
+        );
+        expect(item?.operations).toHaveLength(2);
+        expect(item?.usdAmount).toBeCloseTo(232.53);
+      } finally {
+        await database.delete(transactions).where(eq(transactions.id, "settled-twice"));
+      }
+    });
+
+    it("reads a repeated retry hash once", async () => {
+      const receipt = vi.spyOn(publicClient, "getTransactionReceipt");
+      const hashes = [padHex("0x51", { size: 32 }), padHex("0x51", { size: 32 })];
+      await database.insert(transactions).values([
+        {
+          id: "repeated",
+          cardId: "first-activity-card",
+          hashes,
+          payload: { type: "panda", bodies: [retried(0), retried(1)] },
+        },
+      ]);
+      try {
+        const response = await appClient.index.$get(
+          { query: { include: "card" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(response.status).toBe(200);
+        expect(receipt.mock.calls.filter(([{ hash }]) => hashes.includes(hash))).toStrictEqual([[{ hash: hashes[0] }]]);
+        const json = (await response.json()) as { id: string; operations: unknown[]; usdAmount: number }[];
+        const item = json.find(({ id }) => id === "retried");
+        expect(item?.operations).toHaveLength(1);
+        expect(item?.usdAmount).toBeCloseTo(232.53);
+      } finally {
+        await database.delete(transactions).where(eq(transactions.id, "repeated"));
+      }
+    });
+
+    it("bounds receipt reads of a large retry set", async () => {
+      const hashes = Array.from({ length: 30 }, (_, index) => padHex(toHex(0x10_00 + index), { size: 32 }));
+      const read = publicClient.getTransactionReceipt.bind(publicClient);
+      let reading = 0;
+      let peak = 0;
+      const receipt = vi.spyOn(publicClient, "getTransactionReceipt").mockImplementation(async (parameters) => {
+        if (!hashes.includes(parameters.hash)) return read(parameters);
+        peak = Math.max(peak, ++reading);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        reading--;
+        return read(parameters);
+      });
+      await database.insert(transactions).values([
+        {
+          id: "many",
+          cardId: "first-activity-card",
+          hashes,
+          payload: { type: "panda", bodies: hashes.map((_, index) => retried(index)) },
+        },
+      ]);
+      try {
+        const response = await appClient.index.$get(
+          { query: { include: "card" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(response.status).toBe(200);
+        expect(receipt.mock.calls.filter(([{ hash }]) => hashes.includes(hash))).toHaveLength(hashes.length);
+        expect(peak).toBe(8);
+        const json = (await response.json()) as { id: string; operations: unknown[]; usdAmount: number }[];
+        const item = json.find(({ id }) => id === "retried");
+        expect(item?.operations).toHaveLength(1);
+        expect(item?.usdAmount).toBeCloseTo(232.53);
+      } finally {
+        await database.delete(transactions).where(eq(transactions.id, "many"));
+      }
+    });
+
+    it("stops receipt reads after a failure", async () => {
+      const hashes = Array.from({ length: 30 }, (_, index) => padHex(toHex(0x20_00 + index), { size: 32 }));
+      const read = publicClient.getTransactionReceipt.bind(publicClient);
+      const receipt = vi.spyOn(publicClient, "getTransactionReceipt").mockImplementation(async (parameters) => {
+        if (!hashes.includes(parameters.hash)) return read(parameters);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        throw new Error("receipt");
+      });
+      await database.insert(transactions).values([
+        {
+          id: "failing",
+          cardId: "first-activity-card",
+          hashes,
+          payload: { type: "panda", bodies: hashes.map((_, index) => retried(index)) },
+        },
+      ]);
+      try {
+        const response = await appClient.index.$get(
+          { query: { include: "card" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(response.status).toBe(500);
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(receipt.mock.calls.filter(([{ hash }]) => hashes.includes(hash))).toHaveLength(8);
+      } finally {
+        await database.delete(transactions).where(eq(transactions.id, "failing"));
+      }
+    });
+
+    it("skips receipts on statements", async () => {
+      const receipt = vi.spyOn(publicClient, "getTransactionReceipt");
+      await database.insert(transactions).values([
+        {
+          id: "statement-retry",
+          cardId: "second-activity-card",
+          hashes: [padHex("0x61", { size: 32 }), installment.hash],
+          payload: { type: "panda", bodies: [retried(0), retried(1)] },
+        },
+      ]);
+      try {
+        const response = await appClient.index.$get(
+          { query: { include: "card", maturity: installment.maturity } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(response.status).toBe(200);
+        expect(receipt).not.toHaveBeenCalled();
+        const json = (await response.json()) as CardActivity[];
+        const item = json.find(({ id }) => id === "retried");
+        assert.ok(item && "operations" in item, "expected retried purchase");
+        expect(item.operations.map(({ transactionHash }) => transactionHash)).toStrictEqual([installment.hash]);
+        expect(item.operations[0]).toMatchObject({
+          borrow: { installments: [{ current: 2, maturity: Number(installment.maturity) }] },
+        });
+      } finally {
+        await database.delete(transactions).where(eq(transactions.id, "statement-retry"));
+      }
+    });
+
     it("skips receipts for retried declines", async () => {
       const receipt = vi.spyOn(publicClient, "getTransactionReceipt");
       const bodies = [retried(0), retried(1)].map((body) => ({ ...body, status: "declined" }));
@@ -567,7 +736,36 @@ describe.concurrent("authenticated", () => {
           }),
         );
         expect(panda.operations.map(({ transactionHash }) => transactionHash)).toStrictEqual([hashes[0], hashes[2]]);
-        expect(panda.usdAmount).toBeCloseTo(465.06);
+        expect(panda.usdAmount).toBeCloseTo(232.53);
+        expect(panda.amount).toBeCloseTo(232.53);
+      });
+
+      it("counts each event once with adjustments and refunds", () => {
+        const event = (id: string, action: string, spend: Record<string, number>) => ({
+          ...retried(0),
+          id,
+          action,
+          body: { ...retried(0).body, spend: { ...retried(0).body.spend, ...spend } },
+        });
+        const panda = parse(PandaActivity, {
+          type: "panda",
+          hashes: [...hashes, padHex("0x4", { size: 32 })],
+          borrows: [null, null, null, null],
+          mined: [true, true, true, true],
+          bodies: [
+            retried(0),
+            retried(1),
+            event("updated-event", "updated", { amount: 24_253, localAmount: 24_253, authorizationUpdateAmount: 1000 }),
+            event("completed-event", "completed", { amount: 20_000, localAmount: 20_000, authorizedAmount: 24_253 }),
+          ],
+        });
+
+        expect(panda.operations.map(({ transactionHash }) => transactionHash)).toStrictEqual([
+          ...hashes,
+          padHex("0x4", { size: 32 }),
+        ]);
+        expect(panda.usdAmount).toBeCloseTo(200);
+        expect(panda.status).toBe("settled");
       });
 
       it("counts a repeated settled hash once", () => {
