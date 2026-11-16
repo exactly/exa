@@ -23,6 +23,7 @@ import { MantecaCountryCode } from "../persona";
 import ServiceError from "../ServiceError";
 
 import type createPersona from "../persona";
+import type { AccountOutput } from "../persona";
 
 export const name = "manteca" as const;
 
@@ -560,6 +561,12 @@ export default function manteca(key: string, url: string) {
   }
 }
 
+export function nationalId(account: AccountOutput<"basic">) {
+  return account.attributes.fields.documents.value.find(
+    ({ value }) => value.id_class.value === "id" && value.id_issuing_country.value === "AR",
+  )?.value;
+}
+
 // #region schemas
 export const Currency = ["ARS", "BRL", "USD"] as const;
 const DevelopmentChainIds = [optimismSepolia.id] as const;
@@ -848,8 +855,11 @@ export const ErrorCodes = {
   NOT_SUPPORTED_CHAIN_ID: "not supported chain id",
   NOT_SUPPORTED_CURRENCY: "not supported currency",
   MANTECA_USER_INACTIVE: "manteca user inactive",
+  EXPIRED_LOCK: "expired lock",
   INVALID_LEGAL_ID: "invalid legal id",
   INVALID_ORDER_SIZE: "invalid order size",
+  INVALID_PAYMENT: "invalid payment",
+  USER_OPERATION_NOT_FOUND: "user operation not found",
   NO_PERSONA_ACCOUNT: "no persona account",
   NO_DOCUMENT: "no document",
 };
