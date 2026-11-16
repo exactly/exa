@@ -1,6 +1,6 @@
 import { vValidator } from "@hono/valibot-validator";
 import { captureException, getActiveSpan, SEMANTIC_ATTRIBUTE_SENTRY_OP, setContext, setUser } from "@sentry/node";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import { Hono } from "hono";
 import {
   array,
@@ -312,7 +312,16 @@ export default function hook({
         const credential = await database.query.credentials.findFirst({
           columns: { pandaId: true },
           where: eq(credentials.id, referenceId),
-          with: { cards: { columns: { id: true }, where: inArray(cards.status, ["ACTIVE", "FROZEN"]), limit: 1 } },
+          with: {
+            cards: {
+              columns: { id: true },
+              where: and(
+                inArray(cards.status, ["ACTIVE", "FROZEN"]),
+                or(eq(cards.tenant, isBase ? "BASE" : "OP"), isNull(cards.tenant)),
+              ),
+              limit: 1,
+            },
+          },
         });
         if (!credential) {
           captureException(new Error("no credential"), { level: "error", contexts: { credential: { referenceId } } });
@@ -372,7 +381,15 @@ export default function hook({
         const credential = await database.query.credentials.findFirst({
           columns: { account: true, factory: true, pandaId: true, publicKey: true, salt: true, source: true },
           where: eq(credentials.id, referenceId),
-          with: { cards: { columns: { id: true }, where: inArray(cards.status, ["ACTIVE", "FROZEN"]) } },
+          with: {
+            cards: {
+              columns: { id: true },
+              where: and(
+                inArray(cards.status, ["ACTIVE", "FROZEN"]),
+                or(eq(cards.tenant, "BASE"), isNull(cards.tenant)),
+              ),
+            },
+          },
         });
         if (!credential) {
           captureException(new Error("no credential"), { level: "error", contexts: { credential: { referenceId } } });
@@ -435,9 +452,15 @@ export default function hook({
                 c.req.valid("json").data.id,
               ),
             );
-          await database
-            .insert(cards)
-            .values([{ id: card.id, credentialId: referenceId, lastFour: card.last4, productId: CLASSIC_PRODUCT_ID }]);
+          await database.insert(cards).values([
+            {
+              id: card.id,
+              credentialId: referenceId,
+              tenant: "BASE",
+              lastFour: card.last4,
+              productId: CLASSIC_PRODUCT_ID,
+            },
+          ]);
           return c.json({ code: "ok" }, 200);
         } catch (error) {
           if (

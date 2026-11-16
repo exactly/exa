@@ -51,6 +51,7 @@ import wallet, { signer } from "../../utils/wallet";
 import createWalletExtension from "../../utils/walletExtension";
 
 import type createCredit from "../../workers/credit/queue";
+import type * as C from "@exactly/common/generated/chain";
 import type * as sentry from "@sentry/node";
 import type { UnofficialStatusCode } from "hono/utils/http-status";
 
@@ -99,6 +100,11 @@ beforeAll(async () => {
 });
 
 afterAll(() => kms.close());
+
+const tenants = [
+  { isBase: false, own: "OP", other: "BASE" },
+  { isBase: true, own: "BASE", other: "OP" },
+] as const;
 
 describe("authenticated", () => {
   beforeAll(async () => {
@@ -260,6 +266,64 @@ describe("authenticated", () => {
     expect(response.status).toBe(404);
     await expect(response.json()).resolves.toStrictEqual({ code: "no card" });
   });
+
+  it.each(tenants)("returns 404 card not found when the card belongs to $other tenant", async ({ isBase, other }) => {
+    mocks.isBase.mockReturnValue(isBase);
+    const credentialId = `tenant-get-${other}`;
+    await database.insert(credentials).values({
+      id: credentialId,
+      publicKey: new Uint8Array(),
+      account: padHex(isBase ? "0x4156" : "0x4056", { size: 20 }),
+      factory: exaAccountFactoryAddress,
+      pandaId: credentialId,
+    });
+    await database.insert(cards).values({ id: credentialId, credentialId, tenant: other, lastFour: "1001" });
+    const getCard = vi.spyOn(panda, "getCard");
+    const getSecrets = vi.spyOn(panda, "getSecrets");
+
+    const response = await appClient.index.$get(
+      { header: { sessionid: "fakeSession" } },
+      { headers: { "test-credential-id": credentialId } },
+    );
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toStrictEqual({ code: "no card" });
+    expect(getCard).not.toHaveBeenCalled();
+    expect(getSecrets).not.toHaveBeenCalled();
+  });
+
+  it.each(tenants)(
+    "returns 404 card not found on update when the card belongs to $other tenant",
+    async ({ isBase, other }) => {
+      mocks.isBase.mockReturnValue(isBase);
+      const credentialId = `tenant-patch-${other}`;
+      await database.insert(credentials).values({
+        id: credentialId,
+        publicKey: new Uint8Array(),
+        account: padHex(isBase ? "0x4157" : "0x4057", { size: 20 }),
+        factory: exaAccountFactoryAddress,
+        pandaId: credentialId,
+      });
+      await database.insert(cards).values({ id: credentialId, credentialId, tenant: other, lastFour: "1002" });
+      const updateCard = vi.spyOn(panda, "updateCard");
+
+      const response = await appClient.index.$patch({
+        // @ts-expect-error - bad hono patch type
+        header: { "test-credential-id": credentialId },
+        json: { status: "FROZEN" },
+      });
+
+      expect(response.status).toBe(404);
+      await expect(response.json()).resolves.toStrictEqual({ code: "no card" });
+      expect(updateCard).not.toHaveBeenCalled();
+      await expect(
+        database.query.cards.findFirst({
+          columns: { status: true, tenant: true },
+          where: eq(cards.id, credentialId),
+        }),
+      ).resolves.toStrictEqual({ status: "ACTIVE", tenant: other });
+    },
+  );
 
   it("returns panda card as default platinum product", async () => {
     vi.spyOn(panda, "getSecrets").mockResolvedValueOnce(panTemplate);
@@ -1024,12 +1088,9 @@ describe("authenticated", () => {
 
     expect(response.status).toBe(200);
 
-    const created = await database.query.cards.findFirst({
-      columns: { mode: true },
-      where: eq(cards.credentialId, "debit"),
-    });
-
-    expect(created?.mode).toBe(0);
+    await expect(
+      database.query.cards.findFirst({ columns: { mode: true, tenant: true }, where: eq(cards.credentialId, "debit") }),
+    ).resolves.toStrictEqual({ mode: 0, tenant: "OP" });
     expect(credit.enqueue).toHaveBeenCalledExactlyOnceWith(padHex("0x4", { size: 20 }));
     await expect(response.json()).resolves.toStrictEqual({
       status: "ACTIVE",
@@ -1037,6 +1098,50 @@ describe("authenticated", () => {
       cardId: id,
       productId: SIGNATURE_PRODUCT_ID,
     });
+  });
+
+  it.each(tenants)("creates a card when the active card belongs to $other tenant", async ({ isBase, own, other }) => {
+    mocks.isBase.mockReturnValue(isBase);
+    const credentialId = `tenant-post-${other}`;
+    const id = `7e2a0b1c-0000-4000-8000-00000000${isBase ? "b" : "a"}004`;
+    await database.insert(credentials).values({
+      id: credentialId,
+      publicKey: new Uint8Array(),
+      account: padHex(isBase ? "0x4158" : "0x4058", { size: 20 }),
+      factory: exaAccountFactoryAddress,
+      pandaId: credentialId,
+    });
+    await database.insert(cards).values({
+      id: credentialId,
+      credentialId,
+      tenant: other,
+      lastFour: "1003",
+      productId: SIGNATURE_PRODUCT_ID,
+    });
+    const getCard = vi.spyOn(panda, "getCard");
+    vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({
+      id: credentialId,
+      applicationStatus: "approved",
+    });
+    const createCard = vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id });
+
+    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({
+      status: "ACTIVE",
+      lastFour: "7394",
+      cardId: id,
+      productId: SIGNATURE_PRODUCT_ID,
+    });
+    expect(getCard).not.toHaveBeenCalled();
+    expect(createCard).toHaveBeenCalledExactlyOnceWith(credentialId, SIGNATURE_PRODUCT_ID, undefined, undefined, null);
+    await expect(
+      database.query.cards.findFirst({ columns: { status: true, tenant: true }, where: eq(cards.id, credentialId) }),
+    ).resolves.toStrictEqual({ status: "ACTIVE", tenant: other });
+    await expect(
+      database.query.cards.findFirst({ columns: { status: true, tenant: true }, where: eq(cards.id, id) }),
+    ).resolves.toStrictEqual({ status: "ACTIVE", tenant: own });
   });
 
   it("queues credit after creating a panda card", async () => {
@@ -2741,6 +2846,28 @@ describe("wallet extension", () => {
     expect(getProcessorDetails).not.toHaveBeenCalled();
   });
 
+  it.each(tenants)("rejects bearer card secret when the card belongs to $other tenant", async ({ isBase, other }) => {
+    mocks.isBase.mockReturnValue(isBase);
+    const credentialId = `wallet-extension-${other}`;
+    await database.insert(credentials).values({
+      id: credentialId,
+      publicKey: new Uint8Array(),
+      account: padHex(isBase ? "0x4159" : "0x4059", { size: 20 }),
+      factory: exaAccountFactoryAddress,
+      pandaId: credentialId,
+    });
+    await database.insert(cards).values({ id: `${credentialId}-card`, credentialId, tenant: other, lastFour: "4572" });
+    const getCard = vi.spyOn(panda, "getCard");
+    const getProcessorDetails = vi.spyOn(panda, "getProcessorDetails");
+    const response = await app.request("/provisioning", { headers: { authorization: await bearer(credentialId) } });
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    await expect(response.json()).resolves.toStrictEqual({ code: "no card" });
+    expect(getCard).not.toHaveBeenCalled();
+    expect(getProcessorDetails).not.toHaveBeenCalled();
+  });
+
   it("rejects bearer card secret when local card is deleted", async () => {
     const getCard = vi.spyOn(panda, "getCard");
     const getProcessorDetails = vi.spyOn(panda, "getProcessorDetails");
@@ -2860,4 +2987,19 @@ vi.mock("@sentry/node", async (importOriginal) => {
   const module = await importOriginal();
   if (typeof module !== "object" || module === null) return { captureException };
   return { ...module, captureException };
+});
+
+const mocks = vi.hoisted(() => ({ isBase: vi.fn<(base: boolean) => boolean>() }));
+vi.mock("@exactly/common/generated/chain", async (importOriginal) => {
+  const original = await importOriginal<typeof C>();
+  return {
+    ...original,
+    get isBase() {
+      return mocks.isBase(original.isBase);
+    },
+  };
+});
+
+beforeEach(() => {
+  mocks.isBase.mockReset().mockImplementation((value) => value);
 });

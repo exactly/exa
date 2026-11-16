@@ -2,7 +2,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 
 import { captureException, setUser } from "@sentry/node";
 import { Semaphore } from "async-mutex";
-import { arrayOverlaps, eq } from "drizzle-orm";
+import { and, arrayOverlaps, eq, isNull, or } from "drizzle-orm";
 import { Hono } from "hono";
 import { accepts } from "hono/accepts";
 import { validator as vValidator } from "hono-openapi/valibot";
@@ -43,6 +43,7 @@ import chain, {
   exaPluginAbi,
   exaPreviewerAbi,
   exaPreviewerAddress,
+  isBase,
   marketAbi,
   marketUSDCAddress,
   marketWETHAddress,
@@ -98,6 +99,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
         with: {
           cards: {
             columns: { id: true, lastFour: true },
+            where: or(eq(cards.tenant, isBase ? "BASE" : "OP"), isNull(cards.tenant)),
             with: { transactions: { columns: { hashes: true, payload: true } } },
             limit: ignore("card") || maturity !== undefined ? 0 : undefined,
           },
@@ -279,7 +281,10 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                 .toArray();
               if (hashes.length === 0) return [];
               return database.query.cards.findMany({
-                where: eq(cards.credentialId, credentialId),
+                where: and(
+                  eq(cards.credentialId, credentialId),
+                  or(eq(cards.tenant, isBase ? "BASE" : "OP"), isNull(cards.tenant)),
+                ),
                 columns: { id: true, lastFour: true },
                 with: {
                   transactions: {
