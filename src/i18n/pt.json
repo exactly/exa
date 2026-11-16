@@ -1014,6 +1014,8 @@
   "This passkey isn’t linked to an account": "Esta chave de acesso não está vinculada a uma conta",
   "It was saved only on this device, so it couldn’t be used to create an account. If you have an account, try again and pick the passkey you created it with. If not, create your account again and save the passkey to a password manager that syncs.": "Ela foi salva só neste dispositivo, então não pôde ser usada para criar uma conta. Se você tem uma conta, tente novamente e escolha a chave de acesso com que a criou. Se não, crie sua conta novamente e salve a chave de acesso em um gerenciador de senhas que sincronize.",
   "I can’t sign in. My passkey isn’t linked to an account.": "Não consigo entrar. Minha chave de acesso não está vinculada a uma conta.",
+  "Use Face ID or Touch ID": "Use o Face ID ou o Touch ID",
+  "Stolen Device Protection is on, so away from familiar places like home or work your passkey can only be unlocked with Face ID or Touch ID, not your passcode. Try again and unlock it with Face ID or Touch ID.": "A Proteção de Dispositivo Roubado está ativada, então longe de locais conhecidos como sua casa ou seu trabalho sua chave de acesso só pode ser desbloqueada com Face ID ou Touch ID, não com seu código. Tente novamente e desbloqueie com Face ID ou Touch ID.",
   "Your transactions will show up here once you start using your card.": "Suas transações aparecerão aqui quando você começar a usar seu cartão.",
   "Your Visa Signature Exa Card comes with multiple benefits including car rental discounts, travel assistance, and more.": "Seu Exa Card Visa Signature inclui múltiplos benefícios como descontos em aluguel de carros, assistência de viagem e mais.",
   "Zip code": "Código postal",

@@ -42,6 +42,25 @@ export default function SignInDialog({
           onClose={onClose}
         />
       );
+    case "stolen":
+      return (
+        <ErrorDialog
+          open={open}
+          title={t("Use Face ID or Touch ID")}
+          description={t(
+            "Stolen Device Protection is on, so away from familiar places like home or work your passkey can only be unlocked with Face ID or Touch ID, not your passcode. Try again and unlock it with Face ID or Touch ID.",
+          )}
+          action={{
+            icon: <RefreshCw />,
+            label: t("Try again"),
+            onPress: () => {
+              onClose();
+              onRetry();
+            },
+          }}
+          onClose={onClose}
+        />
+      );
     case "passkey":
       return (
         <ErrorDialog

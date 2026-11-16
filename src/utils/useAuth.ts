@@ -71,13 +71,18 @@ export default function useAuth(onSuccess?: (credential: Credential) => unknown)
 }
 
 function handleError(error: unknown, onIssue: (issue: SignInIssue) => void, t: TFunction, auth: boolean) {
-  if (
-    error instanceof Error &&
-    (("code" in error && error.code === "ERR_BIOMETRIC") || error.message.includes("Biometrics must be enabled"))
-  ) {
+  const passkey =
+    error instanceof Error
+      ? ("code" in error && error.code === "ERR_BIOMETRIC") || error.message.includes("Biometrics must be enabled")
+        ? "biometrics"
+        : error.message.includes("Stolen Device Protection is enabled")
+          ? "stolen"
+          : undefined
+      : undefined;
+  if (passkey) {
     if (!auth) reportError(error);
     queryClient.setQueryData(["method"], undefined);
-    onIssue("biometrics");
+    onIssue(passkey);
     return;
   }
   const { authKnown, bundleCancelled, passkeyCancelled, passkeyNotAllowed, walletRejected } = classifyError(error);
@@ -109,4 +114,4 @@ function handleError(error: unknown, onIssue: (issue: SignInIssue) => void, t: T
   reportError(error);
 }
 
-export type SignInIssue = "backup" | "biometrics" | "domain" | "passkey" | "unlinked";
+export type SignInIssue = "backup" | "biometrics" | "domain" | "passkey" | "stolen" | "unlinked";
