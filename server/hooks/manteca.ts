@@ -148,8 +148,8 @@ export default function hook({
 }) {
   const app = new Hono().post(
     "/",
-    vValidator("json", Payload, validatorHook({ code: "bad manteca", status: 200, debug })),
     headerValidator(mantecaWebhookKey),
+    vValidator("json", Payload, validatorHook({ code: "bad manteca", status: 200, debug })),
     async (c) => {
       const payload = c.req.valid("json");
 

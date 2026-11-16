@@ -83,6 +83,18 @@ describe("manteca hook", () => {
     expect(response.status).toBe(401);
   });
 
+  it("returns 401 with invalid signature on bad payload", async () => {
+    const payload = { event: "UNKNOWN_EVENT", data: {} };
+    const response = await appClient.index.$post({
+      header: {
+        "md-webhook-signature": createHmac("sha256", "wrong-key").update(JSON.stringify(payload)).digest("hex"),
+      },
+      json: payload as never,
+    });
+
+    expect(response.status).toBe(401);
+  });
+
   it("returns 200 with bad payload", async () => {
     const payload = { event: "UNKNOWN_EVENT", data: {} };
     const response = await appClient.index.$post({
