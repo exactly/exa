@@ -569,15 +569,18 @@ export default function hook({
       await enqueueAllow(credential);
 
       // TODO implement error handling to return 200 if event should not be retried
-      const { id } = await panda.createUser({
-        accountPurpose: fields.accountPurpose.value,
-        annualSalary,
-        expectedMonthlyVolume,
-        ipAddress: session.attributes.IPAddress,
-        isTermsOfServiceAccepted: true,
-        occupation: fields.inputSelect.value,
-        personaShareToken,
-      });
+      const { id } = await panda.createUser(
+        {
+          accountPurpose: fields.accountPurpose.value,
+          annualSalary,
+          expectedMonthlyVolume,
+          ipAddress: session.attributes.IPAddress,
+          isTermsOfServiceAccepted: true,
+          occupation: fields.inputSelect.value,
+          personaShareToken,
+        },
+        c.req.valid("json").data.id,
+      );
 
       await database.update(credentials).set({ pandaId: id }).where(eq(credentials.id, referenceId));
 
