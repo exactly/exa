@@ -715,6 +715,14 @@ export default function Confirm() {
     );
   }, [success, receiver, chainType, ens]);
 
+  const { data: sends } = useQuery<Record<string, number> | undefined>({ queryKey: ["sends"] });
+  const sendKey = `${address}:${destinationChain}:${destinationAddress}:${receiver.toLowerCase()}:${String(amount)}`;
+  const repeated = (sends?.[sendKey] ?? 0) > now - 3_600_000;
+  useEffect(() => {
+    if (!submitted) return;
+    queryClient.setQueryData<Record<string, number>>(["sends"], (old) => ({ ...old, [sendKey]: Date.now() }));
+  }, [submitted, sendKey]);
+
   const received = useMemo(() => {
     const settled =
       routeStatus && "receiving" in routeStatus ? (routeStatus.receiving as ExtendedTransactionInfo) : undefined;
@@ -1061,6 +1069,21 @@ export default function Confirm() {
               </YStack>
             </ScrollView>
             <YStack gap="s4">
+              {repeated && (
+                <XStack
+                  gap="s4"
+                  alignItems="center"
+                  backgroundColor="interactiveBaseWarningSoftDefault"
+                  borderRadius="r3"
+                  paddingHorizontal="s4"
+                  paddingVertical="s3"
+                >
+                  <TriangleAlert size={16} color="uiWarningSecondary" />
+                  <Text caption2 color="uiWarningSecondary" flex={1}>
+                    {t("You recently sent this amount to this address. Check your activity before sending it again.")}
+                  </Text>
+                </XStack>
+              )}
               {shortfall ? (
                 <XStack
                   gap="s4"

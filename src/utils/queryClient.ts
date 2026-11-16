@@ -216,6 +216,19 @@ queryClient.setQueryDefaults(["contacts", "recent"], {
     throw new Error("don't refetch");
   },
 });
+queryClient.setQueryDefaults(["sends"], {
+  initialData: undefined,
+  retry: false,
+  staleTime: Infinity,
+  gcTime: Infinity,
+  queryFn: () => {
+    throw new Error("don't refetch");
+  },
+  meta: {
+    persist: (sends: Record<string, number>) =>
+      Object.fromEntries(Object.entries(sends).filter(([, date]) => date > Date.now() - 3_600_000)),
+  },
+});
 queryClient.setQueryDefaults(["card-details-open"], {
   initialData: false,
   retry: false,
