@@ -1,6 +1,6 @@
 import { captureException, setContext, setUser, withScope } from "@sentry/node";
 import { Mutex } from "async-mutex";
-import { eq, inArray, ne } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
 import { describeRoute } from "hono-openapi";
@@ -35,7 +35,7 @@ import { isAddressEqual } from "viem";
 import { base } from "viem/chains";
 import { createSiweMessage, parseSiweMessage, verifySiweMessage } from "viem/siwe";
 
-import chain from "@exactly/common/generated/chain";
+import chain, { isBase } from "@exactly/common/generated/chain";
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 import { BASE_PRODUCT_ID, CLASSIC_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { business } from "@exactly/common/tenants";
@@ -319,7 +319,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
           with: {
             cards: {
               columns: { id: true, lastFour: true, status: true, mode: true, productId: true },
-              where: inArray(cards.status, ["ACTIVE", "FROZEN"]),
+              where: and(inArray(cards.status, ["ACTIVE", "FROZEN"]), eq(cards.tenant, isBase ? "BASE" : "OP")),
             },
           },
         });
@@ -484,7 +484,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
           with: {
             cards: {
               columns: { id: true },
-              where: inArray(cards.status, ["ACTIVE", "FROZEN"]),
+              where: and(inArray(cards.status, ["ACTIVE", "FROZEN"]), eq(cards.tenant, isBase ? "BASE" : "OP")),
             },
           },
         });
@@ -574,7 +574,10 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
               with: {
                 cards: {
                   columns: { id: true, status: true, productId: true },
-                  where: inArray(cards.status, ["ACTIVE", "FROZEN", "DELETED"]),
+                  where: and(
+                    inArray(cards.status, ["ACTIVE", "FROZEN", "DELETED"]),
+                    eq(cards.tenant, isBase ? "BASE" : "OP"),
+                  ),
                 },
               },
             });
@@ -656,7 +659,11 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
                   }
                 });
 
-              await database.insert(cards).values([{ id: card.id, credentialId, lastFour: card.last4, productId }]);
+              await database
+                .insert(cards)
+                .values([
+                  { id: card.id, credentialId, tenant: isBase ? "BASE" : "OP", lastFour: card.last4, productId },
+                ]);
               await credit.enqueue(account).catch((error: unknown) =>
                 captureException(error, {
                   level: "error",
@@ -865,7 +872,7 @@ async function encryptPIN(pin: string) {
               with: {
                 cards: {
                   columns: { id: true, mode: true, status: true, lastFour: true },
-                  where: ne(cards.status, "DELETED"),
+                  where: and(ne(cards.status, "DELETED"), eq(cards.tenant, isBase ? "BASE" : "OP")),
                 },
               },
             });

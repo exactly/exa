@@ -116,7 +116,7 @@ beforeAll(async () => {
       await tx
         .insert(credentials)
         .values([{ id: "cred", publicKey: new Uint8Array(), account, factory: exaAccountFactoryAddress }]);
-      await tx.insert(cards).values([{ id: "card", credentialId: "cred", lastFour: "1234" }]);
+      await tx.insert(cards).values([{ id: "card", credentialId: "cred", tenant: "OP", lastFour: "1234" }]);
     }),
     anvilClient.setBalance({ address: owner.account.address, value: 10n ** 24n }),
   ]);
@@ -203,7 +203,9 @@ describe("card operations", () => {
           output: encodeErrorResult({ abi: issuerCheckerAbi, errorName: "Replay" }),
         });
 
-        await database.insert(cards).values([{ id: "replay", credentialId: "cred", lastFour: "2222", mode: 4 }]);
+        await database
+          .insert(cards)
+          .values([{ id: "replay", credentialId: "cred", tenant: "OP", lastFour: "2222", mode: 4 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -243,7 +245,9 @@ describe("card operations", () => {
       it("fails with frozen card", async () => {
         const cardId = "rc-frozen";
         const transactionId = crypto.randomUUID();
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "0001", status: "FROZEN" }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "0001", status: "FROZEN" }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -276,7 +280,7 @@ describe("card operations", () => {
         const cardId = "rc-deleted";
         await database
           .insert(cards)
-          .values([{ id: cardId, credentialId: "cred", lastFour: "0002", status: "DELETED" }]);
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "0002", status: "DELETED" }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -316,7 +320,9 @@ describe("card operations", () => {
       });
 
       it("authorizes debit", async () => {
-        await database.insert(cards).values([{ id: "debit", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: "debit", credentialId: "cred", tenant: "OP", lastFour: "5678", mode: 0 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -333,7 +339,9 @@ describe("card operations", () => {
         const error = new Error("timeout");
         error.name = "TimeoutError";
         vi.spyOn(sardine, "risk").mockRejectedValueOnce(error);
-        await database.insert(cards).values([{ id: "risk-timeout", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: "risk-timeout", credentialId: "cred", tenant: "OP", lastFour: "5678", mode: 0 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -350,7 +358,9 @@ describe("card operations", () => {
       });
 
       it("authorizes installments", async () => {
-        await database.insert(cards).values([{ id: "inst", credentialId: "cred", lastFour: "5678", mode: 6 }]);
+        await database
+          .insert(cards)
+          .values([{ id: "inst", credentialId: "cred", tenant: "OP", lastFour: "5678", mode: 6 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -426,7 +436,9 @@ describe("card operations", () => {
           }),
         });
 
-        await database.insert(cards).values([{ id: "failed_trace", credentialId: "cred", lastFour: "2222", mode: 4 }]);
+        await database
+          .insert(cards)
+          .values([{ id: "failed_trace", credentialId: "cred", tenant: "OP", lastFour: "2222", mode: 4 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -457,7 +469,9 @@ describe("card operations", () => {
       it("fails with bad collection", async () => {
         vi.spyOn(traceClient, "traceCall").mockResolvedValueOnce({ ...callFrame });
         const cardId = "rc-bad-collection";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "0004", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "0004", mode: 0 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -476,7 +490,7 @@ describe("card operations", () => {
 
       it("fails with mutex timeout", async () => {
         const cardId = "rc-mutex";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "0003" }]);
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "0003" }]);
         const mutex = Panda.createMutex(account);
         await mutex.acquire();
         try {
@@ -501,7 +515,9 @@ describe("card operations", () => {
       it("fails with unexpected outer-catch error", async () => {
         vi.spyOn(Panda, "signIssuerOp").mockRejectedValueOnce(new Error("sign failed"));
         const cardId = "rc-ouch";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "0005", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "0005", mode: 0 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -527,7 +543,9 @@ describe("card operations", () => {
           score: 98,
           reasonCodes: ["AR01"],
         });
-        await database.insert(cards).values([{ id: "high-risk", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: "high-risk", credentialId: "cred", tenant: "OP", lastFour: "5678", mode: 0 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -553,7 +571,7 @@ describe("card operations", () => {
         });
         await database
           .insert(cards)
-          .values([{ id: "high-risk-verifications", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+          .values([{ id: "high-risk-verifications", credentialId: "cred", tenant: "OP", lastFour: "5678", mode: 0 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -582,7 +600,7 @@ describe("card operations", () => {
         });
         await database
           .insert(cards)
-          .values([{ id: "high-risk-refund", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+          .values([{ id: "high-risk-refund", credentialId: "cred", tenant: "OP", lastFour: "5678", mode: 0 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -617,7 +635,9 @@ describe("card operations", () => {
         });
 
         it("declines collection", async () => {
-          await database.insert(cards).values([{ id: "drain", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+          await database
+            .insert(cards)
+            .values([{ id: "drain", credentialId: "cred", tenant: "OP", lastFour: "5678", mode: 0 }]);
 
           const response = await appClient.index.$post({
             ...authorization,
@@ -652,7 +672,9 @@ describe("card operations", () => {
 
       it("clears debit", async () => {
         const cardId = "debits";
-        await database.insert(cards).values([{ id: "debits", credentialId: "cred", lastFour: "3456", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: "debits", credentialId: "cred", tenant: "OP", lastFour: "3456", mode: 0 }]);
         const response = await appClient.index.$post({
           ...authorization,
           json: {
@@ -690,7 +712,9 @@ describe("card operations", () => {
         const amount = 10;
 
         const cardId = "credits";
-        await database.insert(cards).values([{ id: "credits", credentialId: "cred", lastFour: "7890", mode: 1 }]);
+        await database
+          .insert(cards)
+          .values([{ id: "credits", credentialId: "cred", tenant: "OP", lastFour: "7890", mode: 1 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -721,7 +745,9 @@ describe("card operations", () => {
         const createdAt = new Date().toISOString();
 
         const cardId = "tUpdate";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 1 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 1 }]);
         const createResponse = await appClient.index.$post({
           ...authorization,
           json: {
@@ -790,7 +816,9 @@ describe("card operations", () => {
         const authorizedAt = new Date().toISOString();
 
         const cardId = "tRepeatedUpdate";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 0 }]);
         const createResponse = await appClient.index.$post({
           ...authorization,
           json: {
@@ -846,7 +874,9 @@ describe("card operations", () => {
         const amount = 120;
 
         const cardId = "splits";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "6754", mode: 6 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "6754", mode: 6 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -879,7 +909,9 @@ describe("card operations", () => {
         });
         const localAmount = 123_456;
         const cardId = "locale-notify";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "9999", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "9999", mode: 0 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -914,7 +946,9 @@ describe("card operations", () => {
           await args[2]?.onHash?.(zeroHash as Hash);
         });
         const cardId = "locale-notify-error";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "9999", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "9999", mode: 0 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -946,7 +980,9 @@ describe("card operations", () => {
           await args[2]?.onHash?.(zeroHash as Hash);
         });
         const cardId = "locale-feedback-error";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "9999", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "9999", mode: 0 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -980,7 +1016,9 @@ describe("card operations", () => {
         });
 
         const cardId = "timeout";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "7777", mode: 6 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "7777", mode: 6 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -1069,7 +1107,9 @@ describe("card operations", () => {
         const exaSend = vi.spyOn(keeper, "exaSend");
 
         const cardId = "timeout-debit";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "7171", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "7171", mode: 0 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -1120,7 +1160,9 @@ describe("card operations", () => {
         });
 
         const cardId = "revert";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 5 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 5 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -1154,7 +1196,9 @@ describe("card operations", () => {
 
       it("returns ok on replay", async () => {
         const cardId = "replay-collect";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "9999", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "9999", mode: 0 }]);
 
         const authorizedAt = new Date().toISOString();
         const json = {
@@ -1185,7 +1229,9 @@ describe("card operations", () => {
         vi.spyOn(publicClient, "simulateContract").mockRejectedValue(new Error("Unexpected Error"));
 
         const cardId = "unexpected";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 4 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 4 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -1225,7 +1271,9 @@ describe("card operations", () => {
 
         it("clears debit", async () => {
           const amount = 180;
-          await database.insert(cards).values([{ id: "drain-coll", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+          await database
+            .insert(cards)
+            .values([{ id: "drain-coll", credentialId: "cred", tenant: "OP", lastFour: "5678", mode: 0 }]);
 
           const response = await appClient.index.$post({
             ...authorization,
@@ -1657,7 +1705,9 @@ describe("card operations", () => {
         const capture = 7;
 
         const cardId = "settles-debit";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 0 }]);
         const createResponse = await appClient.index.$post({
           ...authorization,
           json: {
@@ -1711,7 +1761,9 @@ describe("card operations", () => {
         const capture = 12;
 
         const cardId = "settlement-failure";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 0 }]);
         const createdAt = new Date().toISOString();
         await database.insert(transactions).values([
           {
@@ -1829,7 +1881,9 @@ describe("card operations", () => {
         const capture = 120;
 
         const cardId = "over-capture-fraud";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 0 }]);
         const updateUser = vi.spyOn(panda, "updateUser").mockResolvedValue(userResponseTemplate);
 
         const createResponse = await appClient.index.$post({
@@ -1899,7 +1953,9 @@ describe("card operations", () => {
 
       it("captures collection errors when transaction lookup fails", async () => {
         const cardId = "lookup-failure";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 6 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 6 }]);
 
         const collectionError = new Error("collection failed");
         const lookupError = new Error("transaction lookup failed");
@@ -1970,7 +2026,9 @@ describe("card operations", () => {
         const capture = 12;
         const cardId = "settlement-lookup-failure";
 
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 0 }]);
         const createdAt = new Date().toISOString();
         await database.insert(transactions).values([
           {
@@ -2048,7 +2106,9 @@ describe("card operations", () => {
         const capture = 18;
 
         const cardId = "over-capture-frozen-debit";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 0 }]);
         const createResponse = await appClient.index.$post({
           ...authorization,
           json: {
@@ -2102,7 +2162,9 @@ describe("card operations", () => {
         const capture = 30;
 
         const cardId = "over-capture-debit";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 0 }]);
         const createResponse = await appClient.index.$post({
           ...authorization,
           json: {
@@ -2155,7 +2217,9 @@ describe("card operations", () => {
         const authorizedAt = new Date().toISOString();
 
         const cardId = "over-capture-double";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 0 }]);
         const createResponse = await appClient.index.$post({
           ...authorization,
           json: {
@@ -2210,7 +2274,9 @@ describe("card operations", () => {
         const authorizedAt = new Date().toISOString();
 
         const cardId = "over-capture-replay";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 0 }]);
         const createResponse = await appClient.index.$post({
           ...authorization,
           json: {
@@ -2269,7 +2335,9 @@ describe("card operations", () => {
         const authorizedAt = new Date().toISOString();
 
         const cardId = "force-capture-replay";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 0 }]);
         const createResponse = await appClient.index.$post({
           ...authorization,
           json: {
@@ -2330,7 +2398,9 @@ describe("card operations", () => {
             args: [refunderAddress, 100_000_000n],
           },
         );
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 0 }]);
         const createResponse = await appClient.index.$post({
           ...authorization,
           json: {
@@ -2382,7 +2452,9 @@ describe("card operations", () => {
         const capture = 42;
 
         const cardId = "force-capture-debit";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 0 }]);
         const { authorizedAmount, ...spend } = authorization.json.body.spend;
         const completeResponse = await appClient.index.$post({
           ...authorization,
@@ -2420,7 +2492,9 @@ describe("card operations", () => {
         const capture = 30;
 
         const cardId = "over-capture-feedback-error";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 0 }]);
         await appClient.index.$post({
           ...authorization,
           json: {
@@ -2476,7 +2550,9 @@ describe("card operations", () => {
         const capture = Number(currentFunds) / 1e4 + 10_000;
 
         const cardId = "force-capture-fraud";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 0 }]);
         const { authorizedAmount, ...spend } = authorization.json.body.spend;
         const completeResponse = await appClient.index.$post({
           ...authorization,
@@ -2515,7 +2591,9 @@ describe("card operations", () => {
         const capture = 80;
 
         const cardId = "force-capture-uncreated";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 0 }]);
         await database.insert(transactions).values([
           {
             id: cardId,
@@ -2692,7 +2770,9 @@ describe("concurrency", () => {
       await tx
         .insert(credentials)
         .values([{ id: account2, publicKey: new Uint8Array(), account: account2, factory: exaAccountFactoryAddress }]);
-      await tx.insert(cards).values([{ id: `${account2}-card`, credentialId: account2, lastFour: "1234", mode: 0 }]);
+      await tx
+        .insert(cards)
+        .values([{ id: `${account2}-card`, credentialId: account2, tenant: "OP", lastFour: "1234", mode: 0 }]);
     });
   });
 
@@ -4034,7 +4114,9 @@ describe("webhooks", () => {
       } as TransactionReceipt);
     });
     const cardId = "receipt-enqueue-failure";
-    await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "4321", mode: 0 }]);
+    await database
+      .insert(cards)
+      .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "4321", mode: 0 }]);
 
     const response = await appClient.index.$post({
       ...authorization,
