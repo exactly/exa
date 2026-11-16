@@ -167,7 +167,7 @@ export default defineConfig([
           }
           const factories = {
             versions: deploy.factory.versions.map((v) => factory(v)),
-            legacy: perChain(deploy.factory.legacy).map((address) => getAddress(address)),
+            legacy: chain ? perChain(deploy.factory.legacy).map((address) => getAddress(address)) : [factory("legacy")],
           };
           function chainFields(id: number | string) {
             return {
