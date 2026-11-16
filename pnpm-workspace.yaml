@@ -182,6 +182,7 @@ patchedDependencies:
   embedded-postgres: patches/embedded-postgres.patch
   eslint-config-universe: patches/eslint-config-universe.patch
   nx: patches/nx.patch
+  ponder@0.18.9: patches/ponder@0.18.9.patch
   prool@0.2.17: patches/prool@0.2.17.patch
   react-native-wagmi-charts: patches/react-native-wagmi-charts.patch
 peerDependencyRules:
