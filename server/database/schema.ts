@@ -30,6 +30,7 @@ export const credentials = pgTable(
     transports: text("transports").array(),
     kycId: text("kyc_id"),
     pandaId: text("panda_id"),
+    bambooId: text("bamboo_id"),
     bridgeId: text("bridge_id"),
     source: text("source"),
     salt: text("salt").notNull().default(zeroAddress),
