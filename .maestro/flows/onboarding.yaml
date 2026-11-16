@@ -13,5 +13,10 @@ env:
 - tapOn: Upgrade now
 - tapOn: Upgrade Exa Card
 - tapOn: Activate new Exa Card
+- tapOn: Card details
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Accept and enable card } }
+- tapOn: Accept and enable card
+- assertVisible: 4\d{3}( \d{4}){3}
+- tapOn: Close
 - tapOn: Home
 - runFlow: ../subflows/storeCoverage.yaml

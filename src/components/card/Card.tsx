@@ -184,7 +184,7 @@ export default function Card() {
       }
       try {
         const data = await queryClient.fetchQuery<CardSecrets>({
-          queryKey: ["card", "secrets", cardDetails?.cardId],
+          queryKey: ["card", "secrets", cardDetails?.lastFour],
           staleTime: 0,
           retry: false,
         });
@@ -278,7 +278,7 @@ export default function Card() {
       error instanceof APIError &&
       error.code !== 409 &&
       error.code !== 504 &&
-      !error.text.includes("already created") &&
+      !existing.has(error.text) &&
       !isOffboarded(error),
     retryDelay: (failureCount, error) => (error instanceof APIError ? failureCount * 5000 : 1000),
     mutationFn: async () => {
@@ -292,22 +292,16 @@ export default function Card() {
       if (card) queryClient.setQueryData(["card-details-open"], true);
     },
     onError: async (error: Error) => {
-      if (!(error instanceof APIError)) {
-        reportError(error);
-        toast.error(t("Error activating card"), { duration: 1000 });
-        return;
-      }
-      if (error.text.includes("already created")) {
+      if (error instanceof APIError && existing.has(error.text) && (await refetchCard().then(({ data }) => data))) {
         queryClient.setQueryData<boolean>(["settings", "card-support-contacted"], false);
-        await queryClient.refetchQueries({ queryKey: ["card", "details"] });
-        await queryClient.setQueryData(["card-details-open"], true);
+        queryClient.setQueryData(["card-details-open"], true);
         return;
       }
       if (isOffboarded(error)) {
         setUnavailableShown(true);
         return;
       }
-      if (error.text === "card limit reached") {
+      if (error instanceof APIError && error.text === "card limit reached") {
         setCardLimitShown(true);
         return;
       }
@@ -685,3 +679,5 @@ export default function Card() {
     </SafeView>
   );
 }
+
+const existing = new Set(["already created", "card limit reached"]);
