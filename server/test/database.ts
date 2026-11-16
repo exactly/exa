@@ -24,6 +24,7 @@ export default async function setup() {
     databaseDir,
     port: 8432,
     password: "postgres",
+    postgresFlags: ["-c", "wal_level=logical"],
     createPostgresUser: process.getuid?.() === 0,
     onLog: () => null,
   });
