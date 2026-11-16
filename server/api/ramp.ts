@@ -1,7 +1,8 @@
-import { vValidator } from "@hono/valibot-validator";
 import { captureException, setUser } from "@sentry/core";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
+import { describeRoute } from "hono-openapi";
+import { resolver, validator as vValidator } from "hono-openapi/valibot";
 import {
   array,
   literal,
@@ -17,12 +18,15 @@ import {
   type InferInput,
   type InferOutput,
 } from "valibot";
+import { isAddressEqual } from "viem";
 
+import * as nonceKey from "@exactly/common/nonceKey";
 import { business } from "@exactly/common/tenants";
-import { Address } from "@exactly/common/validation";
+import { Address, Hash, Hex } from "@exactly/common/validation";
 
 import { canRetry } from "./kyc";
 import { credentials } from "../database/schema";
+import findOperation from "../utils/findOperation";
 import { BusinessApplicationError } from "../utils/panda";
 import { ADDRESS_TEMPLATE, MANTECA_TEMPLATE_EXTRA_FIELDS, PANDA_TEMPLATE } from "../utils/persona";
 import * as Bridge from "../utils/ramps/bridge";
@@ -48,6 +52,8 @@ const ErrorCodes = {
   NOT_APPROVED: "not approved",
   NOT_STARTED: "not started",
   NOT_SUPPORTED: "not supported",
+  PAYMENT_NOT_EXECUTED: "payment not executed",
+  PAYMENT_NOT_FOUND: "payment not found",
   POSTAL_CODE_REQUIRED: "postal code required",
   TRANSFER_NOT_FOUND: "transfer not found",
   WITHDRAWAL_IN_PROGRESS: "withdrawal in progress",
@@ -445,6 +451,164 @@ export default function route({
         return c.json({ code: "ok" }, 200);
       },
     )
+    .post(
+      "/qr",
+      auth,
+      describeRoute({
+        summary: "Lock QR payment",
+        description: `
+Lock the payment of a merchant QR code for the authenticated user, with the national id of the user as sender.
+
+Send the \`amount\` in the currency of the QR when the QR has none. Without it, such a QR returns \`206\` with the recipient only.
+
+Pay the lock with a user operation that withdraws at least \`amount\` USDC to \`receiver\` before \`expireAt\`, using \`nonceKey\` as the key of its nonce. The server executes the payment once the withdraw is onchain.
+        `,
+        tags: ["QR"],
+        security: [{ credentialAuth: [] }],
+        validateResponse: true,
+        responses: {
+          200: {
+            description: "Locked payment",
+            content: { "application/json": { schema: resolver(QrLock, { errorMode: "ignore" }) } },
+          },
+          206: {
+            description: "QR without amount",
+            content: {
+              "application/json": {
+                schema: resolver(object({ recipient: optional(string()) }), { errorMode: "ignore" }),
+              },
+            },
+          },
+          400: {
+            description: "Bad request",
+            content: {
+              "application/json": {
+                schema: resolver(
+                  object({
+                    code: picklist([
+                      "bad qr",
+                      ErrorCodes.NO_CREDENTIAL,
+                      Manteca.ErrorCodes.NO_DOCUMENT,
+                      Manteca.ErrorCodes.NO_PERSONA_ACCOUNT,
+                    ]),
+                  }),
+                  { errorMode: "ignore" },
+                ),
+              },
+            },
+          },
+        },
+      }),
+      vValidator("json", object({ qr: string(), amount: optional(string()) }), validatorHook({ code: "bad qr" })),
+      async (c) => {
+        const { credentialId } = c.req.valid("cookie");
+        const payment = c.req.valid("json");
+        const credential = await database.query.credentials.findFirst({
+          where: eq(credentials.id, credentialId),
+          columns: { account: true },
+        });
+        if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
+        setUser({ id: parse(Address, credential.account) });
+
+        const personaAccount = await persona.getAccount(credentialId, "basic");
+        if (!personaAccount) return c.json({ code: Manteca.ErrorCodes.NO_PERSONA_ACCOUNT }, 400);
+        const document = Manteca.nationalId(personaAccount);
+        if (!document) return c.json({ code: Manteca.ErrorCodes.NO_DOCUMENT }, 400);
+        const lock = await manteca.lockQrPayment({
+          paymentDestination: payment.qr,
+          amount: payment.amount,
+          against: "USDC",
+          sender: {
+            legalIdNationality: document.id_issuing_country.value,
+            legalId: document.id_number.value,
+            name: personaAccount.attributes.fields.name.value.first.value,
+            surname: personaAccount.attributes.fields.name.value.last.value,
+          },
+        });
+        if (!lock.code) return c.json({ recipient: lock.paymentRecipientName }, 206);
+        if (!lock.sender) throw new Error("lock without sender");
+        return c.json(
+          {
+            code: lock.code,
+            nonceKey: nonceKey.encode(lock.code),
+            amount: lock.paymentAgainstAmount,
+            expireAt: lock.expireAt,
+            recipient: lock.paymentRecipientName,
+            receiver: await manteca.getSettlement(lock.paymentAsset),
+          } satisfies InferOutput<typeof QrLock>,
+          200,
+        );
+      },
+    )
+    .get(
+      "/qr/:userOpHash",
+      auth,
+      describeRoute({
+        summary: "Get QR payment",
+        description: `
+Retrieve the status of the QR payment made by the user operation \`userOpHash\` of the authenticated user.
+
+Returns the synthetic of the payment once the server executed it, \`FAILED\` when the user operation reverted, or \`EXPIRED\` when the lock expired before the execution.
+        `,
+        tags: ["QR"],
+        security: [{ credentialAuth: [] }],
+        validateResponse: true,
+        responses: {
+          200: {
+            description: "Payment status",
+            content: { "application/json": { schema: resolver(QrPayment, { errorMode: "ignore" }) } },
+          },
+          400: {
+            description: "Bad request",
+            content: {
+              "application/json": {
+                schema: resolver(object({ code: picklist(["bad request", ErrorCodes.NO_CREDENTIAL]) }), {
+                  errorMode: "ignore",
+                }),
+              },
+            },
+          },
+          404: {
+            description: "Payment not found or not executed",
+            content: {
+              "application/json": {
+                schema: resolver(
+                  object({ code: picklist([ErrorCodes.PAYMENT_NOT_EXECUTED, ErrorCodes.PAYMENT_NOT_FOUND]) }),
+                  { errorMode: "ignore" },
+                ),
+              },
+            },
+          },
+        },
+      }),
+      vValidator("param", object({ userOpHash: Hash }), validatorHook()),
+      async (c) => {
+        const { credentialId } = c.req.valid("cookie");
+        const { userOpHash } = c.req.valid("param");
+        const credential = await database.query.credentials.findFirst({
+          where: eq(credentials.id, credentialId),
+          columns: { account: true },
+        });
+        if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
+        const account = parse(Address, credential.account);
+        setUser({ id: account });
+
+        const operation = await findOperation(userOpHash);
+        if (!operation || !isAddressEqual(operation.sender, account)) {
+          return c.json({ code: ErrorCodes.PAYMENT_NOT_FOUND }, 404);
+        }
+        const code = nonceKey.decode(BigInt(operation.nonce)); // eslint-disable-line @typescript-eslint/no-unnecessary-type-conversion -- viem keeps the rpc hex
+        if (!code) return c.json({ code: ErrorCodes.PAYMENT_NOT_FOUND }, 404);
+        if (!operation.success) return c.json({ status: "FAILED" } satisfies InferOutput<typeof QrPayment>, 200);
+        const lock = await manteca.getPaymentLock(code);
+        const synthetic = await manteca.getSynthetic(userOpHash);
+        if (synthetic) {
+          return c.json({ id: synthetic.id, status: synthetic.status } satisfies InferOutput<typeof QrPayment>, 200);
+        }
+        if (lock === null) return c.json({ status: "EXPIRED" } satisfies InferOutput<typeof QrPayment>, 200);
+        return c.json({ code: ErrorCodes.PAYMENT_NOT_EXECUTED }, 404);
+      },
+    )
     .post("/external-account", auth, vValidator("json", Bridge.ExternalAccountInput, validatorHook()), async (c) => {
       const { credentialId } = c.req.valid("cookie");
       const credential = await database.query.credentials.findFirst({
@@ -585,6 +749,20 @@ async function getOrCreateInquiry(
 }
 
 type QuoteResponse = undefined | { buyRate: string; sellRate: string };
+
+const QrLock = object({
+  code: string(),
+  nonceKey: Hex,
+  amount: string(),
+  expireAt: string(),
+  recipient: optional(string()),
+  receiver: Address,
+});
+
+const QrPayment = union([
+  object({ id: string(), status: picklist(Manteca.SyntheticStatus) }),
+  object({ status: picklist(["EXPIRED", "FAILED"]) }),
+]);
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const RampResponse = object({
