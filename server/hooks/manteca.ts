@@ -10,6 +10,7 @@ import {
   literal,
   number,
   object,
+  optional,
   picklist,
   pipe,
   safeParse,
@@ -24,7 +25,15 @@ import { Address } from "@exactly/common/validation";
 
 import { credentials } from "../database/schema";
 import t, { f } from "../i18n";
-import { ErrorCodes, OrderStatus, UserOnboardingTasks, UserStatus, WithdrawStatus } from "../utils/ramps/manteca";
+import findAccount from "../utils/findAccount";
+import {
+  ErrorCodes,
+  OrderStatus,
+  SyntheticStatus,
+  UserOnboardingTasks,
+  UserStatus,
+  WithdrawStatus,
+} from "../utils/ramps/manteca";
 import validatorHook from "../utils/validatorHook";
 import verifySignature from "../utils/verifySignature";
 
@@ -80,6 +89,16 @@ const Payload = variant("event", [
     }),
   }),
   object({
+    event: literal("WITHDRAW_STATUS_UPDATE"),
+    data: object({
+      id: string(),
+      externalId: optional(string()),
+      asset: string(),
+      amount: string(),
+      status: picklist(WithdrawStatus),
+    }),
+  }),
+  object({
     event: literal("ORDER_STATUS_UPDATE"),
     data: object({
       id: string(),
@@ -120,14 +139,26 @@ const Payload = variant("event", [
     event: literal("PAYMENT_REFUND"),
     data: object({
       amount: string(),
+      amountToRefund: optional(string()),
       asset: string(),
-      network: string(),
+      assetToRefund: optional(string()),
       partial: boolean(),
+      paymentExternalId: optional(string()),
       paymentNumberId: string(),
+      refundId: optional(string()),
       refundReason: string(),
       refundedAt: string(),
       userId: string(),
       userNumberId: string(),
+    }),
+  }),
+  object({
+    event: literal("SYNTHETIC_STATUS_UPDATE"),
+    data: object({
+      id: string(),
+      externalId: optional(string()),
+      status: picklist(SyntheticStatus),
+      type: string(),
     }),
   }),
   object({ event: literal("SYSTEM_NOTICE"), data: unknown() }),
@@ -169,12 +200,25 @@ export default function hook({
       }
 
       if (payload.event === "PAYMENT_REFUND") {
-        // TODO retrieve the userExternalId from manteca to continue with the flow
-        captureEvent({ message: "MantecaPaymentRefund", level: "info" });
+        const account = await findAccount(payload.data.paymentExternalId).catch((error: unknown) => {
+          captureException(error, { level: "warning" });
+        });
+        if (account) setUser({ id: account });
+        captureEvent({ message: "MantecaPaymentRefund", level: "warning", contexts: { details: payload.data } });
         return c.json({ code: "ok" }, 200);
       }
 
-      if (payload.data.userExternalId.startsWith("Exactly-")) {
+      if (payload.event === "SYNTHETIC_STATUS_UPDATE") {
+        const account = await findAccount(payload.data.externalId).catch((error: unknown) => {
+          captureException(error, { level: "warning" });
+        });
+        if (account) setUser({ id: account });
+        captureEvent({ message: "MantecaSyntheticStatusUpdate", level: "info", contexts: { details: payload.data } });
+        return c.json({ code: "ok" }, 200);
+      }
+
+      if (!("userExternalId" in payload.data) || payload.data.userExternalId.startsWith("Exactly-")) {
+        // TODO link merchant withdraws to the account by externalId
         captureEvent({
           message: "MantecaCompanyEvent",
           level: "info",
