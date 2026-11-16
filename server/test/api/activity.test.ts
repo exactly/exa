@@ -39,6 +39,7 @@ import chain, {
 import route, { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity } from "../../api/activity";
 import database, { cards, credentials, transactions } from "../../database";
 import authenticate from "../../middleware/auth";
+import publicClient from "../../utils/publicClient";
 import anvilClient from "../anvilClient";
 
 function httpSerialize<T>(object: T): T {
@@ -291,6 +292,7 @@ describe.concurrent("authenticated", () => {
     }, 66_666);
 
     it("returns the card transaction", async () => {
+      const receipt = vi.spyOn(publicClient, "getTransactionReceipt");
       const response = await appClient.index.$get(
         { query: { include: "card" } },
         { headers: { "test-credential-id": "bob" } },
@@ -298,6 +300,7 @@ describe.concurrent("authenticated", () => {
 
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toMatchObject(httpSerialize(activity));
+      expect(receipt).not.toHaveBeenCalled();
     });
 
     it("returns declined transaction in http response", async () => {
@@ -357,6 +360,106 @@ describe.concurrent("authenticated", () => {
         );
       } finally {
         await database.delete(transactions).where(eq(transactions.id, "retried"));
+      }
+    });
+
+    it("keeps the first attempt when the retry reverted", async () => {
+      const sender = privateKeyToAccount(generatePrivateKey());
+      await anvilClient.setBalance({ address: sender.address, value: 10n ** 18n });
+      const reverted = await anvilClient.waitForTransactionReceipt({
+        hash: await anvilClient.sendTransaction({
+          account: sender,
+          to: usdcAddress,
+          data: encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [account, 1n] }),
+          gas: 100_000n,
+        }),
+      });
+      expect(reverted.status).toBe("reverted");
+      const hashes = [padHex("0x1", { size: 32 }), reverted.transactionHash];
+      const bodies = [retried(0), retried(1)];
+      await database
+        .insert(transactions)
+        .values([{ id: "reverted", cardId: "first-activity-card", hashes, payload: { type: "panda", bodies } }]);
+      try {
+        const response = await appClient.index.$get(
+          { query: { include: "card" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(response.status).toBe(200);
+        const json = (await response.json()) as { id: string }[];
+        expect(json.find(({ id }) => id === "retried")).toStrictEqual(
+          httpSerialize({
+            ...parse(PandaActivity, { type: "panda", hashes: [hashes[0]], borrows: [null], bodies: [bodies[0]] }),
+            cardId: "first-activity-card",
+            lastFour: "1234",
+          }),
+        );
+      } finally {
+        await database.delete(transactions).where(eq(transactions.id, "reverted"));
+      }
+    });
+
+    it("skips receipts for retried declines", async () => {
+      const receipt = vi.spyOn(publicClient, "getTransactionReceipt");
+      const bodies = [retried(0), retried(1)].map((body) => ({ ...body, status: "declined" }));
+      await database.insert(transactions).values([
+        {
+          id: "declined",
+          cardId: "first-activity-card",
+          hashes: [zeroHash, zeroHash],
+          payload: { type: "panda", bodies },
+        },
+      ]);
+      try {
+        const response = await appClient.index.$get(
+          { query: { include: "card" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(response.status).toBe(200);
+        expect(receipt).not.toHaveBeenCalled();
+      } finally {
+        await database.delete(transactions).where(eq(transactions.id, "declined"));
+      }
+    });
+
+    it("fails when a retry receipt cannot be read", async () => {
+      const owner = { credentialId: "unreadable-credential", cardId: "unreadable-card" };
+      const hashes = [padHex("0x1", { size: 32 }), padHex("0x2", { size: 32 })];
+      const read = publicClient.getTransactionReceipt.bind(publicClient);
+      const receipt = vi
+        .spyOn(publicClient, "getTransactionReceipt")
+        .mockImplementation((parameters) =>
+          hashes.includes(parameters.hash) ? Promise.reject(new Error("receipt")) : read(parameters),
+        );
+      await database.insert(credentials).values({
+        id: owner.credentialId,
+        publicKey: new Uint8Array(),
+        account: padHex("0xdead", { size: 20 }),
+        factory: exaAccountFactoryAddress,
+      });
+      await database.insert(cards).values([{ id: owner.cardId, credentialId: owner.credentialId, lastFour: "0000" }]);
+      await database.insert(transactions).values([
+        {
+          id: "unreadable",
+          cardId: owner.cardId,
+          hashes,
+          payload: { type: "panda", bodies: [retried(0), retried(1)] },
+        },
+      ]);
+      try {
+        const response = await appClient.index.$get(
+          { query: { include: "card" } },
+          { headers: { "test-credential-id": owner.credentialId } },
+        );
+
+        expect(response.status).toBe(500);
+        expect(receipt.mock.calls).toStrictEqual(hashes.map((hash) => [{ hash }]));
+      } finally {
+        await database.delete(transactions).where(eq(transactions.id, "unreadable"));
+        await database.delete(cards).where(eq(cards.id, owner.cardId));
+        await database.delete(credentials).where(eq(credentials.id, owner.credentialId));
       }
     });
 
@@ -443,6 +546,55 @@ describe.concurrent("authenticated", () => {
           parse(PandaActivity, { type: "panda", hashes: [hashes[1]], borrows: [null], bodies: [retried(1)] }),
         );
         expect(panda.operations[0]).toMatchObject({ transactionHash: hashes[1], mode: 0 });
+      });
+
+      it("keeps every settled retry", () => {
+        const panda = parse(PandaActivity, {
+          type: "panda",
+          hashes,
+          borrows: [null, null, null],
+          mined: [true, false, true],
+          bodies: [retried(0), retried(1), retried(2)],
+        });
+
+        expect(panda).toStrictEqual(
+          parse(PandaActivity, {
+            type: "panda",
+            hashes: [hashes[0], hashes[2]],
+            borrows: [null, null],
+            mined: [true, true],
+            bodies: [retried(0), retried(2)],
+          }),
+        );
+        expect(panda.operations.map(({ transactionHash }) => transactionHash)).toStrictEqual([hashes[0], hashes[2]]);
+        expect(panda.usdAmount).toBeCloseTo(465.06);
+      });
+
+      it("counts a repeated settled hash once", () => {
+        const panda = parse(PandaActivity, {
+          type: "panda",
+          hashes: [hashes[0], hashes[0]],
+          borrows: [borrow, borrow],
+          bodies: [retried(0), retried(1)],
+        });
+
+        expect(panda).toStrictEqual(
+          parse(PandaActivity, { type: "panda", hashes: [hashes[0]], borrows: [borrow], bodies: [retried(0)] }),
+        );
+        expect(panda.usdAmount).toBeCloseTo(232.53);
+      });
+
+      it("keeps attempts without event ids", () => {
+        const bodies = [retried(0), retried(1)].map(({ id: _, ...body }) => body);
+        const panda = parse(PandaActivity, {
+          type: "panda",
+          hashes: hashes.slice(0, 2),
+          borrows: [null, null],
+          bodies,
+        });
+
+        expect(panda.operations.map(({ transactionHash }) => transactionHash)).toStrictEqual(hashes.slice(0, 2));
+        expect(panda.usdAmount).toBeCloseTo(465.06);
       });
     });
 
