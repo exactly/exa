@@ -1,5 +1,44 @@
 # @exactly/mobile
 
+## 1.2.51
+
+### Patch Changes
+
+- [#1718](https://github.com/exactly/exa/pull/1718) [`11fff55`](https://github.com/exactly/exa/commit/11fff55a5029f0c4d5a398226eb9c75ce34430ef) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 show stocks to users without kyc
+
+- [#1718](https://github.com/exactly/exa/pull/1718) [`ed670f3`](https://github.com/exactly/exa/commit/ed670f3b98bc0dfbdbb1f3baafff43dd5f769524) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💬 explain where to send funds on getting started
+
+- [#1738](https://github.com/exactly/exa/pull/1738) [`3ab7318`](https://github.com/exactly/exa/commit/3ab731852a102ac63284be0d3e55011b7563b85c) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ list deposited stocks in stocks tab
+
+- [#1718](https://github.com/exactly/exa/pull/1718) [`36612e6`](https://github.com/exactly/exa/commit/36612e684f683ec14ce5261d5a70c55e3700512b) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ prompt bridge or swap on networks without collateral
+
+- [#1718](https://github.com/exactly/exa/pull/1718) [`016deac`](https://github.com/exactly/exa/commit/016deacb1ea77de321ba2d65d774afbe5da17a70) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 describe portfolio sections inline
+
+- [#1718](https://github.com/exactly/exa/pull/1718) [`08f5b47`](https://github.com/exactly/exa/commit/08f5b4712c0b94ffdf41f9865f639ba371912068) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 describe add funds assets and networks inline
+
+- [#1718](https://github.com/exactly/exa/pull/1718) [`f15b0b2`](https://github.com/exactly/exa/commit/f15b0b24dacf97a541f791eb5864959a8e872722) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🔥 remove funding alert
+
+- [#1738](https://github.com/exactly/exa/pull/1738) [`90d87c0`](https://github.com/exactly/exa/commit/90d87c0bcb4dec1ba1846d9c7f2f5d9683d1abed) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 hide apr of markets without yield
+
+- [#1718](https://github.com/exactly/exa/pull/1718) [`48a298f`](https://github.com/exactly/exa/commit/48a298f6e15c609f6656784e8946ee163e7134ae) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ prompt card activation once getting started is complete
+
+- [#1718](https://github.com/exactly/exa/pull/1718) [`0bffb69`](https://github.com/exactly/exa/commit/0bffb69553c1f1ea39f01db5033b84421b19e197) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 explain why received assets need a bridge or swap
+
+- [#1718](https://github.com/exactly/exa/pull/1718) [`4b89875`](https://github.com/exactly/exa/commit/4b898752e8943716ad1465b6156f7026be530801) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🧵 prevent card reveal during creation
+
+- [#1903](https://github.com/exactly/exa/pull/1903) [`f442c0f`](https://github.com/exactly/exa/commit/f442c0fb5f11a1dc58572c49ff33edb7a9384f3b) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🧵 wait for wallet reconnection on auth
+
+- [#1904](https://github.com/exactly/exa/pull/1904) [`ff3a2db`](https://github.com/exactly/exa/commit/ff3a2dbff2c2ca3bcc362f1a802fc3cd6aa0cce7) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 guard cyclic causes in error reporting
+
+- [#1912](https://github.com/exactly/exa/pull/1912) [`c029271`](https://github.com/exactly/exa/commit/c029271cdbaa444fc485132b1d2f2a5acb6acbfc) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🩹 strip leading zeros from amounts
+
+- [#1718](https://github.com/exactly/exa/pull/1718) [`c64d841`](https://github.com/exactly/exa/commit/c64d841255de3b4e239c322b8af7d24e2066f3e4) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💬 explain euro transfers accept payments from companies
+
+- [#1718](https://github.com/exactly/exa/pull/1718) [`5cd0f25`](https://github.com/exactly/exa/commit/5cd0f25a75801e4953bcb1d921881e60fe409790) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💬 require 18 or older on identity verification
+
+- Updated dependencies [[`e5ec413`](https://github.com/exactly/exa/commit/e5ec413357aa12ca4638bd1ac9f4c46f21a1e155), [`95f89b7`](https://github.com/exactly/exa/commit/95f89b7409cb4cb27c8a0bc5e533107fa618d8e2), [`2b4f258`](https://github.com/exactly/exa/commit/2b4f2585b091cebd3a3e61f11a278deb1b98d1a6), [`0b4560a`](https://github.com/exactly/exa/commit/0b4560aa8d4d0f6c87b9f47034e9272f940674a9), [`ae5fbb0`](https://github.com/exactly/exa/commit/ae5fbb0698e0b456c4da690ad0b252731e619ac4)]:
+  - @exactly/server@0.3.9
+
 ## 1.2.50
 
 ### Patch Changes

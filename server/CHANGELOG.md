@@ -1,5 +1,19 @@
 # @exactly/server
 
+## 0.3.9
+
+### Patch Changes
+
+- [#1926](https://github.com/exactly/exa/pull/1926) [`e5ec413`](https://github.com/exactly/exa/commit/e5ec413357aa12ca4638bd1ac9f4c46f21a1e155) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 count retried purchases once
+
+- [#1916](https://github.com/exactly/exa/pull/1916) [`95f89b7`](https://github.com/exactly/exa/commit/95f89b7409cb4cb27c8a0bc5e533107fa618d8e2) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 dedupe retried card purchases
+
+- [#1920](https://github.com/exactly/exa/pull/1920) [`2b4f258`](https://github.com/exactly/exa/commit/2b4f2585b091cebd3a3e61f11a278deb1b98d1a6) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ⚡️ check retried collects by receipt
+
+- [#1925](https://github.com/exactly/exa/pull/1925) [`0b4560a`](https://github.com/exactly/exa/commit/0b4560aa8d4d0f6c87b9f47034e9272f940674a9) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🩹 mark bridge unavailable without document
+
+- [#1929](https://github.com/exactly/exa/pull/1929) [`ae5fbb0`](https://github.com/exactly/exa/commit/ae5fbb0698e0b456c4da690ad0b252731e619ac4) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 surface failed receipt reads on activity
+
 ## 0.3.8
 
 ### Patch Changes
