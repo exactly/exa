@@ -48,6 +48,7 @@ export default function useSimulateProposal({
       proposalType: typeof ProposalType.Swap;
       route: Hex | undefined;
     }
+  | { assets: bigint | undefined; proposalType: typeof ProposalType.Redeem; receiver: Address | undefined }
   | {
       borrowMaturity: bigint | undefined;
       maxRepayAssets: bigint | undefined;
@@ -74,7 +75,6 @@ export default function useSimulateProposal({
       positionAssets: bigint | undefined;
       proposalType: typeof ProposalType.RepayAtMaturity;
     }
-  | { proposalType: typeof ProposalType.Redeem; receiver: Address | undefined }
   | { proposalType: typeof ProposalType.Withdraw; receiver: Address | undefined }
 )) {
   const {
@@ -163,9 +163,13 @@ export default function useSimulateProposal({
           encodeCrossRepayAtMaturity({ ...proposal, marketOut: undefined }),
         )
       : request;
+  const legacyAmount = proposal.proposalType === ProposalType.Redeem ? proposal.assets : amount;
   const legacy =
-    proposal.proposalType === ProposalType.Withdraw && request !== undefined && proposal.receiver !== undefined
-      ? { ...request, abi: outdatedAbi, args: [request.args[0], request.args[1], proposal.receiver] as const }
+    (proposal.proposalType === ProposalType.Withdraw || proposal.proposalType === ProposalType.Redeem) &&
+    request !== undefined &&
+    legacyAmount !== undefined &&
+    proposal.receiver !== undefined
+      ? { ...request, abi: outdatedAbi, args: [request.args[0], legacyAmount, proposal.receiver] as const }
       : undefined;
   const fallback = missing(propose, calldata)
     ? legacy && {

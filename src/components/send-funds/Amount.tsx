@@ -150,6 +150,7 @@ export default function Amount() {
         : 0n
     : 0n;
   const payUSD = (available * payPrice) / 10n ** BigInt(payDecimals);
+  const payMarket = pay?.type === "protocol" ? markets?.find(({ market }) => market === pay.market) : undefined;
   const direct =
     !!payDelivered &&
     destinationChain === payChain &&
@@ -252,6 +253,7 @@ export default function Amount() {
         toSymbol: destination.symbol,
         amount: String(destinationAmount),
         fromAmount: String(fromAmount),
+        ...(max && !routed && payMarket && available >= payMarket.floatingDepositAssets && { max: "true" }),
       },
     });
   }

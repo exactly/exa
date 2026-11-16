@@ -10,23 +10,25 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { AnimatePresence, ScrollView, Separator, Square, XStack, YStack } from "tamagui";
 
 import { ChainType } from "@lifi/sdk";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { readContract } from "@wagmi/core/actions";
+import { keepPreviousData, skipToken, useQuery } from "@tanstack/react-query";
+import { getTransactionReceipt, readContract } from "@wagmi/core/actions";
 import { parse, safeParse } from "valibot";
 import {
   encodeEventTopics,
   encodeFunctionData,
   erc20Abi,
+  erc4626Abi,
   formatUnits,
   getAddress,
   maxUint256,
   parseAbi,
+  parseEventLogs,
   zeroAddress as viemZeroAddress,
   zeroHash,
 } from "viem";
 import { useReadContract, useSimulateContract } from "wagmi";
 
-import chain, { alchemyChains, marketWETHAddress } from "@exactly/common/generated/chain";
+import chain, { alchemyChains, marketWETHAddress, proposalManagerAddress } from "@exactly/common/generated/chain";
 import { proposalManagerAbi } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
 import shortenHex from "@exactly/common/shortenHex";
@@ -82,6 +84,7 @@ import TransactionDetails from "../shared/TransactionDetails";
 import View from "../shared/View";
 
 import type { ExtendedTransactionInfo } from "@lifi/sdk";
+import type { Hex, Log } from "viem";
 
 export default function Confirm() {
   const router = useRouter();
@@ -98,6 +101,7 @@ export default function Confirm() {
     toToken,
     amount,
     fromAmount: fromAmountParameter,
+    max: maxParameter,
     receiver: receiverParameter,
     ens: ensParameter,
     chainType,
@@ -111,11 +115,17 @@ export default function Confirm() {
   const receiverHex = receiverParse.success ? receiverParse.output : undefined;
   const payChain = typeof fromChain === "string" ? Number(fromChain) : chain.id;
   const destinationChain = typeof toChain === "string" ? Number(toChain) : chain.id;
-  const destinationAmount = typeof amount === "string" && /^\d+$/.test(amount) ? BigInt(amount) : 0n;
+  const requestedAmount = typeof amount === "string" && /^\d+$/.test(amount) ? BigInt(amount) : 0n;
   const { data: resolved } = useQuery(ensOptions(name, destinationChain));
   const ens = name && resolved === receiverHex ? name : "";
 
-  const { market: homeMarket, externalAsset: homeExternal, markets, queryKey: marketsQueryKey } = useAsset(pay);
+  const {
+    market: homeMarket,
+    externalAsset: homeExternal,
+    available: homeAvailable,
+    markets,
+    queryKey: marketsQueryKey,
+  } = useAsset(pay);
   const { data: balances } = useQuery(balancesOptions(address));
   const market = payChain === chain.id ? homeMarket : undefined;
   const external =
@@ -171,12 +181,20 @@ export default function Confirm() {
   const routed =
     destinationChain !== payChain ||
     (typeof toToken === "string" && toToken.toLowerCase() !== payDelivered?.toLowerCase());
-
+  const redeem =
+    !routed &&
+    maxParameter === "true" &&
+    !!market &&
+    market.floatingDepositShares > 0n &&
+    homeAvailable >= market.floatingDepositAssets;
   const fromAmount = routed
     ? typeof fromAmountParameter === "string" && /^\d+$/.test(fromAmountParameter)
       ? BigInt(fromAmountParameter)
       : 0n
-    : destinationAmount;
+    : redeem
+      ? market.floatingDepositAssets
+      : requestedAmount;
+  const destinationAmount = routed ? requestedAmount : fromAmount;
 
   const [confirmed, setConfirmed] = useState<Awaited<ReturnType<typeof getRouteFrom>>>();
   const [denied, setDenied] = useState<string[]>([]);
@@ -194,9 +212,9 @@ export default function Confirm() {
     refetch: refetchPropose,
   } = useSimulateProposal({
     account: address,
-    amount: fromAmount,
+    amount: redeem ? market.floatingDepositShares : fromAmount,
     market: market?.market,
-    proposalType: ProposalType.Withdraw,
+    ...(redeem ? { proposalType: ProposalType.Redeem, assets: fromAmount } : { proposalType: ProposalType.Withdraw }),
     receiver: receiverHex,
     enabled:
       enableSimulations &&
@@ -593,6 +611,52 @@ export default function Confirm() {
   }, [receipt]);
   const { data: execution } = useQuery(executionOptions(address, proposal?.nonce, proposal?.since));
   const executionHash = execution?.executed ? execution.hash : undefined;
+  const { data: withdrawn } = useQuery({
+    queryKey: ["proposal", "withdrawn", executionHash, address, market?.market],
+    queryFn:
+      executionHash && address && !routed && market
+        ? async () => {
+            const { logs } = await getTransactionReceipt(exa, { hash: executionHash, chainId: chain.id });
+            const [log] = parseEventLogs({
+              abi: erc4626Abi,
+              eventName: "Withdraw",
+              args: { owner: address },
+              logs: emitted(logs, market.market),
+            });
+            return log?.args.assets ?? null;
+          }
+        : skipToken,
+    staleTime: Infinity,
+  });
+  const moved = useMemo(() => {
+    if (!receipt || !address || routed) return;
+    const { logs } = receipt;
+    if (market) {
+      if (typeof withdrawn === "bigint") return withdrawn;
+      const [log] = parseEventLogs({
+        abi: proposalManagerAbi,
+        eventName: "Proposed",
+        args: { account: address },
+        logs: emitted(logs, proposalManagerAddress),
+      });
+      if (!log) return;
+      const { proposalType, amount: proposed } = log.args;
+      return proposalType === (ProposalType.Redeem as number) && market.totalFloatingDepositShares > 0n
+        ? (proposed * market.totalFloatingDepositAssets) / market.totalFloatingDepositShares
+        : proposed;
+    }
+    if (isNativeTransfer) {
+      const [log] = parseEventLogs({ abi: wrapAbi, args: { dst: address }, logs: emitted(logs, wrap?.token) });
+      return log?.args.wad;
+    }
+    const [log] = parseEventLogs({
+      abi: erc20Abi,
+      eventName: "Transfer",
+      args: { from: address, to: receiverHex },
+      logs: emitted(logs, externalAddress),
+    });
+    return log?.args.value;
+  }, [receipt, address, routed, market, withdrawn, isNativeTransfer, wrap?.token, externalAddress, receiverHex]);
   const { data: routeStatus } = useQuery(
     statusOptions(
       routed ? (proposal ? executionHash : hash) : undefined,
@@ -651,9 +715,9 @@ export default function Confirm() {
         symbol: settled.token?.symbol ?? destination?.symbol,
       };
     }
-    const quoted = routed ? route?.toAmount : destinationAmount;
+    const quoted = routed ? route?.toAmount : (moved ?? destinationAmount);
     return destination && quoted !== undefined ? { ...destination, amount: quoted } : undefined;
-  }, [routeStatus, routed, route?.toAmount, destination, destinationAmount]);
+  }, [routeStatus, routed, route?.toAmount, destination, moved, destinationAmount]);
   const receivedTokens = received ? Number(formatUnits(received.amount, received.decimals)) : 0;
   const receivedUSD = received
     ? Number(formatUnits(floorCents((received.amount * received.price) / 10n ** BigInt(received.decimals)), 18))
@@ -1357,3 +1421,25 @@ function Detail({ label, children }: { children: React.ReactNode; label: string 
 }
 
 const probe = 12;
+
+const wrapAbi = parseAbi(["event Deposit(address indexed dst, uint256 wad)"]);
+
+function emitted(logs: readonly { address: Hex; data: Hex; topics: readonly Hex[] }[], emitter: string | undefined) {
+  return logs.flatMap(({ address, data, topics: [signature, ...rest] }): Log[] =>
+    signature && address.toLowerCase() === emitter?.toLowerCase()
+      ? [
+          {
+            address,
+            data,
+            topics: [signature, ...rest],
+            blockHash: null,
+            blockNumber: null,
+            logIndex: null,
+            removed: false,
+            transactionHash: null,
+            transactionIndex: null,
+          },
+        ]
+      : [],
+  );
+}
