@@ -22,6 +22,7 @@ import {
   hexToBigInt,
   http,
   padHex,
+  toHex,
   zeroAddress,
   zeroHash,
   type Hex,
@@ -1033,6 +1034,126 @@ describe("card operations", () => {
 
         expect(captureException).toHaveBeenCalledWith(error, { level: "error" });
         expect(response.status).toBe(200);
+      });
+
+      it("appends overlapping attempts once", async () => {
+        const cardId = "overlapping-attempts";
+        const authorizedAt = new Date().toISOString();
+        const attempt = (id: string, amount: number) => ({
+          ...authorization.json,
+          id,
+          action: "created" as const,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, amount, authorizedAt },
+          },
+        });
+        const existing = { ...attempt("existing", 70), createdAt: authorizedAt };
+        const attempts = [attempt("first", 80), attempt("second", 90)];
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "9999", mode: 0 }]);
+        await database
+          .insert(transactions)
+          .values([
+            { id: cardId, cardId, hashes: [amountHash(700_000n)], payload: { bodies: [existing], type: "panda" } },
+          ]);
+        const track = vi.spyOn(segment, "track");
+        const feedback = vi.spyOn(sardine, "feedback");
+        const pending: (() => unknown)[] = [];
+        let appended: Promise<unknown> | undefined;
+        // @ts-expect-error mock implementation
+        vi.spyOn(keeper, "exaSend").mockImplementation(async (...args) => {
+          const hash = amountHash(args[1].args?.[0] as bigint);
+          pending.push(() => args[2]?.onHash?.(hash));
+          if (pending.length === attempts.length)
+            appended = Promise.all([...pending, ...pending].map((append) => append()));
+          await appended;
+        });
+
+        const responses = await Promise.all(attempts.map((json) => appClient.index.$post({ ...authorization, json })));
+        const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
+        const bodies = new Map<string, unknown>(
+          [existing, ...attempts.map((json) => ({ ...json, createdAt: authorizedAt }))].map((body) => [
+            amountHash(BigInt(body.body.spend.amount) * 10_000n),
+            body,
+          ]),
+        );
+
+        expect(responses.map(({ status }) => status)).toStrictEqual([200, 200]);
+        await expect(Promise.all(responses.map((response) => response.json()))).resolves.toStrictEqual([
+          { code: "ok" },
+          { code: "ok" },
+        ]);
+        expect(captureException).not.toHaveBeenCalled();
+        expect(track).not.toHaveBeenCalled();
+        expect(sendPushNotificationMock).toHaveBeenCalledTimes(2);
+        expect(feedback).toHaveBeenCalledTimes(2);
+        for (const call of [1, 2]) {
+          expect(sendPushNotificationMock).toHaveBeenNthCalledWith(call, {
+            userId: account,
+            headings: t("Card purchase"),
+            contents: t("{{amount}} at {{merchantName}}. Paid in {{count}} installments", {
+              count: 0,
+              amount: f(authorization.json.body.spend.localAmount / 100, authorization.json.body.spend.localCurrency),
+              merchantName: authorization.json.body.spend.merchantName,
+            }),
+          });
+          expect(feedback).toHaveBeenNthCalledWith(call, {
+            kind: "issuing",
+            customer: { id: "cred" },
+            transaction: { id: cardId },
+            feedback: { type: "authorization", status: "approved" },
+          });
+        }
+        expect(transaction?.hashes[0]).toBe(amountHash(700_000n));
+        expect(transaction?.hashes.toSorted()).toStrictEqual([...bodies.keys()].toSorted());
+        expect(transaction).toStrictEqual({
+          id: cardId,
+          cardId,
+          hashes: transaction?.hashes,
+          payload: { type: "panda", bodies: transaction?.hashes.map((hash) => bodies.get(hash)) },
+        });
+      });
+
+      it("fails when the transaction belongs to another card", async () => {
+        const cardId = "mismatched-card";
+        const hash = padHex("0xb1", { size: 32 });
+        await database.insert(cards).values([
+          { id: cardId, credentialId: "cred", lastFour: "9998", mode: 0 },
+          { id: "other-card", credentialId: "cred", lastFour: "9997", mode: 0 },
+        ]);
+        await database
+          .insert(transactions)
+          .values([
+            { id: "mismatched", cardId: "other-card", hashes: [zeroHash], payload: { bodies: [], type: "panda" } },
+          ]);
+        let failure: unknown;
+        // @ts-expect-error mock implementation
+        vi.spyOn(keeper, "exaSend").mockImplementation(async (...args) => {
+          failure = await Promise.resolve(args[2]?.onHash?.(hash)).catch((error: unknown) => error);
+        });
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: { ...authorization.json.body, id: "mismatched", spend: { ...authorization.json.body.spend, cardId } },
+          },
+        });
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+        expect(captureException).not.toHaveBeenCalled();
+        expect(failure).toStrictEqual(new Error("transaction card mismatch"));
+        await expect(
+          database.query.transactions.findFirst({ where: eq(transactions.id, "mismatched") }),
+        ).resolves.toStrictEqual({
+          id: "mismatched",
+          cardId: "other-card",
+          hashes: [zeroHash],
+          payload: { bodies: [], type: "panda" },
+        });
       });
 
       it("fails with transaction timeout", async () => {
@@ -4374,3 +4495,7 @@ vi.mock("debug", () => {
 afterEach(() => {
   vi.restoreAllMocks();
 });
+
+function amountHash(amount: bigint) {
+  return padHex(toHex(amount), { size: 32 });
+}

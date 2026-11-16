@@ -1,6 +1,6 @@
 import { captureException, setUser, withScope } from "@sentry/node";
 import { UnrecoverableError } from "bullmq";
-import { and, eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { number, object, parse, string } from "valibot";
 import {
   BaseError,
@@ -30,7 +30,6 @@ import { attempts, name, type Job } from "./job";
 import { cards, transactions } from "../../database/schema";
 import t, { f } from "../../i18n";
 import { own } from "../../supervise";
-import { TransactionPayload } from "../../utils/panda";
 import revertFingerprint from "../../utils/revertFingerprint";
 import createWallet from "../../utils/wallet";
 import { name as hookName } from "../hook/job";
@@ -273,32 +272,40 @@ export default function worker({
               ignore: (reason) => reason.includes(toFunctionSelector("Replay()")),
               level: false,
               async onHash(hash) {
+                const body = {
+                  ...requestBody,
+                  createdAt:
+                    requestBody.action === "completed"
+                      ? requestBody.body.spend.postedAt
+                      : requestBody.body.spend.authorizedAt,
+                };
+                const stored = await database
+                  .insert(transactions)
+                  .values({
+                    id: requestBody.body.id,
+                    cardId: spend.cardId,
+                    hashes: [hash],
+                    payload: { bodies: [body], type: "panda" },
+                  })
+                  .onConflictDoUpdate({
+                    target: transactions.id,
+                    set: {
+                      hashes: sql`${transactions.hashes} || ARRAY[${hash}]::text[]`,
+                      payload: sql`jsonb_set(
+                        ${transactions.payload},
+                        '{bodies}',
+                        COALESCE(${transactions.payload}::jsonb->'bodies', '[]'::jsonb) || ${JSON.stringify([body])}::jsonb
+                      )`,
+                    },
+                    setWhere: sql`${transactions.cardId} = ${spend.cardId} AND NOT ${hash} = ANY(${transactions.hashes})`,
+                  })
+                  .returning({ id: transactions.id });
+                if (stored.length > 0) return;
                 const tx = await database.query.transactions.findFirst({
-                  where: and(eq(transactions.id, requestBody.body.id), eq(transactions.cardId, spend.cardId)),
+                  columns: { cardId: true },
+                  where: eq(transactions.id, requestBody.body.id),
                 });
-                const createdAt =
-                  requestBody.action === "completed"
-                    ? requestBody.body.spend.postedAt
-                    : requestBody.body.spend.authorizedAt;
-                await (tx
-                  ? database
-                      .update(transactions)
-                      .set({
-                        hashes: [...tx.hashes, hash],
-                        payload: {
-                          ...(tx.payload as object),
-                          bodies: [...parse(TransactionPayload, tx.payload).bodies, { ...requestBody, createdAt }],
-                        },
-                      })
-                      .where(and(eq(transactions.id, requestBody.body.id), eq(transactions.cardId, spend.cardId)))
-                  : database.insert(transactions).values([
-                      {
-                        id: requestBody.body.id,
-                        cardId: spend.cardId,
-                        hashes: [hash],
-                        payload: { bodies: [{ ...requestBody, createdAt }], type: "panda" },
-                      },
-                    ]));
+                if (tx?.cardId !== spend.cardId) throw new Error("transaction card mismatch");
               },
               onReceipt: ({ blockNumber, status, transactionHash }) =>
                 status === "reverted"

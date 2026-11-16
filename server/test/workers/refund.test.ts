@@ -393,6 +393,118 @@ describe("refund worker", () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 
+  it("appends overlapping attempts once", async () => {
+    const timestamps = [1_700_000_001, 1_700_000_002];
+    const existing = { ...webhook("wh-overlap", { amount: 300, status: "pending" }, "created"), createdAt: "x" };
+    const attempts = timestamps.map((timestamp, index) => {
+      const requestBody = webhook(`wh-overlap-${index}`, { amount: 500, authorizedAmount: 1500 });
+      requestBody.body.id = "wh-overlap";
+      return { timestamp, body: { ...requestBody, createdAt: "2026-01-01T00:00:01.000Z" } };
+    });
+    await database
+      .insert(transactions)
+      .values([
+        { id: "wh-overlap", cardId: "refund-card", hashes: [zeroHash], payload: { bodies: [existing], type: "panda" } },
+      ]);
+    const track = vi.spyOn(segment, "track").mockReturnValue();
+    const feedback = vi.spyOn(sardine, "feedback");
+    const pending: (() => unknown)[] = [];
+    mocks.exaSend.mockImplementation(async (_, call, options) => {
+      const data = JSON.stringify(call, (_key, value: unknown) => (typeof value === "bigint" ? String(value) : value));
+      const hash = timestampHash(timestamps.find((timestamp) => data.includes(timestampHash(timestamp).slice(2))) ?? 0);
+      pending.push(() => options?.onHash?.(hash));
+      if (pending.length === attempts.length) await Promise.all([...pending, ...pending].map((append) => append()));
+      return null;
+    });
+
+    await Promise.all(
+      attempts.map(({ timestamp }, index) => jobFinished(`wh-overlap-${index}`, undefined, { timestamp })),
+    );
+    const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, "wh-overlap") });
+    const [, sent, ...rest] = transaction?.hashes ?? [];
+    const bodies = new Map<string | undefined, unknown>([
+      [zeroHash, existing],
+      [sent, attempts[0]?.body],
+      ...attempts.map(({ timestamp, body }) => [timestampHash(timestamp), body] as const),
+      [rest.at(-1), attempts[1]?.body],
+    ]);
+
+    expect(captureException).not.toHaveBeenCalled();
+    expect(sendPushNotification).toHaveBeenCalledTimes(2);
+    for (const call of [1, 2]) {
+      expect(sendPushNotification).toHaveBeenNthCalledWith(call, {
+        userId: account,
+        headings: t("Refund processed"),
+        contents: t("{{refundAmount}} USDC from {{merchantName}} have been refunded to your account", {
+          refundAmount: f(10),
+          merchantName: "merchant",
+        }),
+      });
+      expect(track).toHaveBeenNthCalledWith(
+        call,
+        expect.objectContaining({
+          userId: account,
+          event: "TransactionRefund",
+          properties: {
+            id: "wh-overlap",
+            type: "partial",
+            source: null,
+            usdAmount: 10,
+            merchant: { name: "merchant", category: undefined, city: undefined, country: "AR" },
+          } as unknown,
+        }),
+      );
+      expect(feedback).toHaveBeenNthCalledWith(call, {
+        kind: "issuing",
+        customer: { id: "refund-cred" },
+        transaction: { id: "wh-overlap", amount: 5 },
+        feedback: { type: "settlement", status: "settled" },
+      });
+    }
+    expect(track).toHaveBeenCalledTimes(2);
+    expect(feedback).toHaveBeenCalledTimes(2);
+    expect(transaction?.hashes).toHaveLength(5);
+    expect(transaction?.hashes.slice(2, 4).toSorted()).toStrictEqual(
+      timestamps.map((timestamp) => timestampHash(timestamp)),
+    );
+    expect(transaction).toStrictEqual({
+      id: "wh-overlap",
+      cardId: "refund-card",
+      hashes: transaction?.hashes,
+      payload: { type: "panda", bodies: transaction?.hashes.map((hash) => bodies.get(hash)) },
+    });
+  });
+
+  it("fails when the transaction belongs to another card", async () => {
+    await database.insert(cards).values([{ id: "other-refund-card", credentialId: "refund-cred", lastFour: "4321" }]);
+    await database
+      .insert(transactions)
+      .values([
+        { id: "wh-mismatch", cardId: "other-refund-card", hashes: [zeroHash], payload: { bodies: [], type: "panda" } },
+      ]);
+    webhook("wh-mismatch", { amount: 500, authorizedAmount: 1500 });
+    let failure: unknown;
+    mocks.exaSend.mockImplementationOnce(async (_, __, options) => {
+      failure = await Promise.resolve(options?.onHash?.(padHex("0xb1", { size: 32 }))).catch((error: unknown) => error);
+      return null;
+    });
+
+    await jobFinished("wh-mismatch");
+
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("transaction card mismatch"), {
+      level: "error",
+    });
+    expect(failure).toStrictEqual(new Error("transaction card mismatch"));
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, "wh-mismatch") }),
+    ).resolves.toStrictEqual({
+      id: "wh-mismatch",
+      cardId: "other-refund-card",
+      hashes: [zeroHash],
+      payload: { bodies: [], type: "panda" },
+    });
+  });
+
   it("refunds reversed authorization updates", async () => {
     await database
       .insert(transactions)
@@ -1372,4 +1484,8 @@ async function spyScopeSetUser() {
     }),
   );
   return scopeSetUser;
+}
+
+function timestampHash(timestamp: number) {
+  return padHex(toHex(timestamp), { size: 32 });
 }

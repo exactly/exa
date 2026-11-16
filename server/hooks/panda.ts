@@ -628,23 +628,19 @@ export default function hook({
           try {
             const { call } = await prepareCollection(card, payload, database, issuer, panda, wallet);
             if (!call) {
-              const tx = await database.query.transactions.findFirst({
-                where: and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)),
-              });
-              if (!tx) throw new Error("transaction not found");
-              await database
+              const appended = await database
                 .update(transactions)
                 .set({
-                  hashes: [...tx.hashes, zeroHash],
-                  payload: {
-                    ...(tx.payload as object),
-                    bodies: [
-                      ...v.parse(TransactionPayload, tx.payload).bodies,
-                      { ...jsonBody, createdAt: new Date().toISOString() },
-                    ],
-                  },
+                  hashes: sql`${transactions.hashes} || ARRAY[${zeroHash}]::text[]`,
+                  payload: sql`jsonb_set(
+                    ${transactions.payload},
+                    '{bodies}',
+                    COALESCE(${transactions.payload}::jsonb->'bodies', '[]'::jsonb) || ${JSON.stringify([{ ...(jsonBody as object), createdAt: new Date().toISOString() }])}::jsonb
+                  )`,
                 })
-                .where(and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)));
+                .where(and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)))
+                .returning({ id: transactions.id });
+              if (appended.length === 0) throw new Error("transaction not found");
 
               sardine
                 .feedback({
@@ -690,40 +686,37 @@ export default function hook({
                 },
                 {
                   async onHash(hash) {
+                    const body = {
+                      ...(jsonBody as object),
+                      createdAt: getCreatedAt(payload) ?? new Date().toISOString(),
+                    };
+                    const stored = await database
+                      .insert(transactions)
+                      .values({
+                        id: payload.body.id,
+                        cardId: payload.body.spend.cardId,
+                        hashes: [hash],
+                        payload: { bodies: [body], type: "panda" },
+                      })
+                      .onConflictDoUpdate({
+                        target: transactions.id,
+                        set: {
+                          hashes: sql`${transactions.hashes} || ARRAY[${hash}]::text[]`,
+                          payload: sql`jsonb_set(
+                            ${transactions.payload},
+                            '{bodies}',
+                            COALESCE(${transactions.payload}::jsonb->'bodies', '[]'::jsonb) || ${JSON.stringify([body])}::jsonb
+                          )`,
+                        },
+                        setWhere: sql`${transactions.cardId} = ${payload.body.spend.cardId} AND NOT ${hash} = ANY(${transactions.hashes})`,
+                      })
+                      .returning({ id: transactions.id });
+                    if (stored.length > 0) return;
                     const tx = await database.query.transactions.findFirst({
-                      where: and(
-                        eq(transactions.id, payload.body.id),
-                        eq(transactions.cardId, payload.body.spend.cardId),
-                      ),
+                      columns: { cardId: true },
+                      where: eq(transactions.id, payload.body.id),
                     });
-                    const createdAt = getCreatedAt(payload) ?? new Date().toISOString();
-                    await (tx
-                      ? database
-                          .update(transactions)
-                          .set({
-                            hashes: [...tx.hashes, hash],
-                            payload: {
-                              ...(tx.payload as object),
-                              bodies: [...v.parse(TransactionPayload, tx.payload).bodies, { ...jsonBody, createdAt }],
-                            },
-                          })
-                          .where(
-                            and(
-                              eq(transactions.id, payload.body.id),
-                              eq(transactions.cardId, payload.body.spend.cardId),
-                            ),
-                          )
-                      : database.insert(transactions).values([
-                          {
-                            id: payload.body.id,
-                            cardId: payload.body.spend.cardId,
-                            hashes: [hash],
-                            payload: {
-                              bodies: [{ ...jsonBody, createdAt }],
-                              type: "panda",
-                            },
-                          },
-                        ]));
+                    if (tx?.cardId !== payload.body.spend.cardId) throw new Error("transaction card mismatch");
                   },
                   onReceipt: (receipt) =>
                     receipt.status === "reverted"
