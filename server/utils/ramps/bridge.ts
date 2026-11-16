@@ -1455,7 +1455,10 @@ export default function bridge(key: string, url: string) {
             : undefined,
         ]);
         const idClass = safeParse(picklist(Persona.IdentificationClasses), validDocument.id_class.value);
-        const bridgeIdType = idClass.success && Persona.IdClassToBridge[idClass.output];
+        const bridgeIdType =
+          idClass.success &&
+          (Persona.IssuerIdClassToBridge[validDocument.id_issuing_country.value]?.[idClass.output] ??
+            Persona.IdClassToBridge[idClass.output]);
         if (!bridgeIdType) throw new Error(ErrorCodes.NOT_FOUND_IDENTIFICATION_CLASS);
         const country = alpha2ToAlpha3(countryCode);
         if (!country) throw new Error(ErrorCodes.NO_COUNTRY_ALPHA3);

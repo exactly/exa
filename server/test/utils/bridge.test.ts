@@ -3292,6 +3292,61 @@ describe("bridge utils", () => {
       expect(body.residential_address.subdivision).toBe("CA");
     });
 
+    it.each([
+      ["US", "state_or_provincial_id"],
+      ["AR", "national_id"],
+    ])("sends id issued by %s as %s", async (issuingCountry, type) => {
+      const account = {
+        ...enabledPersonaAccount,
+        attributes: {
+          ...enabledPersonaAccount.attributes,
+          "country-code": "US",
+          "address-subdivision": "CA",
+          "social-security-number": "123456789",
+          fields: {
+            ...enabledPersonaAccount.attributes.fields,
+            documents: {
+              value: [
+                {
+                  value: {
+                    ...identityDocument,
+                    id_class: { value: "id" },
+                    id_issuing_country: { value: issuingCountry },
+                  },
+                },
+              ],
+            },
+          },
+        },
+      };
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(account);
+      vi.spyOn(persona, "getDocument").mockResolvedValueOnce(documentResponse);
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(blobResponse())
+        .mockResolvedValueOnce(blobResponse())
+        .mockResolvedValueOnce(fetchResponse({ id: "cust-new", status: "not_started" }));
+
+      await bridge.onboarding({
+        accountType: "consumer",
+        credentialId: "cred-1",
+        customerId: null,
+        acceptedTermsId: "terms-1",
+      });
+
+      const body = JSON.parse(fetchSpy.mock.calls[2]?.[1]?.body as string) as { identifying_information: unknown };
+      expect(body.identifying_information).toStrictEqual([
+        {
+          type,
+          issuing_country: issuingCountry,
+          number: "AB123456",
+          image_front: "data:image/jpeg;base64,aW1n",
+          image_back: "data:image/jpeg;base64,aW1n",
+        },
+        { type: "ssn", number: "123456789", issuing_country: "USA" },
+      ]);
+    });
+
     it("omits subdivision for non-US country", async () => {
       vi.spyOn(persona, "getAccount").mockResolvedValueOnce(enabledPersonaAccount);
       vi.spyOn(persona, "getDocument").mockResolvedValueOnce(documentResponse);

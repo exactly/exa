@@ -726,6 +726,10 @@ export const IdClassToBridge: Record<
   visa: "visa",
 };
 
+export const IssuerIdClassToBridge: Partial<Record<string, Partial<typeof IdClassToBridge>>> = {
+  US: { id: "state_or_provincial_id" },
+};
+
 export const scopeValidationErrors = {
   INVALID_SCOPE_VALIDATION: "invalid scope validation",
   INVALID_ACCOUNT: "invalid account",
