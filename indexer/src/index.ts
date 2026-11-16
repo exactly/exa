@@ -12,9 +12,10 @@ import {
   repays,
   withdraws,
 } from "ponder:schema";
-import { getAbiItem, toFunctionSelector, type Hex } from "viem";
+import { getAbiItem, isAddressEqual, numberToHex, toFunctionSelector, type Hex } from "viem";
 
-import { exaPluginAbi } from "@exactly/common/generated/chain";
+import deriveAddress from "@exactly/common/deriveAddress";
+import { exaPluginAbi, factories } from "@exactly/common/generated/chain";
 
 const executeProposal = toFunctionSelector(getAbiItem({ abi: exaPluginAbi, name: "executeProposal" }));
 
@@ -27,6 +28,22 @@ ponder.on("ExaAccountFactory:ExaAccountInitialized", async ({ event, context }) 
     timestamp: event.block.timestamp,
   });
 });
+
+ponder.on(
+  "WebauthnOwnerPlugin:OwnerUpdated(address indexed account, (uint256 x, uint256 y)[] addedOwners, (uint256 x, uint256 y)[] removedOwners)",
+  async ({ event, context }) => {
+    const [owner] = event.args.addedOwners;
+    const key = { chainId: context.chain.id, address: event.args.account };
+    if (!owner || (await context.db.find(accounts, key))) return; // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
+    const x = numberToHex(owner.x, { size: 32 });
+    const y = numberToHex(owner.y, { size: 32 });
+    const factory = factories.legacy.find((address) => isAddressEqual(deriveAddress(address, { x, y }), key.address));
+    if (!factory) return;
+    await context.db
+      .insert(accounts)
+      .values({ ...key, factory, block: event.block.number, timestamp: event.block.timestamp });
+  },
+);
 
 ponder.on("ExaAccount:PluginInstalled", async ({ event, context }) => {
   const chainId = context.chain.id;
