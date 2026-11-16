@@ -437,15 +437,18 @@ describe("persona hook", () => {
         },
       ]),
     );
-    expect(panda.createUser).toHaveBeenCalledWith({
-      accountPurpose: "business",
-      annualSalary: "100000",
-      expectedMonthlyVolume: "1000",
-      ipAddress: "127.0.0.1",
-      isTermsOfServiceAccepted: true,
-      occupation: "engineer",
-      personaShareToken: "inq_123",
-    });
+    expect(panda.createUser).toHaveBeenCalledExactlyOnceWith(
+      {
+        accountPurpose: "business",
+        annualSalary: "100000",
+        expectedMonthlyVolume: "1000",
+        ipAddress: "127.0.0.1",
+        isTermsOfServiceAccepted: true,
+        occupation: "engineer",
+        personaShareToken: "inq_123",
+      },
+      "evt_123",
+    );
     expect(pax.addCapita).toHaveBeenCalledWith({
       birthdate: "1990-01-01",
       document: "DOC123",

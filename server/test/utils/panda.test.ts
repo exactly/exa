@@ -771,11 +771,12 @@ describe("user", () => {
     };
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json({ id: "user-id" }));
 
-    await expect(panda.createUser(application)).resolves.toStrictEqual({ id: "user-id" });
+    await expect(panda.createUser(application, "evt_123")).resolves.toStrictEqual({ id: "user-id" });
     expect(fetchSpy).toHaveBeenLastCalledWith(
       "https://panda.test/issuing/applications/user",
       expect.objectContaining({ method: "POST", body: JSON.stringify(application) }),
     );
+    expect(new Headers(fetchSpy.mock.lastCall?.[1]?.headers).get("Idempotency-Key")).toBe("user:evt_123");
   });
 
   it("gets the application status", async () => {
