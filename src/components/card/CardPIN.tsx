@@ -14,11 +14,20 @@ import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-import type { CardWithPIN } from "../../utils/server";
+import type { CardDetails, CardWithPIN } from "../../utils/server";
 
 export default function CardPIN({ open, onClose }: { onClose: () => void; open: boolean }) {
   const { t } = useTranslation();
-  const { data: card, isPending, error, refetch } = useQuery<CardWithPIN>({ queryKey: ["card", "pin"], enabled: open });
+  const { data: details } = useQuery<CardDetails>({ queryKey: ["card", "details"] });
+  const {
+    data: card,
+    isPending,
+    error,
+    refetch,
+  } = useQuery<CardWithPIN>({
+    queryKey: ["card", "pin", details?.lastFour],
+    enabled: open,
+  });
   return (
     <ModalSheet open={open} onClose={onClose} backgroundColor="backgroundMild" scrollsUnderInset>
       <SafeView paddingTop="s0" fullScreen borderTopLeftRadius="r4" borderTopRightRadius="r4">

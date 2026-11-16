@@ -149,24 +149,32 @@ const api = hc<ExaAPI>(new URL(origin).hostname === "localhost" ? "http://localh
   },
 });
 
-async function getCard(sessionid?: string) {
-  await auth();
-  const response = await api.card.$get({ header: sessionid ? { sessionid } : {} });
-  if (!response.ok) {
-    const { code } = await response.json();
-    if (response.status === 404 && code === "no card") return null;
-    if (response.status === 403 && code === "no panda") return null;
-    throw new APIError("GET", response, code);
-  }
-  const card = await response.json();
-  if (card.mode > 0) queryClient.setQueryData(["settings", "installments"], card.mode);
-  return card;
-}
 queryClient.setQueryDefaults(["card", "details"], {
-  queryFn: () => getCard(),
+  queryFn: async () => {
+    await auth();
+    const response = await api.cards.$get();
+    if (!response.ok) {
+      const { code } = await response.json();
+      if (response.status === 403 && code === "no panda") return null;
+      throw new APIError("GET", response, code);
+    }
+    const shown = queryClient.getQueryData<CardDetails>(["card", "details"])?.lastFour;
+    const cards = await response.json();
+    const live = cards.filter(({ status }) => status !== "DELETED");
+    const card =
+      live.find(({ lastFour }) => lastFour === shown) ??
+      live.sort(
+        (a, b) =>
+          Number(a.status === "FROZEN") - Number(b.status === "FROZEN") ||
+          Number(a.type === "physical") - Number(b.type === "physical"),
+      )[0];
+    if (!card) return null;
+    if (card.mode > 0) queryClient.setQueryData(["settings", "installments"], card.mode);
+    return card;
+  },
   meta: {
     persist: (card: Card) => ({
-      cardId: card.cardId,
+      lastFour: card.lastFour,
       limit: card.limit,
       mode: card.mode,
       productId: card.productId,
@@ -174,13 +182,23 @@ queryClient.setQueryDefaults(["card", "details"], {
     }),
   },
 });
-export type CardDetails = null | (Partial<Card> & Pick<Card, "cardId" | "limit" | "mode" | "productId" | "status">);
-type Card = NonNullable<Awaited<ReturnType<typeof getCard>>>;
+export type CardDetails = null | (Partial<Card> & Pick<Card, "lastFour" | "limit" | "mode" | "productId" | "status">);
+type Card = InferResponseType<typeof api.cards.$get, 200>[number];
 
-async function getSecrets() {
+async function getSecrets(lastFour: string | undefined) {
   const { id, secret } = await session();
-  const card = await getCard(id);
-  if (!card) return card;
+  await auth();
+  const response = await api.card.$get({ header: { sessionid: id }, query: { lastFour } });
+  if (!response.ok) {
+    const { code } = await response.json();
+    if (response.status === 404 && code === "no card") {
+      if (!lastFour) return null;
+      queryClient.invalidateQueries({ queryKey: ["card", "details"] }).catch(reportError);
+    }
+    if (response.status === 403 && code === "no panda") return null;
+    throw new APIError("GET", response, code);
+  }
+  const card = await response.json();
   const { encryptedPan, encryptedCvc } = card;
   const [pan, cvc] =
     encryptedPan && encryptedCvc
@@ -191,22 +209,26 @@ async function getSecrets() {
       : [];
   return { ...card, secret, pan, cvc };
 }
-queryClient.setQueryDefaults(["card", "secrets"], { queryFn: getSecrets });
+queryClient.setQueryDefaults(["card", "secrets"], {
+  queryFn: ({ queryKey }) => getSecrets(typeof queryKey[2] === "string" ? queryKey[2] : undefined),
+});
 export type CardSecrets = Awaited<ReturnType<typeof getSecrets>>;
 
-async function getPIN() {
-  const result = await getSecrets();
+async function getPIN(lastFour: string | undefined) {
+  const result = await getSecrets(lastFour);
   if (!result?.pan || !result.cvc) return null;
   const { secret, pan, cvc, pin } = result;
   const decryptedPIN = pin ? await decryptPIN(pin.data, pin.iv, secret) : null;
   if (!decryptedPIN) {
     const newPIN = String(Math.floor(Math.random() * 10_000)).padStart(4, "0");
-    await setCardPIN(newPIN);
+    await setCardPIN(newPIN, lastFour);
     return { ...result, details: { pan, cvc, pin: newPIN } };
   }
   return { ...result, details: { pan, cvc, pin: decryptedPIN } };
 }
-queryClient.setQueryDefaults(["card", "pin"], { queryFn: getPIN });
+queryClient.setQueryDefaults(["card", "pin"], {
+  queryFn: ({ queryKey }) => getPIN(typeof queryKey[2] === "string" ? queryKey[2] : undefined),
+});
 export type CardWithPIN = Awaited<ReturnType<typeof getPIN>>;
 
 export async function createCard() {
@@ -217,8 +239,9 @@ export async function createCard() {
 }
 
 export async function setCardStatus(status: "ACTIVE" | "DELETED" | "FROZEN") {
+  const lastFour = queryClient.getQueryData<CardDetails>(["card", "details"])?.lastFour;
   await auth();
-  const response = await api.card.$patch({ json: { status } });
+  const response = await api.card.$patch({ json: { lastFour, status } });
   if (response.ok) return response.json();
   const body = await response.json();
   if ("code" in body && body.code === "already set") return { status };
@@ -226,8 +249,9 @@ export async function setCardStatus(status: "ACTIVE" | "DELETED" | "FROZEN") {
 }
 
 async function setCardMode(mode: number) {
+  const lastFour = queryClient.getQueryData<CardDetails>(["card", "details"])?.lastFour;
   await auth();
-  const response = await api.card.$patch({ json: { mode } });
+  const response = await api.card.$patch({ json: { lastFour, mode } });
   if (response.ok) return response.json();
   const body = await response.json();
   if ("code" in body && body.code === "already set") return { mode };
@@ -255,10 +279,10 @@ queryClient.setMutationDefaults(cardModeMutationOptions.mutationKey, {
   },
 });
 
-export async function setCardPIN(pin: string) {
+export async function setCardPIN(pin: string, lastFour: string | undefined) {
   await auth();
   const json = await encryptPIN(pin);
-  const response = await api.card.$patch({ json });
+  const response = await api.card.$patch({ json: { ...json, lastFour } });
   if (!response.ok) throw new APIError("PATCH", response, stringOrLegacy(await response.json()));
 }
 
