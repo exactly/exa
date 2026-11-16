@@ -29,7 +29,7 @@ import {
 } from "valibot";
 import { bytesToHex } from "viem";
 
-import { networks } from "@exactly/common/generated/chain";
+import { isBase, networks } from "@exactly/common/generated/chain";
 import { CLASSIC_PRODUCT_ID } from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
 
@@ -371,7 +371,7 @@ export default function hook({
       }
       if (payload.template === "representative") {
         getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "persona.inquiry.representative");
-        if (payload.data.attributes.status !== "approved") return c.json({ code: "ok" }, 200);
+        if (!isBase || payload.data.attributes.status !== "approved") return c.json({ code: "ok" }, 200);
         const { referenceId } = payload.data.attributes;
         const credential = await database.query.credentials.findFirst({
           columns: { account: true, factory: true, pandaId: true, publicKey: true, salt: true, source: true },
