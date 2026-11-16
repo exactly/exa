@@ -30,6 +30,7 @@ import Previewer from "@exactly/protocol/deployments/base/Previewer.json" with {
 import RatePreviewer from "@exactly/protocol/deployments/base/RatePreviewer.json" with { type: "json" };
 
 import alchemyNetworks from "./alchemy.json" with { type: "json" };
+import alchemyAPIKeys from "./alchemyAPIKeys";
 import factoryChainBlocks from "./factoryChains.json" with { type: "json" };
 
 const chainId = Number(env.CHAIN_ID ?? String(env.EAS_BUILD_RUNNER === "eas-build" ? optimism.id : optimismSepolia.id));
@@ -115,7 +116,7 @@ export default defineConfig([
                 .map((asset) => getAddress(loadDeployment(asset, true, id).address)),
             ]),
           );
-          const networkContracts = (chain ? sameSide.map(([{ id }]) => id) : [anvil.id, moonbeamDev.id]).map((id) => {
+          function contracts(id: number) {
             const exaPreviewer = loadBroadcast("ExaPreviewer", id).transactions[0]?.contractAddress;
             if (!exaPreviewer) throw new Error(`missing exaPreviewer on ${id}`);
             const webauthnOwnerPlugin = (
@@ -133,7 +134,12 @@ export default defineConfig([
                 webauthnOwnerPlugin: getAddress(webauthnOwnerPlugin),
               },
             ] as const;
-          });
+          }
+          const networkContracts = (chain ? sameSide.map(([{ id }]) => id) : [anvil.id, moonbeamDev.id]).map((id) =>
+            contracts(id),
+          );
+          const peerIds = chain ? [] : sameSide.map(([{ id }]) => id);
+          const peers = peerIds.map((id) => contracts(id));
           const networkConfig: Record<string, undefined | { network: string; slug: string; testnet?: boolean }> =
             alchemyNetworks;
           const slugs = Object.fromEntries(
@@ -173,9 +179,9 @@ export default defineConfig([
             const { alchemy, ...rpcUrls } = c.rpcUrls;
             const slug = slugs[c.id];
             if (!alchemy && !slug) return [];
-            const url = chain
-              ? (alchemy?.http[0] ?? `https://${slug}.g.alchemy.com/v2`)
-              : anvil.rpcUrls.default.http[0];
+            const remote = alchemy?.http[0] ?? `https://${slug}.g.alchemy.com/v2`;
+            const local = peerIds.includes(c.id) ? `${remote}/${alchemyAPIKeys[c.id]}` : anvil.rpcUrls.default.http[0];
+            const url = chain ? remote : local;
             const name = Object.entries(chains).find(([, v]) => isDeepStrictEqual(v, { ...c, rpcUrls }))?.[0];
             if (!name && (c.formatters ?? c.serializers ?? c.fees)) throw new Error(`lossy chain ${c.id}`);
             return [
@@ -282,6 +288,7 @@ export default defineConfig([
               `export const factoryChains: ReadonlyMap<number, Readonly<{ network: string; startBlock: number; swapper: \`0x\${string}\` }>> = new Map(${JSON.stringify(factoryChains.map(({ id, network, startBlock }) => [id, { network, startBlock, swapper: getAddress(perChain(deploy.accounts.swapper, id)) }]))})`,
               `export const issuerCheckerPreviewerCode: \`0x\${string}\` = "${IssuerCheckerPreviewer.deployedBytecode.object}"`,
               `export const networks: ReadonlyMap<number, Readonly<Record<"auditor" | "exaPreviewer" | "swapper" | "webauthnOwnerPlugin", \`0x\${string}\`>>> = new Map(${JSON.stringify(networkContracts)})`,
+              `export const peers: ReadonlyMap<number, Readonly<Record<"auditor" | "exaPreviewer" | "swapper" | "webauthnOwnerPlugin", \`0x\${string}\`>>> = new Map(${JSON.stringify(peers)})`,
               `export const pricePreviewerCode: \`0x\${string}\` = "${PricePreviewer.bytecode.object}"`,
               'type AlchemyChain = ((Chain & { smartAccount: true }) | (Omit<Chain, "nativeCurrency"> & { nativeCurrency?: Chain["nativeCurrency"]; smartAccount?: never })) & { rpcUrls: { alchemy: { http: readonly [string] } } }',
               ...(chain
