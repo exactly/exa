@@ -13,6 +13,7 @@ import { privateKeyToAddress } from "viem/accounts";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
+import domain from "@exactly/common/domain";
 import chain, { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { CLASSIC_PRODUCT_ID } from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
@@ -277,7 +278,7 @@ describe("with reference", () => {
     expect(panda.createUser).not.toHaveBeenCalled();
   });
 
-  it("returns 200 if no credential", async () => {
+  it.each([null, domain])("returns 200 if no credential with %s note", async (note) => {
     const response = await appClient.index.$post({
       ...personaPayload,
       json: {
@@ -290,7 +291,11 @@ describe("with reference", () => {
               ...personaPayload.json.data.attributes.payload,
               data: {
                 ...personaPayload.json.data.attributes.payload.data,
-                attributes: { ...personaPayload.json.data.attributes.payload.data.attributes, referenceId: "missing" },
+                attributes: {
+                  ...personaPayload.json.data.attributes.payload.data.attributes,
+                  referenceId: "missing",
+                  note,
+                },
               },
               included: [...personaPayload.json.data.attributes.payload.included],
             },
@@ -304,6 +309,38 @@ describe("with reference", () => {
       expect.objectContaining({ message: "no credential" }),
       expect.anything(),
     );
+    expect(panda.createUser).not.toHaveBeenCalled();
+  });
+
+  it("ignores an unknown reference from another domain", async () => {
+    const response = await appClient.index.$post({
+      ...personaPayload,
+      json: {
+        ...personaPayload.json,
+        data: {
+          ...personaPayload.json.data,
+          attributes: {
+            ...personaPayload.json.data.attributes,
+            payload: {
+              ...personaPayload.json.data.attributes.payload,
+              data: {
+                ...personaPayload.json.data.attributes.payload.data,
+                attributes: {
+                  ...personaPayload.json.data.attributes.payload.data.attributes,
+                  referenceId: "missing",
+                  note: "other.exactly.app",
+                },
+              },
+              included: [...personaPayload.json.data.attributes.payload.included],
+            },
+          },
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "other domain" });
+    expect(captureException).not.toHaveBeenCalled();
     expect(panda.createUser).not.toHaveBeenCalled();
   });
 
@@ -799,9 +836,9 @@ describe("card limit case", () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 
-  it("captures exception when no credential found", async () => {
+  it.each([null, domain])("captures exception when no credential found with %s note", async (note) => {
     vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
-      data: { attributes: { "reference-id": "nonexistent" } },
+      data: { attributes: { "reference-id": "nonexistent", note } },
     });
     const response = await postCase(casePayload({ status: "Approved", cardLimitUsd: 20_000 }));
 
@@ -811,6 +848,19 @@ describe("card limit case", () => {
       expect.objectContaining({ message: "no credential" }),
       expect.objectContaining({ level: "error", contexts: { credential: { referenceId: "nonexistent" } } }),
     );
+    expect(panda.updateCard).not.toHaveBeenCalled();
+  });
+
+  it("ignores an unknown reference from another domain", async () => {
+    vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
+      data: { attributes: { "reference-id": "nonexistent", note: "other.exactly.app" } },
+    });
+    const response = await postCase(casePayload({ status: "Approved", cardLimitUsd: 20_000 }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "other domain" });
+    expect(persona.updateCardLimit).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
     expect(panda.updateCard).not.toHaveBeenCalled();
   });
 
@@ -1120,10 +1170,10 @@ describe("business representative", () => {
     );
   });
 
-  it("captures an unknown reference", async () => {
+  it.each([null, domain])("captures an unknown reference with %s note", async (note) => {
     const response = await appClient.index.$post({
       header: { "persona-signature": "t=1,v1=sha256" },
-      json: representativePayload({ referenceId: "unknown-representative", status: "approved" }),
+      json: representativePayload({ note, referenceId: "unknown-representative", status: "approved" }),
     });
 
     expect(response.status).toBe(200);
@@ -1138,6 +1188,24 @@ describe("business representative", () => {
     expect(panda.createCard).not.toHaveBeenCalled();
     expect(allow.enqueue).not.toHaveBeenCalled();
     expect(setUser).not.toHaveBeenCalled();
+  });
+
+  it("ignores an unknown reference from another domain", async () => {
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: representativePayload({
+        note: "other.exactly.app",
+        referenceId: "unknown-representative",
+        status: "approved",
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "other domain" });
+    expect(captureException).not.toHaveBeenCalled();
+    expect(panda.getCompanyApplication).not.toHaveBeenCalled();
+    expect(panda.createCard).not.toHaveBeenCalled();
+    expect(allow.enqueue).not.toHaveBeenCalled();
   });
 
   it("returns already created when an active card exists", async () => {
@@ -1465,6 +1533,7 @@ function representativePayload({
   email = "authorized@example.com",
   lastName = "user",
   name = "authorized",
+  note = null,
   referenceId,
   status,
   weeklyCardLimit,
@@ -1472,6 +1541,7 @@ function representativePayload({
   email?: string;
   lastName?: string;
   name?: string;
+  note?: null | string;
   referenceId: string;
   status: string;
   weeklyCardLimit?: null | number;
@@ -1486,6 +1556,7 @@ function representativePayload({
             attributes: {
               status,
               referenceId,
+              note,
               fields: {
                 authUserEmail: { type: "string", value: email },
                 authUserLastName: { type: "string", value: lastName },

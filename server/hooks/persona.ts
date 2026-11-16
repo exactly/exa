@@ -15,6 +15,7 @@ import {
   minValue,
   nonEmpty,
   nullable,
+  nullish,
   number,
   object,
   optional,
@@ -29,6 +30,7 @@ import {
 } from "valibot";
 import { bytesToHex } from "viem";
 
+import domain from "@exactly/common/domain";
 import chain, { firewallAddress } from "@exactly/common/generated/chain";
 import { CLASSIC_PRODUCT_ID } from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
@@ -109,6 +111,7 @@ export default function hook({
                     attributes: object({
                       status: literal("approved"),
                       referenceId: string(),
+                      note: nullish(string()),
                       emailAddress: string(),
                       phoneNumber: string(),
                       birthdate: string(),
@@ -252,6 +255,7 @@ export default function hook({
                     attributes: object({
                       status: string(),
                       referenceId: string(),
+                      note: nullish(string()),
                       fields: object({
                         authUserEmail: object({ value: pipe(string(), email()) }),
                         authUserLastName: object({ value: pipe(string(), trim(), nonEmpty()) }),
@@ -308,13 +312,16 @@ export default function hook({
         if (limitUsd == null) return c.json({ code: "no limit" }, 200);
         const inquiryId = payload.data.relationships.inquiries.data[0]?.id;
         if (!inquiryId) return c.json({ code: "no inquiry" }, 200);
-        const referenceId = await persona.getInquiryById(inquiryId).then((r) => r.data.attributes["reference-id"]);
+        const { "reference-id": referenceId, note } = await persona
+          .getInquiryById(inquiryId)
+          .then((r) => r.data.attributes);
         const credential = await database.query.credentials.findFirst({
           columns: { pandaId: true },
           where: eq(credentials.id, referenceId),
           with: { cards: { columns: { id: true }, where: inArray(cards.status, ["ACTIVE", "FROZEN"]), limit: 1 } },
         });
         if (!credential) {
+          if (note && note !== domain) return c.json({ code: "other domain" }, 200);
           captureException(new Error("no credential"), { level: "error", contexts: { credential: { referenceId } } });
           return c.json({ code: "ok" }, 200);
         }
@@ -368,13 +375,14 @@ export default function hook({
       if (payload.template === "representative") {
         getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "persona.inquiry.representative");
         if (payload.data.attributes.status !== "approved") return c.json({ code: "ok" }, 200);
-        const { referenceId } = payload.data.attributes;
+        const { referenceId, note } = payload.data.attributes;
         const credential = await database.query.credentials.findFirst({
           columns: { account: true, factory: true, pandaId: true, publicKey: true, salt: true, source: true },
           where: eq(credentials.id, referenceId),
           with: { cards: { columns: { id: true }, where: inArray(cards.status, ["ACTIVE", "FROZEN"]) } },
         });
         if (!credential) {
+          if (note && note !== domain) return c.json({ code: "other domain" }, 200);
           captureException(new Error("no credential"), { level: "error", contexts: { credential: { referenceId } } });
           return c.json({ code: "no credential" }, 200);
         }
@@ -463,13 +471,14 @@ export default function hook({
         annualSalary,
         expectedMonthlyVolume,
       } = payload;
-      const { referenceId, fields } = attributes;
+      const { referenceId, note, fields } = attributes;
 
       const credential = await database.query.credentials.findFirst({
         columns: { account: true, factory: true, pandaId: true, publicKey: true, salt: true, source: true },
         where: eq(credentials.id, referenceId),
       });
       if (!credential) {
+        if (note && note !== domain) return c.json({ code: "other domain" }, 200);
         captureException(new Error("no credential"), { level: "error", contexts: { credential: { referenceId } } });
         getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "persona.inquiry.no-credential");
         return c.json({ code: "no credential" }, 200);

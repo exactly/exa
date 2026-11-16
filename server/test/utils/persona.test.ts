@@ -5,6 +5,8 @@ import { array, minLength, number, object, optional, pipe, safeParse, string, un
 import { baseSepolia, optimism } from "viem/chains";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 
+import domain from "@exactly/common/domain";
+
 import appOrigin from "../../utils/appOrigin";
 import createPersona, * as Persona from "../../utils/persona";
 
@@ -195,7 +197,9 @@ describe("createInquiry", () => {
     const body = fetchSpy.mock.calls[0]?.[1]?.body;
     if (typeof body !== "string") throw new Error("missing request body");
     expect(JSON.parse(body)).toStrictEqual({
-      data: { attributes: { "inquiry-template-id": "template-id", "redirect-uri": `${appOrigin}/card` } },
+      data: {
+        attributes: { "inquiry-template-id": "template-id", "redirect-uri": `${appOrigin}/card`, note: domain },
+      },
       meta: { "auto-create-account": true, "auto-create-account-reference-id": "reference-id" },
     });
   });
@@ -231,6 +235,7 @@ describe("createInquiry", () => {
         attributes: {
           "inquiry-template-id": "template-id",
           "redirect-uri": "https://example.com/card",
+          note: domain,
           fields: { "name-first": "ALEXANDER J", "name-last": "SAMPLE" },
         },
       },

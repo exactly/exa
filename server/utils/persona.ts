@@ -29,6 +29,7 @@ import {
 } from "valibot";
 import { baseSepolia, optimismSepolia } from "viem/chains";
 
+import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
 
 import appOrigin from "./appOrigin";
@@ -126,6 +127,7 @@ export default function persona(key: string, url: string) {
           attributes: {
             "inquiry-template-id": templateId,
             "redirect-uri": `${redirectURI ?? appOrigin}/card`,
+            note: domain,
             ...(fields && { fields }),
           },
         },
@@ -322,7 +324,7 @@ export default function persona(key: string, url: string) {
   }
   function getInquiryById(inquiryId: string) {
     return request(
-      object({ data: object({ attributes: object({ "reference-id": string() }) }) }),
+      object({ data: object({ attributes: object({ "reference-id": string(), note: nullish(string()) }) }) }),
       `/inquiries/${inquiryId}`,
       undefined,
       "GET",
