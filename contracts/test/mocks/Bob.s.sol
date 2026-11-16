@@ -259,6 +259,10 @@ contract BobScript is BaseScript {
     vm.broadcast(acct("admin"));
     proposalManager.grantRole(keccak256("COLLECTOR_ROLE"), address(0x5e7));
 
+    release = deployRelease();
+  }
+
+  function deployRelease() public returns (ExaPlugin release) {
     IssuerChecker checker = IssuerChecker(_deploy("IssuerChecker", _arguments("IssuerChecker")));
     string[] memory targets =
       vm.split(vm.parseJsonString(_deployment("ProposalManager"), ".transactions[0].arguments[5]"), ",");
