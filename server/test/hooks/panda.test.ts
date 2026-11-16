@@ -5,7 +5,7 @@ import * as segment from "../mocks/segment";
 import "../mocks/sentry";
 import "../mocks/wallet";
 
-import { captureException, captureMessage, setUser } from "@sentry/node";
+import { captureException, captureMessage, getClient, setUser, spanToJSON } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { parse } from "valibot";
@@ -30,7 +30,7 @@ import {
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { anvil } from "viem/chains";
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import chain, {
@@ -333,6 +333,7 @@ describe("card operations", () => {
         const error = new Error("timeout");
         error.name = "TimeoutError";
         vi.spyOn(sardine, "risk").mockRejectedValueOnce(error);
+        const span = spyRiskSpan();
         await database.insert(cards).values([{ id: "risk-timeout", credentialId: "cred", lastFour: "5678", mode: 0 }]);
 
         const response = await appClient.index.$post({
@@ -346,6 +347,32 @@ describe("card operations", () => {
           expect.objectContaining({ message: "timeout", name: "TimeoutError" }),
           expect.anything(),
         );
+        await expect(span).resolves.toStrictEqual([
+          "tx.risk.authorization",
+          { "exa.level": "unknown", "exa.score": 0, "exa.status": "timeout" },
+        ]);
+        expect(response.status).toBe(200);
+      });
+
+      it("authorizes debit when risk assessment fails", async () => {
+        const error = new Error("risk failed");
+        vi.spyOn(sardine, "risk").mockRejectedValueOnce(error);
+        const span = spyRiskSpan();
+        await database.insert(cards).values([{ id: "risk-failed", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId: "risk-failed" } },
+          },
+        });
+
+        expect(captureException).toHaveBeenCalledWith(error, { level: "error" });
+        await expect(span).resolves.toStrictEqual([
+          "tx.risk.authorization",
+          { "exa.level": "unknown", "exa.score": 0, "exa.status": "error" },
+        ]);
         expect(response.status).toBe(200);
       });
 
@@ -527,6 +554,7 @@ describe("card operations", () => {
           score: 98,
           reasonCodes: ["AR01"],
         });
+        const span = spyRiskSpan();
         await database.insert(cards).values([{ id: "high-risk", credentialId: "cred", lastFour: "5678", mode: 0 }]);
 
         const response = await appClient.index.$post({
@@ -538,6 +566,10 @@ describe("card operations", () => {
         });
 
         expect(captureException).toHaveBeenCalledWith(new Error("high risk authorization"), expect.anything());
+        await expect(span).resolves.toStrictEqual([
+          "tx.risk.authorization",
+          { "exa.level": "high", "exa.score": 98, "exa.status": "Success" },
+        ]);
 
         expect(response.status).toBe(200);
       });
@@ -551,6 +583,7 @@ describe("card operations", () => {
           score: 98,
           reasonCodes: ["AR01"],
         });
+        const span = spyRiskSpan();
         await database
           .insert(cards)
           .values([{ id: "high-risk-verifications", credentialId: "cred", lastFour: "5678", mode: 0 }]);
@@ -567,6 +600,10 @@ describe("card operations", () => {
         });
 
         expect(captureException).toHaveBeenCalledWith(new Error("high risk verification"), expect.anything());
+        await expect(span).resolves.toStrictEqual([
+          "tx.risk.verification",
+          { "exa.level": "high", "exa.score": 98, "exa.status": "Success" },
+        ]);
 
         expect(response.status).toBe(200);
       });
@@ -580,6 +617,7 @@ describe("card operations", () => {
           score: 98,
           reasonCodes: ["AR01"],
         });
+        const span = spyRiskSpan();
         await database
           .insert(cards)
           .values([{ id: "high-risk-refund", credentialId: "cred", lastFour: "5678", mode: 0 }]);
@@ -596,6 +634,10 @@ describe("card operations", () => {
         });
 
         expect(captureException).toHaveBeenCalledWith(new Error("high risk refund"), expect.anything());
+        await expect(span).resolves.toStrictEqual([
+          "tx.risk.refund",
+          { "exa.level": "high", "exa.score": 98, "exa.status": "Success" },
+        ]);
 
         expect(response.status).toBe(200);
       });
@@ -4280,6 +4322,20 @@ const userResponseTemplate = {
   applicationStatus: "approved",
   applicationReason: "",
 } as const;
+
+function spyRiskSpan() {
+  const assessed = Promise.withResolvers<[string | undefined, Record<string, unknown>]>();
+  const off = getClient()?.on("spanEnd", (span) => {
+    const { op, data } = spanToJSON(span);
+    if (!op?.startsWith("tx.risk.")) return;
+    assessed.resolve([
+      op,
+      { "exa.level": data["exa.level"], "exa.score": data["exa.score"], "exa.status": data["exa.status"] },
+    ]);
+  });
+  onTestFinished(() => off?.());
+  return assessed.promise;
+}
 
 vi.mock("@sentry/node", { spy: true });
 const pandaLogger = vi.hoisted(() => vi.fn());

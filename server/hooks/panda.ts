@@ -224,7 +224,11 @@ export default function hook({
           if (payload.body.spend.amount < 0) {
             startSpan({ name: "assess risk", op: "tx.risk.refund" }, async (span) => {
               const assessment = await assess();
-              span.setAttributes({ "exa.level": assessment.level, "exa.score": assessment.score });
+              span.setAttributes({
+                "exa.level": assessment.level,
+                "exa.score": assessment.score,
+                "exa.status": assessment.status,
+              });
               if (assessment.level === "high" || assessment.level === "very_high") {
                 captureException(new Error("high risk refund"), { level: "error" });
               }
@@ -261,7 +265,11 @@ export default function hook({
             if (!transaction) {
               startSpan({ name: "assess risk", op: "tx.risk.verification" }, async (span) => {
                 const assessment = await assess();
-                span.setAttributes({ "exa.level": assessment.level, "exa.score": assessment.score });
+                span.setAttributes({
+                  "exa.level": assessment.level,
+                  "exa.score": assessment.score,
+                  "exa.status": assessment.status,
+                });
                 if (assessment.level === "high" || assessment.level === "very_high") {
                   captureException(new Error("high risk verification"), { level: "error" });
                 }
@@ -271,7 +279,11 @@ export default function hook({
 
             startSpan({ name: "assess risk", op: "tx.risk.authorization" }, async (span) => {
               const assessment = await assess();
-              span.setAttributes({ "exa.level": assessment.level, "exa.score": assessment.score });
+              span.setAttributes({
+                "exa.level": assessment.level,
+                "exa.score": assessment.score,
+                "exa.status": assessment.status,
+              });
               if (assessment.level === "high" || assessment.level === "very_high") {
                 captureException(new Error("high risk authorization"), { level: "error" });
               }
