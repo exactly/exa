@@ -31,8 +31,15 @@ export default define({
     },
     activity: { secrets: ["alchemy-webhooks-key", "onesignal-api-key", "postgres-url"], shared: ["redis-url"] },
     block: {
-      secrets: ["alchemy-block-key", "alchemy-webhooks-key", "onesignal-api-key", "postgres-url"],
-      shared: ["redis-url"],
+      secrets: [
+        "alchemy-block-key",
+        "alchemy-webhooks-key",
+        "manteca-api-key",
+        "onesignal-api-key",
+        "persona-api-key",
+        "postgres-url",
+      ],
+      shared: ["manteca-api-url", "persona-api-url", "redis-url"],
       signers: ["executor"],
     },
     bridge: {
