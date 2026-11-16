@@ -49,6 +49,7 @@
     "@mastra/observability": "^1.17.4",
     "@mastra/sentry": "^1.2.14",
     "@onesignal/node-onesignal": "^5.4.0",
+    "@rainapi/rain-sdk": "0.1.0-alpha.16",
     "@react-pdf/renderer": "^4.3.2",
     "@segment/analytics-node": "^3.0.0",
     "@sentry/core": "catalog:",
