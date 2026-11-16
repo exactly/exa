@@ -31,7 +31,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: ../subflows/getAccount.yaml
 - assertTrue: ${output.credential !== output.previous}
 - runFlow: ../subflows/storeCoverage.yaml
-- openLink: http://localhost:3000/e2e/session
+- openLink: ${APP_ID}/e2e/session
 - assertVisible: .*"${output.credential}".*
 - openLink: ${APP_ID}
 - runFlow: ../subflows/swap.yaml
