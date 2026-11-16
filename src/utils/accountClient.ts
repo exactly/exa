@@ -101,7 +101,11 @@ import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
 import { dataSuffix } from "@exactly/common/attribution";
 import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
-import chain, { alchemyChains, upgradeableModularAccountAbi } from "@exactly/common/generated/chain";
+import chain, {
+  alchemyChains,
+  chains as protocols,
+  upgradeableModularAccountAbi,
+} from "@exactly/common/generated/chain";
 import { sum } from "@exactly/lib";
 
 import {
@@ -167,13 +171,7 @@ export default async function createAccountClient({ credentialId, factory, x, y,
     getAccountInitCode: () => getAccountInitCode(publicClient),
     ...accountOptions,
   });
-  const client = createSmartAccountClient({
-    chain,
-    transport,
-    account,
-    ...alchemyGasManagerMiddleware(alchemyGasPolicyId),
-    gasEstimator,
-  });
+  const client = createSmartAccountClient({ chain, transport, account });
   const crossChainAccounts = new Map<number, Promise<Remote>>();
   function getCrossChainAccount(targetChain: Chain) {
     const cached = crossChainAccounts.get(targetChain.id);
@@ -225,7 +223,7 @@ export default async function createAccountClient({ credentialId, factory, x, y,
     }
     return cached.plan.catch(() => plan(targetChain, calls, spend));
   }
-  async function plan(targetChain: Chain, calls: readonly Call[], spend?: Spend) {
+  async function plan(targetChain: Chain, calls: readonly Call[], spend?: Spend, unsponsored = false) {
     const {
       account: remoteAccount,
       alchemyTransport,
@@ -252,17 +250,19 @@ export default async function createAccountClient({ credentialId, factory, x, y,
     }
     const value = sum([0n, ...calls.map((call) => BigInt(call.value ?? 0))]);
     const balance = getBalance(rpc, { address: accountAddress });
-    const sponsor = alchemyGasManagerMiddleware(
-      targetChain.id === chain.id ? alchemyGasPolicyId : sponsorPolicy(targetChain),
-    ).dummyPaymasterAndData;
+    const protocol = !unsponsored && protocols.has(targetChain.id);
+    const sponsor = unsponsored
+      ? undefined
+      : alchemyGasManagerMiddleware(
+          protocol ? [alchemyGasPolicyId, sponsorPolicy(targetChain)] : sponsorPolicy(targetChain),
+        ).dummyPaymasterAndData;
     const tokens = bridgePolicyTokens[targetChain.id] ?? [];
-    const holdings =
-      targetChain.id === chain.id
-        ? undefined
-        : queryClient.ensureQueryData(balancesOptions(accountAddress)).then(
-            (all) => all[targetChain.id],
-            () => undefined,
-          );
+    const holdings = protocol
+      ? undefined
+      : queryClient.ensureQueryData(balancesOptions(accountAddress)).then(
+          (all) => all[targetChain.id],
+          () => undefined,
+        );
     const [{ callGasLimit, maxFeePerGas, preVerificationGas, verificationGasLimit }, nativeBalance, balances, chains] =
       await Promise.all([
         estimate(sponsor).catch(async (error: unknown) => {
@@ -279,9 +279,11 @@ export default async function createAccountClient({ credentialId, factory, x, y,
                 maxTokenAmount: held.amount,
               }).dummyPaymasterAndData
             : undefined;
-          const fallback = () =>
+          const unsponsoredEstimate = () =>
             stub ? estimate(stub, funded).catch(() => estimate(undefined, funded)) : estimate(undefined, funded);
-          return (funded === undefined ? fallback() : estimate(sponsor, funded).catch(fallback)).catch(() => {
+          return (
+            funded === undefined ? unsponsoredEstimate() : estimate(sponsor, funded).catch(unsponsoredEstimate)
+          ).catch(() => {
             throw error;
           });
         }),
@@ -294,7 +296,7 @@ export default async function createAccountClient({ credentialId, factory, x, y,
     const nativeToken = chains?.find(({ id }) => id === targetChain.id)?.nativeToken;
     const unfunded = value > nativeBalance;
     const principal = spend?.token === zeroAddress ? spend.amount : 0n;
-    if (targetChain.id === chain.id) {
+    if (protocol) {
       return {
         cost,
         payers: [],
@@ -304,9 +306,9 @@ export default async function createAccountClient({ credentialId, factory, x, y,
             : undefined,
       };
     }
-    if (!spend) throw new Error("missing spend");
-    const native = spend.token === zeroAddress;
-    const source = tokens.includes(spend.token.toLowerCase()) ? spend.token : undefined;
+    if (!spend && !unsponsored) throw new Error("missing spend");
+    const native = spend?.token === zeroAddress;
+    const source = spend && tokens.includes(spend.token.toLowerCase()) ? spend.token : undefined;
     const gasToken = native
       ? undefined
       : (balances?.find(({ address }) => address.toLowerCase() === source?.toLowerCase()) ??
@@ -348,7 +350,7 @@ export default async function createAccountClient({ credentialId, factory, x, y,
       typeof held === "bigint" &&
       gasToken &&
       erc20GasReserve > 0n &&
-      (feeIsSource ? spend.amount + erc20GasReserve : erc20GasReserve) <= held
+      (spend && feeIsSource ? spend.amount + erc20GasReserve : erc20GasReserve) <= held
         ? gasToken
         : undefined;
     const payers: Payer[] = [
@@ -367,7 +369,7 @@ export default async function createAccountClient({ credentialId, factory, x, y,
             },
           ]
         : []),
-      ...(sponsored || nativeCovered || payable
+      ...(!unsponsored && (sponsored || nativeCovered || payable)
         ? [{ policyId: [alchemyGasPolicyId, sponsorPolicy(targetChain)] }]
         : []),
     ];
@@ -440,118 +442,134 @@ export default async function createAccountClient({ credentialId, factory, x, y,
               args: [calls.map(({ to, data = "0x", value = 0n }) => ({ target: to, data, value }))],
               abi: upgradeableModularAccountAbi,
             } as const;
-            if (targetChainId !== chain.id) {
-              if (nonceKey !== undefined) throw new Error("bad nonce key");
-              if (deadline !== undefined) throw new Error("bad deadline");
-              const targetChain = smartAccountChain(targetChainId);
-              const remote = await getCrossChainAccount(targetChain);
-              async function build({ approvals = [], policyId: ids, token }: Payer) {
-                const batch = [...approvals, ...uo];
-                const sender = createSmartAccountClient({
-                  chain: targetChain,
-                  transport: remote.transport,
-                  account: remote.account,
-                  feeEstimator: alchemyFeeEstimator(remote.alchemyTransport),
-                  ...(ids
-                    ? alchemyGasManagerMiddleware(ids, token)
-                    : { opts: { feeOptions: { maxPriorityFeePerGas: { multiplier: 1.5 } } } }),
-                  gasEstimator,
-                });
-                const operation = await sender.buildUserOperation({
-                  uo: suffix ? concatHex([await remote.account.encodeBatchExecute(batch), suffix]) : batch,
-                });
-                return async () =>
-                  sender.sendRawUserOperation(
-                    await sender.signUserOperation({ uoStruct: operation }),
-                    remote.account.getEntryPoint().address,
-                  );
-              }
-              try {
-                const { payers } = await planned(targetChain, calls, capabilities?.spend);
-                let send: (() => Promise<Hex>) | undefined;
-                let erc20 = false;
-                for (const [index, payer] of payers.entries()) {
-                  try {
-                    send = await build(payer);
-                    erc20 = !!payer.token;
-                    break;
-                  } catch (error) {
-                    if (index === payers.length - 1 || !(payer.token ? denied(error) : rejected(error))) throw error;
-                  }
-                }
-                if (!send) throw new Error("no gas payer");
-                const hash = await send().catch((error: unknown) => {
-                  if (!erc20 || !rejected(error) || (isSiwe() && delegable(error))) throw error;
-                  reportError(error, { level: "warning" });
-                });
-                const receipt =
-                  hash && erc20
-                    ? await remote.readClient
-                        .waitForUserOperationTransaction({
-                          hash,
-                          retries: { intervalMs: 1000, maxRetries: 60, multiplier: 1 },
-                        })
-                        .then(() => remote.readClient.getUserOperationReceipt(hash))
-                        .catch(() => undefined)
-                    : undefined;
-                const sent =
-                  hash && receipt?.success !== false
-                    ? hash
-                    : await build({ policyId: [alchemyGasPolicyId, sponsorPolicy(targetChain)] }).then((sponsored) => {
-                        capabilities?.retry?.();
-                        return sponsored();
-                      });
-                return { id: concat([sent, numberToHex(targetChainId, { size: 32 }), UO_MAGIC_ID]) };
-              } catch (error) {
-                if (!isSiwe() || !delegable(error) || !(await remote.account.isAccountDeployed())) throw error;
-                reportError(error, { level: "warning", extra: { cause: error.cause } });
-                return sendOwnerCalls({
-                  chainId: targetChainId,
-                  calls: [{ to: accountAddress, data: encodeFunctionData(execute), dataSuffix: suffix }],
-                  experimental_fallback: true,
-                });
-              }
-            }
-            if (nonceKey === undefined && deadline === undefined && isSiwe() && (await account.isAccountDeployed())) {
+            if (nonceKey !== undefined && targetChainId !== chain.id) throw new Error("bad nonce key");
+            if (deadline !== undefined && targetChainId !== chain.id) throw new Error("bad deadline");
+            const targetChain = targetChainId === chain.id ? chain : smartAccountChain(targetChainId);
+            const remote = await getCrossChainAccount(targetChain);
+            const sponsor = { policyId: [alchemyGasPolicyId, sponsorPolicy(targetChain)] };
+            const protocol = protocols.has(targetChainId);
+            if (
+              nonceKey === undefined &&
+              deadline === undefined &&
+              protocol &&
+              isSiwe() &&
+              (await remote.account.isAccountDeployed())
+            ) {
               const sent = await sendOwnerCalls({
                 id,
-                chainId: chain.id,
+                chainId: targetChainId,
                 calls: [{ to: accountAddress, data: encodeFunctionData(execute) }],
                 capabilities: {
                   ...(suffix ? { dataSuffix: { optional: true, ...capabilities?.dataSuffix, value: suffix } } : {}),
                   paymasterService: {
                     optional: true,
-                    url: `${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
-                    context: { policyId: [alchemyGasPolicyId] },
+                    url: `${targetChain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`,
+                    context: sponsor,
                   },
                 },
               });
               if (sent) return sent;
             }
-            const operation = suffix ? concatHex([await account.encodeBatchExecute(uo), suffix]) : uo;
-            const overrides = nonceKey === undefined ? undefined : { nonce: nonceKey << 64n };
-            if (deadline === undefined) {
-              const { hash } = await client.sendUserOperation({ uo: operation, overrides });
-              return { id: concat([hash, numberToHex(chain.id, { size: 32 }), UO_MAGIC_ID]) };
+            let paymasterAndData: Hex = "0x";
+            async function build({ approvals = [], policyId: ids, token }: Payer) {
+              const batch = [...approvals, ...uo];
+              const sender = createSmartAccountClient({
+                chain: targetChain,
+                transport: remote.transport,
+                account: remote.account,
+                feeEstimator: alchemyFeeEstimator(remote.alchemyTransport),
+                ...(ids
+                  ? alchemyGasManagerMiddleware(ids, token)
+                  : { opts: { feeOptions: { maxPriorityFeePerGas: { multiplier: 1.5 } } } }),
+                gasEstimator,
+              });
+              const operation = await sender.buildUserOperation({
+                uo: suffix ? concatHex([await remote.account.encodeBatchExecute(batch), suffix]) : batch,
+                overrides: nonceKey === undefined ? undefined : { nonce: nonceKey << 64n },
+              });
+              return async () => {
+                const signed = await sender.signUserOperation({ uoStruct: operation });
+                if (deadline !== undefined && Date.now() >= deadline) throw new Error("deadline exceeded");
+                const hash = await sender.sendRawUserOperation(signed, remote.account.getEntryPoint().address);
+                paymasterAndData = "paymasterAndData" in signed ? signed.paymasterAndData : "0x";
+                return hash;
+              };
             }
-            const signed = await client.signUserOperation({
-              uoStruct: await client.buildUserOperation({ uo: operation, overrides }),
-            });
-            if (Date.now() >= deadline) throw new Error("deadline exceeded");
-            const hash = await client.sendRawUserOperation(signed, account.getEntryPoint().address);
-            const sponsorship = "paymasterAndData" in signed ? signed.paymasterAndData : "0x";
-            return {
-              id: concat([hash, numberToHex(chain.id, { size: 32 }), UO_MAGIC_ID]),
-              ...(size(sponsorship) >= 32 && {
-                capabilities: {
-                  // packed validAfter and validUntil, the later one is the sponsorship expiry
-                  validUntil: Math.max(
-                    hexToNumber(sliceHex(sponsorship, 20, 26)),
-                    hexToNumber(sliceHex(sponsorship, 26, 32)),
-                  ),
-                },
-              }),
-            };
+            async function firstPayable(payers: Payer[]) {
+              for (const [index, payer] of payers.entries()) {
+                try {
+                  return { erc20: !!payer.token, send: await build(payer) };
+                } catch (error) {
+                  if (index === payers.length - 1 || !(payer.token ? denied(error) : rejected(error))) throw error;
+                }
+              }
+              throw new Error("no gas payer");
+            }
+            try {
+              const { erc20, send } = await (protocol
+                ? build(sponsor)
+                    .then((paid) => ({ erc20: false, send: paid }))
+                    .catch(async (error: unknown) => {
+                      if (!rejected(error) || (isSiwe() && delegable(error))) throw error;
+                      return plan(targetChain, calls, capabilities?.spend, true)
+                        .then(({ payers }) => firstPayable(payers))
+                        .then((payable) => ({ ...payable, erc20: false }))
+                        .catch(() => {
+                          throw error;
+                        });
+                    })
+                : planned(targetChain, calls, capabilities?.spend).then(({ payers }) => firstPayable(payers)));
+              const hash = await send().catch((error: unknown) => {
+                if (!erc20 || !rejected(error) || (isSiwe() && delegable(error))) throw error;
+                reportError(error, { level: "warning" });
+              });
+              const sent =
+                hash &&
+                (!erc20 ||
+                  (await remote.readClient
+                    .waitForUserOperationTransaction({
+                      hash,
+                      retries: { intervalMs: 1000, maxRetries: 60, multiplier: 1 },
+                    })
+                    .then(() => remote.readClient.getUserOperationReceipt(hash))
+                    .then(
+                      (receipt) => receipt?.success !== false,
+                      () => true,
+                    )))
+                  ? hash
+                  : await build(sponsor).then((resend) => {
+                      capabilities?.retry?.();
+                      return resend();
+                    });
+              return {
+                id: concat([sent, numberToHex(targetChainId, { size: 32 }), UO_MAGIC_ID]),
+                ...(size(paymasterAndData) >= 32 && {
+                  capabilities: {
+                    // packed validAfter and validUntil, the later one is the sponsorship expiry
+                    validUntil: Math.max(
+                      hexToNumber(sliceHex(paymasterAndData, 20, 26)),
+                      hexToNumber(sliceHex(paymasterAndData, 26, 32)),
+                    ),
+                  },
+                }),
+              };
+            } catch (error) {
+              if (
+                nonceKey !== undefined ||
+                deadline !== undefined ||
+                !isSiwe() ||
+                !delegable(error) ||
+                !(await remote.account.isAccountDeployed())
+              ) {
+                throw error;
+              }
+              reportError(error, { level: "warning", extra: { cause: error.cause } });
+              return sendOwnerCalls({
+                chainId: targetChainId,
+                calls: [{ to: accountAddress, data: encodeFunctionData(execute), dataSuffix: suffix }],
+                experimental_fallback: true,
+              });
+            }
           }
           case "wallet_prepareCalls": {
             if (!Array.isArray(params) || params.length !== 1) throw new Error("bad params");

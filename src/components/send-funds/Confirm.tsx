@@ -28,7 +28,7 @@ import {
 } from "viem";
 import { useReadContract, useSimulateContract } from "wagmi";
 
-import chain, { alchemyChains } from "@exactly/common/generated/chain";
+import chain, { alchemyChains, chains as protocols } from "@exactly/common/generated/chain";
 import { proposalManagerAbi } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
 import shortenHex from "@exactly/common/shortenHex";
@@ -179,7 +179,7 @@ export default function Confirm() {
   const routed =
     destinationChain !== payChain ||
     (typeof toToken === "string" && toToken.toLowerCase() !== payDelivered?.toLowerCase());
-  const sponsored = payChain === chain.id;
+  const sponsored = protocols.has(payChain);
   const [gasReserve, setGasReserve] = useState(0n);
   const [fit, setFit] = useState(false);
   const balance = external && !sponsored ? external.amount : undefined;
