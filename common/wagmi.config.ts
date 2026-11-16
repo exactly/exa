@@ -30,6 +30,7 @@ import Previewer from "@exactly/protocol/deployments/base/Previewer.json" with {
 import RatePreviewer from "@exactly/protocol/deployments/base/RatePreviewer.json" with { type: "json" };
 
 import alchemyNetworks from "./alchemy.json" with { type: "json" };
+import alchemyAPIKeys from "./alchemyAPIKeys";
 import factoryChainBlocks from "./factoryChains.json" with { type: "json" };
 import factoryVersion from "./factoryVersion.json" with { type: "json" };
 
@@ -116,7 +117,7 @@ export default defineConfig([
                 .map((asset) => getAddress(loadDeployment(asset, true, id).address)),
             ]),
           );
-          const chainContracts = (chain ? sameSide.map(([{ id }]) => id) : [anvil.id, moonbeamDev.id]).map((id) => {
+          function contracts(id: number) {
             const exaPreviewer = loadBroadcast("ExaPreviewer", id).transactions[0]?.contractAddress;
             if (!exaPreviewer) throw new Error(`missing exaPreviewer on ${id}`);
             const webauthnOwnerPlugin = (
@@ -135,7 +136,12 @@ export default defineConfig([
                 webauthnOwnerPlugin: getAddress(webauthnOwnerPlugin),
               },
             ] as const;
-          });
+          }
+          const chainContracts = (chain ? sameSide.map(([{ id }]) => id) : [anvil.id, moonbeamDev.id]).map((id) =>
+            contracts(id),
+          );
+          const peerIds = chain ? [] : sameSide.map(([{ id }]) => id);
+          const peers = peerIds.map((id) => contracts(id));
           const networkConfig: Record<
             string,
             undefined | { network: string; slug: string; testnet?: boolean; webhooks?: boolean }
@@ -190,9 +196,9 @@ export default defineConfig([
             if (!alchemy && !slug) return [];
             const alchemyNetwork = networkConfig[c.id]?.network;
             if (!alchemyNetwork) return [];
-            const url = chain
-              ? (alchemy?.http[0] ?? `https://${slug}.g.alchemy.com/v2`)
-              : anvil.rpcUrls.default.http[0];
+            const remote = alchemy?.http[0] ?? `https://${slug}.g.alchemy.com/v2`;
+            const local = peerIds.includes(c.id) ? `${remote}/${alchemyAPIKeys[c.id]}` : anvil.rpcUrls.default.http[0];
+            const url = chain ? remote : local;
             const name = Object.entries(chains).find(([, v]) => isDeepStrictEqual(v, { ...c, rpcUrls }))?.[0];
             if (!name && (c.formatters ?? c.serializers ?? c.fees)) throw new Error(`lossy chain ${c.id}`);
             return [
@@ -345,6 +351,7 @@ export default defineConfig([
                 .join(", ")}])`,
               `export const chains: ReadonlyMap<number, AlchemyChain & Readonly<Record<"auditor" | "exaPreviewer" | "previewer" | "ratePreviewer" | "swapper" | "webauthnOwnerPlugin", \`0x\${string}\`>>> = ${chainMap(chainContracts)}`,
               `export const factoryChains: ReadonlyMap<number, AlchemyChain & Readonly<{ startBlock: number; swapper: \`0x\${string}\` }>> = ${chainMap(factoryChains.map(({ id, startBlock }) => [id, { startBlock }] as const))}`,
+              `export const peers: ReadonlyMap<number, AlchemyChain & Readonly<Record<"auditor" | "exaPreviewer" | "previewer" | "ratePreviewer" | "swapper" | "webauthnOwnerPlugin", \`0x\${string}\`>>> = ${chainMap(peers)}`,
               `export const isBase: boolean = ${chainId === base.id || chainId === baseSepolia.id}`,
               `export const lifiURL: string | undefined = ${JSON.stringify({ [anvil.id]: "http://localhost:3000/e2e/lifi/v1", [base.id]: "https://li.quest/v1", [optimism.id]: "https://li.quest/v1" }[chainId])}`,
               `export default chain as Chain & { alchemyNetwork: string; swapper: \`0x\${string}\`; smartAccount: true; contracts: { multicall3: { address: \`0x\${string}\` } }; rpcUrls: { alchemy: { http: readonly [string] } } }`,
