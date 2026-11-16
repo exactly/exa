@@ -116,16 +116,26 @@ export default function panda({ key, url }: { key: string; url: string }) {
       10_000,
     );
   }
-  async function createUser(user: {
-    accountPurpose: string;
-    annualSalary: string;
-    expectedMonthlyVolume: string;
-    ipAddress: string;
-    isTermsOfServiceAccepted: true;
-    occupation: string;
-    personaShareToken: string;
-  }) {
-    return await request(object({ id: string() }), "/issuing/applications/user", {}, user, "POST", 10_000);
+  async function createUser(
+    user: {
+      accountPurpose: string;
+      annualSalary: string;
+      expectedMonthlyVolume: string;
+      ipAddress: string;
+      isTermsOfServiceAccepted: true;
+      occupation: string;
+      personaShareToken: string;
+    },
+    idempotencyKey: string,
+  ) {
+    return await request(
+      object({ id: string() }),
+      "/issuing/applications/user",
+      { "Idempotency-Key": `user:${idempotencyKey}` },
+      user,
+      "POST",
+      10_000,
+    );
   }
   async function createCompanyApplication(
     externalId: string,

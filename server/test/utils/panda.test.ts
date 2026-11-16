@@ -471,6 +471,33 @@ describe("withdrawals", () => {
   });
 });
 
+describe("create user", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("creates the user with the idempotency key", async () => {
+    const user = {
+      accountPurpose: "business",
+      annualSalary: "100000",
+      expectedMonthlyVolume: "1000",
+      ipAddress: "127.0.0.1",
+      isTermsOfServiceAccepted: true as const,
+      occupation: "engineer",
+      personaShareToken: "inq_123",
+    };
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json({ id: "user-1" }));
+
+    await expect(panda.createUser(user, "evt_123")).resolves.toStrictEqual({ id: "user-1" });
+    expect(fetchSpy).toHaveBeenCalledExactlyOnceWith(
+      expect.stringContaining("/issuing/applications/user"),
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ "Idempotency-Key": "user:evt_123" }) as unknown,
+      }),
+    );
+    expect(JSON.parse(fetchSpy.mock.lastCall?.[1]?.body as string)).toStrictEqual(user);
+  });
+});
+
 describe("create card", () => {
   const card = {
     id: "card-id",
