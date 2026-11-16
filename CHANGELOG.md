@@ -1,5 +1,18 @@
 # @exactly/mobile
 
+## 1.2.52
+
+### Patch Changes
+
+- [#1905](https://github.com/exactly/exa/pull/1905) [`0f18008`](https://github.com/exactly/exa/commit/0f18008c0f8152bc6df8c48001b6b4c1f973cba4) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🧵 cancel auth requests on logout
+
+- [#1902](https://github.com/exactly/exa/pull/1902) [`542e103`](https://github.com/exactly/exa/commit/542e103aa9fd4d41d7ed94fd929ebb9da2f06de9) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 guide passkeys that cannot be backed up
+
+- [#1902](https://github.com/exactly/exa/pull/1902) [`1ba6bbf`](https://github.com/exactly/exa/commit/1ba6bbf0e9dce99aa69a98255b682a757043a7ab) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 explain passkeys not linked to an account
+
+- Updated dependencies [[`5d7dea8`](https://github.com/exactly/exa/commit/5d7dea82029afb5c4c2d42d7630d51ecfdb8bd06), [`495de60`](https://github.com/exactly/exa/commit/495de607e8a11843eafdcc5fc03da5a9fb135de3), [`0d32972`](https://github.com/exactly/exa/commit/0d32972fff58e2d2b03921abfc908d18fb3c0a78), [`809cdf7`](https://github.com/exactly/exa/commit/809cdf76d59aaf817750218488d518235d24d055), [`9ec0b5e`](https://github.com/exactly/exa/commit/9ec0b5ef02458ada70d7587424b5515705f984e2)]:
+  - @exactly/server@0.3.10
+
 ## 1.2.51
 
 ### Patch Changes

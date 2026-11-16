@@ -1,5 +1,19 @@
 # @exactly/server
 
+## 0.3.10
+
+### Patch Changes
+
+- [#1932](https://github.com/exactly/exa/pull/1932) [`5d7dea8`](https://github.com/exactly/exa/commit/5d7dea82029afb5c4c2d42d7630d51ecfdb8bd06) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔒️ restrict activity refresh to unknown webhooks
+
+- [#1937](https://github.com/exactly/exa/pull/1937) [`495de60`](https://github.com/exactly/exa/commit/495de607e8a11843eafdcc5fc03da5a9fb135de3) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🩹 raise risk assessment timeout
+
+- [#1927](https://github.com/exactly/exa/pull/1927) [`0d32972`](https://github.com/exactly/exa/commit/0d32972fff58e2d2b03921abfc908d18fb3c0a78) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 reject duplicate credential registration
+
+- [#1937](https://github.com/exactly/exa/pull/1937) [`809cdf7`](https://github.com/exactly/exa/commit/809cdf76d59aaf817750218488d518235d24d055) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 📈 tag risk assessment status
+
+- [#1932](https://github.com/exactly/exa/pull/1932) [`9ec0b5e`](https://github.com/exactly/exa/commit/9ec0b5ef02458ada70d7587424b5515705f984e2) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔒️ verify manteca signature first
+
 ## 0.3.9
 
 ### Patch Changes
