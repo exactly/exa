@@ -64,6 +64,7 @@ import fixedRate from "@exactly/common/fixedRate";
 import chain, {
   debtManagerAddress,
   exaPluginAbi,
+  isBase,
   marketUSDCAddress,
   marketWETHAddress,
 } from "@exactly/common/generated/chain";
@@ -149,6 +150,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
         with: {
           cards: {
             columns: { id: true, lastFour: true },
+            where: eq(cards.tenant, isBase ? "BASE" : "OP"),
             with: { transactions: { columns: { hashes: true, payload: true } } },
             limit: ignore("card") || maturity !== undefined ? 0 : undefined,
           },
@@ -657,7 +659,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                 .toArray();
               if (hashes.length === 0) return [];
               return database.query.cards.findMany({
-                where: eq(cards.credentialId, credentialId),
+                where: and(eq(cards.credentialId, credentialId), eq(cards.tenant, isBase ? "BASE" : "OP")),
                 columns: { id: true, lastFour: true },
                 with: {
                   transactions: {

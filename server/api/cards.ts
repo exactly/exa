@@ -1,10 +1,11 @@
 import { captureException, setUser, withScope } from "@sentry/node";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { describeRoute } from "hono-openapi";
 import { resolver } from "hono-openapi/valibot";
 import { array, literal, metadata, number, object, parse, picklist, pipe, string, type InferOutput } from "valibot";
 
+import { isBase } from "@exactly/common/generated/chain";
 import {
   BASE_PRODUCT_ID,
   CLASSIC_PRODUCT_ID,
@@ -67,7 +68,10 @@ Pass an active or frozen item's \`lastFour\` to \`GET /card\` or \`PATCH /card\`
         with: {
           cards: {
             columns: { id: true, lastFour: true, status: true, mode: true, productId: true },
-            where: inArray(cards.status, ["ACTIVE", "FROZEN", "DELETED"]),
+            where: and(
+              inArray(cards.status, ["ACTIVE", "FROZEN", "DELETED"]),
+              eq(cards.tenant, isBase ? "BASE" : "OP"),
+            ),
             orderBy: cards.id,
           },
         },

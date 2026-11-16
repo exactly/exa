@@ -83,6 +83,8 @@ import wallet from "../../utils/wallet";
 import { chains } from "../anvil";
 import anvilClient from "../anvilClient";
 
+import type * as C from "@exactly/common/generated/chain";
+
 function httpSerialize<T>(object: T): T {
   const cloned = structuredClone(object);
   return removeUndefined(cloned) as T;
@@ -657,8 +659,8 @@ describe.concurrent("authenticated", () => {
 
     beforeAll(async () => {
       await database.insert(cards).values([
-        { id: "first-activity-card", credentialId: "bob", lastFour: "1234" },
-        { id: "second-activity-card", credentialId: "bob", lastFour: "6789" },
+        { id: "first-activity-card", credentialId: "bob", tenant: "OP", lastFour: "1234" },
+        { id: "second-activity-card", credentialId: "bob", tenant: "OP", lastFour: "6789" },
       ]);
       const borrows = await anvilClient
         .getContractEvents({
@@ -1300,7 +1302,9 @@ describe.concurrent("authenticated", () => {
         account: padHex("0xdead", { size: 20 }),
         factory: exaAccountFactoryAddress,
       });
-      await database.insert(cards).values([{ id: owner.cardId, credentialId: owner.credentialId, lastFour: "0000" }]);
+      await database
+        .insert(cards)
+        .values([{ id: owner.cardId, credentialId: owner.credentialId, tenant: "OP", lastFour: "0000" }]);
       await database.insert(transactions).values([
         {
           id: "unreadable",
@@ -1978,7 +1982,9 @@ describe.concurrent("authenticated", () => {
           account: padHex("0xac71", { size: 20 }),
           factory: exaAccountFactoryAddress,
         });
-        await database.insert(cards).values([{ id: leak.cardId, credentialId: leak.credentialId, lastFour: "0000" }]);
+        await database
+          .insert(cards)
+          .values([{ id: leak.cardId, credentialId: leak.credentialId, tenant: "OP", lastFour: "0000" }]);
         await database
           .insert(transactions)
           .values([{ id: leak.transactionId, cardId: leak.cardId, hashes: source.hashes, payload: source.payload }]);
@@ -1992,6 +1998,61 @@ describe.concurrent("authenticated", () => {
         await database.delete(transactions).where(eq(transactions.id, leak.transactionId));
         await database.delete(cards).where(eq(cards.id, leak.cardId));
         await database.delete(credentials).where(eq(credentials.id, leak.credentialId));
+      }
+    });
+
+    it.each([
+      { isBase: false, tenant: "BASE" },
+      { isBase: true, tenant: "OP" },
+    ] as const)("ignores card transactions from $tenant tenant", async ({ isBase, tenant }) => {
+      expect.hasAssertions();
+      mocks.isBase.mockReturnValue(isBase);
+      const headers = { headers: { "test-credential-id": "bob" } };
+      const cardActivity = () =>
+        Promise.all([
+          appClient.index
+            .$get({ query: { include: "card" } }, headers)
+            .then(async (response) => (await response.json()) as unknown[]),
+          appClient.index
+            .$get({ query: { include: "card", maturity } }, headers)
+            .then(async (response) => (await response.json()) as unknown[]),
+        ]);
+      const [all, matured] = await cardActivity();
+      const borrows = await anvilClient.getContractEvents({
+        abi: marketAbi,
+        eventName: "BorrowAtMaturity",
+        address: marketUSDCAddress,
+        args: { borrower: account },
+        toBlock: "latest",
+        fromBlock: 0n,
+        strict: true,
+      });
+      const borrowHashes = new Set(
+        borrows
+          .filter(({ args: { maturity: eventMaturity } }) => eventMaturity === BigInt(maturity))
+          .map(({ transactionHash }) => transactionHash),
+      );
+      const source = await database.query.transactions
+        .findMany({ columns: { hashes: true, payload: true } })
+        .then((rows) => rows.find(({ hashes }) => hashes.some((hash) => borrowHashes.has(hash as Hash))));
+      assert.ok(source, "expected source transaction");
+
+      const other = { cardId: `tenant-card-${Date.now()}`, transactionId: `tenant-transaction-${Date.now()}` };
+      try {
+        await database.insert(cards).values([{ id: other.cardId, credentialId: "bob", tenant, lastFour: "4321" }]);
+        await database
+          .insert(transactions)
+          .values([{ id: other.transactionId, cardId: other.cardId, hashes: source.hashes, payload: source.payload }]);
+
+        const [allAfter, maturedAfter] = await cardActivity();
+
+        expect(allAfter).toHaveLength(all.length);
+        expect(maturedAfter).toHaveLength(matured.length);
+        expect(allAfter).not.toContainEqual(expect.objectContaining({ cardId: other.cardId }));
+        expect(maturedAfter).not.toContainEqual(expect.objectContaining({ cardId: other.cardId }));
+      } finally {
+        await database.delete(transactions).where(eq(transactions.id, other.transactionId));
+        await database.delete(cards).where(eq(cards.id, other.cardId));
       }
     });
   });
@@ -3294,11 +3355,23 @@ describe("plugin 1.0.0", () => {
   });
 });
 
+const mocks = vi.hoisted(() => ({ isBase: vi.fn<(base: boolean) => boolean>((base) => base) }));
+
 vi.mock("@sentry/node", { spy: true });
 vi.mock("../../utils/Statement", { spy: true });
+vi.mock("@exactly/common/generated/chain", async (importOriginal) => {
+  const original = await importOriginal<typeof C>();
+  return {
+    ...original,
+    get isBase() {
+      return mocks.isBase(original.isBase);
+    },
+  };
+});
 
 afterEach(() => {
   vi.restoreAllMocks();
+  mocks.isBase.mockReset();
 });
 
 const spendTemplate = {
