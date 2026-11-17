@@ -214,7 +214,7 @@ export default function route({
   credit: ReturnType<typeof createCredit>;
   database: NodePgDatabase<typeof schema>;
   panda: ReturnType<typeof createPanda>;
-  pax: ReturnType<typeof createPax>;
+  pax?: ReturnType<typeof createPax>;
   persona: ReturnType<typeof createPersona>;
   sardine: ReturnType<typeof createSardine>;
   segment: ReturnType<typeof createSegment>;
@@ -767,6 +767,7 @@ Send a \`shipping\` object with the address, and optionally the \`displayName\` 
               );
 
               if (
+                pax &&
                 credential.cards.some((known) => known.productId === PLATINUM_PRODUCT_ID) &&
                 credential.cards.every((known) => known.productId !== SIGNATURE_PRODUCT_ID)
               ) {

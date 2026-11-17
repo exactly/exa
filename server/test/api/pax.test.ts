@@ -50,4 +50,14 @@ describe("/pax GET", () => {
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toStrictEqual({ code: "no credential" });
   });
+
+  it("returns 404 without pax config", async () => {
+    const response = await testClient(route({ auth: authenticate(""), database })).index.$get(
+      {},
+      { headers: { "test-credential-id": "bob" } },
+    );
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toStrictEqual({ code: "no pax" });
+  });
 });

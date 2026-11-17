@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { describeRoute } from "hono-openapi";
 import { resolver } from "hono-openapi/valibot";
-import { object, safeParse, string } from "valibot";
+import { literal, object, safeParse, string } from "valibot";
 
 import { Address } from "@exactly/common/validation";
 
@@ -20,7 +20,7 @@ export default function route({
 }: {
   auth: Auth;
   database: NodePgDatabase<typeof schema>;
-  pax: ReturnType<typeof createPax>;
+  pax?: ReturnType<typeof createPax>;
 }) {
   return new Hono().get(
     "/",
@@ -34,10 +34,17 @@ export default function route({
           description: "Associate data",
           content: { "application/json": { schema: resolver(object({ associateId: string() })) } },
         },
+        404: {
+          description: "Pax disabled",
+          content: {
+            "application/json": { schema: resolver(object({ code: literal("no pax") }), { errorMode: "ignore" }) },
+          },
+        },
         500: { description: "Internal server error" },
       },
     }),
     async (c) => {
+      if (!pax) return c.json({ code: "no pax" }, 404);
       const credential = await database.query.credentials.findFirst({
         where: eq(credentials.id, c.req.valid("cookie").credentialId),
         columns: { account: true },

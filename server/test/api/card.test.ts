@@ -2135,6 +2135,85 @@ describe("authenticated", () => {
     expect(pax.addCapita).not.toHaveBeenCalled();
   });
 
+  it("does not add user to pax without its config", async () => {
+    const testCredentialId = "pax-disabled-test";
+    const cardId = "123e4567-e89b-12d3-a456-426655440020";
+    await database.insert(credentials).values({
+      id: testCredentialId,
+      publicKey: new Uint8Array(),
+      account: padHex("0x555", { size: 20 }),
+      factory: exaAccountFactoryAddress,
+      pandaId: "pax-disabled-panda",
+    });
+    await database.insert(cards).values({
+      id: "old-platinum-disabled",
+      credentialId: testCredentialId,
+      tenant: "OP",
+      lastFour: "0002",
+      status: "DELETED",
+      productId: PLATINUM_PRODUCT_ID,
+    });
+    vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
+    vi.spyOn(persona, "getAccount").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
+    vi.spyOn(panda, "createCard").mockResolvedValueOnce({ ...cardTemplate, id: cardId, last4: "5555" });
+
+    const response = await testClient(
+      route({
+        auth: authenticate(""),
+        credit,
+        database,
+        panda,
+        persona,
+        sardine: createSardine(
+          parse(pipe(string(), nonEmpty()), env.SARDINE_API_KEY),
+          parse(pipe(string(), nonEmpty()), env.SARDINE_API_URL),
+        ),
+        segment: createSegment(parse(pipe(string(), nonEmpty()), env.SEGMENT_WRITE_KEY)),
+        walletExtension,
+      }),
+    ).index.$post({}, { headers: { "test-credential-id": testCredentialId } });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({
+      status: "ACTIVE",
+      lastFour: "5555",
+      cardId,
+      productId: SIGNATURE_PRODUCT_ID,
+    });
+    await expect(
+      database.query.cards.findFirst({
+        columns: { credentialId: true, tenant: true, lastFour: true, status: true, productId: true },
+        where: eq(cards.id, cardId),
+      }),
+    ).resolves.toStrictEqual({
+      credentialId: testCredentialId,
+      tenant: "OP",
+      lastFour: "5555",
+      status: "ACTIVE",
+      productId: SIGNATURE_PRODUCT_ID,
+    });
+    expect(persona.getAccount).toHaveBeenCalledExactlyOnceWith(testCredentialId, "cardLimit");
+    expect(credit.enqueue).toHaveBeenCalledExactlyOnceWith(padHex("0x555", { size: 20 }));
+    expect(segment.track).toHaveBeenCalledExactlyOnceWith({
+      event: "CardIssued",
+      userId: padHex("0x555", { size: 20 }),
+      properties: { cardId, productId: SIGNATURE_PRODUCT_ID, source: null },
+    });
+    expect(sardine.customer).toHaveBeenCalledExactlyOnceWith({
+      flow: { name: "card.issued", type: "payment_method_link" },
+      customer: { id: testCredentialId, type: "customer" },
+      transaction: {
+        id: cardId,
+        paymentMethod: {
+          type: "card",
+          card: { hash: cardId, last4: "5555", expiryMonth: "9", expiryYear: "2029" },
+        },
+      },
+    });
+    expect(pax.addCapita).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
   it.each(["ACTIVE", "FROZEN"] as const)("migrates a %s platinum card to signature", async (status) => {
     const credentialId = crypto.randomUUID();
     const account = privateKeyToAddress(generatePrivateKey());

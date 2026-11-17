@@ -63,11 +63,13 @@ const panda = createPanda({
   key: parse(pipe(string("panda key"), nonEmpty("panda key")), env.PANDA_API_KEY),
   url: parse(pipe(string("panda url"), nonEmpty("panda url")), env.PANDA_API_URL),
 });
-const pax = createPax({
-  associateKey: parse(pipe(string("pax associate"), nonEmpty("pax associate")), env.PAX_ASSOCIATE_ID_KEY),
-  key: parse(pipe(string("pax key"), nonEmpty("pax key")), env.PAX_API_KEY),
-  url: parse(pipe(string("pax url"), nonEmpty("pax url")), env.PAX_API_URL),
-});
+const pax = env.PAX_API_KEY
+  ? createPax({
+      associateKey: parse(pipe(string("pax associate"), nonEmpty("pax associate")), env.PAX_ASSOCIATE_ID_KEY),
+      key: env.PAX_API_KEY,
+      url: parse(pipe(string("pax url"), nonEmpty("pax url")), env.PAX_API_URL),
+    })
+  : undefined;
 const persona = createPersona(
   parse(pipe(string("persona key"), nonEmpty("persona key")), env.PERSONA_API_KEY),
   parse(pipe(string("persona url"), nonEmpty("persona url")), env.PERSONA_URL),
