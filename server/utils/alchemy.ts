@@ -77,7 +77,7 @@ export default function alchemy(key: string) {
     options: (
       | { addresses: string[]; webhook_type: "ADDRESS_ACTIVITY" }
       | { graphql_query: { query: string; skip_empty_messages: true }; webhook_type: "GRAPHQL" }
-    ) & { network?: string; webhook_url: string },
+    ) & { name?: string; network?: string; webhook_url: string },
   ) {
     const create = await fetch("https://dashboard.alchemy.com/api/create-webhook", {
       headers,
@@ -154,6 +154,7 @@ export function activityNetworks(id = chain.id) {
 
 const Webhook = object({
   id: string(),
+  name: optional(string()),
   network: pipe(
     string(),
     check((input) => NETWORKS.has(input), "unsupported network"),

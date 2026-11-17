@@ -14,18 +14,22 @@ import {
 import { deserialize, serialize } from "@wagmi/core";
 import { Mutex } from "async-mutex";
 import createDebug from "debug";
-import { Kind, parse, visit, type StringValueNode } from "graphql";
 import { Hono } from "hono";
+import { createHash } from "node:crypto";
 import { setTimeout } from "node:timers/promises";
 import * as v from "valibot";
 import {
   BaseError,
   CallExecutionError,
   ContractFunctionExecutionError,
+  ContractFunctionRevertedError,
+  ContractFunctionZeroDataError,
   decodeEventLog,
   encodeErrorResult,
   ExecutionRevertedError,
   formatUnits,
+  getAbiItem,
+  toFunctionSelector,
   type LocalAccount,
 } from "viem";
 import { optimismSepolia } from "viem/chains";
@@ -33,13 +37,11 @@ import { optimismSepolia } from "viem/chains";
 import chain, {
   auditorAbi,
   exaPluginAbi,
-  exaPluginAddress,
   exaPreviewerAbi,
   exaPreviewerAddress,
   marketAbi,
   marketWETHAddress,
   proposalManagerAbi,
-  proposalManagerAddress,
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
 import ProposalType, { decodeWithdraw } from "@exactly/common/ProposalType";
@@ -151,36 +153,74 @@ export default function hook({
       }, new Map<string, typeof logs>());
 
       // TODO use .filter((event) => event.eventName === "Proposed") after migration
-      const proposalsByAccount =
+      const proposals =
         proposalsBySignature
           .get("0x4cf7794d9c19185f7d95767c53e511e2e67ae50f68ece9c9079c6ae83403a3e7")
-          ?.map(({ topics, data }) => decodeEventLog({ topics, data, abi: [...exaPluginAbi, ...proposalManagerAbi] }))
-          .map((event) => {
+          ?.map(({ topics, data, account: { address: emitter } }) => {
+            const event = decodeEventLog({ topics, data, abi: [...exaPluginAbi, ...proposalManagerAbi] });
             const p = v.safeParse(Proposal, { ...event.args, timestamp });
-            if (p.success) return p.output;
+            if (p.success) return { emitter, proposal: p.output };
             captureException(p.issues, { level: "error" });
             return null;
           })
-          .filter((x) => x !== null)
-          .reduce((accumulator, event) => {
-            const account = event.account;
-            if (!accumulator.has(account)) {
-              accumulator.set(account, []);
-            }
-            accumulator.get(account)?.push(event);
-            return accumulator;
-          }, new Map<string, v.InferOutput<typeof Proposal>[]>()) ?? [];
+          .filter((x) => x !== null) ?? [];
 
       const oldWithdraws =
         proposalsBySignature
           .get("0x0c652a21d96e4efed065c3ef5961e4be681be99b95dd55126669ae9be95767e0")
-          ?.map(({ topics, data }) => decodeEventLog({ topics, data, abi: legacyExaPluginAbi })) ?? [];
+          ?.map(({ topics, data, account: { address: emitter } }) => ({
+            emitter,
+            event: decodeEventLog({ topics, data, abi: legacyExaPluginAbi }),
+          })) ?? [];
+
+      const [proposers, plugins] = await Promise.all([
+        Promise.all(
+          [...new Set(proposals.map(({ proposal }) => proposal.account))].map(
+            async (account) => [account, await proposer(account)] as const,
+          ),
+        ).then((entries) => new Map<string, string | undefined>(entries)),
+        Promise.all(
+          [...new Set(oldWithdraws.map(({ event }) => event.args.account))].map(async (account) => {
+            const installed = await publicClient
+              .readContract({
+                address: account,
+                abi: upgradeableModularAccountAbi,
+                functionName: "getInstalledPlugins",
+              })
+              .catch(unlessReverted([]));
+            return [account, installed] as const;
+          }),
+        ).then((entries) => new Map<string, readonly string[]>(entries)),
+      ]);
+
+      const proposalsByAccount = proposals
+        .filter(({ emitter, proposal }) => {
+          if (proposers.get(proposal.account) === emitter) return true;
+          debug("ignored proposal %s of %s from %s", proposal.nonce, proposal.account, emitter);
+          return false;
+        })
+        .reduce((accumulator, { proposal }) => {
+          const { account } = proposal;
+          if (!accumulator.has(account)) {
+            accumulator.set(account, []);
+          }
+          accumulator.get(account)?.push(proposal);
+          return accumulator;
+        }, new Map<string, v.InferOutput<typeof Proposal>[]>());
+
+      const withdraws = oldWithdraws
+        .filter(({ emitter, event }) => {
+          if (plugins.get(event.args.account)?.includes(emitter)) return true;
+          debug("ignored withdraw of %s from %s", event.args.account, emitter);
+          return false;
+        })
+        .map(({ event }) => event);
 
       await Promise.all([
         ...proposalsByAccount.values().map(async (ps) => {
           for (const proposal of ps.toSorted((a, b) => Number(a.nonce - b.nonce))) await scheduleProposal(proposal);
         }),
-        ...oldWithdraws.map(async (event) => {
+        ...withdraws.map(async (event) => {
           const withdraw = v.parse(Withdraw, { ...event.args, timestamp });
           return startSpan(
             {
@@ -622,65 +662,45 @@ const isTerminalWithdrawReason = (reason: string) =>
   (reason.startsWith("PreExecHookReverted(") &&
     reason.endsWith(`,${encodeErrorResult({ errorName: "NoProposal", abi: proposalManagerAbi })})`));
 
+const proposeSelector = toFunctionSelector(getAbiItem({ abi: exaPluginAbi, name: "propose" }));
+async function proposer(account: Address) {
+  const { plugin } = await publicClient
+    .readContract({
+      address: account,
+      abi: upgradeableModularAccountAbi,
+      functionName: "getExecutionFunctionConfig",
+      args: [proposeSelector],
+    })
+    .catch(unlessReverted({ plugin: undefined }));
+  if (!plugin) return;
+  return publicClient
+    .readContract({ address: plugin, abi: exaPluginAbi, functionName: "proposalManager" })
+    .catch(unlessReverted(plugin));
+}
+
+function unlessReverted<T>(fallback: T) {
+  return (error: unknown) => {
+    if (
+      error instanceof BaseError &&
+      error.walk(
+        (cause) => cause instanceof ContractFunctionRevertedError || cause instanceof ContractFunctionZeroDataError,
+      ) !== null
+    ) {
+      return fallback;
+    }
+    throw error;
+  };
+}
+
 const url = `${appOrigin}/hooks/block`;
-async function initializeAlchemy(alchemy: ReturnType<typeof createAlchemy>, signingKeys: Set<string>) {
-  const currentHook = await alchemy.findWebhook(
-    ({ webhook_type, webhook_url }) => webhook_type === "GRAPHQL" && webhook_url === url,
-  );
-  let shouldUpdate = !currentHook;
-  let currentAddresses: string[] = [];
-  if (currentHook) {
-    signingKeys.add(currentHook.signing_key);
-
-    const queryResponse = await fetch(
-      `https://dashboard.alchemy.com/api/dashboard-webhook-graphql-query?webhook_id=${currentHook.id}`,
-      { headers: alchemy.headers },
-    );
-    if (!queryResponse.ok) throw new ServiceError("Alchemy", queryResponse.status, await queryResponse.text());
-    const { data: query } = (await queryResponse.json()) as { data: { graphql_query: string } };
-    visit(parse(query.graphql_query), {
-      Field(node) {
-        if (node.name.value === "block") {
-          shouldUpdate ||= !node.selectionSet?.selections.find(
-            (selection) => selection.kind === Kind.FIELD && selection.name.value === "number",
-          );
-        } else if (node.name.value === "logs") {
-          const filterArguments = node.arguments?.find(({ name }) => name.value === "filter");
-          if (filterArguments?.value.kind === Kind.OBJECT) {
-            const addressesField = filterArguments.value.fields.find(({ name }) => name.value === "addresses");
-            if (addressesField?.value.kind === Kind.LIST) {
-              currentAddresses = addressesField.value.values
-                .filter((value): value is StringValueNode => value.kind === Kind.STRING)
-                .map(({ value }) => v.parse(Address, value));
-              shouldUpdate ||=
-                !currentAddresses.includes(exaPluginAddress) || !currentAddresses.includes(proposalManagerAddress);
-            }
-            const topicsField = filterArguments.value.fields.find(({ name }) => name.value === "topics");
-            if (topicsField?.value.kind === Kind.LIST) {
-              shouldUpdate ||= topicsField.value.values[0]?.kind !== Kind.LIST;
-            }
-          }
-        }
-      },
-    });
-  }
-  if (!shouldUpdate) return;
-
-  const newHook = await alchemy.createWebhook({
-    webhook_type: "GRAPHQL",
-    webhook_url: url,
-    graphql_query: {
-      skip_empty_messages: true,
-      query: `#graphql
+const query = `#graphql
 {
   block {
     number
     timestamp
     logs(
       filter: {
-        addresses: ${JSON.stringify(
-          [...new Set([...currentAddresses, exaPluginAddress, proposalManagerAddress])].toSorted(),
-        )}
+        addresses: []
         topics: [
           [
             "0x4cf7794d9c19185f7d95767c53e511e2e67ae50f68ece9c9079c6ae83403a3e7" # Proposed
@@ -696,8 +716,20 @@ async function initializeAlchemy(alchemy: ReturnType<typeof createAlchemy>, sign
       }
     }
   }
-}`,
-    },
+}`;
+const name = createHash("sha256").update(query).digest("hex");
+async function initializeAlchemy(alchemy: ReturnType<typeof createAlchemy>, signingKeys: Set<string>) {
+  const currentHook = await alchemy.findWebhook(
+    ({ webhook_type, webhook_url }) => webhook_type === "GRAPHQL" && webhook_url === url,
+  );
+  if (currentHook) signingKeys.add(currentHook.signing_key);
+  if (currentHook?.name === name) return;
+
+  const newHook = await alchemy.createWebhook({
+    name,
+    webhook_type: "GRAPHQL",
+    webhook_url: url,
+    graphql_query: { skip_empty_messages: true, query },
   });
   signingKeys.add(newHook.signing_key);
   if (currentHook) {

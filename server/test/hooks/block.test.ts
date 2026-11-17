@@ -8,6 +8,7 @@ import { captureException, continueTrace, withScope } from "@sentry/node";
 import { deserialize } from "@wagmi/core";
 import { testClient } from "hono/testing";
 import { Redis } from "ioredis";
+import { createHash } from "node:crypto";
 import {
   ContractFunctionExecutionError,
   ContractFunctionRevertedError,
@@ -19,6 +20,7 @@ import {
   erc20Abi,
   getAddress,
   getContractError,
+  hexToBigInt,
   http,
   maxUint256,
   nonceManager,
@@ -32,15 +34,17 @@ import {
   type Log,
   type TransactionReceipt,
 } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { anvil } from "viem/chains";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import chain, {
   auditorAbi,
+  exaAccountFactoryAbi,
   exaAccountFactoryAddress,
   exaPluginAbi,
+  exaPluginAddress,
   exaPreviewerAbi,
   exaPreviewerAddress,
   issuerCheckerAbi,
@@ -93,41 +97,29 @@ beforeAll(async () => {
 });
 
 describe("initialization", () => {
+  const existing: NonNullable<Awaited<ReturnType<typeof findWebhook>>> = {
+    id: "existing",
+    is_active: true,
+    network: "ANVIL",
+    signing_key: "existing-signing-key",
+    webhook_type: "GRAPHQL",
+    webhook_url: "http://localhost:8081/hooks/block",
+  };
+
   it("starts with a discovered key when reconciliation fails", async () => {
-    const existing: NonNullable<Awaited<ReturnType<typeof findWebhook>>> = {
-      id: "existing",
-      is_active: true,
-      network: "ANVIL",
-      signing_key: "existing-signing-key",
-      webhook_type: "GRAPHQL",
-      webhook_url: "http://localhost:8081/hooks/block",
-    };
+    const error = new Error("creation failed");
     vi.mocked(findWebhook).mockResolvedValueOnce(existing);
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("not found", { status: 404 }));
+    vi.mocked(createWebhook).mockRejectedValueOnce(error);
     const currentHook = createBlockHook(defaults);
 
     await expect(currentHook.ready).resolves.toBeDefined();
-    expect(createWebhook).not.toHaveBeenCalled();
     expect(headerValidator).toHaveBeenLastCalledWith(new Set([existing.signing_key]));
-    expect(captureException).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "Alchemy404", message: "not found", status: 404 }),
-      { level: "warning" },
-    );
+    expect(captureException).toHaveBeenCalledWith(error, { level: "warning" });
   });
 
   it("keeps both keys when the old webhook deletion fails", async () => {
-    const existing: NonNullable<Awaited<ReturnType<typeof findWebhook>>> = {
-      id: "stale",
-      is_active: true,
-      network: "ANVIL",
-      signing_key: "stale-signing-key",
-      webhook_type: "GRAPHQL",
-      webhook_url: "http://localhost:8081/hooks/block",
-    };
     vi.mocked(findWebhook).mockResolvedValueOnce(existing);
-    vi.spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(Response.json({ data: { graphql_query: "{ block { timestamp } }" } }))
-      .mockResolvedValueOnce(new Response("unavailable", { status: 503 }));
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("unavailable", { status: 503 }));
     const currentHook = createBlockHook(defaults);
 
     await expect(currentHook.ready).resolves.toBeDefined();
@@ -137,6 +129,21 @@ describe("initialization", () => {
       expect.objectContaining({ name: "Alchemy503", message: "unavailable", status: 503 }),
       { level: "warning" },
     );
+  });
+
+  it("keeps a webhook named after its query", async () => {
+    await createBlockHook(defaults).ready;
+    const options = vi.mocked(createWebhook).mock.lastCall?.[0];
+    if (!options || !("graphql_query" in options)) throw new Error("missing webhook");
+    vi.mocked(createWebhook).mockClear();
+    vi.mocked(findWebhook).mockResolvedValueOnce({ ...existing, name: options.name });
+    const currentHook = createBlockHook(defaults);
+
+    await expect(currentHook.ready).resolves.toBeDefined();
+    expect(options.name).toBe(createHash("sha256").update(options.graphql_query.query).digest("hex"));
+    expect(options.graphql_query.query).toContain("addresses: []");
+    expect(createWebhook).not.toHaveBeenCalled();
+    expect(headerValidator).toHaveBeenLastCalledWith(new Set([existing.signing_key]));
   });
 
   it("fails without a signing key when initialization fails", async () => {
@@ -318,7 +325,92 @@ describe("proposal", () => {
       expect(removed).toStrictEqual([1, 1]);
       expect(setUser).toHaveBeenCalledWith({ id: bobAccount });
     });
+
+    it("ignores proposals emitted by another contract", async () => {
+      vi.spyOn(ensClient, "getEnsName").mockResolvedValue(null);
+      sendPushNotificationMock.mockResolvedValue({});
+      const zadd = spyZadd();
+
+      const response = await post(logs(exaPluginAddress));
+
+      expect(response.status).toBe(200);
+      expect(zadd.mock.calls.filter(([key]) => key === "proposals")).toStrictEqual([]);
+
+      const removals = waitForProposalRemovals(proposals.map(({ args }) => args));
+      await post(logs());
+      await removals;
+    });
+
+    it("ignores proposals of undeployed accounts", async () => {
+      vi.spyOn(ensClient, "getEnsName").mockResolvedValue(null);
+      sendPushNotificationMock.mockResolvedValue({});
+      const zadd = spyZadd();
+      const [proposal] = proposals;
+      if (!proposal) throw new Error("missing proposal");
+      const [signature, , ...indexed] = proposal.topics;
+
+      const response = await post([
+        {
+          topics: [signature, encodeAbiParameters([{ type: "address" }], [padHex("0xbad", { size: 20 })]), ...indexed],
+          data: proposal.data,
+          account: { address: proposal.address },
+        },
+      ]);
+
+      expect(response.status).toBe(200);
+      expect(zadd.mock.calls.filter(([key]) => key === "proposals")).toStrictEqual([]);
+
+      const removals = waitForProposalRemovals(proposals.map(({ args }) => args));
+      await post(logs());
+      await removals;
+    });
+
+    it("trusts the plugin when it has no proposal manager", async () => {
+      vi.spyOn(ensClient, "getEnsName").mockResolvedValue(null);
+      sendPushNotificationMock.mockResolvedValue({});
+      const { readContract } = publicClient;
+      vi.spyOn(publicClient, "readContract").mockImplementation((parameters) =>
+        parameters.functionName === "proposalManager" && parameters.address === exaPluginAddress
+          ? Promise.reject(revertError("proposalManager"))
+          : readContract(parameters),
+      );
+      const zadd = spyZadd();
+      const removals = waitForProposalRemovals(proposals.map(({ args }) => args));
+
+      const response = await post(logs(exaPluginAddress));
+      await removals;
+
+      expect(response.status).toBe(200);
+      expect(zadd.mock.calls.filter(([key]) => key === "proposals")).toHaveLength(proposals.length);
+    });
+
+    it("fails when the proposer of the account cannot be read", async () => {
+      vi.spyOn(ensClient, "getEnsName").mockResolvedValue(null);
+      sendPushNotificationMock.mockResolvedValue({});
+      const error = new Error("rpc unavailable");
+      const { readContract } = publicClient;
+      const lookup = vi
+        .spyOn(publicClient, "readContract")
+        .mockImplementation((parameters) =>
+          parameters.functionName === "getExecutionFunctionConfig" ? Promise.reject(error) : readContract(parameters),
+        );
+      const zadd = spyZadd();
+
+      const response = await post(logs());
+
+      expect(response.status).toBe(500);
+      expect(zadd.mock.calls.filter(([key]) => key === "proposals")).toStrictEqual([]);
+      lookup.mockRestore();
+
+      const removals = waitForProposalRemovals(proposals.map(({ args }) => args));
+      await post(logs());
+      await removals;
+    });
   });
+
+  function logs(emitter?: Address) {
+    return proposals.map(({ topics, data, address }) => ({ topics, data, account: { address: emitter ?? address } }));
+  }
 
   describe("with weth withdraw proposal", () => {
     beforeEach(async () => {
@@ -1280,12 +1372,25 @@ describe("proposal", () => {
 
 describe("legacy withdraw", () => {
   const withdrawUnlock = 1000n;
-  const withdrawAccount = getAddress(padHex("0xdead", { size: 20 }));
+  const owner = privateKeyToAccount(generatePrivateKey());
+  const withdrawAccount = deriveAddress(exaAccountFactoryAddress, { x: padHex(owner.address), y: zeroHash });
   const withdrawMarket = getAddress(padHex("0xbeef", { size: 20 }));
   const withdrawReceiver = getAddress(padHex("0xcafe", { size: 20 }));
-  const { simulateContract } = publicClient;
+  const { readContract, simulateContract } = publicClient;
 
-  function legacyPayload(amount: bigint) {
+  beforeAll(async () => {
+    await keeper.exaSend(
+      { name: "create account", op: "exa.account" },
+      {
+        address: exaAccountFactoryAddress,
+        abi: exaAccountFactoryAbi,
+        functionName: "createAccount",
+        args: [0n, [{ x: hexToBigInt(owner.address), y: 0n }]],
+      },
+    );
+  });
+
+  function legacyPayload(amount: bigint, emitter: Address = exaPluginAddress, account: Address = withdrawAccount) {
     return {
       header: {},
       json: {
@@ -1299,12 +1404,12 @@ describe("legacy withdraw", () => {
                 {
                   topics: [
                     "0x0c652a21d96e4efed065c3ef5961e4be681be99b95dd55126669ae9be95767e0",
-                    encodeAbiParameters([{ type: "address" }], [withdrawAccount]),
+                    encodeAbiParameters([{ type: "address" }], [account]),
                     encodeAbiParameters([{ type: "address" }], [withdrawMarket]),
                     encodeAbiParameters([{ type: "address" }], [withdrawReceiver]),
                   ] as [Hex, ...Hex[]],
                   data: encodeAbiParameters([{ type: "uint256" }, { type: "uint256" }], [amount, withdrawUnlock]),
-                  account: { address: zeroAddress },
+                  account: { address: emitter },
                 },
               ],
             },
@@ -1313,6 +1418,56 @@ describe("legacy withdraw", () => {
       },
     };
   }
+
+  it("ignores withdrawals emitted by a plugin the account did not install", async () => {
+    const zadd = spyZadd();
+
+    const response = await appClient.index.$post(legacyPayload(1_500_000n, zeroAddress));
+
+    expect(response.status).toBe(200);
+    expect(zadd.mock.calls.filter(([key]) => key === "withdraw")).toStrictEqual([]);
+  });
+
+  it("ignores withdrawals from an undeployed account", async () => {
+    const zadd = spyZadd();
+
+    const response = await appClient.index.$post(
+      legacyPayload(1_600_000n, exaPluginAddress, getAddress(padHex("0xdead", { size: 20 }))),
+    );
+
+    expect(response.status).toBe(200);
+    expect(zadd.mock.calls.filter(([key]) => key === "withdraw")).toStrictEqual([]);
+  });
+
+  it("ignores withdrawals from an account whose plugins read reverts", async () => {
+    vi.spyOn(publicClient, "readContract").mockImplementation((parameters) =>
+      parameters.functionName === "getInstalledPlugins" && parameters.address === withdrawAccount
+        ? Promise.reject(revertError("getInstalledPlugins"))
+        : readContract(parameters),
+    );
+    const zadd = spyZadd();
+
+    const response = await appClient.index.$post(legacyPayload(1_650_000n));
+
+    expect(response.status).toBe(200);
+    expect(zadd.mock.calls.filter(([key]) => key === "withdraw")).toStrictEqual([]);
+  });
+
+  it("fails when the plugins of the account cannot be read", async () => {
+    const error = new Error("rpc unavailable");
+    vi.spyOn(publicClient, "readContract").mockImplementation((parameters) =>
+      parameters.functionName === "getInstalledPlugins" && parameters.address === withdrawAccount
+        ? Promise.reject(error)
+        : readContract(parameters),
+    );
+    const zadd = spyZadd();
+
+    const response = await appClient.index.$post(legacyPayload(1_750_000n));
+
+    expect(response.status).toBe(500);
+    expect(zadd.mock.calls.filter(([key]) => key === "withdraw")).toStrictEqual([]);
+    expect(vi.mocked(captureException).mock.calls.filter(([captured]) => captured === error)).toStrictEqual([]);
+  });
 
   it("removes withdraw from queue on InsufficientAccountLiquidity", async () => {
     const setUser = await spyScopeSetUser();
@@ -1423,9 +1578,10 @@ describe("legacy withdraw", () => {
         ? Promise.resolve({ status: "success" } as TransactionReceipt)
         : exaSend(span, call, options),
     );
-    vi.spyOn(publicClient, "readContract").mockImplementation(({ functionName }) => {
-      if (functionName === "decimals") return Promise.resolve(6);
-      if (functionName === "symbol") return Promise.resolve("exaUSDC");
+    vi.spyOn(publicClient, "readContract").mockImplementation((parameters) => {
+      if (parameters.functionName === "getInstalledPlugins") return readContract(parameters);
+      if (parameters.functionName === "decimals") return Promise.resolve(6);
+      if (parameters.functionName === "symbol") return Promise.resolve("exaUSDC");
       return Promise.reject(new Error("unexpected readContract call"));
     });
 
@@ -1458,9 +1614,10 @@ describe("legacy withdraw", () => {
         ? Promise.resolve({ status: "success" } as TransactionReceipt)
         : exaSend(span, call, options),
     );
-    vi.spyOn(publicClient, "readContract").mockImplementation(({ functionName }) => {
-      if (functionName === "decimals") return Promise.resolve(6);
-      if (functionName === "symbol") return Promise.resolve("exaUSDC");
+    vi.spyOn(publicClient, "readContract").mockImplementation((parameters) => {
+      if (parameters.functionName === "getInstalledPlugins") return readContract(parameters);
+      if (parameters.functionName === "decimals") return Promise.resolve(6);
+      if (parameters.functionName === "symbol") return Promise.resolve("exaUSDC");
       return Promise.reject(new Error("unexpected readContract call"));
     });
 
@@ -1492,9 +1649,10 @@ describe("legacy withdraw", () => {
         ? Promise.resolve({ status: "success" } as TransactionReceipt)
         : exaSend(span, call, options),
     );
-    vi.spyOn(publicClient, "readContract").mockImplementation(({ functionName }) => {
-      if (functionName === "decimals") return Promise.resolve(6);
-      if (functionName === "symbol") return Promise.resolve("exaUSDC");
+    vi.spyOn(publicClient, "readContract").mockImplementation((parameters) => {
+      if (parameters.functionName === "getInstalledPlugins") return readContract(parameters);
+      if (parameters.functionName === "decimals") return Promise.resolve(6);
+      if (parameters.functionName === "symbol") return Promise.resolve("exaUSDC");
       return Promise.reject(new Error("unexpected readContract call"));
     });
 
@@ -1529,9 +1687,10 @@ describe("legacy withdraw", () => {
         ? Promise.resolve({ status: "success" } as TransactionReceipt)
         : exaSend(span, call, options),
     );
-    vi.spyOn(publicClient, "readContract").mockImplementation(({ functionName }) => {
-      if (functionName === "decimals") return Promise.resolve(6);
-      if (functionName === "symbol") return Promise.resolve("exaUSDC");
+    vi.spyOn(publicClient, "readContract").mockImplementation((parameters) => {
+      if (parameters.functionName === "getInstalledPlugins") return readContract(parameters);
+      if (parameters.functionName === "decimals") return Promise.resolve(6);
+      if (parameters.functionName === "symbol") return Promise.resolve("exaUSDC");
       return Promise.reject(new Error("unexpected readContract call"));
     });
 
@@ -2523,4 +2682,31 @@ async function spyScopeSetUser() {
     }),
   );
   return setUser;
+}
+
+function spyZadd() {
+  return vi.spyOn<{ zadd: (key: string, score: number, member: string) => Promise<number> }, "zadd">(
+    Redis.prototype,
+    "zadd",
+  );
+}
+
+function revertError(functionName: string) {
+  return new ContractFunctionExecutionError(new ContractFunctionRevertedError({ abi: [], functionName }), {
+    abi: [],
+    functionName,
+  });
+}
+
+function post(logs: { account: { address: Address }; data: Hex; topics: [Hex, ...Hex[]] }[]) {
+  return appClient.index.$post({
+    ...withdrawProposal,
+    json: {
+      ...withdrawProposal.json,
+      event: {
+        ...withdrawProposal.json.event,
+        data: { ...withdrawProposal.json.event.data, block: { ...withdrawProposal.json.event.data.block, logs } },
+      },
+    },
+  });
 }
