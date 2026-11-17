@@ -362,6 +362,27 @@ describe("ramp api", () => {
         });
       });
 
+      it("returns the qr quote without manteca user", async () => {
+        const getUser = vi.spyOn(manteca, "getUser").mockResolvedValue(null);
+        const getQuote = vi.spyOn(manteca, "getQuote").mockResolvedValue({ buyRate: "5.52", sellRate: "5.41" });
+        const getDepositDetails = vi.spyOn(manteca, "getDepositDetails");
+
+        const response = await appClient.quote.$get(
+          { query: { provider: "manteca", currency: "BRL", direction: "qr" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({
+          quote: { buyRate: "5.52", sellRate: "5.41" },
+          depositInfo: [],
+        });
+        expect(getQuote).toHaveBeenCalledExactlyOnceWith("USDC_BRL");
+        expect(getUser).not.toHaveBeenCalled();
+        expect(getDepositDetails).not.toHaveBeenCalled();
+        expect(captureException).not.toHaveBeenCalled();
+      });
+
       it("returns 400 for unsupported currency", async () => {
         vi.spyOn(manteca, "getUser").mockResolvedValue(mantecaUser);
 
@@ -1823,6 +1844,9 @@ describe("ramp api", () => {
           expireAt: lock.expireAt,
           recipient: "Ricardo Fort",
           receiver: settlement,
+          asset: "ARS",
+          assetAmount: "1706.37",
+          price: "696.70000000",
         });
         expect(lockQrPayment).toHaveBeenCalledWith({
           paymentDestination: "qr3",
@@ -1842,7 +1866,7 @@ describe("ramp api", () => {
         );
 
         expect(response.status).toBe(206);
-        await expect(response.json()).resolves.toStrictEqual({ recipient: "Ricardo Fort" });
+        await expect(response.json()).resolves.toStrictEqual({ recipient: "Ricardo Fort", asset: "ARS" });
       });
 
       it("returns 400 without a persona account", async () => {
