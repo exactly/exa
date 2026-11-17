@@ -176,6 +176,7 @@ patchedDependencies:
   "@tamagui/web": patches/@tamagui__web.patch
   embedded-postgres: patches/embedded-postgres.patch
   eslint-config-universe: patches/eslint-config-universe.patch
+  nx: patches/nx.patch
   prool@0.2.17: patches/prool@0.2.17.patch
   react-native-wagmi-charts: patches/react-native-wagmi-charts.patch
 peerDependencyRules:

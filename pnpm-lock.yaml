@@ -334,6 +334,7 @@ patchedDependencies:
   '@tamagui/web': f64e3ee48a62db577d3e3b83cef581ab57ebea8c47b6ef29b410ee90341beaa0
   embedded-postgres: cb5e37525b1810f2af136570b38d5e0cec4cc2455408896ed1943d27f3f61b38
   eslint-config-universe: cfe35ddf48bd80b3df25a30d7d8878394712a39321d2855dcb90a64df2ccc280
+  nx: c172c800349b5ff79a768314f5b352739f68bb2d5a5199160e72e7f5fc90cb6c
   prool@0.2.17: c8576988b7c6649c8f0fa61ec9eef3064a03c2697e3c4ce9f214f76aa8fb565f
   react-native-wagmi-charts: ee91092da416d3fb1dc2ab2310f93cc8dea186ac233a9b08fac5dec211024d3a
 
@@ -644,16 +645,16 @@ importers:
         version: 0.16.6
       '@nx/esbuild':
         specifier: 'catalog:'
-        version: 23.2.1(@babel/traverse@7.29.8)(esbuild@0.28.1)(nx@23.2.1)
+        version: 23.2.1(@babel/traverse@7.29.8)(esbuild@0.28.1)(nx@23.2.1(patch_hash=c172c800349b5ff79a768314f5b352739f68bb2d5a5199160e72e7f5fc90cb6c))
       '@nx/eslint':
         specifier: 'catalog:'
-        version: 23.2.1(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.4)(nx@23.2.1)
+        version: 23.2.1(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.4)(nx@23.2.1(patch_hash=c172c800349b5ff79a768314f5b352739f68bb2d5a5199160e72e7f5fc90cb6c))
       '@nx/eslint-plugin':
         specifier: 'catalog:'
-        version: 23.2.1(@babel/traverse@7.29.8)(@typescript-eslint/parser@8.57.2(eslint@9.39.4)(typescript@5.9.3))(eslint-config-prettier@10.1.8(eslint@9.39.4))(eslint@9.39.4)(nx@23.2.1)(typescript@5.9.3)
+        version: 23.2.1(@babel/traverse@7.29.8)(@typescript-eslint/parser@8.57.2(eslint@9.39.4)(typescript@5.9.3))(eslint-config-prettier@10.1.8(eslint@9.39.4))(eslint@9.39.4)(nx@23.2.1(patch_hash=c172c800349b5ff79a768314f5b352739f68bb2d5a5199160e72e7f5fc90cb6c))(typescript@5.9.3)
       '@nx/js':
         specifier: 'catalog:'
-        version: 23.2.1(@babel/traverse@7.29.8)(nx@23.2.1)
+        version: 23.2.1(@babel/traverse@7.29.8)(nx@23.2.1(patch_hash=c172c800349b5ff79a768314f5b352739f68bb2d5a5199160e72e7f5fc90cb6c))
       '@spotlightjs/spotlight':
         specifier: ^4.12.1
         version: 4.12.1(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.223.0(@opentelemetry/api@1.9.1))(hono-rate-limiter@0.5.3(hono@4.13.18)(unstorage@1.17.6(ioredis@5.10.1)))
@@ -731,7 +732,7 @@ importers:
         version: 0.81.5(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       nx:
         specifier: 'catalog:'
-        version: 23.2.1
+        version: 23.2.1(patch_hash=c172c800349b5ff79a768314f5b352739f68bb2d5a5199160e72e7f5fc90cb6c)
       onesignal-expo-plugin:
         specifier: ^2.4.0
         version: 2.4.0(react-native-onesignal@5.4.1(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10)))
@@ -813,7 +814,7 @@ importers:
         version: 0.2.25
       '@nx/eslint-plugin':
         specifier: 'catalog:'
-        version: 23.2.1(@babel/traverse@7.29.8)(@typescript-eslint/parser@8.57.2(eslint@9.39.4)(typescript@5.9.3))(eslint-config-prettier@10.1.8(eslint@9.39.4))(eslint@9.39.4)(nx@23.2.1)(typescript@5.9.3)
+        version: 23.2.1(@babel/traverse@7.29.8)(@typescript-eslint/parser@8.57.2(eslint@9.39.4)(typescript@5.9.3))(eslint-config-prettier@10.1.8(eslint@9.39.4))(eslint@9.39.4)(nx@23.2.1(patch_hash=c172c800349b5ff79a768314f5b352739f68bb2d5a5199160e72e7f5fc90cb6c))(typescript@5.9.3)
       '@tanstack/eslint-plugin-query':
         specifier: ^5.95.2
         version: 5.95.2(eslint@9.39.4)(typescript@5.9.3)
@@ -20497,19 +20498,19 @@ snapshots:
       node-gyp: 12.4.0
       proc-log: 6.1.0
 
-  '@nx/devkit@23.2.1(nx@23.2.1)':
+  '@nx/devkit@23.2.1(nx@23.2.1(patch_hash=c172c800349b5ff79a768314f5b352739f68bb2d5a5199160e72e7f5fc90cb6c))':
     dependencies:
       ejs: 5.0.1
       minimatch: 10.2.5
-      nx: 23.2.1
+      nx: 23.2.1(patch_hash=c172c800349b5ff79a768314f5b352739f68bb2d5a5199160e72e7f5fc90cb6c)
       semver: 7.8.5
       tslib: 2.8.1
       yargs-parser: 21.1.1
 
-  '@nx/esbuild@23.2.1(@babel/traverse@7.29.8)(esbuild@0.28.1)(nx@23.2.1)':
+  '@nx/esbuild@23.2.1(@babel/traverse@7.29.8)(esbuild@0.28.1)(nx@23.2.1(patch_hash=c172c800349b5ff79a768314f5b352739f68bb2d5a5199160e72e7f5fc90cb6c))':
     dependencies:
-      '@nx/devkit': 23.2.1(nx@23.2.1)
-      '@nx/js': 23.2.1(@babel/traverse@7.29.8)(nx@23.2.1)
+      '@nx/devkit': 23.2.1(nx@23.2.1(patch_hash=c172c800349b5ff79a768314f5b352739f68bb2d5a5199160e72e7f5fc90cb6c))
+      '@nx/js': 23.2.1(@babel/traverse@7.29.8)(nx@23.2.1(patch_hash=c172c800349b5ff79a768314f5b352739f68bb2d5a5199160e72e7f5fc90cb6c))
       picocolors: 1.1.1
       tinyglobby: 0.2.17
       tsconfig-paths: 4.2.0
@@ -20524,10 +20525,10 @@ snapshots:
       - nx
       - verdaccio
 
-  '@nx/eslint-plugin@23.2.1(@babel/traverse@7.29.8)(@typescript-eslint/parser@8.57.2(eslint@9.39.4)(typescript@5.9.3))(eslint-config-prettier@10.1.8(eslint@9.39.4))(eslint@9.39.4)(nx@23.2.1)(typescript@5.9.3)':
+  '@nx/eslint-plugin@23.2.1(@babel/traverse@7.29.8)(@typescript-eslint/parser@8.57.2(eslint@9.39.4)(typescript@5.9.3))(eslint-config-prettier@10.1.8(eslint@9.39.4))(eslint@9.39.4)(nx@23.2.1(patch_hash=c172c800349b5ff79a768314f5b352739f68bb2d5a5199160e72e7f5fc90cb6c))(typescript@5.9.3)':
     dependencies:
-      '@nx/devkit': 23.2.1(nx@23.2.1)
-      '@nx/js': 23.2.1(@babel/traverse@7.29.8)(nx@23.2.1)
+      '@nx/devkit': 23.2.1(nx@23.2.1(patch_hash=c172c800349b5ff79a768314f5b352739f68bb2d5a5199160e72e7f5fc90cb6c))
+      '@nx/js': 23.2.1(@babel/traverse@7.29.8)(nx@23.2.1(patch_hash=c172c800349b5ff79a768314f5b352739f68bb2d5a5199160e72e7f5fc90cb6c))
       '@phenomnomnominal/tsquery': 6.2.0(typescript@5.9.3)
       '@typescript-eslint/type-utils': 8.57.2(eslint@9.39.4)(typescript@5.9.3)
       '@typescript-eslint/utils': 8.57.2(eslint@9.39.4)(typescript@5.9.3)
@@ -20550,10 +20551,10 @@ snapshots:
       - typescript
       - verdaccio
 
-  '@nx/eslint@23.2.1(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.4)(nx@23.2.1)':
+  '@nx/eslint@23.2.1(@babel/traverse@7.29.8)(@zkochan/js-yaml@0.0.7)(eslint@9.39.4)(nx@23.2.1(patch_hash=c172c800349b5ff79a768314f5b352739f68bb2d5a5199160e72e7f5fc90cb6c))':
     dependencies:
-      '@nx/devkit': 23.2.1(nx@23.2.1)
-      '@nx/js': 23.2.1(@babel/traverse@7.29.8)(nx@23.2.1)
+      '@nx/devkit': 23.2.1(nx@23.2.1(patch_hash=c172c800349b5ff79a768314f5b352739f68bb2d5a5199160e72e7f5fc90cb6c))
+      '@nx/js': 23.2.1(@babel/traverse@7.29.8)(nx@23.2.1(patch_hash=c172c800349b5ff79a768314f5b352739f68bb2d5a5199160e72e7f5fc90cb6c))
       eslint: 9.39.4
       semver: 7.8.5
       tslib: 2.8.1
@@ -20568,7 +20569,7 @@ snapshots:
       - nx
       - verdaccio
 
-  '@nx/js@23.2.1(@babel/traverse@7.29.8)(nx@23.2.1)':
+  '@nx/js@23.2.1(@babel/traverse@7.29.8)(nx@23.2.1(patch_hash=c172c800349b5ff79a768314f5b352739f68bb2d5a5199160e72e7f5fc90cb6c))':
     dependencies:
       '@babel/core': 7.29.7
       '@babel/plugin-proposal-decorators': 7.29.0(@babel/core@7.29.7)
@@ -20580,7 +20581,7 @@ snapshots:
       '@babel/preset-env': 7.29.2(@babel/core@7.29.7)
       '@babel/preset-typescript': 7.28.5(@babel/core@7.29.7)
       '@babel/runtime': 7.29.2
-      '@nx/devkit': 23.2.1(nx@23.2.1)
+      '@nx/devkit': 23.2.1(nx@23.2.1(patch_hash=c172c800349b5ff79a768314f5b352739f68bb2d5a5199160e72e7f5fc90cb6c))
       '@nx/workspace': 23.2.1
       '@zkochan/js-yaml': 0.0.7
       babel-plugin-const-enum: 1.2.0(@babel/core@7.29.7)
@@ -20637,10 +20638,10 @@ snapshots:
 
   '@nx/workspace@23.2.1':
     dependencies:
-      '@nx/devkit': 23.2.1(nx@23.2.1)
+      '@nx/devkit': 23.2.1(nx@23.2.1(patch_hash=c172c800349b5ff79a768314f5b352739f68bb2d5a5199160e72e7f5fc90cb6c))
       '@zkochan/js-yaml': 0.0.7
       chalk: 4.1.2
-      nx: 23.2.1
+      nx: 23.2.1(patch_hash=c172c800349b5ff79a768314f5b352739f68bb2d5a5199160e72e7f5fc90cb6c)
       picomatch: 4.0.4
       semver: 7.8.5
       tslib: 2.8.1
@@ -32222,7 +32223,7 @@ snapshots:
 
   nullthrows@1.1.1: {}
 
-  nx@23.2.1:
+  nx@23.2.1(patch_hash=c172c800349b5ff79a768314f5b352739f68bb2d5a5199160e72e7f5fc90cb6c):
     dependencies:
       '@clack/core': 1.4.3
       '@clack/prompts': 1.7.0

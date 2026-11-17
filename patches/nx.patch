@@ -1,0 +1,18 @@
+diff --git a/dist/src/project-graph/plugins/resolve-plugin.js b/dist/src/project-graph/plugins/resolve-plugin.js
+index 8dcf1f508bd5447f356cab4d63fedd3f24a6e383..c9e386c9f08008c977534ceee8e94c23bb685400 100644
+--- a/dist/src/project-graph/plugins/resolve-plugin.js
++++ b/dist/src/project-graph/plugins/resolve-plugin.js
+@@ -24,8 +24,11 @@ async function resolveNxPlugin(moduleName, root, paths) {
+     // as absolute file paths to compiled bundles inside `nx` itself; they are
+     // never workspace-local. Skip the project load entirely for them to avoid
+     // recursing through `retrieveProjectConfigurationsWithoutPluginInference`,
+-    // which itself triggers default-plugin loading.
+-    if (!path.isAbsolute(moduleName)) {
++    // which itself triggers default-plugin loading. Relative paths point at
++    // plugin files, never at workspace packages, so they skip it as well.
++    if (!path.isAbsolute(moduleName) &&
++        !moduleName.startsWith('./') &&
++        !moduleName.startsWith('../')) {
+         let resolvedFromNode;
+         try {
+             resolvedFromNode = require.resolve(moduleName, { paths });
