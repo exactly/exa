@@ -711,7 +711,11 @@ async function getMarket(address: Address, asset: Address) {
     fromBlock: 0n,
     strict: true,
   });
-  return { ...market, deposited: deposits.reduce((total, { args }) => total + args.assets, 0n) };
+  const { assets, shares } = deposits.reduce(
+    (total, { args }) => ({ assets: total.assets + args.assets, shares: total.shares + args.shares }),
+    { assets: 0n, shares: 0n },
+  );
+  return { ...market, deposited: shares && (assets * market.floatingDepositShares) / shares };
 }
 
 const getWETHMarket = (address: Address) => getMarket(address, token);
