@@ -186,6 +186,8 @@ jobs:
       - id: machine
         name: machine
         run: echo "id=$(cat /var/lib/dbus/machine-id /etc/machine-id 2> /dev/null | head -n 1)" >> "$GITHUB_OUTPUT"
+      - run: mkdir -p ~/.nx && sudo mount -t tmpfs -o mode=700,uid=$(id -u),gid=$(id -g) tmpfs ~/.nx # cspell:ignore tmpfs
+        name: tmpfs
       - uses: actions/cache/restore@v6
         id: nx
         with:
