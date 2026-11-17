@@ -36,4 +36,20 @@ env:
 - assertVisible: New due date
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
 - tapOn: Home
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Later in 3, center: true } }
+- tapOn: Later in 3
+- tapOn: { text: "1", below: Set installments }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
+- runScript: { file: ../dist/mint.js, env: { asset: USDC, to: "${output.account}", amount: "1500", network: Anvil2 } }
+- runScript: { file: ../dist/deposited.js, env: { account: "${output.account}", network: Anvil2 } }
+- repeat:
+    times: 20
+    while: { true: "${output.deposited !== 1500}" }
+    commands: [{ runScript: { file: ../dist/deposited.js, env: { account: "${output.account}", network: Anvil2 } } }]
+- runScript:
+    file: ../dist/purchase.js
+    env: { merchant: Electronics, amount: "899.99", mode: "1", credentialId: "${output.credential}" }
+- tapOn: Payments
+- runFlow: { file: ../subflows/repay.yaml, env: { network: Anvil2 } }
+- tapOn: Home
 - runFlow: ../subflows/storeCoverage.yaml
