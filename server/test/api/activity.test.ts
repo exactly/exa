@@ -811,23 +811,27 @@ describe.concurrent("authenticated", () => {
       await database
         .insert(transactions)
         .values([{ id: "bad-transaction", cardId: "first-activity-card", hashes: ["0x1"], payload: {} }]);
-      const response = await appClient.index.$get(
-        { query: { include: "card" } },
-        { headers: { "test-credential-id": "bob" } },
-      );
+      try {
+        const response = await appClient.index.$get(
+          { query: { include: "card" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
 
-      expect(captureException).toHaveBeenCalledExactlyOnceWith(
-        new Error("bad transaction"),
-        expect.objectContaining({
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-          contexts: expect.objectContaining({
-            cryptomate: expect.objectContaining({ success: false }), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
-            panda: expect.objectContaining({ success: false }), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+        expect(captureException).toHaveBeenCalledExactlyOnceWith(
+          new Error("bad transaction"),
+          expect.objectContaining({
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            contexts: expect.objectContaining({
+              cryptomate: expect.objectContaining({ success: false }), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+              panda: expect.objectContaining({ success: false }), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+            }),
           }),
-        }),
-      );
-      expect(response.status).toBe(200);
-      await expect(response.json()).resolves.toMatchObject(httpSerialize(activity));
+        );
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toMatchObject(httpSerialize(activity));
+      } finally {
+        await database.delete(transactions).where(eq(transactions.id, "bad-transaction"));
+      }
     });
 
     it("filters by maturity", async () => {
