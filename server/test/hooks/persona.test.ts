@@ -5,7 +5,7 @@ import * as sardine from "../mocks/sardine";
 import "../mocks/sentry";
 
 import { captureException, setUser } from "@sentry/node";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { parse } from "valibot";
 import { hexToBytes, padHex, zeroAddress, zeroHash } from "viem";
@@ -398,7 +398,10 @@ describe("persona hook", () => {
 
   afterEach(async () => {
     await new Promise((resolve) => setImmediate(resolve));
-    await database.update(credentials).set({ account, pandaId: null }).where(eq(credentials.id, "persona-ref"));
+    await database
+      .update(credentials)
+      .set({ account, pandaId: null, otherPandaId: null })
+      .where(eq(credentials.id, "persona-ref"));
     vi.restoreAllMocks();
   });
 
@@ -498,6 +501,37 @@ describe("persona hook", () => {
     ).resolves.toStrictEqual({ pandaId: "new-panda-id" });
     expect(pax.addCapita).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { isBase: false, own: "panda_id", other: "bamboo_id" },
+    { isBase: true, own: "bamboo_id", other: "panda_id" },
+  ])("keeps the panda id in $own when base is $isBase", async ({ isBase, own, other }) => {
+    mocks.isBase.mockReturnValue(isBase);
+    vi.resetModules();
+    const { default: tenantDatabase } = await import("../../database");
+    const { default: createTenantHook } = await import("../../hooks/persona");
+    const client = testClient(
+      createTenantHook({
+        allow,
+        database: tenantDatabase,
+        panda,
+        persona,
+        personaWebhookSecret: "persona",
+        sardine: createSardine(sardineConfig.key, sardineConfig.url),
+      }).app,
+    );
+    await database.execute(sql`update credentials set ${sql.identifier(other)} = 'other' where id = 'persona-ref'`);
+
+    const created = await postInquiry(client);
+    const repeated = await postInquiry(client);
+    const stored = await database.execute(sql`select panda_id, bamboo_id from credentials where id = 'persona-ref'`);
+    await tenantDatabase.$client.end();
+
+    expect(created.status).toBe(200);
+    await expect(repeated.json()).resolves.toStrictEqual({ code: "already created" });
+    expect(panda.createUser).toHaveBeenCalledOnce();
+    expect(stored.rows).toStrictEqual([{ [own]: "new-panda-id", [other]: "other" }]);
   });
 
   it("does not allow very high risk accounts", async () => {
