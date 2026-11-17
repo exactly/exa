@@ -20,6 +20,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, type MockIns
 import deriveAddress from "@exactly/common/deriveAddress";
 import chain, {
   exaAccountFactoryAddress,
+  marketAbi,
   previewerAbi,
   previewerAddress,
   usdcAddress,
@@ -267,7 +268,7 @@ describe("poke worker", () => {
     const job = await jobFinished(request);
 
     expect(await publicClient.getCode({ address: account })).toBeDefined();
-    expect(await getWETHMarket(account)).toMatchObject({ floatingDepositAssets: deposit, isCollateral: true });
+    expect(await getWETHMarket(account)).toMatchObject({ deposited: deposit, isCollateral: true });
     expect(credits(add)).toStrictEqual([
       ["credit", expect.objectContaining({ account }), { jobId: `poke-${job.id}-1` }],
     ]);
@@ -300,7 +301,7 @@ describe("poke worker", () => {
     await Promise.all(requests.map(({ request: current }) => jobFinished(current)));
 
     for (const { account: current } of requests) {
-      expect(await getWETHMarket(current)).toMatchObject({ floatingDepositAssets: deposit, isCollateral: true });
+      expect(await getWETHMarket(current)).toMatchObject({ deposited: deposit, isCollateral: true });
     }
     expect(captureException).not.toHaveBeenCalled();
   });
@@ -334,7 +335,7 @@ describe("poke worker", () => {
     await jobFinished({ ...request, assets: [eth, weth] });
 
     expect(await getWETHMarket(account)).toMatchObject({
-      floatingDepositAssets: ethDeposit + wethDeposit,
+      deposited: ethDeposit + wethDeposit,
       isCollateral: true,
     });
     await expect(
@@ -355,7 +356,7 @@ describe("poke worker", () => {
 
     expect(updateData).toHaveBeenCalledExactlyOnceWith({ ...request, assets: [], origin: "activity" });
     expect(await getWETHMarket(account)).toMatchObject({
-      floatingDepositAssets: ethDeposit + wethDeposit,
+      deposited: ethDeposit + wethDeposit,
       isCollateral: true,
     });
     await expect(
@@ -372,7 +373,7 @@ describe("poke worker", () => {
 
     await jobFinished({ ...request, assets: [token] });
 
-    expect(await getWETHMarket(account)).toMatchObject({ floatingDepositAssets: 0n, isCollateral: false });
+    expect(await getWETHMarket(account)).toMatchObject({ deposited: 0n, isCollateral: false });
     expect(mocks.track).toHaveBeenCalledExactlyOnceWith({
       event: "AccountFunded",
       userId: account,
@@ -390,7 +391,7 @@ describe("poke worker", () => {
 
     await jobFinished({ ...request, assets: [token] });
 
-    expect(await getWETHMarket(account)).toMatchObject({ floatingDepositAssets: deposit, isCollateral: true });
+    expect(await getWETHMarket(account)).toMatchObject({ deposited: deposit, isCollateral: true });
     expect(sendPushNotificationMock).toHaveBeenCalledOnce();
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, { level: "error" });
   });
@@ -408,7 +409,7 @@ describe("poke worker", () => {
         { jobId: `poke-${job.id}-1` },
       ],
     ]);
-    expect(await getWETHMarket(account)).toMatchObject({ floatingDepositAssets: deposit, isCollateral: true });
+    expect(await getWETHMarket(account)).toMatchObject({ deposited: deposit, isCollateral: true });
   });
 
   it("drops credit when it cannot be queued", async () => {
@@ -427,7 +428,7 @@ describe("poke worker", () => {
       { attempts: 2, backoff: { type: "fixed", delay: 1 } },
     );
 
-    expect(await getWETHMarket(account)).toMatchObject({ floatingDepositAssets: deposit, isCollateral: true });
+    expect(await getWETHMarket(account)).toMatchObject({ deposited: deposit, isCollateral: true });
     expect(credits(spy)).toStrictEqual([
       ["credit", expect.objectContaining({ account }), { jobId: `poke-${job.id}-1` }],
     ]);
@@ -438,7 +439,7 @@ describe("poke worker", () => {
     await jobFinished({ ...request, assets: [token] });
 
     expect(await publicClient.getCode({ address: account })).toBeDefined();
-    expect(await getWETHMarket(account)).toMatchObject({ floatingDepositAssets: 0n, isCollateral: false });
+    expect(await getWETHMarket(account)).toMatchObject({ deposited: 0n, isCollateral: false });
     expect(sendPushNotificationMock).not.toHaveBeenCalled();
   });
 
@@ -457,7 +458,7 @@ describe("poke worker", () => {
       { attempts: 2, backoff: { type: "fixed", delay: 1 } },
     );
 
-    expect(await getWETHMarket(account)).toMatchObject({ floatingDepositAssets: deposit, isCollateral: true });
+    expect(await getWETHMarket(account)).toMatchObject({ deposited: deposit, isCollateral: true });
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -482,11 +483,8 @@ describe("poke worker", () => {
     );
 
     expect(hidden).toBe(false);
-    expect(await getMarket(account, token)).toMatchObject({ floatingDepositAssets: wethDeposit, isCollateral: true });
-    expect(await getMarket(account, token2)).toMatchObject({
-      floatingDepositAssets: usdcDeposit - 1n,
-      isCollateral: true,
-    });
+    expect(await getMarket(account, token)).toMatchObject({ deposited: wethDeposit, isCollateral: true });
+    expect(await getMarket(account, token2)).toMatchObject({ deposited: usdcDeposit, isCollateral: true });
   });
 
   it("queues credit after each partial activity poke", async () => {
@@ -701,9 +699,19 @@ function createRequest() {
 }
 
 async function getMarket(address: Address, asset: Address) {
-  return publicClient
+  const market = await publicClient
     .readContract({ address: previewerAddress, functionName: "exactly", abi: previewerAbi, args: [address] })
     .then((markets) => markets.find((current) => current.asset === asset));
+  if (!market) return market;
+  const deposits = await publicClient.getContractEvents({
+    abi: marketAbi,
+    eventName: "Deposit",
+    address: market.market,
+    args: { owner: address },
+    fromBlock: 0n,
+    strict: true,
+  });
+  return { ...market, deposited: deposits.reduce((total, { args }) => total + args.assets, 0n) };
 }
 
 const getWETHMarket = (address: Address) => getMarket(address, token);
