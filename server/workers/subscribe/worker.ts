@@ -5,7 +5,7 @@ import { parse } from "valibot";
 import { Address } from "@exactly/common/validation";
 
 import { attempts, name, type Job } from "./job";
-import { activityNetworks, activityUrl } from "../../utils/alchemy";
+import { activityUrl, NETWORKS } from "../../utils/alchemy";
 import createWorker from "../worker";
 
 import type * as schema from "../../database/schema";
@@ -25,7 +25,7 @@ export default function worker({
   let next = 0;
   const webhooks = request(() => alchemy.getWebhooks()).then((existing) =>
     attempt(
-      activityNetworks(),
+      NETWORKS,
       async ([network]) => {
         const matches = existing.filter(
           (hook) =>
