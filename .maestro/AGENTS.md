@@ -38,7 +38,7 @@
 - **positive checks only**: wait for what should appear next, or read chain state from a script. no sleeps, `waitForAnimationToEnd` or negative visibility asserts unless a measurement proves them necessary.
 - **scroll only as needed**: `subflows/scrollTo.yaml` wraps `scrollUntilVisible`. pass `center` only when the element can end up behind the floating tab bar: centering costs about one swipe, and at the end of a page it keeps swiping for seconds, so use `offset` there. `copyTextFrom` only reads text and never needs centering. the `offset` swipe runs even when the element is already visible, so never repeat such a scroll on a screen that is already scrolled.
 - **keyboard**: `hideKeyboard` is nearly free on web, and with one swipe it beats a slow `scrollTo` under an open keyboard. `pressKey: enter` works on every platform but costs about 0.4 s on ios, 0.7 s on android and 0.8 s on web, so use it only where `hideKeyboard` fails.
-- **scripts are not free**: graaljs takes seconds to run `mnemonicToAccount` (pbkdf2). compute values once and keep them in `output`, as `subflows/getAccount.yaml` does. a plain rpc call beats a deployless read.
+- **scripts are not free**: every script and harness call runs on graaljs. compute values once and keep them in `output`, as `subflows/getAccount.yaml` does. a plain rpc call beats a deployless read.
 - **one call stays inline**: a single harness call stays in the flow (`assertTrue: '${http.post(...).ok}'`, as `flows/onboarding.yaml` does), never a new script in `src/script/`.
 - **refresh instead of polling**: pending requests refetch every 30 s, so tap Home to refresh them instead of waiting.
 
