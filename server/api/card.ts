@@ -332,7 +332,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
           const { id, lastFour, status, mode, productId } = credential.cards[0];
           if (status === "DELETED") throw new Error("card deleted");
           if (!is(CardUUID, id)) return c.json({ code: "no card" }, 404);
-          const [{ expirationMonth, expirationYear, limit, user }, pan, pin, challenge, provisioning] =
+          const [{ expirationMonth, expirationYear, limit, status: state, user }, pan, pin, challenge, provisioning] =
             await Promise.all([
               panda.getCard(id).then(async (card) => ({
                 ...card,
@@ -390,6 +390,10 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
                   }))
                 : undefined,
             ]);
+          if (state === "canceled") {
+            await database.update(cards).set({ status: "DELETED" }).where(eq(cards.id, id));
+            return c.json({ code: "no card" }, 404);
+          }
           if (!user) return c.json({ code: "no panda" }, 403);
           if (include("siwe") || include("webauthn") || include("provisioning")) c.header("Cache-Control", "no-store");
 
@@ -595,20 +599,20 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
             let cardCount = activeCards.length;
             for (const card of activeCards) {
               try {
-                await panda.getCard(parse(CardUUID, card.id));
+                const { status } = await panda.getCard(parse(CardUUID, card.id));
+                if (status !== "canceled") continue;
               } catch (error) {
                 if (
-                  (error instanceof Error && error.message.startsWith("Invalid UUID")) ||
-                  (error instanceof ServiceError && error.status === 404)
+                  !(error instanceof Error && error.message.startsWith("Invalid UUID")) &&
+                  !(error instanceof ServiceError && error.status === 404)
                 ) {
-                  await database.update(cards).set({ status: "DELETED" }).where(eq(cards.id, card.id));
-                  cardCount--;
-                  setContext("cryptomate card deleted", { id: card.id });
-                  if (card.productId === PLATINUM_PRODUCT_ID) isUpgradeFromPlatinum = true;
-                } else {
                   throw error;
                 }
               }
+              await database.update(cards).set({ status: "DELETED" }).where(eq(cards.id, card.id));
+              cardCount--;
+              setContext("cryptomate card deleted", { id: card.id });
+              if (card.productId === PLATINUM_PRODUCT_ID) isUpgradeFromPlatinum = true;
             }
             if (cardCount > 0) return c.json({ code: "already created" }, 400);
             try {
