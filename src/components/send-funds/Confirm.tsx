@@ -691,7 +691,7 @@ export default function Confirm() {
       : (erc20TransferError ?? wrapError ?? transferEstimateError);
   const tool = route?.tool;
   const { data: dust } = useReadContract({
-    address: route?.wrapped && payUnderlying ? getAddress(payUnderlying) : undefined,
+    address: route?.wrapped && route.spend.token !== zeroAddress ? route.spend.token : undefined,
     chainId: payChain,
     abi: erc20Abi,
     functionName: "balanceOf",
