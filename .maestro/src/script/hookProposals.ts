@@ -95,7 +95,8 @@ if (max) {
     )) {
       const { args } = decodeEventLog({ abi: marketAbi, eventName: "Withdraw", data: log.data, topics: log.topics });
       if (args.assets === args.shares) throw new Error(`expected redeemed assets apart from shares in ${address}`);
-      output.redeemed = formatUnits(args.assets, decimals);
+      const scale = 10n ** BigInt(Math.max(decimals - 8, 0));
+      output.redeemed = formatUnits(((args.assets + scale / 2n) / scale) * scale, decimals);
     }
   }
 }
