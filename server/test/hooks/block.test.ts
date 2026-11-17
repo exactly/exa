@@ -17,6 +17,8 @@ import {
   encodeErrorResult,
   encodeFunctionData,
   erc20Abi,
+  formatUnits,
+  getAbiItem,
   getAddress,
   getContractError,
   http,
@@ -25,9 +27,11 @@ import {
   padHex,
   parseEventLogs,
   RawContractError,
+  toEventSelector,
   zeroAddress,
   zeroHash,
   type Address,
+  type Hash,
   type Hex,
   type Log,
   type TransactionReceipt,
@@ -333,6 +337,8 @@ describe("proposal", () => {
 
     it("increments nonce", async () => {
       const withdraw = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+      const sendPushNotification = sendPushNotificationMock.mockResolvedValue({});
+      vi.spyOn(ensClient, "getEnsName").mockResolvedValue(null);
       const nonceSkip = waitForProposalNonce(withdraw.args.account, withdraw.args.nonce);
       const proposalRemovals = waitForProposalRemovals([
         { account: withdraw.args.account, nonce: withdraw.args.nonce },
@@ -367,6 +373,162 @@ describe("proposal", () => {
           args: [bobAccount],
         }),
       ).resolves.toBe(withdraw.args.nonce + 1n);
+      await vi.waitFor(
+        () =>
+          expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
+            userId: bobAccount,
+            headings: t("Withdraw completed"),
+            contents: t("{{amount}} {{symbol}} sent to {{recipient}}", {
+              amount: f(formatUnits(withdraw.args.amount, 18)),
+              symbol: "WETH",
+              recipient: shortenHex(padHex("0x69", { size: 20 })),
+            }),
+          }),
+        26_666,
+      );
+    });
+  });
+
+  describe("with weth redeem proposal", () => {
+    beforeEach(async () => {
+      const hash = await proposeWithdraw(69n, padHex("0x69", { size: 20 }), marketWETHAddress, ProposalType.Redeem);
+      proposals = await getLogs([hash]);
+      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
+      vi.setSystemTime(new Date(Number((proposals[0]?.args.unlock ?? 0n) + 10n) * 1000));
+    });
+
+    afterEach(() => vi.useRealTimers());
+
+    it("increments nonce and notifies redeemed assets", async () => {
+      const redeem = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+      const sendPushNotification = sendPushNotificationMock.mockResolvedValue({});
+      vi.spyOn(ensClient, "getEnsName").mockResolvedValue(null);
+      const executions = waitForSuccessfulProposalExecutions([redeem.args.nonce]);
+      const removals = waitForProposalRemovals([{ account: redeem.args.account, nonce: redeem.args.nonce }]);
+
+      const [, [receipt], removed] = await Promise.all([postProposal(redeem), executions, removals]);
+      const [withdraw] = parseEventLogs({ abi: marketAbi, eventName: "Withdraw", logs: receipt?.logs ?? [] });
+      await vi.waitUntil(() => sendPushNotification.mock.calls.length === 1, 26_666);
+
+      expect(withdraw?.args.shares).toBe(redeem.args.amount);
+      expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
+        userId: bobAccount,
+        headings: t("Withdraw completed"),
+        contents: t("{{amount}} {{symbol}} sent to {{recipient}}", {
+          amount: f(formatUnits(withdraw?.args.assets ?? 0n, 18)),
+          symbol: "WETH",
+          recipient: shortenHex(padHex("0x69", { size: 20 })),
+        }),
+      });
+      expect(removed).toStrictEqual([1]);
+      await expect(
+        publicClient.readContract({
+          address: proposalManagerAddress,
+          abi: proposalManagerAbi,
+          functionName: "nonces",
+          args: [bobAccount],
+        }),
+      ).resolves.toBe(redeem.args.nonce + 1n);
+      expect(captureException).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("with redeem proposal", () => {
+    beforeEach(async () => {
+      const hash = await proposeWithdraw(
+        3_000_000n,
+        padHex("0x69", { size: 20 }),
+        marketUSDCAddress,
+        ProposalType.Redeem,
+      );
+      proposals = await getLogs([hash]);
+      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
+      vi.setSystemTime(new Date(Number((proposals[0]?.args.unlock ?? 0n) + 10n) * 1000));
+    });
+
+    afterEach(() => vi.useRealTimers());
+
+    it("notifies redeemed assets", async () => {
+      const redeem = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+      const sendPushNotification = sendPushNotificationMock.mockResolvedValue({});
+      vi.spyOn(ensClient, "getEnsName").mockResolvedValue(null);
+      const executions = waitForSuccessfulProposalExecutions([redeem.args.nonce]);
+      const removals = waitForProposalRemovals([{ account: redeem.args.account, nonce: redeem.args.nonce }]);
+
+      const [, [receipt], removed] = await Promise.all([postProposal(redeem), executions, removals]);
+      const [withdraw] = parseEventLogs({ abi: marketAbi, eventName: "Withdraw", logs: receipt?.logs ?? [] });
+      await vi.waitUntil(() => sendPushNotification.mock.calls.length === 1, 26_666);
+
+      expect(withdraw?.args.shares).toBe(redeem.args.amount);
+      expect(withdraw?.args.assets).not.toBe(redeem.args.amount);
+      expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
+        userId: bobAccount,
+        headings: t("Withdraw completed"),
+        contents: t("{{amount}} {{symbol}} sent to {{recipient}}", {
+          amount: f(formatUnits(withdraw?.args.assets ?? 0n, 6)),
+          symbol: "USDC",
+          recipient: shortenHex(padHex("0x69", { size: 20 })),
+        }),
+      });
+      expect(removed).toStrictEqual([1]);
+    });
+
+    it.each<[string, (receipt: TransactionReceipt) => null | TransactionReceipt, null | string]>([
+      ["withdraw logs", (receipt) => ({ ...receipt, logs: [] }), "alice.eth"],
+      [
+        "withdraw logs from this market and owner",
+        (receipt) => ({
+          ...receipt,
+          logs: receipt.logs.flatMap((log) => {
+            const [signature, caller, receiver] = log.topics;
+            return signature === toEventSelector(getAbiItem({ abi: marketAbi, name: "Withdraw" })) && caller && receiver
+              ? [
+                  { ...log, address: marketWETHAddress },
+                  {
+                    ...log,
+                    topics: [signature, caller, receiver, encodeAbiParameters([{ type: "address" }], [zeroAddress])],
+                  },
+                ]
+              : [log];
+          }),
+        }),
+        null,
+      ],
+      ["receipt", () => null, null],
+    ])("reports and notifies without amount when execution has no %s", async (_, synthetic, ensName) => {
+      const redeem = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+      const sendPushNotification = sendPushNotificationMock.mockResolvedValue({});
+      vi.spyOn(ensClient, "getEnsName").mockResolvedValue(ensName);
+      if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
+      const exaSend = keeper.exaSend.bind(keeper);
+      let hash: Hash | undefined;
+      vi.spyOn(keeper, "exaSend").mockImplementation(async (span, call, options) => {
+        const receipt = await exaSend(span, call, options);
+        if (call.functionName !== "executeProposal" || !receipt) return receipt;
+        const executed = synthetic(receipt);
+        hash = executed?.transactionHash;
+        return executed;
+      });
+      const removals = waitForProposalRemovals([{ account: redeem.args.account, nonce: redeem.args.nonce }]);
+
+      const [, removed] = await Promise.all([postProposal(redeem), removals]);
+      await vi.waitUntil(() => sendPushNotification.mock.calls.length === 1, 26_666);
+
+      expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
+        userId: bobAccount,
+        headings: t("Withdraw completed"),
+        contents: t("{{symbol}} sent to {{recipient}}", {
+          symbol: "USDC",
+          recipient: ensName ?? shortenHex(padHex("0x69", { size: 20 })),
+        }),
+      });
+      expect(captureException).toHaveBeenCalledWith(new Error("missing withdraw event"), {
+        level: "error",
+        contexts: {
+          proposal: { account: redeem.args.account, market: marketUSDCAddress, nonce: Number(redeem.args.nonce), hash },
+        },
+      });
+      expect(removed).toStrictEqual([1]);
     });
   });
 
@@ -2396,14 +2558,35 @@ function execute(calldata: Hex) {
   });
 }
 
-function proposeWithdraw(amount: bigint, receiver: Address, market: Address = marketUSDCAddress) {
+function proposeWithdraw(
+  amount: bigint,
+  receiver: Address,
+  market: Address = marketUSDCAddress,
+  proposalType: ProposalType.Redeem | ProposalType.Withdraw = ProposalType.Withdraw,
+) {
   return execute(
     encodeFunctionData({
       abi: exaPluginAbi,
       functionName: "propose",
-      args: [market, amount, ProposalType.Withdraw, encodeAbiParameters([{ type: "address" }], [receiver])],
+      args: [market, amount, proposalType, encodeAbiParameters([{ type: "address" }], [receiver])],
     }),
   );
+}
+
+function postProposal({ address, data, topics }: { address: Address; data: Hex; topics: [Hex, ...Hex[]] }) {
+  return appClient.index.$post({
+    ...withdrawProposal,
+    json: {
+      ...withdrawProposal.json,
+      event: {
+        ...withdrawProposal.json.event,
+        data: {
+          ...withdrawProposal.json.event.data,
+          block: { ...withdrawProposal.json.event.data.block, logs: [{ topics, data, account: { address } }] },
+        },
+      },
+    },
+  });
 }
 
 async function getLogs(hashes: Hex[]) {

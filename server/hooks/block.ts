@@ -26,6 +26,8 @@ import {
   encodeErrorResult,
   ExecutionRevertedError,
   formatUnits,
+  isAddressEqual,
+  parseEventLogs,
   type LocalAccount,
 } from "viem";
 import { optimismSepolia } from "viem/chains";
@@ -310,7 +312,7 @@ export default function hook({
               },
             },
             async () => {
-              await (proposalType === ProposalType.None
+              const receipt = await (proposalType === ProposalType.None
                 ? skipNonce()
                 : wallet.exaSend(
                     { name: "exa.execute", op: "exa.execute", attributes: { account } },
@@ -357,7 +359,7 @@ export default function hook({
                   ));
 
               parent.setStatus({ code: SPAN_STATUS_OK });
-              if (proposalType === ProposalType.Withdraw) {
+              if (proposalType === ProposalType.Withdraw || proposalType === ProposalType.Redeem) {
                 if (market.toLowerCase() === marketWETHAddress.toLowerCase()) {
                   await skipNonce().catch((nonceError: unknown) => {
                     captureException(nonceError, {
@@ -375,6 +377,18 @@ export default function hook({
                   });
                 }
                 const receiver = v.parse(Address, decodeWithdraw(data));
+                const assets =
+                  proposalType === ProposalType.Withdraw
+                    ? amount
+                    : parseEventLogs({ abi: marketAbi, eventName: "Withdraw", logs: receipt?.logs ?? [] }).find(
+                        ({ address, args }) => isAddressEqual(address, market) && isAddressEqual(args.owner, account),
+                      )?.args.assets;
+                if (assets === undefined) {
+                  captureException(new Error("missing withdraw event"), {
+                    level: "error",
+                    contexts: { proposal: { account, market, nonce: Number(nonce), hash: receipt?.transactionHash } },
+                  });
+                }
                 startSpan(
                   { name: "send withdraw notification", op: "notification.send", attributes: { account, receiver } },
                   () =>
@@ -386,11 +400,17 @@ export default function hook({
                       onesignal.sendPushNotification({
                         userId: account,
                         headings: t("Withdraw completed"),
-                        contents: t("{{amount}} {{symbol}} sent to {{recipient}}", {
-                          amount: f(formatUnits(amount, decimals)),
-                          symbol: symbol.slice(3),
-                          recipient: ensName ?? shortenHex(receiver),
-                        }),
+                        contents:
+                          assets === undefined
+                            ? t("{{symbol}} sent to {{recipient}}", {
+                                symbol: symbol.slice(3),
+                                recipient: ensName ?? shortenHex(receiver),
+                              })
+                            : t("{{amount}} {{symbol}} sent to {{recipient}}", {
+                                amount: f(formatUnits(assets, decimals)),
+                                symbol: symbol.slice(3),
+                                recipient: ensName ?? shortenHex(receiver),
+                              }),
                       }),
                     ),
                 ).catch((error: unknown) => captureException(error));
