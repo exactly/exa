@@ -16,12 +16,18 @@ import * as v from "valibot";
 import { bytesToHex, hexToBigInt } from "viem";
 import { anvil } from "viem/chains";
 
-import exaChain, { exaPreviewerAbi, exaPreviewerAddress, lifiURL, wethAddress } from "@exactly/common/generated/chain";
+import exaChain, {
+  exaPreviewerAbi,
+  exaPreviewerAddress,
+  factoryChains,
+  lifiURL,
+  wethAddress,
+} from "@exactly/common/generated/chain";
 import { Address, Hash, Hex } from "@exactly/common/validation";
 
 import { credentials } from "../database/schema";
 import t, { f } from "../i18n";
-import { activityNetworks, activityUrl, NETWORKS } from "../utils/alchemy";
+import { activityChain, activityUrl } from "../utils/alchemy";
 import publicClient from "../utils/publicClient";
 import validatorHook from "../utils/validatorHook";
 import verifySignature from "../utils/verifySignature";
@@ -52,7 +58,6 @@ export default function hook({
   poke: ReturnType<typeof createPoke>;
   redis: Redis;
 }) {
-  const networks = activityNetworks();
   let entries = new Map<string, { network: string; signingKey: string }>();
   let refreshed = 0;
   let refreshing: Promise<void> | undefined;
@@ -69,7 +74,7 @@ export default function hook({
       const identity = v.safeParse(Identity, parsed);
       if (!identity.success) return c.json({ code: "unauthorized" }, 401);
       if (valid(identity.output, signature, payload)) return;
-      if (!entries.has(identity.output.webhookId) && networks.has(identity.output.event.network)) {
+      if (!entries.has(identity.output.webhookId) && activityChain(identity.output.event.network)) {
         await refresh(true);
         if (valid(identity.output, signature, payload)) return;
       }
@@ -83,7 +88,7 @@ export default function hook({
         event: v.object({
           network: v.pipe(
             v.string(),
-            v.check((input) => NETWORKS.has(input), "unsupported network"),
+            v.check((input) => !!activityChain(input), "unsupported network"),
           ),
           activity: v.array(
             v.intersect([
@@ -116,11 +121,18 @@ export default function hook({
     ),
     async (c) => {
       const payload = c.req.valid("json");
-      const chain = NETWORKS.get(payload.event.network);
+      const chain = activityChain(payload.event.network);
       if (!chain) throw new Error("unsupported activity network");
       setContext("alchemy", payload);
       setTag("alchemy.network", payload.event.network);
       getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "alchemy.activity");
+      if (!factoryChains.has(chain.id)) {
+        captureException(new Error("activity without factory"), {
+          level: "fatal",
+          fingerprint: ["{{ default }}", payload.event.network],
+        });
+        return c.json({ code: "no factory" }, 200);
+      }
       const transfers = payload.event.activity.filter(
         ({ category, rawContract, value }) =>
           category !== "erc721" &&
@@ -254,7 +266,7 @@ export default function hook({
                 current.is_active &&
                 current.webhook_type === "ADDRESS_ACTIVITY" &&
                 current.webhook_url === activityUrl &&
-                networks.has(current.network),
+                !!activityChain(current.network),
             )
             .map((current) => [current.id, { network: current.network, signingKey: current.signing_key }]),
         );

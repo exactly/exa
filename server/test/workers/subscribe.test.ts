@@ -9,11 +9,11 @@ import { privateKeyToAddress } from "viem/accounts";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
-import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
+import chain, { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import database, { credentials } from "../../database";
-import { activityUrl, NETWORKS } from "../../utils/alchemy";
+import { activityUrl } from "../../utils/alchemy";
 import redis, { bullmq } from "../../utils/redis";
 import { name } from "../../workers/subscribe/job";
 import createSubscribe from "../../workers/subscribe/queue";
@@ -22,18 +22,24 @@ import { finished, tip } from "../redis";
 
 import type * as schema from "../../database/schema";
 import type createAlchemy from "../../utils/alchemy";
-import type { activityNetworks, Webhook } from "../../utils/alchemy";
+import type { activityChain, Webhook } from "../../utils/alchemy";
 import type { Job as Subscribe } from "../../workers/subscribe/job";
 import type * as sentry from "@sentry/node";
 import type { JobsOptions } from "bullmq";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as timers from "node:timers/promises";
 
-const mocks = vi.hoisted(() => ({ networks: new Map() as ReturnType<typeof activityNetworks> }));
+const mocks = vi.hoisted(() => ({ networks: new Map<string, NonNullable<ReturnType<typeof activityChain>>>() }));
 
+vi.mock(import("@exactly/common/generated/chain"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  get activityChains() {
+    return new Map([...mocks.networks.values()].map((current, index) => [index, current]));
+  },
+}));
 vi.mock(import("../../utils/alchemy"), async (importOriginal) => ({
   ...(await importOriginal()),
-  activityNetworks: () => mocks.networks,
+  activityChain: (network: string) => mocks.networks.get(network),
 }));
 vi.mock("node:timers/promises", async (importOriginal) => {
   const original = await importOriginal<typeof timers>();
@@ -179,16 +185,26 @@ describe("subscribe worker", () => {
     expect(alchemy.createWebhook).not.toHaveBeenCalled();
   });
 
-  it("continues discovery after finding an inactive webhook", async () => {
+  it("reactivates existing inactive webhooks after backfill", async () => {
     mocks.networks = networks("ANVIL", "OPT_SEPOLIA");
     const alchemy = api();
+    const current = address(1);
     alchemy.getWebhooks.mockResolvedValue([webhook("inactive", "ANVIL", false)]);
     alchemy.createWebhook.mockResolvedValue(webhook("created", "OPT_SEPOLIA", false));
+    alchemy.getWebhookAddresses.mockResolvedValue({ data: [current], pagination: { cursors: {}, total_count: 1 } });
+    alchemy.setWebhookActive.mockImplementation((id) => {
+      expect(alchemy.addWebhookAddresses).toHaveBeenCalledWith(id, [current]);
+      return Promise.resolve();
+    });
 
-    worker = subscribeWorker({ alchemy, bullmq, database: source([]) });
+    worker = subscribeWorker({ alchemy, bullmq, database: source([current]) });
+    await worker.ready;
 
-    await expect(worker.ready).rejects.toThrow("activity webhook discovery failed");
     expect(alchemy.createWebhook).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ network: "OPT_SEPOLIA" }));
+    expect(alchemy.setWebhookActive.mock.calls).toStrictEqual([
+      ["inactive", true],
+      ["created", true],
+    ]);
   });
 
   it("attempts every network when reconciliation fails", async () => {
@@ -544,13 +560,7 @@ function address(index: number) {
 }
 
 function networks(...capabilities: string[]) {
-  return new Map(
-    capabilities.map((capability) => {
-      const chain = NETWORKS.get(capability);
-      if (!chain) throw new Error(`missing ${capability} network`);
-      return [capability, chain] as const;
-    }),
-  );
+  return new Map(capabilities.map((capability) => [capability, { ...chain, alchemyNetwork: capability }]));
 }
 
 function source(accounts: Address[] | Promise<{ account: Address }[]>) {
