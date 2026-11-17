@@ -1,30 +1,8 @@
-import {
-  arbitrum,
-  arbitrumSepolia,
-  base,
-  baseSepolia,
-  bsc,
-  inkMainnet,
-  inkSepolia,
-  mainnet,
-  monadMainnet,
-  optimism,
-  optimismSepolia,
-  polygon,
-  sepolia,
-  shape,
-  shapeSepolia,
-  soneiumMainnet,
-  soneiumMinato,
-  worldChain,
-  worldChainSepolia,
-} from "@account-kit/infra";
 import { validator } from "hono/validator";
 import { array, boolean, nonEmpty, number, object, optional, parse, pipe, string, type InferOutput } from "valibot";
-import { withRetry, type Chain } from "viem";
-import { anvil, moonbeamDev } from "viem/chains";
+import { withRetry } from "viem";
 
-import chain from "@exactly/common/generated/chain";
+import chain, { activityChains } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import appOrigin from "./appOrigin";
@@ -57,7 +35,7 @@ export default function alchemy(key: string) {
 
   async function findWebhook(predicate: (webhook: Webhook) => unknown) {
     const webhooks = await getWebhooks();
-    return webhooks.find((hook) => hook.is_active && hook.network === network() && predicate(hook));
+    return webhooks.find((hook) => hook.is_active && hook.network === chain.alchemyNetwork && predicate(hook));
   }
 
   async function createWebhook(
@@ -69,7 +47,7 @@ export default function alchemy(key: string) {
     const create = await fetch("https://dashboard.alchemy.com/api/create-webhook", {
       headers,
       method: "POST",
-      body: JSON.stringify({ ...options, network: options.network ?? network() }),
+      body: JSON.stringify({ ...options, network: options.network ?? chain.alchemyNetwork }),
     });
     if (!create.ok) throw new ServiceError("Alchemy", create.status, await create.text());
     return parse(WebhookResponse, await create.json()).data;
@@ -124,20 +102,11 @@ export function headerValidator(signingKeys: (() => Set<string>) | Set<string>) 
   });
 }
 
-export function network(id = chain.id) {
-  return [...NETWORKS].find(([, current]) => current.id === id)?.[0] ?? "OPT_SEPOLIA";
+export function activityChain(network: string) {
+  return [...activityChains.values()].find(({ alchemyNetwork }) => alchemyNetwork === network);
 }
 
 export const activityUrl = `${appOrigin}/hooks/activity`;
-
-export function activityNetworks(id = chain.id) {
-  if (id === anvil.id) return new Map(LOCAL);
-  const stack = [...NETWORKS.values()].find((current) => current.id === id);
-  if (!stack) throw new Error("unsupported activity stack");
-  return new Map(
-    [...NETWORKS].filter(([name, current]) => !LOCAL.has(name) && Boolean(current.testnet) === Boolean(stack.testnet)),
-  );
-}
 
 const Webhook = object({
   id: string(),
@@ -155,40 +124,3 @@ const WebhookAddressesResponse = object({
   data: array(Address),
   pagination: object({ cursors: object({ after: optional(string()) }), total_count: number() }),
 });
-
-const LOCAL = new Map<string, AlchemyChain>([
-  ["ANVIL", { ...anvil, rpcUrls: { ...anvil.rpcUrls, alchemy: anvil.rpcUrls.default } } as AlchemyChain],
-  [
-    "ANVIL2",
-    {
-      ...moonbeamDev,
-      name: "Anvil2",
-      rpcUrls: { ...moonbeamDev.rpcUrls, alchemy: moonbeamDev.rpcUrls.default },
-    } as AlchemyChain,
-  ],
-]);
-
-export const NETWORKS = new Map<string, AlchemyChain>([
-  ["ARB_MAINNET", arbitrum as AlchemyChain],
-  ["ARB_SEPOLIA", arbitrumSepolia as AlchemyChain],
-  ["BASE_MAINNET", base as AlchemyChain],
-  ["BASE_SEPOLIA", baseSepolia as AlchemyChain],
-  ["BNB_MAINNET", bsc as AlchemyChain],
-  ["ETH_MAINNET", mainnet as AlchemyChain],
-  ["ETH_SEPOLIA", sepolia as AlchemyChain],
-  ["INK_MAINNET", inkMainnet as AlchemyChain],
-  ["INK_SEPOLIA", inkSepolia as AlchemyChain],
-  ["MATIC_MAINNET", polygon as AlchemyChain],
-  ["MONAD_MAINNET", monadMainnet as AlchemyChain],
-  ["OPT_MAINNET", optimism as AlchemyChain],
-  ["OPT_SEPOLIA", optimismSepolia as AlchemyChain],
-  ["SHAPE_MAINNET", shape as AlchemyChain],
-  ["SHAPE_SEPOLIA", shapeSepolia as AlchemyChain],
-  ["SONEIUM_MAINNET", soneiumMainnet as AlchemyChain], // cspell:ignore soneium
-  ["SONEIUM_MINATO", soneiumMinato as AlchemyChain], // cspell:ignore minato
-  ["WORLDCHAIN_MAINNET", worldChain as AlchemyChain], // cspell:ignore worldchain
-  ["WORLDCHAIN_SEPOLIA", worldChainSepolia as AlchemyChain],
-  ...LOCAL,
-]);
-
-type AlchemyChain = Chain & { rpcUrls: { alchemy: { http: readonly [string] } } };
