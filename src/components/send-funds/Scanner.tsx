@@ -20,7 +20,15 @@ import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-export default function Scanner({ onClose, onScan }: { onClose: () => void; onScan: (data: string) => boolean }) {
+export default function Scanner({
+  children,
+  onClose,
+  onScan,
+}: {
+  children?: React.ReactNode;
+  onClose: () => void;
+  onScan: (data: string) => boolean;
+}) {
   const { top, bottom } = useInsets();
   const { height, width } = useWindowDimensions();
 
@@ -43,6 +51,7 @@ export default function Scanner({ onClose, onScan }: { onClose: () => void; onSc
 
   useFocusEffect(
     useCallback(() => {
+      lastRef.current = undefined;
       setActive(true);
       return () => {
         setActive(false);
@@ -126,7 +135,7 @@ export default function Scanner({ onClose, onScan }: { onClose: () => void; onSc
           style={styles.cameraView}
         />
       )}
-      <View position="absolute" fullScreen justifyContent="center" alignItems="center">
+      <View position="absolute" fullScreen justifyContent="center" alignItems="center" gap="s5">
         {isError ? (
           <YStack gap="s4" padding="s4">
             <Text subHeadline color="white" textAlign="center">
@@ -145,6 +154,7 @@ export default function Scanner({ onClose, onScan }: { onClose: () => void; onSc
         ) : (
           <BoxSelect size={Math.min(width, height) * 0.5} color="white" />
         )}
+        {children}
       </View>
       <Button
         primary
