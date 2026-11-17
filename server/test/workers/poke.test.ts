@@ -541,8 +541,10 @@ describe("poke worker", () => {
   });
 
   it("deploys without poking on other chains", async () => {
-    const network = NETWORKS.get("ANVIL");
-    if (!network) throw new Error("missing anvil");
+    const anvil = NETWORKS.get("ANVIL");
+    if (!anvil) throw new Error("missing anvil");
+    const network = { ...anvil };
+    vi.spyOn(NETWORKS, "values").mockImplementation(() => new Map([["ANVIL", network]]).values());
     const readContract = vi.spyOn(publicClient, "readContract");
     const id = chain.id;
     Object.assign(chain, { id: 1 });
