@@ -1108,12 +1108,15 @@ describe.concurrent("authenticated", () => {
           args: [0n, [{ x: hexToBigInt(owner.account.address), y: 0n }]],
         }),
       });
+      const fees = await anvilClient.estimateFeesPerGas();
       const { logs, status } = await anvilClient.waitForTransactionReceipt({
         hash: await owner.writeContract({
           address: depositor,
           abi: upgradeableModularAccountAbi,
           functionName: "executeBatch",
           gas: 1_000_000n,
+          maxFeePerGas: 2n * fees.maxFeePerGas,
+          maxPriorityFeePerGas: 2n * fees.maxPriorityFeePerGas,
           args: [
             [
               {
