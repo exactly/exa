@@ -6,63 +6,41 @@ import { selectionAsync } from "expo-haptics";
 import { Separator, XStack, YStack } from "tamagui";
 
 import { addDays, isSameDay } from "date-fns";
-import { useBytecode } from "wagmi";
 
-import chain, { marketUSDCAddress } from "@exactly/common/generated/chain";
+import chain, { alchemyChains, marketUSDCAddress } from "@exactly/common/generated/chain";
 import { WAD } from "@exactly/lib";
 
 import { ChevronRight } from "../../generated/icons/ChevronRight";
 import reportError from "../../utils/reportError";
-import useAccount from "../../utils/useAccount";
+import useDebts from "../../utils/useDebts";
 import useMarkets from "../../utils/useMarkets";
 import usePendingOperations from "../../utils/usePendingOperations";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function UpcomingPayments({
-  excludeMaturity,
+  exclude,
   onSelect,
   showEmpty,
 }: {
-  excludeMaturity?: bigint;
-  onSelect: (maturity: bigint) => void;
+  exclude?: { chainId: number; maturity: bigint };
+  onSelect: (maturity: bigint, chainId: number) => void;
   showEmpty?: boolean;
 }) {
   const {
     t,
     i18n: { language },
   } = useTranslation();
-  const { address } = useAccount();
-  const { data: bytecode } = useBytecode({ address, chainId: chain.id, query: { enabled: !!address } });
   const { isProcessing } = usePendingOperations();
-  const { markets, timestamp } = useMarkets({ enabled: !!bytecode, refetchInterval: 30_000 });
+  const { markets, timestamp } = useMarkets({ refetchInterval: 30_000 });
   const exaUSDC = markets?.find(({ market }) => market === marketUSDCAddress);
-  const dueMaturities = new Map<bigint, { totalPosition: bigint; totalPreview: bigint }>();
-  for (const { maturity, previewValue, position } of exaUSDC?.fixedBorrowPositions ?? []) {
-    if (previewValue === 0n) continue;
-    if (maturity < timestamp) continue;
-    if (maturity === excludeMaturity) continue;
-    const positionAmount = position.principal + position.fee;
-    if (positionAmount === 0n) continue;
-    const existing = dueMaturities.get(maturity);
-    dueMaturities.set(maturity, {
-      totalPreview: (existing?.totalPreview ?? 0n) + previewValue,
-      totalPosition: (existing?.totalPosition ?? 0n) + positionAmount,
-    });
-  }
   const blockDate = React.useMemo(() => new Date(Number(timestamp) * 1000), [timestamp]);
-  const payments = [...dueMaturities].map(
-    ([maturity, { totalPreview, totalPosition }]) =>
-      [
-        maturity,
-        {
-          amount: totalPreview,
-          discount: Number(WAD - (totalPreview * WAD) / totalPosition) / 1e18,
-        },
-      ] as const,
+  const { debts = [], complete } = useDebts({ refetchInterval: 30_000 });
+  const payments = debts.filter(
+    ({ chainId, maturity, overdue }) => !overdue && (maturity !== exclude?.maturity || chainId !== exclude.chainId),
   );
   if (payments.length === 0) {
-    if (!showEmpty) return null;
+    if (!showEmpty || !complete) return null;
     return (
       <View backgroundColor="backgroundSoft" borderRadius="r3" padding="s4" gap="s5">
         <Text emphasized headline>
@@ -90,21 +68,22 @@ export default function UpcomingPayments({
         </Text>
       </XStack>
       <YStack role="list" paddingHorizontal="s4" paddingBottom="s4" paddingTop="s3_5" gap="s4">
-        {payments.map(([maturity, { amount, discount }], index) => {
-          const processing = isProcessing(maturity);
+        {payments.map(({ chainId, maturity, previewValue, position }, index) => {
+          const processing = isProcessing(maturity, chainId);
+          const discount = Number(WAD - (previewValue * WAD) / position) / 1e18;
           const maturityDate = new Date(Number(maturity) * 1000);
           const formattedDate = isSameDay(maturityDate, blockDate)
             ? t("Due today")
             : isSameDay(maturityDate, addDays(blockDate, 1))
               ? t("Due tomorrow")
               : maturityDate.toLocaleDateString(language, { year: "2-digit", month: "short", day: "numeric" });
-          const formattedAmount = `$${(Number(amount) / 10 ** (exaUSDC?.decimals ?? 6)).toLocaleString(language, {
+          const formattedAmount = `$${(Number(previewValue) / 10 ** (exaUSDC?.decimals ?? 6)).toLocaleString(language, {
             style: "decimal",
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
           })}`;
           return (
-            <React.Fragment key={String(maturity)}>
+            <React.Fragment key={`${chainId}:${maturity}`}>
               {index > 0 && <Separator borderColor="borderNeutralSoft" />}
               <XStack
                 aria-label={formattedDate}
@@ -116,13 +95,18 @@ export default function UpcomingPayments({
                 onPress={() => {
                   if (processing) return;
                   selectionAsync().catch(reportError);
-                  onSelect(maturity);
+                  onSelect(maturity, chainId);
                 }}
               >
                 <YStack flex={1} gap="s2">
                   <Text emphasized subHeadline color={processing ? "interactiveTextDisabled" : "uiNeutralPrimary"}>
                     {formattedDate}
                   </Text>
+                  {chainId !== chain.id && (
+                    <Text footnote color="uiNeutralSecondary">
+                      {alchemyChains.get(chainId)?.name}
+                    </Text>
+                  )}
                   {processing ? (
                     <Text footnote color="interactiveTextDisabled">
                       {t("Processing")}
