@@ -134,7 +134,7 @@ export default async function createAccountClient({ credentialId, factory, x, y,
     const credential = await get({
       rpId: domain,
       challenge: bufferToBase64URLString(hexToBytes(hashMessage({ raw: uoHash }), { size: 32 }).buffer as ArrayBuffer),
-      allowCredentials: Platform.OS === "android" ? [] : [{ id: credentialId, type: "public-key" }], // HACK fix android credential filtering
+      allowCredentials: [{ id: credentialId, type: "public-key" }],
       userVerification: "preferred",
     });
     if (!credential) throw new Error("no credential");
