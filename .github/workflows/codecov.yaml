@@ -1,0 +1,20 @@
+name: codecov
+on:
+  check_run:
+    types: [created]
+jobs:
+  renotify:
+    if: github.event.check_run.app.id == 254 && contains(fromJSON('["codecov/patch", "codecov/project"]'), github.event.check_run.name)
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.event.check_run.head_sha }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    permissions: { checks: read, statuses: write }
+    env: { GH_TOKEN: "${{ github.token }}", SHA: "${{ github.event.check_run.head_sha }}" }
+    steps:
+      - run: sleep 660
+        name: wait for notification cache
+      - run: |
+          gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs?app_id=254&status=in_progress" --jq '.check_runs[].name' | grep -qxE 'codecov/(patch|project)' || exit 0
+          gh api "repos/$GITHUB_REPOSITORY/statuses/$SHA" -f state=success -f context=codecov-renotify -f description="stuck check run"
+        name: renotify
