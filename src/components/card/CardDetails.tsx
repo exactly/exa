@@ -49,7 +49,7 @@ export default function CardDetails({ open, onClose }: { onClose: () => void; op
       <SafeView paddingTop="s0" fullScreen borderTopLeftRadius="r4" borderTopRightRadius="r4">
         <ScrollView>
           <View fullScreen flex={1} alignItems="center" width="100%">
-            <View gap="s5" flex={1} padded paddingBottom="s0" alignItems="center" width="100%">
+            <View gap="s5" flex={1} padded paddingBottom="s0" width="100%">
               {card ? (
                 <Skeleton show={isPending} width="100%" disableExitAnimation>
                   <YStack
