@@ -110,6 +110,8 @@ function handleError(error: unknown, onIssue: (issue: SignInIssue) => void, t: T
     onIssue("passkey");
   } else if (isUnlinked(error)) {
     onIssue("unlinked");
+  } else if (error instanceof APIError && error.text === "no authentication") {
+    toast.error(t("Sign-in timed out. Please try again."), { duration: 1000 });
   } else {
     toast.error(t("Something went wrong. Please try again."), { duration: 1000 });
   }

@@ -1018,6 +1018,7 @@
   "Stolen Device Protection is on, so away from familiar places like home or work your passkey can only be unlocked with Face ID or Touch ID, not your passcode. Try again and unlock it with Face ID or Touch ID.": "A Proteção de Dispositivo Roubado está ativada, então longe de locais conhecidos como sua casa ou seu trabalho sua chave de acesso só pode ser desbloqueada com Face ID ou Touch ID, não com seu código. Tente novamente e desbloqueie com Face ID ou Touch ID.",
   "Another passkey request is open": "Há outra solicitação de chave de acesso aberta",
   "Finish or close the passkey prompt that is already open, then try again. If you don’t see one, close the app completely and open it again.": "Conclua ou feche a solicitação de chave de acesso que já está aberta e tente novamente. Se não vir nenhuma, feche o app completamente e abra de novo.",
+  "Sign-in timed out. Please try again.": "O tempo para entrar esgotou. Por favor, tente novamente.",
   "Your transactions will show up here once you start using your card.": "Suas transações aparecerão aqui quando você começar a usar seu cartão.",
   "Your Visa Signature Exa Card comes with multiple benefits including car rental discounts, travel assistance, and more.": "Seu Exa Card Visa Signature inclui múltiplos benefícios como descontos em aluguel de carros, assistência de viagem e mais.",
   "Zip code": "Código postal",
