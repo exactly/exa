@@ -185,8 +185,8 @@ export default function PendingProposals() {
                 </Text>
               </YStack>
             )}
-            {pendingProposals?.map(({ nonce, proposal }) => {
-              return <ProposalItem key={String(nonce)} proposal={proposal} />;
+            {pendingProposals.map(({ chainId, nonce, proposal }) => {
+              return <ProposalItem key={`${chainId}:${nonce}`} chainId={chainId} proposal={proposal} />;
             })}
             {mutations.map((mutation) => {
               return <MutationItem key={mutation.id} mutation={mutation} />;
@@ -203,13 +203,13 @@ export default function PendingProposals() {
   );
 }
 
-function ProposalItem({ proposal }: { proposal: Proposal }) {
+function ProposalItem({ chainId, proposal }: { chainId: number; proposal: Proposal }) {
   const {
     t,
     i18n: { language },
   } = useTranslation();
   const { label, icon, decoded, market: proposalMarket, proposalType } = getProposal(proposal, t);
-  const { market } = useAsset(proposalMarket);
+  const { market } = useAsset(proposalMarket, chainId);
   const symbol = market ? (market.symbol.slice(3) === "WETH" ? "ETH" : market.symbol.slice(3)) : null;
   const amount =
     proposalType === ProposalType.Redeem && market && market.totalFloatingDepositShares > 0n
