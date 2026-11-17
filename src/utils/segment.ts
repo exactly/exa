@@ -2,7 +2,6 @@ import { Platform } from "react-native";
 
 import domain from "@exactly/common/domain";
 
-import e2e from "./e2e";
 import reportError from "./reportError";
 
 import type { Address } from "@exactly/common/validation";
@@ -18,7 +17,7 @@ const writeKey =
   }[domain];
 
 const analytics =
-  Platform.OS === "web" && writeKey && !e2e && typeof window !== "undefined"
+  Platform.OS === "web" && writeKey && typeof window !== "undefined"
     ? (() => {
         const { AnalyticsBrowser } = require("@segment/analytics-next") as typeof Segment; // eslint-disable-line unicorn/prefer-module
         return AnalyticsBrowser.load({ writeKey });
