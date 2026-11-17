@@ -1,5 +1,6 @@
 import type React from "react";
 import { use, useMemo, type ComponentPropsWithoutRef } from "react";
+import { Platform } from "react-native";
 
 import { createStyledContext, getTokens, Spinner, styled, withStaticProperties, XStack, YStack } from "tamagui";
 
@@ -129,6 +130,7 @@ const ButtonText = (properties: ComponentPropsWithoutRef<typeof Text>) => {
       numberOfLines={1}
       emphasized
       subHeadline
+      {...(Platform.OS === "ios" && { lineHeight: 0 })}
       adjustsFontSizeToFit
       flex={1}
       color={color}

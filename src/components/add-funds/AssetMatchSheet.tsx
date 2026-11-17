@@ -88,7 +88,7 @@ export default function AssetMatchSheet({
               </View>
             </XStack>
             <Button primary width="100%" onPress={onConfirm}>
-              <Button.Text adjustsFontSizeToFit={false}>
+              <Button.Text>
                 {t("Swap and bridge {{source}} to {{destination}}", {
                   source: sourceSymbol,
                   destination: destinationSymbol,

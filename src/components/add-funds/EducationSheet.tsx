@@ -42,7 +42,7 @@ export default function EducationSheet({
             </Text>
             {children}
             <Button primary width="100%" onPress={onClose}>
-              <Button.Text adjustsFontSizeToFit={false}>{t("Got it!")}</Button.Text>
+              <Button.Text>{t("Got it!")}</Button.Text>
               <Button.Icon>
                 <ThumbsUp />
               </Button.Icon>

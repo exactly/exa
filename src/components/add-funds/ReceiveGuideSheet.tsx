@@ -102,7 +102,7 @@ export default function ReceiveGuideSheet({
                 onContinue(hide);
               }}
             >
-              <Button.Text adjustsFontSizeToFit={false}>{t("Continue")}</Button.Text>
+              <Button.Text>{t("Continue")}</Button.Text>
               <Button.Icon>
                 <ArrowRight />
               </Button.Icon>
