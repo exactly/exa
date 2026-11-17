@@ -1,10 +1,11 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
 - runFlow:
-    when: { true: "${method === 'webauthn' && !login}" }
+    when: { true: "${method === 'webauthn' && !passkey}" }
     commands:
       - tapOn: Create new account
       - enrollBiometrics
+      - evalScript: ${output.passkey = Math.floor(Date.now() / 60000)}
       - tapOn: Set passkey and create account
       - runFlow: { when: { platform: ios }, commands: [{ tapOn: Add Passkey }] }
       - runFlow: { when: { platform: android }, commands: [{ tapOn: Continue }] }
@@ -15,18 +16,16 @@ appId: ${APP_ID ?? "app.exactly"}
             - tapOn: { id: com.kunzisoft.keepass.libre:id/add_button } # cspell:ignore kunzisoft keepass
             - tapOn: { id: com.kunzisoft.keepass.libre:id/fab_add_entry }
             - tapOn: { id: com.kunzisoft.keepass.libre:id/entry_edit_validate }
+      - evalScript: ${output.passkey = Array(Math.floor(Date.now() / 60000) - output.passkey + 1).fill(output.passkey).map((minute, index) => new Date((minute + index) * 60000).toISOString().slice(0, 16)).join("|")}
 - runFlow:
-    when: { true: "${method === 'webauthn' && !!login}" }
+    when: { true: "${method === 'webauthn' && !!passkey}" }
     commands:
       - tapOn: I already have an account
       - runFlow:
           when: { true: "${maestro.platform != 'web'}" }
           commands:
-            - copyTextFrom: { text: ".*\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d.*", index: 0 }
-            - evalScript: ${output.passkey = maestro.copiedText}
-            - copyTextFrom: { text: ".*\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d.*", index: 1 }
-            - evalScript: ${output.passkey = [output.passkey, maestro.copiedText].map((text) => text.match(/\d\d\d\d-\d\d-\d\dT\d\d:\d\d/)[0]).sort()[0]}
-            - tapOn: .*${output.passkey}.*
+            - scrollUntilVisible: { element: ".*(${passkey}).*" }
+            - tapOn: .*(${passkey}).*
             - runFlow: { when: { visible: Use Selected Passkey }, commands: [{ tapOn: Use Selected Passkey }] }
             - runFlow: { when: { visible: Continue }, commands: [{ tapOn: Continue }] }
             - matchBiometrics
