@@ -99,6 +99,31 @@ describe("server", () => {
     for (const create of Object.values({ ...hooks, ...workers })) expect(create).toHaveBeenCalledOnce();
   });
 
+  it("disables pax without its config", async () => {
+    vi.stubEnv("DISABLED_MODULES", "pax");
+    vi.stubEnv("PAX_API_KEY", "");
+    vi.stubEnv("PAX_API_URL", "");
+    vi.stubEnv("PAX_ASSOCIATE_ID_KEY", "");
+
+    await import("../index");
+
+    expect(mocks.api).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ business: true, pax: undefined }));
+    expect(hooks.persona).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ pax: undefined }));
+    for (const create of Object.values({ ...hooks, ...workers })) expect(create).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    { name: "PAX_API_KEY", error: "pax key" },
+    { name: "PAX_API_URL", error: "pax url" },
+    { name: "PAX_ASSOCIATE_ID_KEY", error: "pax associate" },
+  ])("rejects missing $name before starting", async ({ name, error }) => {
+    vi.stubEnv(name, "");
+
+    await expect(import("../index")).rejects.toThrow(error);
+    for (const create of Object.values({ ...hooks, ...workers })) expect(create).not.toHaveBeenCalled();
+    expect(mocks.supervise).not.toHaveBeenCalled();
+  });
+
   it("rejects unknown modules before starting any", async () => {
     vi.stubEnv("DISABLED_MODULES", "activity,chat");
 

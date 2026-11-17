@@ -87,7 +87,7 @@ export default function hook({
   allow: ReturnType<typeof createAllow>;
   database: NodePgDatabase<typeof schema>;
   panda: ReturnType<typeof createPanda>;
-  pax: ReturnType<typeof createPax>;
+  pax?: ReturnType<typeof createPax>;
   persona: ReturnType<typeof createPersona>;
   personaWebhookSecret: string;
   sardine: ReturnType<typeof createSardine>;
@@ -589,7 +589,7 @@ export default function hook({
 
       if (account.success) {
         pax
-          .addCapita({
+          ?.addCapita({
             birthdate: fields.birthdate.value,
             document: fields.identificationNumber.value,
             firstName: fields.nameFirst.value,

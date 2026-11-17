@@ -63,11 +63,6 @@ const panda = createPanda({
   key: parse(pipe(string("panda key"), nonEmpty("panda key")), env.PANDA_API_KEY),
   url: parse(pipe(string("panda url"), nonEmpty("panda url")), env.PANDA_API_URL),
 });
-const pax = createPax({
-  associateKey: parse(pipe(string("pax associate"), nonEmpty("pax associate")), env.PAX_ASSOCIATE_ID_KEY),
-  key: parse(pipe(string("pax key"), nonEmpty("pax key")), env.PAX_API_KEY),
-  url: parse(pipe(string("pax url"), nonEmpty("pax url")), env.PAX_API_URL),
-});
 const persona = createPersona(
   parse(pipe(string("persona key"), nonEmpty("persona key")), env.PERSONA_API_KEY),
   parse(pipe(string("persona url"), nonEmpty("persona url")), env.PERSONA_URL),
@@ -139,11 +134,18 @@ const disabled = new Set<string>(
     pipe(
       optional(string(), ""),
       transform((value) => value.split(",").filter(Boolean)),
-      array(picklist([...Object.keys(hooks), ...Object.keys(workers), "business"], "unknown module")),
+      array(picklist([...Object.keys(hooks), ...Object.keys(workers), "business", "pax"], "unknown module")),
     ),
     env.DISABLED_MODULES,
   ),
 );
+const pax = disabled.has("pax")
+  ? undefined
+  : createPax({
+      associateKey: parse(pipe(string("pax associate"), nonEmpty("pax associate")), env.PAX_ASSOCIATE_ID_KEY),
+      key: parse(pipe(string("pax key"), nonEmpty("pax key")), env.PAX_API_KEY),
+      url: parse(pipe(string("pax url"), nonEmpty("pax url")), env.PAX_API_URL),
+    });
 const api = createApi({
   authSecret: parse(pipe(string("auth"), nonEmpty("auth")), env.AUTH_SECRET),
   bridge,
