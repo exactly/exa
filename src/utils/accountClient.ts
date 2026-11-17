@@ -62,6 +62,7 @@ import {
   erc20Abi,
   getAddress,
   hashMessage,
+  hexToBigInt,
   hexToBytes,
   hexToNumber,
   isHex,
@@ -72,6 +73,7 @@ import {
   parseTransaction,
   RpcRequestError,
   serializeTransaction,
+  size,
   sliceHex,
   trim,
   UnknownRpcError,
@@ -445,6 +447,8 @@ export default async function createAccountClient({ credentialId, factory, x, y,
               calls: readonly Call[];
               capabilities?: ExtractCapabilities<"sendCalls", "Request"> & {
                 dataSuffix?: { value?: unknown };
+                deadline?: unknown;
+                nonceKey?: unknown;
                 retry?: () => void;
                 spend?: Spend;
               };
@@ -455,6 +459,8 @@ export default async function createAccountClient({ credentialId, factory, x, y,
             if (from && from !== accountAddress) throw new Error("bad account");
             const targetChainId = chainId ? hexToNumber(chainId) : chain.id;
             const suffix = isHex(capabilities?.dataSuffix?.value) ? capabilities.dataSuffix.value : dataSuffix;
+            const nonceKey = isHex(capabilities?.nonceKey) ? hexToBigInt(capabilities.nonceKey) : undefined;
+            const deadline = typeof capabilities?.deadline === "number" ? capabilities.deadline : undefined;
             const uo = calls.map(({ to, data = "0x", value }) => ({ from: accountAddress, target: to, data, value }));
             const execute = {
               to: accountAddress,
@@ -463,6 +469,8 @@ export default async function createAccountClient({ credentialId, factory, x, y,
               abi: upgradeableModularAccountAbi,
             } as const;
             if (targetChainId !== chain.id) {
+              if (nonceKey !== undefined) throw new Error("bad nonce key");
+              if (deadline !== undefined) throw new Error("bad deadline");
               const targetChain = smartAccountChain(targetChainId);
               const remote = await getCrossChainAccount(targetChain);
               async function build({ approvals = [], policyId: ids, token }: Payer) {
@@ -532,7 +540,7 @@ export default async function createAccountClient({ credentialId, factory, x, y,
                 });
               }
             }
-            if (isSiwe() && (await account.isAccountDeployed())) {
+            if (nonceKey === undefined && deadline === undefined && isSiwe() && (await account.isAccountDeployed())) {
               const sent = await sendOwnerCalls({
                 id,
                 chainId: chain.id,
@@ -548,10 +556,30 @@ export default async function createAccountClient({ credentialId, factory, x, y,
               });
               if (sent) return sent;
             }
-            const { hash } = await client.sendUserOperation({
-              uo: suffix ? concatHex([await account.encodeBatchExecute(uo), suffix]) : uo,
+            const operation = suffix ? concatHex([await account.encodeBatchExecute(uo), suffix]) : uo;
+            const overrides = nonceKey === undefined ? undefined : { nonce: nonceKey << 64n };
+            if (deadline === undefined) {
+              const { hash } = await client.sendUserOperation({ uo: operation, overrides });
+              return { id: concat([hash, numberToHex(chain.id, { size: 32 }), UO_MAGIC_ID]) };
+            }
+            const signed = await client.signUserOperation({
+              uoStruct: await client.buildUserOperation({ uo: operation, overrides }),
             });
-            return { id: concat([hash, numberToHex(chain.id, { size: 32 }), UO_MAGIC_ID]) };
+            if (Date.now() >= deadline) throw new Error("deadline exceeded");
+            const hash = await client.sendRawUserOperation(signed, account.getEntryPoint().address);
+            const sponsorship = "paymasterAndData" in signed ? signed.paymasterAndData : "0x";
+            return {
+              id: concat([hash, numberToHex(chain.id, { size: 32 }), UO_MAGIC_ID]),
+              ...(size(sponsorship) >= 32 && {
+                capabilities: {
+                  // packed validAfter and validUntil, the later one is the sponsorship expiry
+                  validUntil: Math.max(
+                    hexToNumber(sliceHex(sponsorship, 20, 26)),
+                    hexToNumber(sliceHex(sponsorship, 26, 32)),
+                  ),
+                },
+              }),
+            };
           }
           case "wallet_prepareCalls": {
             if (!Array.isArray(params) || params.length !== 1) throw new Error("bad params");
