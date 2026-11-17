@@ -81,10 +81,7 @@ export default function Stocks({
     );
   }
   return (
-    <AssetSection
-      title={titled ? t("Tokenized stocks") : undefined}
-      description={t("Tradable 24/7. These can’t be used with your Exa Card or as collateral.")}
-    >
+    <AssetSection title={titled ? t("Tokenized stocks") : undefined} description={t("Tradable 24/7.")}>
       {holdings.map(({ key, address, amount, chainId, decimals, logoURI, market, name, symbol, usdValue }, index) => {
         const shares = toShares(amount, decimals, multipliers?.[index]?.result);
         return (
