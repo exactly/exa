@@ -1,0 +1,70 @@
+From eebb8e61b15462b1633a85c24adc30a7416e8325 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Tue, 17 Nov 2026 02:58:41 +0000
+Subject: [PATCH] fix: re-aim taps at elements that share their attributes
+
+A tap finds its element again in the settled hierarchy by every attribute but its bounds, and when more than one element matches it gives up and aims at the bounds the element had before the screen settled. On web, a field's label and its empty input share their text and id, so a tap on the label that starts while the page still slides in lands where the label was mid-slide and focuses nothing. When several elements match, take the one at the same place among them as the tapped element had among its matches in the hierarchy it came from, as long as both hierarchies hold as many matches.
+---
+ maestro-client/src/main/java/maestro/Maestro.kt  |  4 ++--
+ .../src/main/java/maestro/ViewHierarchy.kt       | 16 ++++++++++------
+ 2 files changed, 12 insertions(+), 8 deletions(-)
+
+diff --git a/maestro-client/src/main/java/maestro/Maestro.kt b/maestro-client/src/main/java/maestro/Maestro.kt
+index 45d3d33..13afba3 100644
+--- a/maestro-client/src/main/java/maestro/Maestro.kt
++++ b/maestro-client/src/main/java/maestro/Maestro.kt
+@@ -243,7 +243,7 @@ class Maestro(
+                 else "Tap aimed via trusted pre-wait hierarchy (null settle, no recent scroll)"
+             )
+             val hierarchy = settledHierarchy ?: initialHierarchy
+-            hierarchy to hierarchy.refreshElement(element.treeNode)?.toUiElementOrNull()
++            hierarchy to hierarchy.refreshElement(element.treeNode, initialHierarchy)?.toUiElementOrNull()
+         }
+ 
+         val center = (refreshedElement ?: element)
+@@ -310,7 +310,7 @@ class Maestro(
+                 delay(ELEMENT_STABILITY_POLL_INTERVAL_MS)
+                 continue
+             }
+-            val freshElement = freshHierarchy.refreshElement(element.treeNode)?.toUiElementOrNull()
++            val freshElement = freshHierarchy.refreshElement(element.treeNode, initialHierarchy)?.toUiElementOrNull()
+ 
+             when {
+                 freshElement == null ->
+diff --git a/maestro-client/src/main/java/maestro/ViewHierarchy.kt b/maestro-client/src/main/java/maestro/ViewHierarchy.kt
+index 67fe3d0..0238842 100644
+--- a/maestro-client/src/main/java/maestro/ViewHierarchy.kt
++++ b/maestro-client/src/main/java/maestro/ViewHierarchy.kt
+@@ -49,19 +49,23 @@ value class ViewHierarchy(val root: TreeNode) {
+         return node == elementAtPosition
+     }
+ 
+-    fun refreshElement(node: TreeNode): TreeNode? {
+-        val matches = root.aggregate()
+-            .filter {
+-                (it.attributes - "bounds") == (node.attributes - "bounds")
+-            }
++    fun refreshElement(node: TreeNode, source: ViewHierarchy? = null): TreeNode? {
++        val matches = matches(node)
+ 
+         if (matches.size != 1) {
+-            return null
++            val sourceMatches = source?.matches(node) ?: return null
++            if (sourceMatches.size != matches.size) return null
++            return matches.getOrNull(sourceMatches.indexOf(node))
+         }
+ 
+         return matches[0]
+     }
+ 
++    private fun matches(node: TreeNode) = root.aggregate()
++        .filter {
++            (it.attributes - "bounds") == (node.attributes - "bounds")
++        }
++
+     fun getElementAt(
+         node: TreeNode,
+         x: Int,
+-- 
+2.43.0
+
