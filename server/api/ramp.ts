@@ -152,6 +152,7 @@ export default function route({
             direction: optional(literal("onramp")),
             provider: literal("manteca"),
           }),
+          object({ currency: picklist(["ARS", "BRL"]), direction: literal("qr"), provider: literal("manteca") }),
           object({
             currency: picklist(Bridge.FiatCurrency),
             direction: optional(literal("onramp")),
@@ -220,6 +221,12 @@ export default function route({
 
         switch (query.provider) {
           case "manteca": {
+            if (query.direction === "qr") {
+              return c.json(
+                { quote: (await manteca.getQuote(`USDC_${query.currency}`)) satisfies QuoteResponse, depositInfo: [] },
+                200,
+              );
+            }
             const mantecaUser = await manteca.getUser(account);
             if (!mantecaUser) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
             if (mantecaUser.status !== "ACTIVE") return c.json({ code: ErrorCodes.NOT_APPROVED }, 400);
@@ -495,7 +502,7 @@ Pay the lock with a user operation that withdraws at least \`amount\` USDC to \`
             description: "QR without amount",
             content: {
               "application/json": {
-                schema: resolver(object({ recipient: optional(string()) }), { errorMode: "ignore" }),
+                schema: resolver(object({ recipient: optional(string()), asset: string() }), { errorMode: "ignore" }),
               },
             },
           },
@@ -557,7 +564,7 @@ Pay the lock with a user operation that withdraws at least \`amount\` USDC to \`
               surname: personaAccount.attributes.fields.name.value.last.value,
             },
           });
-          if (!lock.code) return c.json({ recipient: lock.paymentRecipientName }, 206);
+          if (!lock.code) return c.json({ recipient: lock.paymentRecipientName, asset: lock.paymentAsset }, 206);
           if (!lock.sender) throw new Error("lock without sender");
           return c.json(
             {
@@ -567,6 +574,9 @@ Pay the lock with a user operation that withdraws at least \`amount\` USDC to \`
               expireAt: lock.expireAt,
               recipient: lock.paymentRecipientName,
               receiver: await manteca.getSettlement(lock.paymentAsset),
+              asset: lock.paymentAsset,
+              assetAmount: lock.paymentAssetAmount,
+              price: lock.paymentPrice,
             } satisfies InferOutput<typeof QrLock>,
             200,
           );
@@ -798,6 +808,9 @@ const QrLock = object({
   expireAt: string(),
   recipient: optional(string()),
   receiver: Address,
+  asset: string(),
+  assetAmount: string(),
+  price: optional(string()),
 });
 
 const QrPayment = union([
