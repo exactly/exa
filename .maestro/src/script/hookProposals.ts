@@ -1,4 +1,5 @@
 import {
+  decodeEventLog,
   encodeEventTopics,
   erc20Abi,
   erc4626Abi,
@@ -14,6 +15,7 @@ import { getAbiItem, isAddress, isHex, toEventSelector } from "viem/utils";
 
 import {
   exaPluginAbi,
+  marketAbi,
   marketUSDCAddress,
   proposalManagerAbi,
   upgradeableModularAccountAbi,
@@ -30,7 +32,7 @@ declare const count: string | undefined;
 declare const market: string | undefined;
 declare const max: string | undefined;
 declare const network: string | undefined;
-declare const output: { proposals?: Record<string, number>; sent?: string };
+declare const output: { proposals?: Record<string, number>; redeemed?: string; sent?: string };
 declare const receiver: string | undefined;
 
 if (!account || !isHex(account)) throw new Error("bad account");
@@ -105,7 +107,7 @@ const executed = () =>
   ) >= last;
 
 const deposit =
-  max && !executed()
+  max && !executed() && proposals.some(({ market: address }) => address === marketUSDCAddress)
     ? readContract(
         {
           address: marketUSDCAddress,
@@ -127,10 +129,24 @@ for (const deadline = Date.now() + 60_000; !executed(); ) {
 }
 const toBlock = anvil("eth_blockNumber", [], network);
 seen[key] = Number(last);
+let redeemed: string | undefined;
 if (max) {
+  const withdraw = toEventSelector(getAbiItem({ abi: marketAbi, name: "Withdraw" }));
   for (const { market: address } of proposals) {
     const shares = readContract({ address, functionName: "balanceOf", abi: erc20Abi, args: [account] }, network);
     if (shares !== 0n) throw new Error(`expected no shares left in ${address}, got ${shares}`);
+    const decimals = readContract({ address, functionName: "decimals", abi: erc20Abi }, network);
+    for (const log of anvil(
+      "eth_getLogs",
+      [{ address, fromBlock, toBlock, topics: [withdraw, null, null, pad(account)] }],
+      network,
+    )) {
+      const { args } = decodeEventLog({ abi: marketAbi, eventName: "Withdraw", data: log.data, topics: log.topics });
+      if (args.assets === args.shares) throw new Error(`expected redeemed assets apart from shares in ${address}`);
+      const scale = 10n ** BigInt(Math.max(decimals - 8, 0));
+      redeemed = formatUnits(((args.assets + scale / 2n) / scale) * scale, decimals);
+      output.redeemed = redeemed;
+    }
   }
 }
 const transfer = toEventSelector(getAbiItem({ abi: erc20Abi, name: "Transfer" }));
@@ -151,5 +167,5 @@ if (to) {
     const expected = max ? `at least ${formatUnits(deposit, 6)}` : amount;
     throw new Error(`expected ${expected} usdc to ${receiver ?? beneficiary}, got ${withdrawn}`);
   }
-  output.sent = withdrawn;
+  output.sent = redeemed ?? withdrawn;
 }
