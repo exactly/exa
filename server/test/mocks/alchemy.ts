@@ -1,3 +1,5 @@
+import { arbitrum, bsc, mainnet, optimism } from "@account-kit/infra";
+import { zora } from "viem/chains";
 import { vi } from "vitest";
 
 import type alchemy from "../../utils/alchemy";
@@ -49,7 +51,16 @@ vi.mock(import("../../utils/alchemy"), async (importOriginal) => {
   );
   return {
     ...original,
-    activityNetworks: () => original.NETWORKS,
+    NETWORKS: new Map([
+      ...original.NETWORKS,
+      ...Object.entries({
+        ARB_MAINNET: arbitrum,
+        BNB_MAINNET: bsc,
+        ETH_MAINNET: mainnet,
+        OPT_MAINNET: optimism,
+        ZORA_MAINNET: zora,
+      }).map(([name, chain]) => [name, chain as NonNullable<ReturnType<typeof original.NETWORKS.get>>] as const),
+    ]),
     default: (key: string) => {
       createAlchemy(key);
       return {

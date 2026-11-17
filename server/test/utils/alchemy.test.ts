@@ -1,11 +1,10 @@
 import { parse } from "valibot";
 import { padHex } from "viem";
-import { anvil, base, baseSepolia } from "viem/chains";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Address } from "@exactly/common/validation";
 
-import createAlchemy, { activityNetworks, network, NETWORKS } from "../../utils/alchemy";
+import createAlchemy, { network, NETWORKS } from "../../utils/alchemy";
 import ServiceError from "../../utils/ServiceError";
 
 const account = parse(Address, padHex("0xb0b", { size: 20 }));
@@ -15,29 +14,12 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("activity networks", () => {
-  it("selects the local networks for the local stack", () => {
-    expect([...activityNetworks(anvil.id).keys()]).toStrictEqual(["ANVIL", "ANVIL2"]);
-  });
-
-  it("selects every production network for production stacks", () => {
-    expect([...activityNetworks(base.id).keys()]).toStrictEqual(
-      [...NETWORKS]
-        .filter(([name, chain]) => !["ANVIL", "ANVIL2"].includes(name) && !chain.testnet)
-        .map(([name]) => name),
-    );
-  });
-
-  it("selects every test network for test stacks", () => {
-    expect([...activityNetworks(baseSepolia.id).keys()]).toStrictEqual(
-      [...NETWORKS]
-        .filter(([name, chain]) => !["ANVIL", "ANVIL2"].includes(name) && !!chain.testnet)
-        .map(([name]) => name),
-    );
-  });
-
-  it("fails for unsupported stacks", () => {
-    expect(() => activityNetworks(0)).toThrow("unsupported activity stack");
+describe("networks", () => {
+  it("names every activity chain", () => {
+    expect([...NETWORKS].map(([name, { id }]) => [name, id])).toStrictEqual([
+      ["ANVIL", 31_337],
+      ["ANVIL2", 1281],
+    ]);
   });
 });
 

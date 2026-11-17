@@ -91,6 +91,23 @@ describe("address activity", () => {
     expect(poke.enqueue).not.toHaveBeenCalled();
   });
 
+  it("reports activity on networks without a factory", async () => {
+    const current = api();
+    current.getWebhooks.mockResolvedValue([webhook("zora", "ZORA_MAINNET")]);
+    const hook = createHook(current);
+    await hook.ready;
+
+    const response = await deliver(hook.app, payload("zora", "ZORA_MAINNET"), "zora-key");
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "no factory" });
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("activity without factory"), {
+      level: "fatal",
+      fingerprint: ["{{ default }}", "ZORA_MAINNET"],
+    });
+    expect(poke.enqueue).not.toHaveBeenCalled();
+  });
+
   it("ignores transfers to unknown accounts", async () => {
     const sendPushNotification = sendPushNotificationMock;
 
@@ -933,6 +950,13 @@ vi.mock("@exactly/common/generated/chain", async (importOriginal) => {
   const original = await importOriginal<typeof C>();
   return {
     ...original,
+    factoryChains: new Map([
+      ...original.factoryChains,
+      ...[1, 10, 56, 42_161].map(
+        (id) =>
+          [id, original.alchemyChains.get(id) as NonNullable<ReturnType<typeof original.factoryChains.get>>] as const,
+      ),
+    ]),
     get lifiURL() {
       return mocks.lifiURL(original.lifiURL);
     },

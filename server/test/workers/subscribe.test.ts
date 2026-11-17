@@ -9,11 +9,11 @@ import { privateKeyToAddress } from "viem/accounts";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
-import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
+import chain, { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import database, { credentials } from "../../database";
-import { activityUrl, NETWORKS } from "../../utils/alchemy";
+import { activityUrl } from "../../utils/alchemy";
 import redis, { bullmq } from "../../utils/redis";
 import { name } from "../../workers/subscribe/job";
 import createSubscribe from "../../workers/subscribe/queue";
@@ -22,18 +22,20 @@ import { finished, tip } from "../redis";
 
 import type * as schema from "../../database/schema";
 import type createAlchemy from "../../utils/alchemy";
-import type { activityNetworks, Webhook } from "../../utils/alchemy";
+import type { NETWORKS, Webhook } from "../../utils/alchemy";
 import type { Job as Subscribe } from "../../workers/subscribe/job";
 import type * as sentry from "@sentry/node";
 import type { JobsOptions } from "bullmq";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as timers from "node:timers/promises";
 
-const mocks = vi.hoisted(() => ({ networks: new Map() as ReturnType<typeof activityNetworks> }));
+const mocks = vi.hoisted(() => ({ networks: new Map() as typeof NETWORKS }));
 
 vi.mock(import("../../utils/alchemy"), async (importOriginal) => ({
   ...(await importOriginal()),
-  activityNetworks: () => mocks.networks,
+  get NETWORKS() {
+    return mocks.networks;
+  },
 }));
 vi.mock("node:timers/promises", async (importOriginal) => {
   const original = await importOriginal<typeof timers>();
@@ -543,14 +545,8 @@ function address(index: number) {
   return parse(Address, padHex(toHex(index), { size: 20 }));
 }
 
-function networks(...capabilities: string[]) {
-  return new Map(
-    capabilities.map((capability) => {
-      const chain = NETWORKS.get(capability);
-      if (!chain) throw new Error(`missing ${capability} network`);
-      return [capability, chain] as const;
-    }),
-  );
+function networks(...capabilities: string[]): typeof NETWORKS {
+  return new Map(capabilities.map((capability) => [capability, chain]));
 }
 
 function source(accounts: Address[] | Promise<{ account: Address }[]>) {
