@@ -1,0 +1,19 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- evalScript: ${output.first = output.account}
+- runFlow: { file: tapAria.yaml, env: { aria: Settings } }
+- tapOn: Logout
+- runFlow: signIn.yaml
+- runFlow: { when: { platform: android }, file: storeCoverage.yaml }
+- runFlow: dismissNotifications.yaml
+- evalScript: ${output.account = output.introSheet = output.advanced = output.swapSheet = undefined}
+- runFlow: getAccount.yaml
+- assertTrue: ${output.account !== output.first}
+- runFlow: { file: tapAria.yaml, env: { aria: Settings } }
+- tapOn: Logout
+- runFlow: { file: signIn.yaml, env: { login: "true" } }
+- runFlow: { when: { platform: android }, file: storeCoverage.yaml }
+- runFlow: dismissNotifications.yaml
+- evalScript: ${output.account = output.introSheet = output.advanced = output.swapSheet = undefined}
+- runFlow: getAccount.yaml
+- assertTrue: ${output.account === output.first}
