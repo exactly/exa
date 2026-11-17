@@ -1,5 +1,26 @@
 # @exactly/mobile
 
+## 1.2.54
+
+### Patch Changes
+
+- [#1942](https://github.com/exactly/exa/pull/1942) [`48f364d`](https://github.com/exactly/exa/commit/48f364d841bda94cbdb566ef3828eb750613c59b) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 explain expired sign-in challenges
+
+- [#1942](https://github.com/exactly/exa/pull/1942) [`1a86519`](https://github.com/exactly/exa/commit/1a86519659a6c49f16bc6a9fdd78642d95527556) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 guide passkeys blocked by stolen device protection
+
+- [#1823](https://github.com/exactly/exa/pull/1823) [`433f127`](https://github.com/exactly/exa/commit/433f127f27344f79478c3bbd908f5897b36d89f3) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 ask to wait while the first swap quote loads
+
+- [#1943](https://github.com/exactly/exa/pull/1943) [`b5e41ea`](https://github.com/exactly/exa/commit/b5e41ea0b69f26fffcdc9b0f57898173828325d9) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 show native shortfall instead of revert
+
+- [#1942](https://github.com/exactly/exa/pull/1942) [`80dd375`](https://github.com/exactly/exa/commit/80dd37572bad65c79a2665a3f874b753459bc4a3) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 guide pending passkey requests
+
+- [#1823](https://github.com/exactly/exa/pull/1823) [`20e9ead`](https://github.com/exactly/exa/commit/20e9ead66e38af357f8fdd0063eaaf699c568fe8) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 keep send amount warnings above the keyboard
+
+- [#1823](https://github.com/exactly/exa/pull/1823) [`a66febd`](https://github.com/exactly/exa/commit/a66febd9c141057a3ced46e762636a0845ef11c2) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 shrink ramp intro art to keep its title on screen
+
+- Updated dependencies [[`5c644c7`](https://github.com/exactly/exa/commit/5c644c734a4743b7d6122dc1c90244561b4dc897)]:
+  - @exactly/server@0.3.12
+
 ## 1.2.53
 
 ### Patch Changes
