@@ -1,4 +1,6 @@
 appId: ${APP_ID ?? "app.exactly"}
+env:
+  method: ${method ?? "webauthn"}
 ---
 - runFlow: ../subflows/launch.yaml
 - openLink: ${APP_ID}/missing
