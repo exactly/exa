@@ -78,7 +78,7 @@ export function withPreviews<T extends { isCollateral: boolean; market: Address 
   });
 }
 
-function network(chainId: number) {
+export function network(chainId: number) {
   const found = networks.get(chainId);
   const multicall3 = alchemyChains.get(chainId)?.contracts?.multicall3?.address;
   if (!found || !multicall3) throw new Error(`unknown network ${chainId}`);

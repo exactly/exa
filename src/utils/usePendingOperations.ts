@@ -1,9 +1,9 @@
 import { useCallback, useMemo } from "react";
 
-import { useMutationState } from "@tanstack/react-query";
-import { useBytecode, useReadContract } from "wagmi";
+import { queryOptions, skipToken, useMutationState, useQueries } from "@tanstack/react-query";
+import { readContract } from "@wagmi/core/actions";
 
-import chain, { appPreviewerAbi, appPreviewerCode } from "@exactly/common/generated/chain";
+import chain, { appPreviewerAbi, appPreviewerCode, networks } from "@exactly/common/generated/chain";
 import ProposalType, {
   decodeCrossRepayAtMaturity,
   decodeRepayAtMaturity,
@@ -14,20 +14,12 @@ import useAccount from "./useAccount";
 import exa from "./wagmi/exa";
 
 import type { RouteFrom } from "./lifi";
-import type { MutationState } from "@tanstack/react-query";
+import type { MutationState, UseQueryResult } from "@tanstack/react-query";
+import type { Address } from "viem";
 
 export default function usePendingOperations() {
   const { address: exaAccount } = useAccount({ config: exa });
-  const { data: bytecode } = useBytecode({ address: exaAccount, chainId: chain.id, query: { enabled: !!exaAccount } });
-
-  const proposals = useReadContract({
-    abi: appPreviewerAbi,
-    functionName: "pendingProposals",
-    code: appPreviewerCode,
-    chainId: chain.id,
-    args: exaAccount ? [exaAccount] : undefined,
-    query: { enabled: !!exaAccount && !!bytecode, gcTime: 0, refetchInterval: 30_000 },
-  });
+  const proposals = useQueries({ queries: chainIds.map((chainId) => proposalsOptions(exaAccount, chainId)), combine });
 
   const [bridgeMutation] = useMutationState<MutationState<unknown, Error, RouteFrom> & { id: number }>({
     filters: { mutationKey: ["bridge", "execute"], exact: true },
@@ -42,9 +34,9 @@ export default function usePendingOperations() {
   }, [bridgeMutation]);
 
   const isProcessing = useCallback(
-    (maturity: bigint) => {
-      if (!proposals.data) return false;
-      return proposals.data.some(({ proposal }) => {
+    (maturity: bigint, chainId = chain.id) => {
+      return proposals.data.some(({ chainId: proposalChainId, proposal }) => {
+        if (proposalChainId !== chainId) return false;
         const { proposalType: type, data } = proposal;
         if (
           type === (ProposalType.RepayAtMaturity as number) ||
@@ -63,5 +55,36 @@ export default function usePendingOperations() {
     [proposals.data],
   );
 
-  return { count: (proposals.data?.length ?? 0) + mutations.length, isProcessing, mutations, proposals };
+  return { count: proposals.data.length + mutations.length, isProcessing, mutations, proposals };
 }
+
+function proposalsOptions(account: Address | undefined, chainId: number) {
+  return queryOptions({
+    queryKey: ["proposals", account, chainId],
+    queryFn: account ? () => pendingProposals(account, chainId) : skipToken,
+    gcTime: 0,
+    refetchInterval: 30_000,
+  });
+}
+
+async function pendingProposals(account: Address, chainId: number) {
+  const pending = await readContract(exa, {
+    chainId,
+    abi: appPreviewerAbi,
+    functionName: "pendingProposals",
+    code: appPreviewerCode,
+    args: [account],
+  });
+  return pending.map((proposal) => ({ ...proposal, chainId }));
+}
+
+function combine(results: UseQueryResult<Awaited<ReturnType<typeof pendingProposals>>>[]) {
+  return {
+    data: results.flatMap(({ data }) => data ?? []),
+    isFetching: results.some(({ isFetching }) => isFetching),
+    isPendingOn: (chainId: number) => results[chainIds.indexOf(chainId)]?.isPending ?? false,
+    refetch: () => Promise.all(results.map(({ refetch }) => refetch())),
+  };
+}
+
+const chainIds = [chain.id, ...[...networks.keys()].filter((id) => id !== chain.id)];
