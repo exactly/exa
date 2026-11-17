@@ -3,10 +3,13 @@ import { useTranslation } from "react-i18next";
 import { Platform } from "react-native";
 
 import { selectionAsync } from "expo-haptics";
+import { useRouter } from "expo-router";
 import Head from "expo-router/head";
 import { TabSlot, TabTrigger, useTabsWithTriggers } from "expo-router/ui";
 
 import { getTokens, XStack, YStack } from "tamagui";
+
+import { useQuery } from "@tanstack/react-query";
 
 import TabBarContext from "../../../components/context/TabBarContext";
 import StatusIndicator from "../../../components/shared/StatusIndicator";
@@ -16,8 +19,10 @@ import { CalendarCheck } from "../../../generated/icons/CalendarCheck";
 import { CreditCard } from "../../../generated/icons/CreditCard";
 import { History } from "../../../generated/icons/History";
 import { Home } from "../../../generated/icons/Home";
+import { QrCode } from "../../../generated/icons/QrCode";
 import reportError from "../../../utils/reportError";
 import useInsets from "../../../utils/useInsets";
+import useIsBusiness from "../../../utils/useIsBusiness";
 import usePendingOperations from "../../../utils/usePendingOperations";
 import { emitTabPress } from "../../../utils/useTabPress";
 
@@ -64,6 +69,9 @@ function TabItem({
 
 export default function HomeLayout() {
   const { t } = useTranslation();
+  const router = useRouter();
+  const business = useIsBusiness();
+  const { data: country } = useQuery<string>({ queryKey: ["user", "country"] });
   const { count } = usePendingOperations();
   const { NavigationContent, state } = useTabsWithTriggers({
     triggers: tabs.map(({ name, href }) => ({ type: "internal", name, href })),
@@ -96,51 +104,77 @@ export default function HomeLayout() {
             paddingBottom={Math.max(insets.bottom, getTokens().space.s6.val)}
             onLayout={({ nativeEvent }) => setHeight(nativeEvent.layout.height)}
           >
-            <XStack
-              marginHorizontal="s4"
-              padding="s1"
-              borderRadius="r_0"
-              borderWidth={1}
-              borderColor="borderNeutralMild"
-              backgroundColor="backgroundSoft"
-            >
-              <XStack flex={1} role="tablist" onLayout={({ nativeEvent }) => setWidth(nativeEvent.layout.width)}>
-                {focused !== -1 && width > 0 && (
-                  <View
-                    position="absolute"
-                    top="s0"
-                    bottom="s0"
-                    width={width / tabs.length}
-                    x={(focused * width) / tabs.length}
-                    transition={{ preset: "quick", spring: { overshootClamping: true } }}
-                    padding="s1"
-                  >
-                    <View flex={1} borderRadius="r_0" backgroundColor="interactiveBaseBrandDefault" />
-                  </View>
-                )}
-                {tabs.map(({ name, title, href, Icon }, index) => (
-                  <TabTrigger
-                    key={name}
-                    name={name}
-                    href={href}
-                    role="tab"
-                    aria-selected={index === focused}
-                    hitSlop={{ top: 4, bottom: 4 }}
-                    style={{ flex: 1 }}
-                    onPress={() => {
-                      selectionAsync().catch(reportError);
-                      emitTabPress(name);
-                    }}
-                  >
-                    <TabItem
-                      title={t(title)}
-                      Icon={Icon}
-                      isFocused={index === focused}
-                      showNotification={name === "activity" && count > 0}
-                    />
-                  </TabTrigger>
-                ))}
+            <XStack marginHorizontal="s4" gap="s2">
+              <XStack
+                flex={1}
+                padding="s1"
+                borderRadius="r_0"
+                borderWidth={1}
+                borderColor="borderNeutralMild"
+                backgroundColor="backgroundSoft"
+              >
+                <XStack flex={1} role="tablist" onLayout={({ nativeEvent }) => setWidth(nativeEvent.layout.width)}>
+                  {focused !== -1 && width > 0 && (
+                    <View
+                      position="absolute"
+                      top="s0"
+                      bottom="s0"
+                      width={width / tabs.length}
+                      x={(focused * width) / tabs.length}
+                      transition={{ preset: "quick", spring: { overshootClamping: true } }}
+                      padding="s1"
+                    >
+                      <View flex={1} borderRadius="r_0" backgroundColor="interactiveBaseBrandDefault" />
+                    </View>
+                  )}
+                  {tabs.map(({ name, title, href, Icon }, index) => (
+                    <TabTrigger
+                      key={name}
+                      name={name}
+                      href={href}
+                      role="tab"
+                      aria-selected={index === focused}
+                      hitSlop={{ top: 4, bottom: 4 }}
+                      style={{ flex: 1 }}
+                      onPress={() => {
+                        selectionAsync().catch(reportError);
+                        emitTabPress(name);
+                      }}
+                    >
+                      <TabItem
+                        title={t(title)}
+                        Icon={Icon}
+                        isFocused={index === focused}
+                        showNotification={name === "activity" && count > 0}
+                      />
+                    </TabTrigger>
+                  ))}
+                </XStack>
               </XStack>
+              {!business && country === "AR" && (
+                <YStack
+                  role="button"
+                  tabIndex={0}
+                  aria-label={t("Pay with QR")}
+                  width="s9"
+                  alignItems="center"
+                  justifyContent="center"
+                  borderRadius="r_0"
+                  backgroundColor="interactiveBaseBrandDefault"
+                  cursor="pointer"
+                  opacity="1 press:0.7"
+                  onPress={() => {
+                    selectionAsync().catch(reportError);
+                    router.push("/qr-payment");
+                  }}
+                >
+                  <QrCode
+                    size={getTokens().iconSize.lg.val}
+                    strokeWidth={getTokens().iconStroke.lg.val}
+                    color="interactiveOnBaseBrandDefault"
+                  />
+                </YStack>
+              )}
             </XStack>
           </YStack>
         </View>
