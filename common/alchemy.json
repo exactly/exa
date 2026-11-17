@@ -1,67 +1,567 @@
 {
-  "1": "eth-mainnet",
-  "10": "opt-mainnet",
-  "25": "cronos-mainnet",
-  "30": "rootstock-mainnet",
-  "56": "bnb-mainnet",
-  "100": "gnosis-mainnet",
-  "130": "unichain-mainnet",
-  "137": "polygon-mainnet",
-  "143": "monad-mainnet",
-  "146": "sonic-mainnet",
-  "196": "xlayer-mainnet",
-  "204": "opbnb-mainnet",
-  "232": "lens-mainnet",
-  "252": "frax-mainnet",
-  "288": "boba-mainnet",
-  "324": "zksync-mainnet",
-  "360": "shape-mainnet",
-  "480": "worldchain-mainnet",
-  "592": "astar-mainnet",
-  "747": "flow-mainnet",
-  "869": "worldmobilechain-mainnet",
-  "988": "stable-mainnet",
-  "999": "hyperliquid-mainnet",
-  "1088": "metis-mainnet",
-  "1329": "sei-mainnet",
-  "1514": "story-mainnet",
-  "1672": "pharos-mainnet",
-  "1776": "injective-mainnet",
-  "1868": "soneium-mainnet",
-  "2020": "ronin-mainnet",
-  "2741": "abstract-mainnet",
-  "4114": "citrea-mainnet",
-  "4153": "rise-mainnet",
-  "4158": "crossfi-mainnet",
-  "4217": "tempo-mainnet",
-  "4326": "megaeth-mainnet",
-  "4663": "robinhood-mainnet",
-  "5000": "mantle-mainnet",
-  "5042": "arc-mainnet",
-  "5330": "superseed-mainnet",
-  "5371": "settlus-mainnet",
-  "7000": "zetachain-mainnet",
-  "8217": "kaia-mainnet",
-  "8453": "base-mainnet",
-  "9745": "plasma-mainnet",
-  "33139": "apechain-mainnet",
-  "34443": "mode-mainnet",
-  "36900": "adi-mainnet",
-  "42018": "mythos-mainnet",
-  "42161": "arb-mainnet",
-  "42220": "celo-mainnet",
-  "43114": "avax-mainnet",
-  "57073": "ink-mainnet",
-  "59144": "linea-mainnet",
-  "60808": "bob-mainnet",
-  "69000": "anime-mainnet",
-  "80094": "berachain-mainnet",
-  "99901": "elysium-mainnet",
-  "534352": "scroll-mainnet",
-  "685689": "gensyn-mainnet",
-  "747474": "katana-mainnet",
-  "5734951": "jovay-mainnet",
-  "6985385": "humanity-mainnet",
-  "7777777": "zora-mainnet",
-  "728126428": "tron-mainnet"
+  "1": {
+    "network": "ETH_MAINNET",
+    "slug": "eth-mainnet"
+  },
+  "10": {
+    "network": "OPT_MAINNET",
+    "slug": "opt-mainnet"
+  },
+  "25": {
+    "network": "CRONOS_MAINNET",
+    "slug": "cronos-mainnet"
+  },
+  "30": {
+    "network": "ROOTSTOCK_MAINNET",
+    "slug": "rootstock-mainnet"
+  },
+  "31": {
+    "network": "ROOTSTOCK_TESTNET",
+    "slug": "rootstock-testnet",
+    "testnet": true
+  },
+  "56": {
+    "network": "BNB_MAINNET",
+    "slug": "bnb-mainnet"
+  },
+  "97": {
+    "network": "BNB_TESTNET",
+    "slug": "bnb-testnet",
+    "testnet": true
+  },
+  "100": {
+    "network": "GNOSIS_MAINNET",
+    "slug": "gnosis-mainnet"
+  },
+  "130": {
+    "network": "UNICHAIN_MAINNET",
+    "slug": "unichain-mainnet"
+  },
+  "137": {
+    "network": "MATIC_MAINNET",
+    "slug": "polygon-mainnet"
+  },
+  "143": {
+    "network": "MONAD_MAINNET",
+    "slug": "monad-mainnet"
+  },
+  "146": {
+    "network": "SONIC_MAINNET",
+    "slug": "sonic-mainnet"
+  },
+  "196": {
+    "network": "XLAYER_MAINNET",
+    "slug": "xlayer-mainnet"
+  },
+  "204": {
+    "network": "OPBNB_MAINNET",
+    "slug": "opbnb-mainnet"
+  },
+  "232": {
+    "network": "LENS_MAINNET",
+    "slug": "lens-mainnet"
+  },
+  "252": {
+    "network": "FRAX_MAINNET",
+    "slug": "frax-mainnet"
+  },
+  "288": {
+    "network": "BOBA_MAINNET",
+    "slug": "boba-mainnet"
+  },
+  "300": {
+    "network": "ZKSYNC_SEPOLIA",
+    "slug": "zksync-sepolia",
+    "testnet": true
+  },
+  "324": {
+    "network": "ZKSYNC_MAINNET",
+    "slug": "zksync-mainnet"
+  },
+  "338": {
+    "network": "CRONOS_TESTNET",
+    "slug": "cronos-testnet",
+    "testnet": true
+  },
+  "360": {
+    "network": "SHAPE_MAINNET",
+    "slug": "shape-mainnet"
+  },
+  "480": {
+    "network": "WORLDCHAIN_MAINNET",
+    "slug": "worldchain-mainnet"
+  },
+  "545": {
+    "network": "FLOW_TESTNET",
+    "slug": "flow-testnet",
+    "testnet": true
+  },
+  "592": {
+    "network": "ASTAR_MAINNET",
+    "slug": "astar-mainnet"
+  },
+  "747": {
+    "network": "FLOW_MAINNET",
+    "slug": "flow-mainnet"
+  },
+  "869": {
+    "network": "WORLDMOBILECHAIN_MAINNET",
+    "slug": "worldmobilechain-mainnet"
+  },
+  "919": {
+    "network": "MODE_SEPOLIA",
+    "slug": "mode-sepolia",
+    "testnet": true
+  },
+  "988": {
+    "network": "STABLE_MAINNET",
+    "slug": "stable-mainnet"
+  },
+  "998": {
+    "network": "HYPERLIQUID_TESTNET",
+    "slug": "hyperliquid-testnet",
+    "testnet": true
+  },
+  "999": {
+    "network": "HYPERLIQUID_MAINNET",
+    "slug": "hyperliquid-mainnet"
+  },
+  "1088": {
+    "network": "METIS_MAINNET",
+    "slug": "metis-mainnet"
+  },
+  "1301": {
+    "network": "UNICHAIN_SEPOLIA",
+    "slug": "unichain-sepolia",
+    "testnet": true
+  },
+  "1315": {
+    "network": "STORY_AENEID",
+    "slug": "story-aeneid",
+    "testnet": true
+  },
+  "1328": {
+    "network": "SEI_TESTNET",
+    "slug": "sei-testnet",
+    "testnet": true
+  },
+  "1329": {
+    "network": "SEI_MAINNET",
+    "slug": "sei-mainnet"
+  },
+  "1439": {
+    "network": "INJECTIVE_TESTNET",
+    "slug": "injective-testnet",
+    "testnet": true
+  },
+  "1514": {
+    "network": "STORY_MAINNET",
+    "slug": "story-mainnet"
+  },
+  "1672": {
+    "network": "PHAROS_MAINNET",
+    "slug": "pharos-mainnet"
+  },
+  "1776": {
+    "network": "INJECTIVE_MAINNET",
+    "slug": "injective-mainnet"
+  },
+  "1868": {
+    "network": "SONEIUM_MAINNET",
+    "slug": "soneium-mainnet"
+  },
+  "1946": {
+    "network": "SONEIUM_MINATO",
+    "slug": "soneium-minato",
+    "testnet": true
+  },
+  "1952": {
+    "network": "XLAYER_TESTNET",
+    "slug": "xlayer-testnet",
+    "testnet": true
+  },
+  "2020": {
+    "network": "RONIN_MAINNET",
+    "slug": "ronin-mainnet"
+  },
+  "2201": {
+    "network": "STABLE_TESTNET",
+    "slug": "stable-testnet",
+    "testnet": true
+  },
+  "2741": {
+    "network": "ABSTRACT_MAINNET",
+    "slug": "abstract-mainnet"
+  },
+  "4114": {
+    "network": "CITREA_MAINNET",
+    "slug": "citrea-mainnet"
+  },
+  "4153": {
+    "network": "RISE_MAINNET",
+    "slug": "rise-mainnet"
+  },
+  "4157": {
+    "network": "CROSSFI_TESTNET",
+    "slug": "crossfi-testnet",
+    "testnet": true
+  },
+  "4158": {
+    "network": "CROSSFI_MAINNET",
+    "slug": "crossfi-mainnet"
+  },
+  "4217": {
+    "network": "TEMPO_MAINNET",
+    "slug": "tempo-mainnet"
+  },
+  "4326": {
+    "network": "MEGAETH_MAINNET",
+    "slug": "megaeth-mainnet"
+  },
+  "4663": {
+    "network": "ROBINHOOD_MAINNET",
+    "slug": "robinhood-mainnet"
+  },
+  "4801": {
+    "network": "WORLDCHAIN_SEPOLIA",
+    "slug": "worldchain-sepolia",
+    "testnet": true
+  },
+  "5000": {
+    "network": "MANTLE_MAINNET",
+    "slug": "mantle-mainnet"
+  },
+  "5003": {
+    "network": "MANTLE_SEPOLIA",
+    "slug": "mantle-sepolia",
+    "testnet": true
+  },
+  "5042": {
+    "network": "ARC_MAINNET",
+    "slug": "arc-mainnet"
+  },
+  "5115": {
+    "network": "CITREA_TESTNET",
+    "slug": "citrea-testnet",
+    "testnet": true
+  },
+  "5330": {
+    "network": "SUPERSEED_MAINNET",
+    "slug": "superseed-mainnet"
+  },
+  "5371": {
+    "network": "SETTLUS_MAINNET",
+    "slug": "settlus-mainnet"
+  },
+  "5373": {
+    "network": "SETTLUS_SEPTESTNET",
+    "slug": "settlus-septestnet",
+    "testnet": true
+  },
+  "5611": {
+    "network": "OPBNB_TESTNET",
+    "slug": "opbnb-testnet",
+    "testnet": true
+  },
+  "6343": {
+    "network": "MEGAETH_TESTNET",
+    "slug": "megaeth-testnet",
+    "testnet": true
+  },
+  "6900": {
+    "network": "ANIME_SEPOLIA",
+    "slug": "anime-sepolia",
+    "testnet": true
+  },
+  "7000": {
+    "network": "ZETACHAIN_MAINNET",
+    "slug": "zetachain-mainnet"
+  },
+  "7001": {
+    "network": "ZETACHAIN_TESTNET",
+    "slug": "zetachain-testnet",
+    "testnet": true
+  },
+  "8217": {
+    "network": "KAIA_MAINNET",
+    "slug": "kaia-mainnet"
+  },
+  "8453": {
+    "network": "BASE_MAINNET",
+    "slug": "base-mainnet"
+  },
+  "9745": {
+    "network": "PLASMA_MAINNET",
+    "slug": "plasma-mainnet"
+  },
+  "9746": {
+    "network": "PLASMA_TESTNET",
+    "slug": "plasma-testnet",
+    "testnet": true
+  },
+  "10143": {
+    "network": "MONAD_TESTNET",
+    "slug": "monad-testnet",
+    "testnet": true
+  },
+  "10200": {
+    "network": "GNOSIS_CHIADO",
+    "slug": "gnosis-chiado",
+    "testnet": true
+  },
+  "11011": {
+    "network": "SHAPE_SEPOLIA",
+    "slug": "shape-sepolia",
+    "testnet": true
+  },
+  "11124": {
+    "network": "ABSTRACT_TESTNET",
+    "slug": "abstract-testnet",
+    "testnet": true
+  },
+  "14601": {
+    "network": "SONIC_TESTNET",
+    "slug": "sonic-testnet",
+    "testnet": true
+  },
+  "20310": {
+    "network": "ALPEN_TESTNET",
+    "slug": "alpen-testnet",
+    "testnet": true
+  },
+  "28882": {
+    "network": "BOBA_SEPOLIA",
+    "slug": "boba-sepolia",
+    "testnet": true
+  },
+  "33111": {
+    "network": "APECHAIN_CURTIS",
+    "slug": "apechain-curtis",
+    "testnet": true
+  },
+  "33139": {
+    "network": "APECHAIN_MAINNET",
+    "slug": "apechain-mainnet"
+  },
+  "34443": {
+    "network": "MODE_MAINNET",
+    "slug": "mode-mainnet"
+  },
+  "36900": {
+    "network": "ADI_MAINNET",
+    "slug": "adi-mainnet"
+  },
+  "37111": {
+    "network": "LENS_SEPOLIA",
+    "slug": "lens-sepolia",
+    "testnet": true
+  },
+  "42018": {
+    "network": "MYTHOS_MAINNET",
+    "slug": "mythos-mainnet"
+  },
+  "42161": {
+    "network": "ARB_MAINNET",
+    "slug": "arb-mainnet"
+  },
+  "42220": {
+    "network": "CELO_MAINNET",
+    "slug": "celo-mainnet"
+  },
+  "42431": {
+    "network": "TEMPO_MODERATO",
+    "slug": "tempo-moderato",
+    "testnet": true
+  },
+  "43113": {
+    "network": "AVAX_FUJI",
+    "slug": "avax-fuji",
+    "testnet": true
+  },
+  "43114": {
+    "network": "AVAX_MAINNET",
+    "slug": "avax-mainnet"
+  },
+  "46630": {
+    "network": "ROBINHOOD_TESTNET",
+    "slug": "robinhood-testnet",
+    "testnet": true
+  },
+  "53302": {
+    "network": "SUPERSEED_SEPOLIA",
+    "slug": "superseed-sepolia",
+    "testnet": true
+  },
+  "57073": {
+    "network": "INK_MAINNET",
+    "slug": "ink-mainnet"
+  },
+  "59141": {
+    "network": "LINEA_SEPOLIA",
+    "slug": "linea-sepolia",
+    "testnet": true
+  },
+  "59144": {
+    "network": "LINEA_MAINNET",
+    "slug": "linea-mainnet"
+  },
+  "60808": {
+    "network": "BOB_MAINNET",
+    "slug": "bob-mainnet"
+  },
+  "69000": {
+    "network": "ANIME_MAINNET",
+    "slug": "anime-mainnet"
+  },
+  "80002": {
+    "network": "MATIC_AMOY",
+    "slug": "polygon-amoy",
+    "testnet": true
+  },
+  "80069": {
+    "network": "BERACHAIN_BEPOLIA",
+    "slug": "berachain-bepolia",
+    "testnet": true
+  },
+  "80094": {
+    "network": "BERACHAIN_MAINNET",
+    "slug": "berachain-mainnet"
+  },
+  "84532": {
+    "network": "BASE_SEPOLIA",
+    "slug": "base-sepolia",
+    "testnet": true
+  },
+  "91342": {
+    "network": "GIWA_SEPOLIA",
+    "slug": "giwa-sepolia",
+    "testnet": true
+  },
+  "99801": {
+    "network": "ELYSIUM_TESTNET",
+    "slug": "elysium-testnet",
+    "testnet": true
+  },
+  "99901": {
+    "network": "ELYSIUM_MAINNET",
+    "slug": "elysium-mainnet"
+  },
+  "99999": {
+    "network": "ADI_TESTNET",
+    "slug": "adi-testnet",
+    "testnet": true
+  },
+  "202601": {
+    "network": "RONIN_SAIGON",
+    "slug": "ronin-saigon",
+    "testnet": true
+  },
+  "421614": {
+    "network": "ARB_SEPOLIA",
+    "slug": "arb-sepolia",
+    "testnet": true
+  },
+  "534352": {
+    "network": "SCROLL_MAINNET",
+    "slug": "scroll-mainnet"
+  },
+  "560048": {
+    "network": "ETH_HOODI",
+    "slug": "eth-hoodi",
+    "testnet": true
+  },
+  "685685": {
+    "network": "GENSYN_TESTNET",
+    "slug": "gensyn-testnet",
+    "testnet": true
+  },
+  "685689": {
+    "network": "GENSYN_MAINNET",
+    "slug": "gensyn-mainnet"
+  },
+  "688689": {
+    "network": "PHAROS_ATLANTIC",
+    "slug": "pharos-atlantic",
+    "testnet": true
+  },
+  "737373": {
+    "network": "KATANA_BOKUTO",
+    "slug": "katana-bokuto",
+    "testnet": true
+  },
+  "747474": {
+    "network": "KATANA_MAINNET",
+    "slug": "katana-mainnet"
+  },
+  "763373": {
+    "network": "INK_SEPOLIA",
+    "slug": "ink-sepolia",
+    "testnet": true
+  },
+  "808813": {
+    "network": "BOB_SEPOLIA",
+    "slug": "bob-sepolia",
+    "testnet": true
+  },
+  "2019775": {
+    "network": "JOVAY_TESTNET",
+    "slug": "jovay-testnet",
+    "testnet": true
+  },
+  "3313939": {
+    "network": "APECHAIN_TESTNET",
+    "slug": "apechain-testnet",
+    "testnet": true
+  },
+  "5042002": {
+    "network": "ARC_TESTNET",
+    "slug": "arc-testnet",
+    "testnet": true
+  },
+  "5734951": {
+    "network": "JOVAY_MAINNET",
+    "slug": "jovay-mainnet"
+  },
+  "6985385": {
+    "network": "HUMANITY_MAINNET",
+    "slug": "humanity-mainnet"
+  },
+  "7777777": {
+    "network": "ZORA_MAINNET",
+    "slug": "zora-mainnet"
+  },
+  "11142220": {
+    "network": "CELO_SEPOLIA",
+    "slug": "celo-sepolia",
+    "testnet": true
+  },
+  "11155111": {
+    "network": "ETH_SEPOLIA",
+    "slug": "eth-sepolia",
+    "testnet": true
+  },
+  "11155420": {
+    "network": "OPT_SEPOLIA",
+    "slug": "opt-sepolia",
+    "testnet": true
+  },
+  "11155931": {
+    "network": "RISE_TESTNET",
+    "slug": "rise-testnet",
+    "testnet": true
+  },
+  "728126428": {
+    "network": "TRON_MAINNET",
+    "slug": "tron-mainnet"
+  },
+  "999999999": {
+    "network": "ZORA_SEPOLIA",
+    "slug": "zora-sepolia",
+    "testnet": true
+  },
+  "3448148188": {
+    "network": "TRON_TESTNET",
+    "slug": "tron-testnet",
+    "testnet": true
+  }
 }
