@@ -1,29 +1,7 @@
-import {
-  arbitrum,
-  arbitrumSepolia,
-  base,
-  baseSepolia,
-  bsc,
-  inkMainnet,
-  inkSepolia,
-  mainnet,
-  monadMainnet,
-  optimism,
-  optimismSepolia,
-  polygon,
-  sepolia,
-  shape,
-  shapeSepolia,
-  soneiumMainnet,
-  soneiumMinato,
-  worldChain,
-  worldChainSepolia,
-} from "@account-kit/infra";
 import { validator } from "hono/validator";
 import {
   array,
   boolean,
-  check,
   nonEmpty,
   number,
   object,
@@ -35,9 +13,8 @@ import {
   type InferOutput,
 } from "valibot";
 import { withRetry, type Chain } from "viem";
-import { anvil, moonbeamDev } from "viem/chains";
 
-import chain from "@exactly/common/generated/chain";
+import chain, { alchemyChains, factoryChains } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import appOrigin from "./appOrigin";
@@ -143,21 +120,9 @@ export function network(id = chain.id) {
 
 export const activityUrl = `${appOrigin}/hooks/activity`;
 
-export function activityNetworks(id = chain.id) {
-  if (id === anvil.id) return new Map(LOCAL);
-  const stack = [...NETWORKS.values()].find((current) => current.id === id);
-  if (!stack) throw new Error("unsupported activity stack");
-  return new Map(
-    [...NETWORKS].filter(([name, current]) => !LOCAL.has(name) && Boolean(current.testnet) === Boolean(stack.testnet)),
-  );
-}
-
 const Webhook = object({
   id: string(),
-  network: pipe(
-    string(),
-    check((input) => NETWORKS.has(input), "unsupported network"),
-  ),
+  network: string(),
   webhook_type: picklist(["GRAPHQL", "ADDRESS_ACTIVITY"]),
   webhook_url: string(),
   signing_key: string(),
@@ -172,39 +137,12 @@ const WebhookAddressesResponse = object({
   pagination: object({ cursors: object({ after: optional(string()) }), total_count: number() }),
 });
 
-const LOCAL = new Map<string, AlchemyChain>([
-  ["ANVIL", { ...anvil, rpcUrls: { ...anvil.rpcUrls, alchemy: anvil.rpcUrls.default } } as AlchemyChain],
-  [
-    "ANVIL2",
-    {
-      ...moonbeamDev,
-      name: "Anvil2",
-      rpcUrls: { ...moonbeamDev.rpcUrls, alchemy: moonbeamDev.rpcUrls.default },
-    } as AlchemyChain,
-  ],
-]);
-
-export const NETWORKS = new Map<string, AlchemyChain>([
-  ["ARB_MAINNET", arbitrum as AlchemyChain],
-  ["ARB_SEPOLIA", arbitrumSepolia as AlchemyChain],
-  ["BASE_MAINNET", base as AlchemyChain],
-  ["BASE_SEPOLIA", baseSepolia as AlchemyChain],
-  ["BNB_MAINNET", bsc as AlchemyChain],
-  ["ETH_MAINNET", mainnet as AlchemyChain],
-  ["ETH_SEPOLIA", sepolia as AlchemyChain],
-  ["INK_MAINNET", inkMainnet as AlchemyChain],
-  ["INK_SEPOLIA", inkSepolia as AlchemyChain],
-  ["MATIC_MAINNET", polygon as AlchemyChain],
-  ["MONAD_MAINNET", monadMainnet as AlchemyChain],
-  ["OPT_MAINNET", optimism as AlchemyChain],
-  ["OPT_SEPOLIA", optimismSepolia as AlchemyChain],
-  ["SHAPE_MAINNET", shape as AlchemyChain],
-  ["SHAPE_SEPOLIA", shapeSepolia as AlchemyChain],
-  ["SONEIUM_MAINNET", soneiumMainnet as AlchemyChain], // cspell:ignore soneium
-  ["SONEIUM_MINATO", soneiumMinato as AlchemyChain], // cspell:ignore minato
-  ["WORLDCHAIN_MAINNET", worldChain as AlchemyChain], // cspell:ignore worldchain
-  ["WORLDCHAIN_SEPOLIA", worldChainSepolia as AlchemyChain],
-  ...LOCAL,
-]);
+export const NETWORKS: ReadonlyMap<string, AlchemyChain> = new Map(
+  [...factoryChains].map(([id, { network: name }]) => {
+    const current = alchemyChains.get(id);
+    if (!current) throw new Error(`missing alchemy chain ${id}`);
+    return [name, current as AlchemyChain] as const;
+  }),
+);
 
 type AlchemyChain = Chain & { rpcUrls: { alchemy: { http: readonly [string] } } };
