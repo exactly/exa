@@ -1,10 +1,10 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
 - runFlow:
-    when: { true: "${maestro.platform == 'web' && method === 'metamask'}" }
+    when: { true: "${method === 'metamask'}" }
     commands: [{ tapOn: Confirm }]
 - runFlow:
-    when: { true: "${maestro.platform == 'web' && method === 'brave'}" }
+    when: { true: "${method === 'brave'}" }
     commands: [{ tapOn: "Confirm|Sign( in)?" }]
 - runFlow:
     when: { true: "${maestro.platform != 'web' && method === 'webauthn'}" }
