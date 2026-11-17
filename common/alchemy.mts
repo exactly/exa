@@ -7,6 +7,7 @@ const { result } = parse(
       data: array(
         object({
           availability: string(),
+          id: pipe(string(), regex(/^[A-Z\d]+(?:_[A-Z\d]+)*$/)),
           isTestNet: boolean(),
           kebabCaseId: pipe(string(), regex(/^[a-z\d]+(?:-[a-z\d]+)*$/)),
           networkChainId: nullish(pipe(number(), integer(), minValue(1))),
@@ -19,13 +20,17 @@ const { result } = parse(
 );
 const json = `${JSON.stringify(
   Object.fromEntries(
-    result.data.flatMap(({ availability, isTestNet, kebabCaseId, networkChainId, supportedProducts }) =>
+    result.data.flatMap(({ availability, id, isTestNet, kebabCaseId, networkChainId, supportedProducts }) =>
       networkChainId &&
-      !isTestNet &&
-      kebabCaseId.endsWith("-mainnet") &&
+      (isTestNet || kebabCaseId.endsWith("-mainnet")) &&
       availability === "public" &&
       supportedProducts.includes("node-api")
-        ? [[networkChainId, kebabCaseId] as const]
+        ? [
+            [
+              networkChainId,
+              isTestNet ? { network: id, slug: kebabCaseId, testnet: true } : { network: id, slug: kebabCaseId },
+            ] as const,
+          ]
         : [],
     ),
   ),
