@@ -62,6 +62,7 @@ import {
   erc20Abi,
   getAddress,
   hashMessage,
+  hexToBigInt,
   hexToBytes,
   hexToNumber,
   isHex,
@@ -417,6 +418,7 @@ export default async function createAccountClient({ credentialId, factory, x, y,
               calls: readonly Call[];
               capabilities?: ExtractCapabilities<"sendCalls", "Request"> & {
                 dataSuffix?: { value?: unknown };
+                nonceKey?: unknown;
                 retry?: () => void;
                 spend?: Spend;
               };
@@ -427,6 +429,7 @@ export default async function createAccountClient({ credentialId, factory, x, y,
             if (from && from !== accountAddress) throw new Error("bad account");
             const targetChainId = chainId ? hexToNumber(chainId) : chain.id;
             const suffix = isHex(capabilities?.dataSuffix?.value) ? capabilities.dataSuffix.value : dataSuffix;
+            const nonceKey = isHex(capabilities?.nonceKey) ? hexToBigInt(capabilities.nonceKey) : undefined;
             const uo = calls.map(({ to, data = "0x", value }) => ({ from: accountAddress, target: to, data, value }));
             const execute = {
               to: accountAddress,
@@ -435,6 +438,7 @@ export default async function createAccountClient({ credentialId, factory, x, y,
               abi: upgradeableModularAccountAbi,
             } as const;
             if (targetChainId !== chain.id) {
+              if (nonceKey !== undefined) throw new Error("bad nonce key");
               const targetChain = smartAccountChain(targetChainId);
               const remote = await getCrossChainAccount(targetChain);
               async function build({ approvals = [], policyId: ids, token }: Payer) {
@@ -504,7 +508,7 @@ export default async function createAccountClient({ credentialId, factory, x, y,
                 });
               }
             }
-            if (isSiwe() && (await account.isAccountDeployed())) {
+            if (nonceKey === undefined && isSiwe() && (await account.isAccountDeployed())) {
               const sent = await sendOwnerCalls({
                 id,
                 chainId: chain.id,
@@ -522,6 +526,7 @@ export default async function createAccountClient({ credentialId, factory, x, y,
             }
             const { hash } = await client.sendUserOperation({
               uo: suffix ? concatHex([await account.encodeBatchExecute(uo), suffix]) : uo,
+              overrides: nonceKey === undefined ? undefined : { nonce: nonceKey << 64n },
             });
             return { id: concat([hash, numberToHex(chain.id, { size: 32 }), UO_MAGIC_ID]) };
           }
