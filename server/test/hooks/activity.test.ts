@@ -17,7 +17,7 @@ import { exaAccountFactoryAddress, lifiURL, marketWETHAddress, wethAddress } fro
 import database, { credentials } from "../../database";
 import activity from "../../hooks/activity";
 import t, { f } from "../../i18n";
-import createAlchemy, { activityUrl, NETWORKS, type Webhook } from "../../utils/alchemy";
+import createAlchemy, { activityChain, activityUrl, type Webhook } from "../../utils/alchemy";
 import createOnesignal from "../../utils/onesignal";
 import redis from "../../utils/redis";
 
@@ -78,7 +78,7 @@ describe("address activity", () => {
 
   it("fails when a supported network disappears before handling", async () => {
     const errorConsole = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    vi.spyOn(NETWORKS, "get").mockReturnValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined -- unreachable branch
+    vi.mocked(activityChain).mockReturnValueOnce(activityChain("ANVIL")).mockReturnValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined -- unreachable branch
 
     const response = await appClient.index.$post({
       ...activityPayload,
@@ -90,6 +90,23 @@ describe("address activity", () => {
 
     expect(response.status).toBe(500);
     expect(errorConsole).toHaveBeenCalledWith(expect.objectContaining({ message: "unsupported activity network" }));
+    expect(poke.enqueue).not.toHaveBeenCalled();
+  });
+
+  it("reports activity on networks without a factory", async () => {
+    const current = api();
+    current.getWebhooks.mockResolvedValue([webhook("zora", "ZORA_MAINNET")]); // cspell:ignore zora
+    const hook = createHook(current);
+    await hook.ready;
+
+    const response = await deliver(hook.app, payload("zora", "ZORA_MAINNET"), "zora-key");
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "no factory" });
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("activity without factory"), {
+      level: "fatal",
+      fingerprint: ["{{ default }}", "ZORA_MAINNET"],
+    });
     expect(poke.enqueue).not.toHaveBeenCalled();
   });
 
@@ -111,7 +128,7 @@ describe("address activity", () => {
 
   it("omits the formatted amount when value is 0", async () => {
     const sendPushNotification = sendPushNotificationMock;
-    const chain = NETWORKS.get("ETH_MAINNET");
+    const chain = activityChain("ETH_MAINNET");
     if (!chain) throw new Error("missing mainnet");
     mockLifiTokens({ 1: [{ address: wethAddress }] });
 
@@ -234,7 +251,7 @@ describe("address activity", () => {
   });
 
   it("queues native coins other than eth", async () => {
-    const bsc = NETWORKS.get("BNB_MAINNET");
+    const bsc = activityChain("BNB_MAINNET");
     if (!bsc) throw new Error("missing BNB_MAINNET");
     const sendPushNotification = sendPushNotificationMock;
 
@@ -502,7 +519,7 @@ describe("address activity", () => {
   });
 
   describe("lifi token filter", () => {
-    const optMainnet = NETWORKS.get("OPT_MAINNET");
+    const optMainnet = activityChain("OPT_MAINNET");
     if (!optMainnet) throw new Error("missing OPT_MAINNET");
     const tokenAddress = "0x1111111111111111111111111111111111111111" as const;
     const optKey = `lifi:tokens:${optMainnet.id}`;
@@ -681,7 +698,7 @@ describe("address activity", () => {
     });
 
     it("notifies native coins without checking lifi", async () => {
-      const mainnet = NETWORKS.get("ETH_MAINNET");
+      const mainnet = activityChain("ETH_MAINNET");
       if (!mainnet) throw new Error("missing ETH_MAINNET");
       const fetchSpy = vi.spyOn(globalThis, "fetch");
       const sendPushNotification = sendPushNotificationMock;
@@ -725,7 +742,7 @@ describe("address activity", () => {
     });
 
     it("fetches separately per chain and does not share cache between chains", async () => {
-      const arbMainnet = NETWORKS.get("ARB_MAINNET");
+      const arbMainnet = activityChain("ARB_MAINNET");
       if (!arbMainnet) throw new Error("missing ARB_MAINNET");
       const arbKey = `lifi:tokens:${arbMainnet.id}`;
       await redis.multi().sadd(arbKey, tokenAddress).expire(arbKey, 120).exec(); // cspell:ignore sadd
@@ -961,6 +978,13 @@ vi.mock("@exactly/common/generated/chain", async (importOriginal) => {
   const original = await importOriginal<typeof C>();
   return {
     ...original,
+    factoryChains: new Map([
+      ...original.factoryChains,
+      ...[1, 10, 56, 42_161].map(
+        (id) =>
+          [id, original.alchemyChains.get(id) as NonNullable<ReturnType<typeof original.factoryChains.get>>] as const,
+      ),
+    ]),
     get lifiURL() {
       return mocks.lifiURL(original.lifiURL);
     },

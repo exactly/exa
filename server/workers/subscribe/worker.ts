@@ -2,10 +2,11 @@ import { captureException, captureMessage, withScope } from "@sentry/node";
 import { setTimeout as wait } from "node:timers/promises";
 import { parse } from "valibot";
 
+import { activityChains } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import { attempts, name, type Job } from "./job";
-import { activityNetworks, activityUrl } from "../../utils/alchemy";
+import { activityChain, activityUrl } from "../../utils/alchemy";
 import createWorker from "../worker";
 
 import type * as schema from "../../database/schema";
@@ -25,18 +26,15 @@ export default function worker({
   let next = 0;
   const webhooks = request(() => alchemy.getWebhooks()).then(async (existing) => ({
     own: await attempt(
-      activityNetworks(),
-      async ([network]) => {
+      activityChains.values(),
+      async ({ alchemyNetwork: network }) => {
         const matches = existing.filter(
           (hook) =>
             hook.webhook_type === "ADDRESS_ACTIVITY" && hook.webhook_url === activityUrl && hook.network === network,
         );
         if (matches.length > 1) throw new Error(`duplicate ${network} activity webhooks`);
         const current = matches[0];
-        if (current) {
-          if (!current.is_active) throw new Error(`inactive ${network} activity webhook`);
-          return current;
-        }
+        if (current) return current;
         return request(() =>
           alchemy.createWebhook({ addresses: [], network, webhook_type: "ADDRESS_ACTIVITY", webhook_url: activityUrl }),
         );
@@ -51,7 +49,7 @@ export default function worker({
           (host) => hook.webhook_url === `https://${host}/hooks/activity`,
         ) &&
         hook.is_active &&
-        activityNetworks().has(hook.network),
+        !!activityChain(hook.network),
     ),
   }));
   return createWorker<Job>({
