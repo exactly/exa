@@ -134,6 +134,7 @@ services:
       - key: ISSUER_ADDRESS
         scope: RUN_TIME
         value: ${{ env.ISSUER_ADDRESS }}
+      # @if ${{ env.ENCRYPTED_PAX_API_KEY || env.PAX_API_KEY }}
       - key: PAX_API_KEY
         scope: RUN_TIME
         type: SECRET
@@ -145,6 +146,7 @@ services:
         scope: RUN_TIME
         type: SECRET
         value: ${{ env.ENCRYPTED_PAX_ASSOCIATE_ID_KEY || env.PAX_ASSOCIATE_ID_KEY }}
+      # @endif
       - key: PERSONA_API_KEY
         scope: RUN_TIME
         type: SECRET
