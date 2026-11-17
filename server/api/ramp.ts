@@ -495,7 +495,7 @@ Pay the lock with a user operation that withdraws at least \`amount\` USDC to \`
             description: "QR without amount",
             content: {
               "application/json": {
-                schema: resolver(object({ recipient: optional(string()) }), { errorMode: "ignore" }),
+                schema: resolver(object({ recipient: optional(string()), asset: string() }), { errorMode: "ignore" }),
               },
             },
           },
@@ -557,7 +557,7 @@ Pay the lock with a user operation that withdraws at least \`amount\` USDC to \`
               surname: personaAccount.attributes.fields.name.value.last.value,
             },
           });
-          if (!lock.code) return c.json({ recipient: lock.paymentRecipientName }, 206);
+          if (!lock.code) return c.json({ recipient: lock.paymentRecipientName, asset: lock.paymentAsset }, 206);
           if (!lock.sender) throw new Error("lock without sender");
           return c.json(
             {
@@ -567,6 +567,9 @@ Pay the lock with a user operation that withdraws at least \`amount\` USDC to \`
               expireAt: lock.expireAt,
               recipient: lock.paymentRecipientName,
               receiver: await manteca.getSettlement(lock.paymentAsset),
+              asset: lock.paymentAsset,
+              assetAmount: lock.paymentAssetAmount,
+              price: lock.paymentPrice,
             } satisfies InferOutput<typeof QrLock>,
             200,
           );
@@ -579,6 +582,27 @@ Pay the lock with a user operation that withdraws at least \`amount\` USDC to \`
           }
           throw error;
         }
+      },
+    )
+    .get(
+      "/qr/quotes",
+      auth,
+      describeRoute({
+        summary: "Get QR quotes",
+        description: "Retrieve the USDC sell rate in each local currency that QR payments support.",
+        tags: ["QR"],
+        security: [{ credentialAuth: [] }],
+        validateResponse: true,
+        responses: {
+          200: {
+            description: "Quotes",
+            content: { "application/json": { schema: resolver(QrQuotes, { errorMode: "ignore" }) } },
+          },
+        },
+      }),
+      async (c) => {
+        const [ars, brl] = await Promise.all([manteca.getQuote("USDC_ARS"), manteca.getQuote("USDC_BRL")]);
+        return c.json({ ARS: ars?.sellRate, BRL: brl?.sellRate } satisfies InferOutput<typeof QrQuotes>, 200);
       },
     )
     .get(
@@ -798,7 +822,12 @@ const QrLock = object({
   expireAt: string(),
   recipient: optional(string()),
   receiver: Address,
+  asset: string(),
+  assetAmount: string(),
+  price: optional(string()),
 });
+
+const QrQuotes = object({ ARS: optional(string()), BRL: optional(string()) });
 
 const QrPayment = union([
   object({ id: string(), status: picklist(Manteca.SyntheticStatus) }),
