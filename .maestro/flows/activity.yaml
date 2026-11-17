@@ -78,4 +78,17 @@ env:
 - assertVisible: Paid
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
 - repeat: { times: 2, commands: [{ tapOn: Home }] }
+- runFlow:
+    file: ../subflows/mint.yaml
+    env: { asset: ETH, to: "${output.account}", amount: "0.1" }
+- runScript: { file: ../dist/floatingBorrow.js, env: { amount: "0.05" } }
+- runFlow:
+    file: ../subflows/send.yaml
+    env: { asset: ETH, network: Anvil, to: "0x000000000000000000000000000000000000dEaD", amount: max }
+- repeat: { times: 2, commands: [{ tapOn: Activity }] }
+- tapOn: Sent
+- assertVisible: '${output.redeemed}[\s\xa0]WETH'
+- assertVisible: '.+dEaD'
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- tapOn: Home
 - runFlow: ../subflows/storeCoverage.yaml
