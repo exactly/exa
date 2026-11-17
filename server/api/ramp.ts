@@ -479,7 +479,7 @@ export default function route({
             surname: personaAccount.attributes.fields.name.value.last.value,
           },
         });
-        if (!lock.code) return c.json({ recipient: lock.paymentRecipientName }, 206);
+        if (!lock.code) return c.json({ recipient: lock.paymentRecipientName, asset: lock.paymentAsset }, 206);
         return c.json(
           {
             code: lock.code,
@@ -488,11 +488,18 @@ export default function route({
             expireAt: lock.expireAt,
             recipient: lock.paymentRecipientName,
             receiver: await manteca.getSettlement(lock.paymentAsset),
+            asset: lock.paymentAsset,
+            assetAmount: lock.paymentAssetAmount,
+            price: lock.paymentPrice,
           },
           200,
         );
       },
     )
+    .get("/qr/quotes", auth, async (c) => {
+      const [ars, brl] = await Promise.all([manteca.getQuote("USDC_ARS"), manteca.getQuote("USDC_BRL")]);
+      return c.json({ ARS: ars?.sellRate, BRL: brl?.sellRate }, 200);
+    })
     .get("/qr/:userOpHash", auth, vValidator("param", object({ userOpHash: Hash }), validatorHook()), async (c) => {
       const { credentialId } = c.req.valid("cookie");
       const { userOpHash } = c.req.valid("param");
