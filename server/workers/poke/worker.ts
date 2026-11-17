@@ -4,6 +4,7 @@ import { parse } from "valibot";
 import { bytesToBigInt, erc20Abi, hexToBytes, type LocalAccount } from "viem";
 
 import exaChain, {
+  activityChains,
   auditorAbi,
   exaAccountFactoryAbi,
   exaPluginAbi,
@@ -18,7 +19,6 @@ import { Address } from "@exactly/common/validation";
 import { attempts, name, type Job } from "./job";
 import t from "../../i18n";
 import { own } from "../../supervise";
-import { NETWORKS } from "../../utils/alchemy";
 import decodePublicKey from "../../utils/decodePublicKey";
 import publicClient from "../../utils/publicClient";
 import revertFingerprint from "../../utils/revertFingerprint";
@@ -60,8 +60,8 @@ export default function worker({
       },
       name,
       async process(job, span) {
-        const chain = [...NETWORKS.values()].find(({ id }) => id === job.data.chainId);
-        if (!chain) throw new Error(`unsupported chain ${job.data.chainId}`);
+        const chain = activityChains.get(job.data.chainId);
+        if (!chain?.smartAccount) throw new Error(`unsupported chain ${job.data.chainId}`);
         const wallet = createWallet(poker, chain);
         const isDeployed = !!(await wallet.getCode({ address: job.data.account }));
         span.setAttribute("exa.new", !isDeployed);

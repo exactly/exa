@@ -20,6 +20,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, type MockIns
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import chain, {
+  activityChains,
   exaAccountFactoryAddress,
   marketAbi,
   previewerAbi,
@@ -30,7 +31,6 @@ import chain, {
 import { Address } from "@exactly/common/validation";
 
 import t from "../../i18n";
-import { NETWORKS } from "../../utils/alchemy";
 import createOnesignal from "../../utils/onesignal";
 import publicClient from "../../utils/publicClient";
 import { bullmq } from "../../utils/redis";
@@ -273,7 +273,7 @@ describe("poke worker", () => {
     expect(credits(add)).toStrictEqual([
       ["credit", expect.objectContaining({ account }), { jobId: `poke-${job.id}-1` }],
     ]);
-    expect(wallet).toHaveBeenCalledExactlyOnceWith(poker, NETWORKS.get("ANVIL"));
+    expect(wallet).toHaveBeenCalledExactlyOnceWith(poker, activityChains.get(chain.id));
     expect(mocks.track).toHaveBeenCalledWith({ event: "AccountFunded", userId: account, properties: { source: null } });
     expect(sendPushNotificationMock).toHaveBeenCalledExactlyOnceWith({
       userId: account,
@@ -544,8 +544,10 @@ describe("poke worker", () => {
   });
 
   it("deploys without poking on other chains", async () => {
-    const network = NETWORKS.get("ANVIL");
-    if (!network) throw new Error("missing anvil");
+    const anvil = activityChains.get(chain.id);
+    if (!anvil) throw new Error("missing anvil");
+    const network = { ...anvil };
+    vi.spyOn(activityChains, "get").mockImplementation((id) => (id === network.id ? network : undefined));
     const readContract = vi.spyOn(publicClient, "readContract");
     const id = chain.id;
     Object.assign(chain, { id: 1 });
