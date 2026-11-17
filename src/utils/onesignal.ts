@@ -80,7 +80,6 @@ const { enablePrompt, login, logout } = (
                   if (done) return;
                   done = true;
                   OneSignal.User.pushSubscription.removeEventListener("change", listener);
-                  OneSignal.login(Math.random().toString(36).slice(2));
                   resolve();
                 };
                 const listener: Parameters<typeof OneSignal.User.pushSubscription.addEventListener>[1] = (event) => {
@@ -111,7 +110,10 @@ const { enablePrompt, login, logout } = (
             );
           },
           login: (userId: string) => {
-            if (appId && process.env.EXPO_PUBLIC_ENV !== "e2e") OneSignal.login(userId);
+            if (!appId) return;
+            if (process.env.EXPO_PUBLIC_ENV === "e2e") {
+              ready.then(() => OneSignal.login(Math.random().toString(36).slice(2))).catch(reportError);
+            } else OneSignal.login(userId);
           },
           logout: () => {
             if (appId) OneSignal.logout();
