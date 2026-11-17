@@ -14,6 +14,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { zeroAddress } from "viem";
 
+import { isBase } from "@exactly/common/generated/chain";
 import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 
 const bytea = customType<{ data: Uint8Array<ArrayBuffer>; driverData: string }>({ dataType: () => "bytea" });
@@ -29,8 +30,8 @@ export const credentials = pgTable(
     account: text("account").notNull(),
     transports: text("transports").array(),
     kycId: text("kyc_id"),
-    pandaId: text("panda_id"),
-    bambooId: text("bamboo_id"),
+    pandaId: text(isBase ? "bamboo_id" : "panda_id"),
+    otherPandaId: text(isBase ? "panda_id" : "bamboo_id"),
     bridgeId: text("bridge_id"),
     source: text("source"),
     salt: text("salt").notNull().default(zeroAddress),
