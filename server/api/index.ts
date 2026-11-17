@@ -57,7 +57,7 @@ export default function api({
   intercom: ReturnType<typeof createIntercom>;
   manteca: ReturnType<typeof createManteca>;
   panda: ReturnType<typeof createPanda>;
-  pax: ReturnType<typeof createPax>;
+  pax?: ReturnType<typeof createPax>;
   persona: ReturnType<typeof createPersona>;
   redis: Redis;
   sardine: ReturnType<typeof createSardine>;

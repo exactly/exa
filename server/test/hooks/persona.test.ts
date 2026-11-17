@@ -500,6 +500,49 @@ describe("persona hook", () => {
     });
   });
 
+  it("creates panda user without pax config", async () => {
+    const response = await postInquiry(
+      testClient(
+        createPersonaHook({
+          allow,
+          database,
+          panda,
+          persona,
+          personaWebhookSecret: "persona",
+          sardine: createSardine(sardineConfig.key, sardineConfig.url),
+        }).app,
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ id: "new-panda-id" });
+    expect(allow.enqueue).toHaveBeenCalledExactlyOnceWith({
+      account,
+      chainId: chain.id,
+      factory: exaAccountFactoryAddress,
+      salt: zeroAddress,
+      publicKey: "0x",
+      source: null,
+    });
+    expect(panda.createUser).toHaveBeenCalledExactlyOnceWith(
+      {
+        accountPurpose: "business",
+        annualSalary: "100000",
+        expectedMonthlyVolume: "1000",
+        ipAddress: "127.0.0.1",
+        isTermsOfServiceAccepted: true,
+        occupation: "engineer",
+        personaShareToken: "inq_123",
+      },
+      "evt_123",
+    );
+    await expect(
+      database.query.credentials.findFirst({ columns: { pandaId: true }, where: eq(credentials.id, "persona-ref") }),
+    ).resolves.toStrictEqual({ pandaId: "new-panda-id" });
+    expect(pax.addCapita).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
   it("does not allow very high risk accounts", async () => {
     vi.mocked(sardine.customer).mockReset().mockResolvedValueOnce({
       sessionKey: "test",
@@ -2663,8 +2706,8 @@ const mantecaPayload = {
   },
 } as const;
 
-function postInquiry() {
-  return appClient.index.$post({
+function postInquiry(client = appClient) {
+  return client.index.$post({
     header: {
       "persona-signature": "t=1733865120,v1=debbacfe1b0c5f8797a1d68e8428fba435aa4ca3b5d9a328c3c96ee4d04d84df",
     },
