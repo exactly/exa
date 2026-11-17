@@ -1754,6 +1754,9 @@ describe("ramp api", () => {
           expireAt: lock.expireAt,
           recipient: "Ricardo Fort",
           receiver: settlement,
+          asset: "ARS",
+          assetAmount: "1706.37",
+          price: "696.70000000",
         });
         expect(lockQrPayment).toHaveBeenCalledWith({
           paymentDestination: "qr3",
@@ -1773,7 +1776,7 @@ describe("ramp api", () => {
         );
 
         expect(response.status).toBe(206);
-        await expect(response.json()).resolves.toStrictEqual({ recipient: "Ricardo Fort" });
+        await expect(response.json()).resolves.toStrictEqual({ recipient: "Ricardo Fort", asset: "ARS" });
       });
 
       it("returns 400 without a persona account", async () => {
@@ -1907,6 +1910,44 @@ describe("ramp api", () => {
 
         expect(response.status).toBe(500);
         expect(getSettlement).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("quotes", () => {
+      it("returns the usdc sell rate of every qr currency", async () => {
+        const getQuote = vi
+          .spyOn(manteca, "getQuote")
+          .mockResolvedValueOnce({ buyRate: "1650.10", sellRate: "1607.89" })
+          .mockResolvedValueOnce({ buyRate: "5.52", sellRate: "5.41" });
+
+        const response = await appClient.qr.quotes.$get({}, { headers: { "test-credential-id": "ramp-test" } });
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({ ARS: "1607.89", BRL: "5.41" });
+        expect(getQuote).toHaveBeenNthCalledWith(1, "USDC_ARS");
+        expect(getQuote).toHaveBeenNthCalledWith(2, "USDC_BRL");
+      });
+
+      it("omits a currency without quote", async () => {
+        vi.spyOn(manteca, "getQuote")
+          .mockResolvedValueOnce({ buyRate: "1650.10", sellRate: "1607.89" })
+          .mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
+
+        const response = await appClient.qr.quotes.$get({}, { headers: { "test-credential-id": "ramp-test" } });
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({ ARS: "1607.89" });
+      });
+
+      it("omits ars without quote", async () => {
+        vi.spyOn(manteca, "getQuote")
+          .mockResolvedValueOnce(undefined) // eslint-disable-line unicorn/no-useless-undefined
+          .mockResolvedValueOnce({ buyRate: "5.52", sellRate: "5.41" });
+
+        const response = await appClient.qr.quotes.$get({}, { headers: { "test-credential-id": "ramp-test" } });
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({ BRL: "5.41" });
       });
     });
 
