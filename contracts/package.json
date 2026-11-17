@@ -56,6 +56,7 @@
       "default": [
         "{projectRoot}/**/*",
         "!{projectRoot}/broadcast/*/31337/**/*",
+        "{workspaceRoot}/common/factoryVersion.json",
         {
           "runtime": "forge --version"
         },
