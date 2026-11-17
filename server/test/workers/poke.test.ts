@@ -22,6 +22,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, type MockIns
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import chain, {
+  activityChains,
   exaAccountFactoryAddress,
   marketAbi,
   previewerAbi,
@@ -32,7 +33,6 @@ import chain, {
 import { Address } from "@exactly/common/validation";
 
 import t from "../../i18n";
-import { NETWORKS } from "../../utils/alchemy";
 import createOnesignal from "../../utils/onesignal";
 import publicClient from "../../utils/publicClient";
 import { bullmq } from "../../utils/redis";
@@ -300,7 +300,7 @@ describe("poke worker", () => {
     expect(credits(add)).toStrictEqual([
       ["credit", expect.objectContaining({ account }), { jobId: `poke-${job.id}-1` }],
     ]);
-    expect(wallet).toHaveBeenCalledExactlyOnceWith(poker, NETWORKS.get("ANVIL"));
+    expect(wallet).toHaveBeenCalledExactlyOnceWith(poker, activityChains.get(chain.id));
     expect(mocks.track).toHaveBeenCalledWith({ event: "AccountFunded", userId: account, properties: { source: null } });
     expect(sendPushNotificationMock).toHaveBeenCalledExactlyOnceWith({
       userId: account,
@@ -571,8 +571,10 @@ describe("poke worker", () => {
   });
 
   it("deploys without poking on other chains", async () => {
-    const network = NETWORKS.get("ANVIL");
-    if (!network) throw new Error("missing anvil");
+    const anvil = activityChains.get(chain.id);
+    if (!anvil) throw new Error("missing anvil");
+    const network = { ...anvil };
+    vi.spyOn(activityChains, "get").mockImplementation((id) => (id === network.id ? network : undefined));
     const readContract = vi.spyOn(publicClient, "readContract");
     const id = chain.id;
     Object.assign(chain, { id: 1 });
@@ -589,7 +591,7 @@ describe("poke worker", () => {
   });
 
   it("delays deploys on other chains until gas is affordable", async () => {
-    const network = NETWORKS.get("ANVIL");
+    const network = activityChains.get(chain.id);
     if (!network) throw new Error("missing anvil");
     const id = `${network.id}-${account}`;
     const keeper = walletClient.account.address;
@@ -696,7 +698,7 @@ describe("poke worker", () => {
   });
 
   it("delays deploys on other chains while gas costs more than the ceiling", async () => {
-    const network = NETWORKS.get("ANVIL");
+    const network = activityChains.get(chain.id);
     if (!network) throw new Error("missing anvil");
     const id = `${network.id}-${account}`;
     const chainId = chain.id;
@@ -747,7 +749,7 @@ describe("poke worker", () => {
   });
 
   it("deploys on testnet stacks without pricing", async () => {
-    const network = NETWORKS.get("ANVIL");
+    const network = activityChains.get(chain.id);
     if (!network) throw new Error("missing anvil");
     const chainId = chain.id;
     const fetch = mockLifi(new Response(null, { status: 500 }));
@@ -765,7 +767,7 @@ describe("poke worker", () => {
   });
 
   it("prices other chains on li.quest when codegen has no lifi url", async () => {
-    const network = NETWORKS.get("ANVIL");
+    const network = activityChains.get(chain.id);
     if (!network) throw new Error("missing anvil");
     const chainId = chain.id;
     mocks.lifiURL.mockReset();
@@ -788,7 +790,7 @@ describe("poke worker", () => {
   });
 
   it("deploys on other chains when no native price is known", async () => {
-    const network = NETWORKS.get("ANVIL");
+    const network = activityChains.get(chain.id);
     if (!network) throw new Error("missing anvil");
     const id = `${network.id}-${account}`;
     const chainId = chain.id;
@@ -857,7 +859,7 @@ describe("poke worker", () => {
   });
 
   it("deploys on other chains with the last native price while li.fi fails", async () => {
-    const network = NETWORKS.get("ANVIL");
+    const network = activityChains.get(chain.id);
     if (!network) throw new Error("missing anvil");
     const chainId = chain.id;
     const next = createRequest();
@@ -882,7 +884,7 @@ describe("poke worker", () => {
   });
 
   it("warns once when deploys stay delayed for twelve hours", async () => {
-    const network = NETWORKS.get("ANVIL");
+    const network = activityChains.get(chain.id);
     if (!network) throw new Error("missing anvil");
     const id = `${network.id}-${account}`;
     const chainId = chain.id;
