@@ -130,7 +130,7 @@ const ButtonText = (properties: ComponentPropsWithoutRef<typeof Text>) => {
       numberOfLines={1}
       emphasized
       subHeadline
-      {...(Platform.OS === "ios" && { lineHeight: 0 })}
+      {...(Platform.OS === "ios" && { lineHeight: "fit" })}
       adjustsFontSizeToFit
       flex={1}
       color={color}

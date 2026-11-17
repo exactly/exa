@@ -336,7 +336,10 @@ const body = createFont({
     700: { normal: "SplineSans-SemiBold" },
   },
   size: sizes,
-  lineHeight: Object.fromEntries(Object.entries(sizes).map(([k, v]) => [k, Math.round(v * 1.3)])) as typeof sizes,
+  lineHeight: {
+    ...(Object.fromEntries(Object.entries(sizes).map(([k, v]) => [k, Math.round(v * 1.3)])) as typeof sizes),
+    fit: 0, // react native reads 0 as unset
+  },
   letterSpacing: Object.fromEntries(Object.entries(sizes).map(([k, v]) => [k, v * -0.002])) as typeof sizes,
   weight: { regular: "400", semibold: "600" },
 });

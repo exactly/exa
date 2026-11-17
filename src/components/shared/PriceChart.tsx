@@ -77,7 +77,7 @@ export default function PriceChart({
       <YStack gap="s4">
         <XStack alignItems="center" gap="s4">
           <YStack flex={1} gap="s1">
-            <Text title3 numberOfLines={1} {...(Platform.OS === "ios" && { lineHeight: 0 })} adjustsFontSizeToFit>
+            <Text title3 numberOfLines={1} {...(Platform.OS === "ios" && { lineHeight: "fit" })} adjustsFontSizeToFit>
               {name}
             </Text>
             <Text footnote color="uiNeutralSecondary">

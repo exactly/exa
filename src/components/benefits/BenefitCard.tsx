@@ -42,7 +42,7 @@ export default memo(function BenefitCard({ benefit, onPress }: BenefitCardProper
               subHeadline
               color="backgroundBrandMild"
               numberOfLines={1}
-              {...(Platform.OS === "ios" && { lineHeight: 0 })}
+              {...(Platform.OS === "ios" && { lineHeight: "fit" })}
               adjustsFontSizeToFit
               flexShrink={1}
             >
@@ -54,7 +54,7 @@ export default memo(function BenefitCard({ benefit, onPress }: BenefitCardProper
             title2
             color="backgroundBrandSoft"
             numberOfLines={2}
-            {...(Platform.OS === "ios" && { lineHeight: 0 })}
+            {...(Platform.OS === "ios" && { lineHeight: "fit" })}
             adjustsFontSizeToFit
           >
             {t(benefit.title)}
