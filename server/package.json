@@ -186,17 +186,10 @@
             "target": "build"
           }
         ],
-        "inputs": [
-          {
-            "dependentTasksOutputFiles": "dist/**/*"
-          }
-        ],
-        "outputs": [
-          "{projectRoot}/app"
-        ],
+        "cache": false,
         "executor": "nx:run-commands",
         "options": {
-          "command": "rm -rf server/app && cp -r dist server/app"
+          "command": "rm -rf server/app && ln -s ../dist server/app"
         }
       },
       "test": {
