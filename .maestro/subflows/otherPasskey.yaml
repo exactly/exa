@@ -1,0 +1,22 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- runFlow:
+    when: { true: "${maestro.platform == 'android' && method === 'webauthn'}" }
+    commands:
+      - runFlow: { file: tapAria.yaml, env: { aria: Settings } }
+      - tapOn: Logout
+      - runFlow: signIn.yaml
+      - runFlow:
+          when: { visible: Good (morning|afternoon|evening)! }
+          commands: [{ launchApp: { permissions: { all: deny, camera: allow } } }]
+      - runFlow:
+          when: { visible: Stay updated }
+          commands: [{ tapOn: Not now }]
+      - evalScript: ${output.account = undefined; output.credential = undefined; output.introSheet = undefined}
+      - runFlow: getAccount.yaml
+      - runFlow:
+          file: mint.yaml
+          env: { asset: USDC, to: "${output.account}", amount: "420" }
+      - runFlow:
+          file: send.yaml
+          env: { asset: USDC, network: Anvil, to: "0x000000000000000000000000000000000000dEaD", amount: "69" }
