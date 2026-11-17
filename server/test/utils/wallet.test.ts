@@ -3,7 +3,7 @@ import { enableTracing } from "../mocks/traceClient";
 import { nonceSource, walletClient } from "../mocks/wallet";
 
 import { KeyManagementServiceClient } from "@google-cloud/kms";
-import { captureException, withScope } from "@sentry/node";
+import { captureException, getCurrentScope } from "@sentry/node";
 import { setImmediate } from "node:timers/promises";
 import {
   concatHex,
@@ -30,7 +30,6 @@ import wallet from "../../utils/wallet";
 
 import type * as tracing from "../../utils/traceClient";
 import type * as Wallet from "../../utils/wallet";
-import type * as sentry from "@sentry/node";
 import type * as timers from "node:timers/promises";
 import type { Hex } from "viem";
 
@@ -388,35 +387,52 @@ describe("fault tolerance", () => {
 });
 
 describe("user identity", () => {
-  it("sets sentry user when account attribute is valid address", async () => {
-    const setUser = await spyScopeSetUser();
+  it("captures sentry user and tx context when account attribute is valid address", async () => {
     const account = auditorAddress;
-    const receipt = await keeper.exaSend(
-      { name: "test transfer", op: "test.transfer", attributes: { account } },
-      { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
-    );
-    expect(receipt?.status).toBe("success");
-    expect(setUser).toHaveBeenCalledWith({ id: account });
+    await expect(failSend({ account })).rejects.toThrow("operational failure");
+    expect(captured).toStrictEqual([
+      {
+        user: { id: account },
+        tx: {
+          call: { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
+        },
+      },
+    ]);
   });
 
-  it("skips sentry user without account attribute", async () => {
-    const setUser = await spyScopeSetUser();
-    const receipt = await keeper.exaSend(
-      { name: "test transfer", op: "test.transfer" },
-      { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
-    );
-    expect(receipt?.status).toBe("success");
-    expect(setUser).not.toHaveBeenCalled();
+  it("captures without sentry user when account attribute is missing", async () => {
+    await expect(failSend()).rejects.toThrow("operational failure");
+    expect(captured).toStrictEqual([
+      {
+        user: {},
+        tx: {
+          call: { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
+        },
+      },
+    ]);
   });
 
-  it("skips sentry user with invalid account attribute", async () => {
-    const setUser = await spyScopeSetUser();
-    const receipt = await keeper.exaSend(
-      { name: "test transfer", op: "test.transfer", attributes: { account: "0xInvalid" } },
-      { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
-    );
-    expect(receipt?.status).toBe("success");
-    expect(setUser).not.toHaveBeenCalled();
+  it("captures without sentry user when account attribute is invalid", async () => {
+    await expect(failSend({ account: "0xInvalid" })).rejects.toThrow("operational failure");
+    expect(captured).toStrictEqual([
+      {
+        user: {},
+        tx: {
+          call: { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
+        },
+      },
+    ]);
+  });
+
+  const captured: { tx: unknown; user: unknown }[] = [];
+
+  beforeEach(() => {
+    captured.length = 0;
+    vi.mocked(captureException).mockImplementationOnce(() => {
+      const { contexts, user } = getCurrentScope().getScopeData();
+      captured.push({ user, tx: contexts.tx });
+      return "";
+    });
   });
 });
 
@@ -603,18 +619,12 @@ function enterMarket() {
   );
 }
 
-async function spyScopeSetUser() {
-  const { withScope: realWithScope } = await vi.importActual<typeof sentry>("@sentry/node");
-  const setUser = vi.fn();
-  vi.mocked(withScope).mockImplementationOnce((_scopeOrCallback, _callback?) =>
-    realWithScope((scope) => {
-      const originalSetUser = scope.setUser.bind(scope);
-      scope.setUser = (...args: Parameters<typeof scope.setUser>) => {
-        setUser(...args);
-        return originalSetUser(...args);
-      };
-      return ((_callback ?? _scopeOrCallback) as NonNullable<typeof _callback>)(scope);
-    }),
+function failSend(attributes?: Record<string, string>) {
+  vi.spyOn(publicClient, "simulateContract").mockImplementationOnce(() => {
+    throw new Error("operational failure");
+  });
+  return keeper.exaSend(
+    { name: "test transfer", op: "test.transfer", attributes },
+    { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
   );
-  return setUser;
 }

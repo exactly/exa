@@ -532,7 +532,7 @@ describe("poke worker", () => {
     expect(job.failedReason).toBe("NoBalance()");
     expect(job.attemptsMade).toBe(1);
     expect(job.stacktrace).toHaveLength(1);
-    expect(setUser.mock.calls).toStrictEqual([[{ id: account }], [{ id: account }]]);
+    expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
     expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ message: "NoBalance()" }), {
       extra: { account, attempts: 1, id },
       fingerprint: ["{{ default }}", "NoBalance"],
@@ -603,7 +603,7 @@ describe("poke worker", () => {
     expect(job.failedReason).toBe("poke failed");
     expect(job.attemptsMade).toBe(2);
     expect(job.stacktrace).toHaveLength(2);
-    expect(setUser.mock.calls).toStrictEqual([[{ id: account }], [{ id: account }]]);
+    expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       extra: { account, attempts: 2, id },
       fingerprint: ["{{ default }}", "unknown"],
@@ -628,7 +628,7 @@ describe("poke worker", () => {
 
     await expect(jobFinished({ ...request, assets: [token] })).rejects.toThrow("test");
 
-    expect(setUser.mock.calls).toStrictEqual([[{ id: account }], [{ id: account }]]);
+    expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       extra: { account, attempts: 1, id: `${request.chainId}-${account}-${token}` },
       fingerprint: ["{{ default }}", "Unauthorized"],
