@@ -611,7 +611,7 @@ export default function Swaps() {
     !!prepareError.walk((cause) => cause instanceof DeploymentError && cause.missing === "account");
   const wrapped = !!route && "wrapped" in route && route.wrapped === true;
   const { data: dust } = useReadContract({
-    address: wrapped && fromToken ? parse(Address, fromToken.token.address) : undefined,
+    address: wrapped && route.spend.token !== zeroAddress ? route.spend.token : undefined,
     chainId: fromChain,
     abi: erc20Abi,
     functionName: "balanceOf",
