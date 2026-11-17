@@ -168,7 +168,7 @@ export default function route({
   credit: ReturnType<typeof createCredit>;
   database: NodePgDatabase<typeof schema>;
   panda: ReturnType<typeof createPanda>;
-  pax: ReturnType<typeof createPax>;
+  pax?: ReturnType<typeof createPax>;
   persona: ReturnType<typeof createPersona>;
   sardine: ReturnType<typeof createSardine>;
   segment: ReturnType<typeof createSegment>;
@@ -681,7 +681,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
                 properties: { productId, source: credential.source },
               });
 
-              if (isUpgradeFromPlatinum) handlePlatinumUpgrade(credentialId, account, pax, persona);
+              if (pax && isUpgradeFromPlatinum) handlePlatinumUpgrade(credentialId, account, pax, persona);
 
               sardine
                 .customer({
