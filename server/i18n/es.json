@@ -39,5 +39,6 @@
   "{{amount}} {{asset}} deposited": "{{amount}} {{asset}} depositados",
   "{{amount}} {{asset}} withdrawn": "{{amount}} {{asset}} retirados",
   "{{amount}} {{symbol}} sent to {{recipient}}": "{{amount}} {{symbol}} enviados a {{recipient}}",
+  "{{symbol}} sent to {{recipient}}": "{{symbol}} enviados a {{recipient}}",
   "{{refundAmount}} USDC from {{merchantName}} have been refunded to your account": "{{refundAmount}} USDC de {{merchantName}} fueron reembolsados a tu cuenta"
 }
