@@ -18,7 +18,7 @@
     "generate:release": "echo \"module.exports = /** @type {const} */ ('$(git describe --tags --abbrev=7 --match '@exactly/mobile@*' | sed 's/@exactly\\///')')\" > src/generated/release.js",
     "generate:version": "echo \"module.exports = /** @type {const} */ ($(git rev-list --count HEAD))\" > src/generated/versionCode.js",
     "e2e:iphone": "maestro start-device --platform=ios --os-version=26 --device-locale=es-419",
-    "e2e:android:passkeys": "adb wait-for-device shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done' && if [ \"$(adb shell settings get global e2e)\" != passkeys ]; then a=.maestro/node_modules/.cache/keepassdx-4.5.6.apk k=com.kunzisoft.keepass.libre/com.kunzisoft.keepass.credentialprovider && { [ -s $a ] || { curl -fsSL --create-dirs -o $a.part https://github.com/Kunzisoft/KeePassDX/releases/download/4.5.6/KeePassDX-4.5.6-libre.apk && mv $a.part $a; }; } && { adb shell locksettings set-pin 1111 || adb shell locksettings set-pin --old 1111 1111; } && adb install -r $a && adb shell settings put secure credential_service $k.passkey.PasskeyProviderService && adb shell settings put secure credential_service_primary $k.passkey.PasskeyProviderService && adb shell settings put secure autofill_service $k.autofill.KeeAutofillService && .maestro/build/bin/maestro test .maestro/subflows/fingerprint.yaml && .maestro/build/bin/maestro test .maestro/subflows/keepassdx.yaml && adb shell settings put global e2e passkeys; fi",
+    "e2e:android:passkeys": "adb start-server && l=${TMPDIR:-/tmp}/exa-emulator.log && { adb devices | sed 1d | grep -q . || { e=${ANDROID_HOME:-$HOME/Library/Android/sdk}/emulator/emulator && { [ -x $e ] || e=emulator; } && d=$($e -list-avds 2>/dev/null | grep -vm1 '|') && (nohup $e @$d >$l 2>&1 &); } || { echo 'no android device: start one or create an avd in android studio' >&2; exit 1; }; } && t=$(($(date +%s) + 600)) && until [ \"$(perl -e 'alarm 10; exec @ARGV' adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\\r')\" = 1 ]; do [ $(date +%s) -lt $t ] || { echo \"android device not ready after 600s, see adb devices and $l\" >&2; exit 1; }; sleep 1; done && if [ \"$(adb shell settings get global e2e)\" != passkeys ]; then a=.maestro/node_modules/.cache/keepassdx-4.5.6.apk k=com.kunzisoft.keepass.libre/com.kunzisoft.keepass.credentialprovider && { [ -s $a ] || { curl -fsSL --create-dirs -o $a.part https://github.com/Kunzisoft/KeePassDX/releases/download/4.5.6/KeePassDX-4.5.6-libre.apk && mv $a.part $a; }; } && { adb shell locksettings set-pin 1111 || adb shell locksettings set-pin --old 1111 1111; } && adb install -r $a && adb shell settings put secure credential_service $k.passkey.PasskeyProviderService && adb shell settings put secure credential_service_primary $k.passkey.PasskeyProviderService && adb shell settings put secure autofill_service $k.autofill.KeeAutofillService && .maestro/build/bin/maestro test .maestro/subflows/fingerprint.yaml && .maestro/build/bin/maestro test .maestro/subflows/keepassdx.yaml && adb shell settings put global e2e passkeys; fi",
     "e2e:android:proxy": "adb start-server && adb reverse tcp:3000 tcp:3000 && adb reverse tcp:8545 tcp:8545 && adb reverse tcp:8969 tcp:8969 && adb reverse tcp:9944 tcp:9944",
     "e2e:ios:passkeys": "{ xcrun simctl list devices booted | grep -q Booted || open -a Simulator; } && until xcrun simctl list devices booted | grep -q Booted; do sleep 1; done && p=${HTTPS_PORT:-443} c=$(mktemp) && curl -fks --retry 900 --retry-delay 1 --retry-all-errors -o /dev/null https://exa.localhost:$p/api/auth/authentication && openssl s_client -connect exa.localhost:$p -servername exa.localhost < /dev/null 2> /dev/null | openssl x509 > $c && xcrun simctl keychain booted add-root-cert $c",
     "e2e:maestro": "maestro test .maestro/flows --include-tags=critical",
@@ -391,6 +391,11 @@
             "projects": "@exactly/e2e",
             "target": "maestro"
           }
+        ]
+      },
+      "e2e:android:proxy": {
+        "dependsOn": [
+          "e2e:android:passkeys"
         ]
       },
       "e2e:ios": {
