@@ -16,7 +16,6 @@ import {
   encodeAbiParameters,
   encodeFunctionData,
   erc20Abi,
-  formatEther,
   hexToBigInt,
   http,
   padHex,
@@ -1372,9 +1371,11 @@ describe.concurrent("authenticated", () => {
         { address: redeemer, abi: exaPluginAbi, functionName: "executeProposal", args: [0n] },
       );
       const [withdraw] = parseEventLogs({ abi: marketAbi, eventName: "Withdraw", logs: receipt?.logs ?? [] });
+      assert.ok(withdraw);
+      const { timestamp } = await anvilClient.getBlock({ blockNumber: withdraw.blockNumber });
 
-      expect(withdraw?.args.shares).toBe(shares);
-      expect(withdraw?.args.assets).toBeGreaterThan(shares);
+      expect(withdraw.args.shares).toBe(shares);
+      expect(withdraw.args.assets).toBeGreaterThan(shares);
 
       const response = await appClient.index.$get(
         { query: { include: "sent" } },
@@ -1382,8 +1383,17 @@ describe.concurrent("authenticated", () => {
       );
 
       expect(response.status).toBe(200);
-      await expect(response.json()).resolves.toMatchObject([
-        { type: "sent", currency: "WETH", amount: Number(formatEther(withdraw?.args.assets ?? 0n)), receiver },
+      await expect(response.json()).resolves.toStrictEqual([
+        {
+          id: `${chain.id}:${withdraw.blockNumber}:${withdraw.transactionIndex}:${withdraw.logIndex}`,
+          type: "sent",
+          currency: "WETH",
+          amount: Number(withdraw.args.assets) / 1e18,
+          usdAmount: Number(withdraw.args.assets * 2500n) / 1e18,
+          receiver,
+          transactionHash: withdraw.transactionHash,
+          timestamp: new Date(Number(timestamp) * 1000).toISOString(),
+        },
       ]);
       expect(captureException).not.toHaveBeenCalled();
     });
