@@ -20,7 +20,17 @@ import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-export default function Scanner({ onClose, onScan }: { onClose: () => void; onScan: (data: string) => boolean }) {
+export default function Scanner({
+  children,
+  onClose,
+  onScan,
+  paused = false,
+}: {
+  children?: React.ReactNode;
+  onClose: () => void;
+  onScan: (data: string) => boolean;
+  paused?: boolean;
+}) {
   const { top, bottom } = useInsets();
   const { height, width } = useWindowDimensions();
 
@@ -40,9 +50,12 @@ export default function Scanner({ onClose, onScan }: { onClose: () => void; onSc
   });
   const { t } = useTranslation();
   const lastRef = useRef<string>(undefined);
+  const handledRef = useRef(false);
 
   useFocusEffect(
     useCallback(() => {
+      lastRef.current = undefined;
+      handledRef.current = false;
       setActive(true);
       return () => {
         setActive(false);
@@ -114,11 +127,13 @@ export default function Scanner({ onClose, onScan }: { onClose: () => void; onSc
         <CameraView
           barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
           onBarcodeScanned={
-            ready
+            ready && !paused
               ? ({ data }) => {
-                  if (lastRef.current === data) return;
+                  if (handledRef.current || lastRef.current === data) return;
                   lastRef.current = data;
-                  if (onScan(data)) setActive(false);
+                  if (!onScan(data)) return;
+                  handledRef.current = true;
+                  setActive(false);
                 }
               : undefined
           }
@@ -126,7 +141,7 @@ export default function Scanner({ onClose, onScan }: { onClose: () => void; onSc
           style={styles.cameraView}
         />
       )}
-      <View position="absolute" fullScreen justifyContent="center" alignItems="center">
+      <View position="absolute" fullScreen justifyContent="center" alignItems="center" gap="s5">
         {isError ? (
           <YStack gap="s4" padding="s4">
             <Text subHeadline color="white" textAlign="center">
@@ -145,6 +160,7 @@ export default function Scanner({ onClose, onScan }: { onClose: () => void; onSc
         ) : (
           <BoxSelect size={Math.min(width, height) * 0.5} color="white" />
         )}
+        {children}
       </View>
       <Button
         primary
