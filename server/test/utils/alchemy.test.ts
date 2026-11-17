@@ -1,11 +1,10 @@
 import { parse } from "valibot";
-import { padHex } from "viem";
-import { anvil, base, baseSepolia } from "viem/chains";
+import { padHex, zeroAddress } from "viem";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Address } from "@exactly/common/validation";
 
-import createAlchemy, { activityNetworks, network, NETWORKS } from "../../utils/alchemy";
+import createAlchemy, { network, NETWORKS } from "../../utils/alchemy";
 import ServiceError from "../../utils/ServiceError";
 
 const account = parse(Address, padHex("0xb0b", { size: 20 }));
@@ -15,29 +14,24 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("activity networks", () => {
-  it("selects the local networks for the local stack", () => {
-    expect([...activityNetworks(anvil.id).keys()]).toStrictEqual(["ANVIL", "ANVIL2"]);
+describe("networks", () => {
+  it("names every factory chain", () => {
+    expect([...NETWORKS].map(([name, { id }]) => [name, id])).toStrictEqual([
+      ["ANVIL2", 1281],
+      ["ANVIL", 31_337],
+    ]);
   });
 
-  it("selects every production network for production stacks", () => {
-    expect([...activityNetworks(base.id).keys()]).toStrictEqual(
-      [...NETWORKS]
-        .filter(([name, chain]) => !["ANVIL", "ANVIL2"].includes(name) && !chain.testnet)
-        .map(([name]) => name),
-    );
-  });
+  it("fails for factory chains without alchemy", async () => {
+    vi.resetModules();
+    vi.doMock(import("@exactly/common/generated/chain"), async (importOriginal) => ({
+      ...(await importOriginal()),
+      factoryChains: new Map([[0, { network: "NONE", startBlock: 0, swapper: zeroAddress }]]),
+    }));
 
-  it("selects every test network for test stacks", () => {
-    expect([...activityNetworks(baseSepolia.id).keys()]).toStrictEqual(
-      [...NETWORKS]
-        .filter(([name, chain]) => !["ANVIL", "ANVIL2"].includes(name) && !!chain.testnet)
-        .map(([name]) => name),
-    );
-  });
+    await expect(import("../../utils/alchemy")).rejects.toThrow("missing alchemy chain 0");
 
-  it("fails for unsupported stacks", () => {
-    expect(() => activityNetworks(0)).toThrow("unsupported activity stack");
+    vi.doUnmock("@exactly/common/generated/chain");
   });
 });
 
