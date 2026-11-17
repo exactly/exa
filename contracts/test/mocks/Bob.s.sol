@@ -172,6 +172,9 @@ contract BobScript is BaseScript {
     );
     vm.broadcast(bob);
     IStandardExecutor(address(bobAccount)).executeBatch(calls);
+
+    vm.broadcast(acct("admin"));
+    proposalManager.grantRole(keccak256("COLLECTOR_ROLE"), address(0x5e7));
   }
 
   function _issuerOp(uint256 amount, uint256 timestamp) internal view returns (bytes memory signature) {
