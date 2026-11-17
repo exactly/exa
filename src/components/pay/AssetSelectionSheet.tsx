@@ -8,10 +8,12 @@ import View from "../shared/View";
 import type { Address } from "@exactly/common/validation";
 
 export default function AssetSelectionSheet({
+  chainId,
   open,
   onClose,
   onAssetSelected,
 }: {
+  chainId: number;
   onAssetSelected: (market: Address, external: boolean) => void;
   onClose: () => void;
   open: boolean;
@@ -21,6 +23,7 @@ export default function AssetSelectionSheet({
       <SafeView paddingTop="s0" fullScreen borderTopLeftRadius="r4" borderTopRightRadius="r4">
         <View padded paddingTop="s6" paddingBottom="s0" fullScreen flex={1}>
           <AssetSelector
+            chainId={chainId}
             sortBy="usdcFirst"
             onSubmit={(market, isExternalAsset) => {
               onAssetSelected(market, isExternalAsset);

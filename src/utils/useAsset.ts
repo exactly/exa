@@ -11,14 +11,14 @@ import useMarkets from "./useMarkets";
 
 import type { Address } from "viem";
 
-export default function useAsset(address?: Address) {
+export default function useAsset(address?: Address, chainId = chain.id) {
   const { address: account } = useAccount();
-  const { markets, timestamp, firstMaturity, queryKey, isFetching: isMarketsFetching } = useMarkets();
+  const { markets, timestamp, firstMaturity, queryKey, isFetching: isMarketsFetching } = useMarkets(undefined, chainId);
   const market = useMemo(() => markets?.find(({ market: m }) => m === address), [address, markets]);
   const { data: balances, isFetching: isBalancesFetching } = useQuery(balancesOptions(account));
   const externalAsset = useMemo(
-    () => balances?.[chain.id]?.find((token) => token.address.toLowerCase() === address?.toLowerCase()) ?? null,
-    [balances, address],
+    () => balances?.[chainId]?.find((token) => token.address.toLowerCase() === address?.toLowerCase()) ?? null,
+    [balances, address, chainId],
   );
   const available = useMemo(() => {
     if (markets && market) return withdrawLimit(markets, market.market);
