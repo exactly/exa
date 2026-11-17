@@ -63,6 +63,7 @@ import chain, {
   wethAddress,
 } from "@exactly/common/generated/chain";
 import ProposalType from "@exactly/common/ProposalType";
+import revertReason from "@exactly/common/revertReason";
 import { Address } from "@exactly/common/validation";
 import { WAD } from "@exactly/lib";
 import { proposalManager } from "@exactly/plugin/deploy.json";
@@ -432,6 +433,262 @@ describe("onchain", () => {
         ],
       }),
     );
+  });
+  it("returns repays on every network", async () => {
+    const remote = chains[1];
+    assert.ok(remote);
+    const client = createTestClient({ chain: remote, mode: "anvil", transport: http() })
+      .extend(publicActions)
+      .extend(walletActions);
+    const owner = createWalletClient({
+      chain: remote,
+      transport: http(),
+      account: privateKeyToAccount(generatePrivateKey()),
+    });
+    const borrower = deriveAddress(exaAccountFactoryAddress, { x: padHex(owner.account.address), y: zeroHash });
+    const headers = { "test-credential-id": owner.account.address };
+    const statement = vi.mocked(Statement);
+    const { timestamp } = await client.getBlock({ blockTag: "latest" });
+    const maturity = timestamp - (timestamp % 2_419_200n) + 2n * 2_419_200n;
+    const call = (data: Hex) => ({ target: borrower, value: 0n, data });
+    function propose(amount: bigint, type: ProposalType, data: Hex) {
+      return call(
+        encodeFunctionData({
+          abi: exaPluginAbi,
+          functionName: "propose",
+          args: [marketUSDCAddress, amount, type, data],
+        }),
+      );
+    }
+    await Promise.all([
+      client.setBalance({ address: owner.account.address, value: 10n ** 24n }),
+      database.insert(credentials).values({
+        id: owner.account.address,
+        publicKey: new Uint8Array(),
+        account: borrower,
+        factory: exaAccountFactoryAddress,
+      }),
+    ]);
+    const firewall = await client.readContract({
+      address: auditorAddress,
+      abi: parseAbi(["function firewall() view returns (address)"]),
+      functionName: "firewall",
+    });
+    for (const allowed of [borrower, debtManagerAddress]) {
+      await client.waitForTransactionReceipt({
+        hash: await client.writeContract({
+          address: firewall,
+          abi: parseAbi(["function allow(address account, bool allowed)"]),
+          functionName: "allow",
+          args: [allowed, true],
+          account: null,
+        }),
+      });
+    }
+    await client.waitForTransactionReceipt({
+      hash: await owner.writeContract({
+        address: exaAccountFactoryAddress,
+        abi: exaAccountFactoryAbi,
+        functionName: "createAccount",
+        args: [0n, [{ x: hexToBigInt(owner.account.address), y: 0n }]],
+      }),
+    });
+    const { blockNumber: proposed, logs: queued } = await client.waitForTransactionReceipt({
+      hash: await owner.writeContract({
+        address: borrower,
+        abi: upgradeableModularAccountAbi,
+        functionName: "executeBatch",
+        args: [
+          [
+            {
+              target: usdcAddress,
+              value: 0n,
+              data: encodeFunctionData({
+                abi: [
+                  {
+                    type: "function",
+                    name: "mint",
+                    inputs: [{ type: "address" }, { type: "uint256" }],
+                    outputs: [],
+                    stateMutability: "nonpayable",
+                  },
+                ],
+                functionName: "mint",
+                args: [borrower, 10_000_000n],
+              }),
+            },
+            {
+              target: usdcAddress,
+              value: 0n,
+              data: encodeFunctionData({
+                abi: erc20Abi,
+                functionName: "approve",
+                args: [marketUSDCAddress, 10_000_000n],
+              }),
+            },
+            {
+              target: marketUSDCAddress,
+              value: 0n,
+              data: encodeFunctionData({ abi: marketAbi, functionName: "deposit", args: [10_000_000n, borrower] }),
+            },
+            propose(
+              2_000_000n,
+              ProposalType.BorrowAtMaturity,
+              encodeAbiParameters(
+                [{ type: "uint256" }, { type: "uint256" }, { type: "address" }],
+                [maturity, 3_000_000n, padHex("0x9a1db", { size: 20 })],
+              ),
+            ),
+            propose(
+              2_000_000n,
+              ProposalType.RepayAtMaturity,
+              encodeAbiParameters([{ type: "uint256" }, { type: "uint256" }], [maturity, 1_000_000n]),
+            ),
+            propose(
+              3_000_000n,
+              ProposalType.RollDebt,
+              encodeAbiParameters(
+                [{ type: "uint256" }, { type: "uint256" }, { type: "uint256" }, { type: "uint256" }],
+                [maturity, maturity + 2_419_200n, 3_000_000n, WAD],
+              ),
+            ),
+          ],
+        ],
+      }),
+    });
+    await client.mine({ blocks: 1, interval: proposalManager.delay.default });
+    const [{ address: manager } = {}] = parseEventLogs({
+      abi: proposalManagerAbi,
+      eventName: "Proposed",
+      logs: queued,
+    });
+    assert.ok(manager);
+    const next = () =>
+      client.readContract({ address: manager, abi: proposalManagerAbi, functionName: "nonces", args: [borrower] });
+    for (let nonce = await next(); nonce < 3n; nonce = await next()) {
+      await owner
+        .writeContract({
+          address: borrower,
+          abi: [...upgradeableModularAccountAbi, ...exaPluginAbi, ...proposalManagerAbi],
+          functionName: "executeBatch",
+          args: [[call(encodeFunctionData({ abi: exaPluginAbi, functionName: "executeProposal", args: [nonce] }))]],
+        })
+        .then((hash) => client.waitForTransactionReceipt({ hash }))
+        .catch((error: unknown) => {
+          if (!["NoProposal", "NotNext"].includes(revertReason(error))) throw error;
+        });
+    }
+    const [[repay, roll], [, rolled]] = await Promise.all([
+      client.getContractEvents({
+        address: marketUSDCAddress,
+        abi: marketAbi,
+        eventName: "RepayAtMaturity",
+        args: { borrower },
+        fromBlock: proposed,
+        strict: true,
+      }),
+      client.getContractEvents({
+        address: marketUSDCAddress,
+        abi: marketAbi,
+        eventName: "BorrowAtMaturity",
+        args: { borrower },
+        fromBlock: proposed,
+        strict: true,
+      }),
+    ]);
+    assert.ok(repay);
+    assert.ok(roll);
+    assert.ok(rolled);
+    const priceFeed = await client
+      .readContract({ address: auditorAddress, abi: auditorAbi, functionName: "markets", args: [marketUSDCAddress] })
+      .then(({ 4: feed }) => feed);
+    const [repaid, rolledOver] = await Promise.all(
+      [repay, roll].map(({ blockNumber }) =>
+        Promise.all([
+          client.getBlock({ blockNumber }),
+          client.readContract({
+            address: auditorAddress,
+            abi: auditorAbi,
+            functionName: "assetPrice",
+            args: [priceFeed],
+            blockNumber,
+          }),
+        ]).then(([{ timestamp: time }, usdPrice]) => ({ time, usdPrice })),
+      ),
+    );
+    assert.ok(repaid);
+    assert.ok(rolledOver);
+    await vi.waitFor(
+      async () => {
+        const status = (await fetch("http://localhost:42069/status").then((response) => response.json())) as Record<
+          string,
+          { block: { number: number } }
+        >;
+        expect(status[remote.name]?.block.number).toBeGreaterThanOrEqual(
+          Math.max(Number(roll.blockNumber), Number(repay.blockNumber)),
+        );
+      },
+      { timeout: 10_000 },
+    );
+    const [payment, rollPayment] = [
+      { log: repay, at: repaid },
+      { log: roll, at: rolledOver },
+    ].map(({ log: { blockNumber, transactionIndex, logIndex, args }, at: { time } }) => ({
+      id: `${remote.id}:${blockNumber}:${transactionIndex}:${logIndex}`,
+      timestamp: new Date(Number(time) * 1000).toISOString(),
+      amount: Number(args.assets) / 1e6,
+      positionAmount: Number(args.positionAssets) / 1e6,
+    }));
+    assert.ok(payment);
+    assert.ok(rollPayment);
+    const [repayRow, rollRow] = [
+      { ...payment, log: repay, usdPrice: repaid.usdPrice },
+      { ...rollPayment, log: roll, usdPrice: rolledOver.usdPrice },
+    ].map(({ log, usdPrice, ...row }) => ({
+      ...row,
+      chainId: remote.id,
+      currency: "USDC",
+      usdAmount: Number((log.args.assets * usdPrice) / WAD) / 1e6,
+      transactionHash: log.transactionHash,
+    }));
+
+    const [response, split, pdf, legacy] = await Promise.all([
+      appClient.index.$get({ query: { include: "repay" } }, { headers }),
+      appClient.index.$get({ query: { include: ["repay", "rollover"] } }, { headers }),
+      appClient.index.$get(
+        { query: { maturity: String(maturity) } },
+        { headers: { ...headers, accept: "application/pdf" } },
+      ),
+      appClient.index.$get({}, { headers }),
+    ]);
+
+    expect(legacy.status).toBe(200);
+    await expect(legacy.json()).resolves.not.toContainEqual(expect.objectContaining({ chainId: remote.id }));
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual([
+      { ...rollRow, type: "repay" },
+      { ...repayRow, type: "repay" },
+    ]);
+    expect(split.status).toBe(200);
+    await expect(split.json()).resolves.toStrictEqual([
+      {
+        ...rollRow,
+        maturity: Number(maturity),
+        borrow: {
+          amount: Number(rolled.args.assets + rolled.args.fee) / 1e6,
+          fee: Number(rolled.args.fee) / 1e6,
+          maturity: Number(maturity + 2_419_200n),
+          rate: Number(fixedRate(maturity + 2_419_200n, rolled.args.assets, rolled.args.fee, rolledOver.time)) / 1e18,
+        },
+        type: "rollover",
+      },
+      { ...repayRow, type: "repay" },
+    ]);
+    expect(pdf.status).toBe(200);
+    expect(statement).toHaveBeenCalledWith(
+      expect.objectContaining({ maturity: Number(maturity), payments: [rollPayment, payment] }),
+    );
+    expect(captureException).not.toHaveBeenCalled();
   });
 });
 
