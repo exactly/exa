@@ -6,6 +6,7 @@ tags: [critical]
 - runFlow: ../subflows/launch.yaml
 - runFlow: ../subflows/assertNotifications.yaml
 - runFlow: ../subflows/transfer.yaml
+- runFlow: ../subflows/passkeys.yaml
 - runFlow: ../subflows/swap.yaml
 - runFlow: ../subflows/eth.yaml
 - runFlow: ../subflows/portfolio.yaml
