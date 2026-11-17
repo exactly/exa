@@ -1,5 +1,13 @@
 # @exactly/server
 
+## 0.3.11
+
+### Patch Changes
+
+- [#1941](https://github.com/exactly/exa/pull/1941) [`09e7ca0`](https://github.com/exactly/exa/commit/09e7ca0d7c0ac96049a8d4f903c38b43eebe5dae) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 map us id cards to bridge state id
+
+- [#1924](https://github.com/exactly/exa/pull/1924) [`a1041a9`](https://github.com/exactly/exa/commit/a1041a9ef13462f66e432577d3925b00c6f47dae) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🧵 append collect hashes atomically
+
 ## 0.3.10
 
 ### Patch Changes

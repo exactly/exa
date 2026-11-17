@@ -1,5 +1,14 @@
 # @exactly/mobile
 
+## 1.2.53
+
+### Patch Changes
+
+- [#1945](https://github.com/exactly/exa/pull/1945) [`2b5c9c2`](https://github.com/exactly/exa/commit/2b5c9c21f98e190bbed86677fefc31827da6b646) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 keep inquiry open on camera errors
+
+- Updated dependencies [[`09e7ca0`](https://github.com/exactly/exa/commit/09e7ca0d7c0ac96049a8d4f903c38b43eebe5dae), [`a1041a9`](https://github.com/exactly/exa/commit/a1041a9ef13462f66e432577d3925b00c6f47dae)]:
+  - @exactly/server@0.3.11
+
 ## 1.2.52
 
 ### Patch Changes
