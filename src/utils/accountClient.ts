@@ -98,8 +98,8 @@ import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
 import alchemyGasPolicyId from "@exactly/common/alchemyGasPolicyId";
 import { dataSuffix } from "@exactly/common/attribution";
 import deriveAddress from "@exactly/common/deriveAddress";
+import domain from "@exactly/common/domain";
 import chain, { alchemyChains, upgradeableModularAccountAbi } from "@exactly/common/generated/chain";
-import rpId from "@exactly/common/rpId";
 import { sum } from "@exactly/lib";
 
 import {
@@ -132,9 +132,9 @@ export default async function createAccountClient({ credentialId, factory, x, y,
   const signUserOperationHash = async (uoHash: Hex): Promise<Hex> => {
     if (isSiwe()) return wrapSignature(0, await signMessage(ownerConfig, { message: { raw: uoHash } }));
     const credential = await get({
-      rpId,
+      rpId: domain,
       challenge: bufferToBase64URLString(hexToBytes(hashMessage({ raw: uoHash }), { size: 32 }).buffer as ArrayBuffer),
-      allowCredentials: Platform.OS === "android" ? [] : [{ id: credentialId, type: "public-key" }], // HACK fix android credential filtering
+      allowCredentials: [{ id: credentialId, type: "public-key" }],
       userVerification: "preferred",
     });
     if (!credential) throw new Error("no credential");
@@ -232,7 +232,7 @@ export default async function createAccountClient({ credentialId, factory, x, y,
     } = await getCrossChainAccount(targetChain);
     const uo = calls.map(({ to, data = "0x", value }) => ({ target: to, data, value }));
     const operation = dataSuffix ? concatHex([await remoteAccount.encodeBatchExecute(uo), dataSuffix]) : uo;
-    function estimate(dummyPaymasterAndData?: ClientMiddlewareFn) {
+    function estimate(dummyPaymasterAndData?: ClientMiddlewareFn, balance?: bigint) {
       return buildUserOperation(
         createSmartAccountClient({
           chain: targetChain,
@@ -242,9 +242,17 @@ export default async function createAccountClient({ credentialId, factory, x, y,
           dummyPaymasterAndData,
           gasEstimator,
         }),
-        { uo: operation },
+        {
+          uo: operation,
+          ...(balance !== undefined && { overrides: { stateOverride: [{ address: accountAddress, balance }] } }),
+        },
       ) as Promise<Required<UserOperationStruct_v6>>;
     }
+    const value = sum([0n, ...calls.map((call) => BigInt(call.value ?? 0))]);
+    const balance = getBalance(rpc, { address: accountAddress });
+    const sponsor = alchemyGasManagerMiddleware(
+      targetChain.id === chain.id ? alchemyGasPolicyId : sponsorPolicy(targetChain),
+    ).dummyPaymasterAndData;
     const tokens = bridgePolicyTokens[targetChain.id] ?? [];
     const holdings =
       targetChain.id === chain.id
@@ -255,11 +263,10 @@ export default async function createAccountClient({ credentialId, factory, x, y,
           );
     const [{ callGasLimit, maxFeePerGas, preVerificationGas, verificationGasLimit }, nativeBalance, balances, chains] =
       await Promise.all([
-        estimate(
-          alchemyGasManagerMiddleware(targetChain.id === chain.id ? alchemyGasPolicyId : sponsorPolicy(targetChain))
-            .dummyPaymasterAndData,
-        ).catch(async (error: unknown) => {
+        estimate(sponsor).catch(async (error: unknown) => {
           if (!rejected(error)) throw error;
+          const funds = await balance.catch(() => value);
+          const funded = value > funds ? funds + value : undefined;
           const listed = spend && spend.token !== zeroAddress ? await holdings : undefined;
           const held = listed?.find(
             ({ address, amount }) => tokens.includes(address.toLowerCase()) && !!amount && amount > 0n,
@@ -270,18 +277,19 @@ export default async function createAccountClient({ credentialId, factory, x, y,
                 maxTokenAmount: held.amount,
               }).dummyPaymasterAndData
             : undefined;
-          return (stub ? estimate(stub).catch(() => estimate()) : estimate()).catch(() => {
+          const fallback = () =>
+            stub ? estimate(stub, funded).catch(() => estimate(undefined, funded)) : estimate(undefined, funded);
+          return (funded === undefined ? fallback() : estimate(sponsor, funded).catch(fallback)).catch(() => {
             throw error;
           });
         }),
-        getBalance(rpc, { address: accountAddress }),
+        balance,
         holdings,
         queryClient.ensureQueryData(lifiChainsOptions).catch(() => undefined),
       ]);
     const cost =
       (BigInt(callGasLimit) + BigInt(preVerificationGas) + BigInt(verificationGasLimit)) * BigInt(maxFeePerGas);
     const nativeToken = chains?.find(({ id }) => id === targetChain.id)?.nativeToken;
-    const value = sum([0n, ...calls.map((call) => BigInt(call.value ?? 0))]);
     const unfunded = value > nativeBalance;
     const principal = spend?.token === zeroAddress ? spend.amount : 0n;
     if (targetChain.id === chain.id) {
@@ -584,7 +592,7 @@ function dummySignature(challenge: string) {
         ? `android:apk-key-hash:${"A".repeat(43)}`
         : Platform.OS === "web" && typeof window !== "undefined"
           ? window.location.origin
-          : `https://${rpId}`
+          : `https://${domain}`
     }"${Platform.OS === "ios" ? "" : ',"crossOrigin":false'}}`,
     typeIndex: 1n,
     challengeIndex: 23n,
