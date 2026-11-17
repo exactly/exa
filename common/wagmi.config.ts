@@ -30,6 +30,7 @@ import Previewer from "@exactly/protocol/deployments/base/Previewer.json" with {
 import RatePreviewer from "@exactly/protocol/deployments/base/RatePreviewer.json" with { type: "json" };
 
 import alchemyNetworks from "./alchemy.json" with { type: "json" };
+import factoryChainBlocks from "./factoryChains.json" with { type: "json" };
 import factoryVersion from "./factoryVersion.json" with { type: "json" };
 
 const chainId = Number(env.CHAIN_ID ?? String(env.EAS_BUILD_RUNNER === "eas-build" ? optimism.id : optimismSepolia.id));
@@ -123,13 +124,19 @@ export default defineConfig([
                 exaPreviewer: getAddress(exaPreviewer),
                 swapper: getAddress(perChain(deploy.accounts.swapper, id)),
               },
-            ];
+            ] as const;
           });
           const stocks = Object.keys(deploy.proposalManager.allowlist[base.id])
             .filter((address) => address.slice(0, 5).toLowerCase() === "0xb20")
             .map((address) => address.toLowerCase());
           if (stocks.length === 0) throw new Error("missing stocks");
-          const slugs: Record<number, string | undefined> = alchemyNetworks;
+          const networkConfig: Record<string, undefined | { network: string; slug: string; testnet?: boolean }> =
+            alchemyNetworks;
+          const slugs = Object.fromEntries(
+            Object.entries(networkConfig).flatMap(([id, config]) =>
+              config && !config.testnet ? [[id, config.slug]] : [],
+            ),
+          ) as Record<number, string | undefined>;
           const admin = getAddress(perChain(deploy.accounts.admin));
           const create3Factory = getAddress(perChain(deploy.factory.create3));
           const version = perChain(factoryVersion);
@@ -177,7 +184,7 @@ export default defineConfig([
               },
             ];
           });
-          for (const [id, network] of Object.entries(alchemyNetworks)) {
+          for (const [id, network] of Object.entries(slugs)) {
             if (alchemyChains.some((c) => c.id === Number(id))) continue;
             const name = Object.entries(chains).find(([, c]) => c.id === Number(id))?.[0];
             const url = chain ? `https://${network}.g.alchemy.com/v2` : anvil.rpcUrls.default.http[0];
@@ -192,6 +199,21 @@ export default defineConfig([
                     rpcUrls: { default: { http: [url] }, alchemy: { http: [url] } },
                   }),
             });
+          }
+          const factoryChains = Object.entries(factoryChainBlocks).flatMap(([key, startBlock]) => {
+            const id = Number(key);
+            if (id === anvil.id || id === moonbeamDev.id) {
+              return chain ? [] : [{ id, network: id === anvil.id ? "ANVIL" : "ANVIL2", startBlock }];
+            }
+            const known = Object.values(chains).find((c) => c.id === id);
+            if (!known) throw new Error(`unknown factory chain ${id}`);
+            if (!alchemyChains.some((c) => c.id === id)) throw new Error(`missing alchemy chain ${id}`);
+            const network = networkConfig[id]?.network;
+            if (!network) throw new Error(`missing alchemy network ${id}`);
+            return chain && Boolean(known.testnet) === testnet ? [{ id, network, startBlock }] : [];
+          });
+          for (const [id] of networkContracts) {
+            if (!factoryChains.some((current) => current.id === id)) throw new Error(`missing factory chain ${id}`);
           }
           const allowlists: Record<string, Record<string, string>> = { ...deploy.proposalManager.allowlist };
           if (!chain) {
@@ -254,6 +276,7 @@ export default defineConfig([
               `export const appPreviewerCode: \`0x\${string}\` = "${AppPreviewer.bytecode.object}"`,
               `export const exaPreviewerCode: \`0x\${string}\` = "${ExaPreviewer.bytecode.object}"`,
               `export const factories: Readonly<Record<"legacy" | "versions", readonly \`0x\${string}\`[]>> = ${JSON.stringify(factories)}`,
+              `export const factoryChains: ReadonlyMap<number, Readonly<{ network: string; startBlock: number; swapper: \`0x\${string}\` }>> = new Map(${JSON.stringify(factoryChains.map(({ id, network, startBlock }) => [id, { network, startBlock, swapper: getAddress(perChain(deploy.accounts.swapper, id)) }]))})`,
               `export const networks: ReadonlyMap<number, Readonly<Record<"auditor" | "exaPreviewer" | "swapper", \`0x\${string}\`>>> = new Map(${JSON.stringify(networkContracts)})`,
               `export const pricePreviewerCode: \`0x\${string}\` = "${PricePreviewer.bytecode.object}"`,
               `export const stocks: ReadonlySet<string> = new Set(${JSON.stringify(stocks)})`,
