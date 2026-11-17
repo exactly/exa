@@ -123,6 +123,23 @@ describe("server", () => {
     for (const create of Object.values({ ...hooks, ...workers })) expect(create).toHaveBeenCalledOnce();
   });
 
+  it("starts without pax", async () => {
+    vi.stubEnv("PAX_API_KEY", "");
+
+    await import("../index");
+
+    expect(mocks.api).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ pax: undefined }));
+    expect(hooks.persona).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ pax: undefined }));
+  });
+
+  it("rejects pax without its url before starting", async () => {
+    vi.stubEnv("PAX_API_URL", "");
+
+    await expect(import("../index")).rejects.toThrow("pax url");
+    for (const create of Object.values({ ...hooks, ...workers })) expect(create).not.toHaveBeenCalled();
+    expect(mocks.supervise).not.toHaveBeenCalled();
+  });
+
   it("rejects unknown modules before starting any", async () => {
     vi.stubEnv("DISABLED_MODULES", "activity,chat");
 
