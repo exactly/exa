@@ -442,6 +442,232 @@ describe("onchain", () => {
       }),
     );
   });
+  it("returns repays on every network", async () => {
+    const remote = chains[1];
+    assert.ok(remote);
+    const client = createTestClient({ chain: remote, mode: "anvil", transport: http() })
+      .extend(publicActions)
+      .extend(walletActions);
+    const owner = createWalletClient({
+      chain: remote,
+      transport: http(),
+      account: privateKeyToAccount(generatePrivateKey()),
+    });
+    const borrower = deriveAddress(exaAccountFactoryAddress, { x: padHex(owner.account.address), y: zeroHash });
+    const headers = { "test-credential-id": owner.account.address };
+    const statement = vi.mocked(Statement);
+    const { timestamp } = await client.getBlock({ blockTag: "latest" });
+    const maturity = timestamp - (timestamp % 2_419_200n) + 2n * 2_419_200n;
+    const call = (data: Hex) => ({ target: borrower, value: 0n, data });
+    function propose(amount: bigint, type: ProposalType, data: Hex) {
+      return call(
+        encodeFunctionData({
+          abi: exaPluginAbi,
+          functionName: "propose",
+          args: [marketUSDCAddress, amount, type, data],
+        }),
+      );
+    }
+    await Promise.all([
+      client.setBalance({ address: owner.account.address, value: 10n ** 24n }),
+      database.insert(credentials).values({
+        id: owner.account.address,
+        publicKey: new Uint8Array(),
+        account: borrower,
+        factory: exaAccountFactoryAddress,
+      }),
+    ]);
+    const firewall = await client.readContract({
+      address: auditorAddress,
+      abi: parseAbi(["function firewall() view returns (address)"]),
+      functionName: "firewall",
+    });
+    for (const allowed of [borrower, debtManagerAddress]) {
+      await client.waitForTransactionReceipt({
+        hash: await client.writeContract({
+          address: firewall,
+          abi: parseAbi(["function allow(address account, bool allowed)"]),
+          functionName: "allow",
+          args: [allowed, true],
+          account: null,
+        }),
+      });
+    }
+    await client.waitForTransactionReceipt({
+      hash: await owner.writeContract({
+        address: exaAccountFactoryAddress,
+        abi: exaAccountFactoryAbi,
+        functionName: "createAccount",
+        args: [0n, [{ x: hexToBigInt(owner.account.address), y: 0n }]],
+      }),
+    });
+    await client.waitForTransactionReceipt({
+      hash: await owner.writeContract({
+        address: borrower,
+        abi: upgradeableModularAccountAbi,
+        functionName: "executeBatch",
+        args: [
+          [
+            {
+              target: usdcAddress,
+              value: 0n,
+              data: encodeFunctionData({
+                abi: [
+                  {
+                    type: "function",
+                    name: "mint",
+                    inputs: [{ type: "address" }, { type: "uint256" }],
+                    outputs: [],
+                    stateMutability: "nonpayable",
+                  },
+                ],
+                functionName: "mint",
+                args: [borrower, 10_000_000n],
+              }),
+            },
+            {
+              target: usdcAddress,
+              value: 0n,
+              data: encodeFunctionData({
+                abi: erc20Abi,
+                functionName: "approve",
+                args: [marketUSDCAddress, 10_000_000n],
+              }),
+            },
+            {
+              target: marketUSDCAddress,
+              value: 0n,
+              data: encodeFunctionData({ abi: marketAbi, functionName: "deposit", args: [10_000_000n, borrower] }),
+            },
+            propose(
+              2_000_000n,
+              ProposalType.BorrowAtMaturity,
+              encodeAbiParameters(
+                [{ type: "uint256" }, { type: "uint256" }, { type: "address" }],
+                [maturity, 3_000_000n, padHex("0x9a1db", { size: 20 })],
+              ),
+            ),
+            propose(
+              2_000_000n,
+              ProposalType.RepayAtMaturity,
+              encodeAbiParameters([{ type: "uint256" }, { type: "uint256" }], [maturity, 1_000_000n]),
+            ),
+            propose(
+              3_000_000n,
+              ProposalType.RollDebt,
+              encodeAbiParameters(
+                [{ type: "uint256" }, { type: "uint256" }, { type: "uint256" }, { type: "uint256" }],
+                [maturity, maturity + 2_419_200n, 3_000_000n, WAD],
+              ),
+            ),
+          ],
+        ],
+      }),
+    });
+    await client.mine({ blocks: 1, interval: proposalManager.delay.default });
+    const { blockNumber: block, logs } = await client.waitForTransactionReceipt({
+      hash: await owner.writeContract({
+        address: borrower,
+        abi: upgradeableModularAccountAbi,
+        functionName: "executeBatch",
+        args: [
+          [0n, 1n, 2n].map((nonce) =>
+            call(encodeFunctionData({ abi: exaPluginAbi, functionName: "executeProposal", args: [nonce] })),
+          ),
+        ],
+      }),
+    });
+    const [repay, roll] = parseEventLogs({ abi: marketAbi, eventName: "RepayAtMaturity", logs });
+    const [, rolled] = parseEventLogs({ abi: marketAbi, eventName: "BorrowAtMaturity", logs });
+    assert.ok(repay);
+    assert.ok(roll);
+    assert.ok(rolled);
+    const [{ timestamp: repaid }, usdPrice] = await Promise.all([
+      client.getBlock({ blockNumber: block }),
+      client.readContract({
+        address: auditorAddress,
+        abi: auditorAbi,
+        functionName: "assetPrice",
+        args: [
+          await client
+            .readContract({
+              address: auditorAddress,
+              abi: auditorAbi,
+              functionName: "markets",
+              args: [marketUSDCAddress],
+            })
+            .then(({ 4: priceFeed }) => priceFeed),
+        ],
+        blockNumber: block,
+      }),
+    ]);
+    await vi.waitFor(
+      async () => {
+        const status = (await fetch("http://localhost:42069/status").then((response) => response.json())) as Record<
+          string,
+          { block: { number: number } }
+        >;
+        expect(status[remote.name]?.block.number).toBeGreaterThanOrEqual(Number(block));
+      },
+      { timeout: 10_000 },
+    );
+    const [payment, rollPayment] = [repay, roll].map(({ transactionIndex, logIndex, args }) => ({
+      id: `${remote.id}:${block}:${transactionIndex}:${logIndex}`,
+      timestamp: new Date(Number(repaid) * 1000).toISOString(),
+      amount: Number(args.assets) / 1e6,
+      positionAmount: Number(args.positionAssets) / 1e6,
+    }));
+    assert.ok(payment);
+    assert.ok(rollPayment);
+    const [repayRow, rollRow] = [
+      { ...payment, log: repay },
+      { ...rollPayment, log: roll },
+    ].map(({ log, ...row }) => ({
+      ...row,
+      chainId: remote.id,
+      currency: "USDC",
+      usdAmount: Number((log.args.assets * usdPrice) / WAD) / 1e6,
+      transactionHash: log.transactionHash,
+    }));
+
+    const [response, split, pdf, legacy] = await Promise.all([
+      appClient.index.$get({ query: { include: "repay" } }, { headers }),
+      appClient.index.$get({ query: { include: ["repay", "rollover"] } }, { headers }),
+      appClient.index.$get(
+        { query: { maturity: String(maturity) } },
+        { headers: { ...headers, accept: "application/pdf" } },
+      ),
+      appClient.index.$get({}, { headers }),
+    ]);
+
+    expect(legacy.status).toBe(200);
+    await expect(legacy.json()).resolves.not.toContainEqual(expect.objectContaining({ chainId: remote.id }));
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual([
+      { ...rollRow, type: "repay" },
+      { ...repayRow, type: "repay" },
+    ]);
+    expect(split.status).toBe(200);
+    await expect(split.json()).resolves.toStrictEqual([
+      {
+        ...rollRow,
+        maturity: Number(maturity),
+        borrow: {
+          amount: Number(rolled.args.assets + rolled.args.fee) / 1e6,
+          fee: Number(rolled.args.fee) / 1e6,
+          maturity: Number(maturity + 2_419_200n),
+          rate: Number(fixedRate(maturity + 2_419_200n, rolled.args.assets, rolled.args.fee, repaid)) / 1e18,
+        },
+        type: "rollover",
+      },
+      { ...repayRow, type: "repay" },
+    ]);
+    expect(pdf.status).toBe(200);
+    expect(statement).toHaveBeenCalledWith(
+      expect.objectContaining({ maturity: Number(maturity), payments: [rollPayment, payment] }),
+    );
+    expect(captureException).not.toHaveBeenCalled();
+  });
 });
 
 describe.concurrent("authenticated", () => {
