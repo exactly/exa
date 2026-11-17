@@ -1,5 +1,6 @@
 import React, { memo, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Platform } from "react-native";
 import { Stop } from "react-native-svg";
 import { LineChart } from "react-native-wagmi-charts";
 
@@ -76,7 +77,7 @@ export default function PriceChart({
       <YStack gap="s4">
         <XStack alignItems="center" gap="s4">
           <YStack flex={1} gap="s1">
-            <Text title3 numberOfLines={1} adjustsFontSizeToFit>
+            <Text title3 numberOfLines={1} {...(Platform.OS === "ios" && { lineHeight: 0 })} adjustsFontSizeToFit>
               {name}
             </Text>
             <Text footnote color="uiNeutralSecondary">
