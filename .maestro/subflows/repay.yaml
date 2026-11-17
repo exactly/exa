@@ -2,6 +2,9 @@ appId: ${APP_ID ?? "app.exactly"}
 ---
 - tapOn: { text: Payments, index: -1 }
 - runFlow:
+    when: { true: "${network}" }
+    commands: [{ extendedWaitUntil: { visible: "${network}", timeout: 40000 } }]
+- runFlow:
     when: { true: "${sheet}" }
     commands:
       - runFlow: { file: scrollTo.yaml, env: { element: "Upcoming payments", center: true } }
@@ -45,6 +48,9 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Confirm payment
 - runFlow: sign.yaml
 - assertVisible: Transaction details
+- runFlow:
+    when: { true: "${network}" }
+    commands: [{ assertVisible: { text: "${network}", below: Transaction details } }]
 - runFlow:
     when: { true: "${external}" }
     file: scrollTo.yaml
