@@ -1,5 +1,19 @@
 # @exactly/server
 
+## 0.3.13
+
+### Patch Changes
+
+- [#1958](https://github.com/exactly/exa/pull/1958) [`1fcb0d1`](https://github.com/exactly/exa/commit/1fcb0d116f0b88fe0abd8c8429c80429152628d9) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 treat canceled cards as deleted
+
+- [#1961](https://github.com/exactly/exa/pull/1961) [`e4f574d`](https://github.com/exactly/exa/commit/e4f574d296d654c855e7cbefc11baa21cc06f942) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 📈 attach wallet context to errors
+
+- [#1506](https://github.com/exactly/exa/pull/1506) [`98d1149`](https://github.com/exactly/exa/commit/98d1149bdca654ad20095a1b83de51fc6ee42b8f) Thanks [@nfmelendez](https://github.com/nfmelendez)! - ✨ handle panda card canceled event
+
+- [#1968](https://github.com/exactly/exa/pull/1968) [`f3c30ba`](https://github.com/exactly/exa/commit/f3c30ba5af316b2999797c19e1bba86eb6bd96ed) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ handle redeem proposals
+
+- [#1979](https://github.com/exactly/exa/pull/1979) [`3e6e111`](https://github.com/exactly/exa/commit/3e6e111acb09572a8a5f6dc757ade6a269e5eeab) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 fix weth redeem activity amount
+
 ## 0.3.12
 
 ### Patch Changes

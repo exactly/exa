@@ -1,5 +1,29 @@
 # @exactly/mobile
 
+## 1.2.55
+
+### Patch Changes
+
+- [#1957](https://github.com/exactly/exa/pull/1957) [`70c4509`](https://github.com/exactly/exa/commit/70c45090cad2c1fc702172e74c520f0bd9bb86c7) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 filter android passkeys on signing
+
+- [#1962](https://github.com/exactly/exa/pull/1962) [`c131571`](https://github.com/exactly/exa/commit/c131571f676fda7fb877be15e5f8416b78939512) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 keep chart and benefit text size
+
+- [#1962](https://github.com/exactly/exa/pull/1962) [`4614f5d`](https://github.com/exactly/exa/commit/4614f5d648b2f9b3cb796843e520ecef36b991b4) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 drop status bar inset from payment history sheet
+
+- [#1972](https://github.com/exactly/exa/pull/1972) [`bf14091`](https://github.com/exactly/exa/commit/bf140919f350bd87dc87edd635a212ee3d681709) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💬 remove collateral claim from stocks copy
+
+- [#1986](https://github.com/exactly/exa/pull/1986) [`27a1af8`](https://github.com/exactly/exa/commit/27a1af8cf5bb6217d0d65c5ee6eae43a86b09a9a) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🩹 skip dust read for native tokens
+
+- [#1962](https://github.com/exactly/exa/pull/1962) [`0969b10`](https://github.com/exactly/exa/commit/0969b10353e119da544abf5008d158f20f5fa76a) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 keep button text size
+
+- [#1957](https://github.com/exactly/exa/pull/1957) [`1136e2f`](https://github.com/exactly/exa/commit/1136e2fe51579f22401c4bcd7816304889a2d8f3) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 filter android passkeys on session renewal
+
+- [#1962](https://github.com/exactly/exa/pull/1962) [`41d20af`](https://github.com/exactly/exa/commit/41d20af87544f581240d13a5cfe06557b96a99fb) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💄 stretch card details to full width
+
+- Updated dependencies [[`1fcb0d1`](https://github.com/exactly/exa/commit/1fcb0d116f0b88fe0abd8c8429c80429152628d9), [`e4f574d`](https://github.com/exactly/exa/commit/e4f574d296d654c855e7cbefc11baa21cc06f942), [`ba619ba`](https://github.com/exactly/exa/commit/ba619ba3335fd17a84ba886658fdbb4c393570cd), [`98d1149`](https://github.com/exactly/exa/commit/98d1149bdca654ad20095a1b83de51fc6ee42b8f), [`f3c30ba`](https://github.com/exactly/exa/commit/f3c30ba5af316b2999797c19e1bba86eb6bd96ed), [`3e6e111`](https://github.com/exactly/exa/commit/3e6e111acb09572a8a5f6dc757ade6a269e5eeab)]:
+  - @exactly/server@0.3.13
+  - @exactly/common@0.0.27
+
 ## 1.2.54
 
 ### Patch Changes

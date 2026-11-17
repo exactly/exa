@@ -1,5 +1,11 @@
 # @exactly/common
 
+## 0.0.27
+
+### Patch Changes
+
+- [#1969](https://github.com/exactly/exa/pull/1969) [`ba619ba`](https://github.com/exactly/exa/commit/ba619ba3335fd17a84ba886658fdbb4c393570cd) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔨 deploy testnet factories via createx
+
 ## 0.0.26
 
 ### Patch Changes
