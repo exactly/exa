@@ -25,6 +25,7 @@ import reportError, { classifyError } from "./reportError";
 import { isBusiness } from "./useIsBusiness";
 import ownerConfig from "./wagmi/owner";
 
+import type { Hex } from "@exactly/common/validation";
 import type { ExaAPI } from "@exactly/server/api"; // eslint-disable-line @nx/enforce-module-boundaries
 import type { InferOutput } from "valibot";
 
@@ -592,6 +593,32 @@ export async function getRampProviders(countryCode?: string, redirectURL?: strin
 export async function getRampQuote(query: NonNullable<Parameters<typeof api.ramp.quote.$get>[0]>["query"]) {
   await auth();
   const response = await api.ramp.quote.$get({ query });
+  if (!response.ok) {
+    const { code } = await response.json();
+    throw new APIError("GET", response, code);
+  }
+  return response.json();
+}
+
+export async function lockQRPayment(qr: string, amount?: string) {
+  await auth();
+  const response = await api.ramp.qr.$post({ json: { qr, amount } });
+  if (response.status === 200) return response.json();
+  if (response.status === 206) return { ...(await response.json()), code: undefined };
+  const { code } = await response.json();
+  throw new APIError("POST", response, code);
+}
+
+export async function getQRQuotes() {
+  await auth();
+  const response = await api.ramp.qr.quotes.$get();
+  return response.json();
+}
+
+export async function getQRPayment(userOpHash: Hex) {
+  await auth();
+  const response = await api.ramp.qr[":userOpHash"].$get({ param: { userOpHash } });
+  if (response.status === 404) return null;
   if (!response.ok) {
     const { code } = await response.json();
     throw new APIError("GET", response, code);
