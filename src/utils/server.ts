@@ -54,7 +54,6 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
     const get = await api.auth.authentication.$get({ query: { credentialId: owner } }, { init: { signal } });
     const sessionId = get.headers.get("x-session-id");
     const options = await get.json();
-    if (options.method === "webauthn" && Platform.OS === "android") delete options.allowCredentials; // HACK fix android credential filtering
     const json: InferRequestType<typeof api.auth.authentication.$post>["json"] =
       options.method === "siwe"
         ? {
@@ -64,7 +63,6 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
           }
         : await assert({
             ...options,
-            allowCredentials: Platform.OS === "android" ? undefined : options.allowCredentials, // HACK fix android credential filtering
             extensions: options.extensions as Record<string, unknown> | undefined,
           }).then((assertion) => {
             if (!assertion) throw new Error("bad assertion");
