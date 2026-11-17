@@ -1,4 +1,4 @@
-import React, { use, useCallback, useMemo, useRef, useState } from "react";
+import React, { use, useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { View as RNView } from "react-native";
 import { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
@@ -39,6 +39,7 @@ import { activityOptions, cardModeMutationOptions, refreshActivity } from "../..
 import useAccount from "../../utils/useAccount";
 import useBusiness from "../../utils/useBusiness";
 import useCardLimit from "../../utils/useCardLimit";
+import useDebts from "../../utils/useDebts";
 import useDeposits from "../../utils/useDeposits";
 import useIsBusiness from "../../utils/useIsBusiness";
 import useKYC from "../../utils/useKYC";
@@ -82,7 +83,7 @@ export default function Home() {
   const [cardDetailsOpen, setCardDetailsOpen] = useState(false);
   const [visaSignatureModalOpen, setVisaSignatureModalOpen] = useState(false);
   const [manualRepaymentSheetOpen, setManualRepaymentSheetOpen] = useState(false);
-  const [rolloverIntroMaturity, setRolloverIntroMaturity] = useState<string>();
+  const [rolloverIntro, setRolloverIntro] = useState<{ chainId: number; maturity: string }>();
   const pendingModeRef = useRef(0);
   const pendingSheetOpenRef = useRef(false);
 
@@ -110,7 +111,7 @@ export default function Home() {
     isProcessing,
     proposals: { refetch: refetchPendingProposals },
   } = usePendingOperations();
-  const { markets, timestamp, refetch: refetchMarkets } = useMarkets();
+  const { markets, refetch: refetchMarkets } = useMarkets();
   const { approved: isKYCApproved, status: kycStatus, isFetched: isKYCFetched } = useKYC();
   const { data: card, refetch: refetchCard } = useQuery<CardDetails>({
     queryKey: ["card", "details"],
@@ -175,23 +176,17 @@ export default function Home() {
     if (inNowMode) handleModeChange(lastInstallments ?? 1);
     setInstallmentsSheetOpen(true);
   }
+  function selectPayment(maturity: bigint, chainId: number) {
+    router.setParams({ maturity: String(maturity), chainId: String(chainId) });
+  }
   function openStocks() {
     queryClient.setQueryData<Swap>(["swap"], { ...defaultSwap, tokenModalOpen: true });
     router.push({ pathname: "/swaps", params: { filter: "stocks" } });
   }
 
-  const overdueMaturity = useMemo(() => {
-    let earliest: bigint | undefined;
-    for (const { market, fixedBorrowPositions } of markets ?? []) {
-      if (market !== marketUSDCAddress) continue;
-      for (const { maturity, position } of fixedBorrowPositions) {
-        if (maturity >= timestamp || position.principal + position.fee === 0n) continue;
-        if (isProcessing(maturity)) continue;
-        if (earliest === undefined || maturity < earliest) earliest = maturity;
-      }
-    }
-    return earliest;
-  }, [markets, timestamp, isProcessing]);
+  const overdue = useDebts().debts?.find(
+    ({ chainId, maturity, overdue: due }) => due && !isProcessing(maturity, chainId),
+  );
 
   const scrollRef = useRef<ScrollView>(null);
   const scrollOffsetRef = useRef(0);
@@ -234,13 +229,13 @@ export default function Home() {
           <ProfileHeader />
           <View flex={1} gap="s5" paddingBottom="s5">
             <YStack backgroundColor="backgroundSoft" padding="s4" gap="s4">
-              {overdueMaturity !== undefined && (
+              {overdue && (
                 <InfoAlert
                   variant="error"
                   title={t("You have an overdue payment. Pay now to avoid additional interest.")}
                   actionText={t("Pay now")}
                   onPress={() => {
-                    router.setParams({ maturity: String(overdueMaturity) });
+                    router.setParams({ maturity: String(overdue.maturity), chainId: String(overdue.chainId) });
                   }}
                 />
               )}
@@ -364,8 +359,8 @@ export default function Home() {
               />
             )}
             <AnimatedView layout={LinearTransition} paddingHorizontal="s4" gap="s5">
-              <OverduePayments onSelect={(m) => router.setParams({ maturity: String(m) })} />
-              <UpcomingPayments showEmpty onSelect={(m) => router.setParams({ maturity: String(m) })} />
+              <OverduePayments onSelect={selectPayment} />
+              <UpcomingPayments showEmpty onSelect={selectPayment} />
               <LatestActivity activity={activity} />
               <HomeDisclaimer />
             </AnimatedView>
@@ -376,8 +371,8 @@ export default function Home() {
               setCardDetailsOpen(false);
             }}
           />
-          <PaymentSheet onRolloverIntro={setRolloverIntroMaturity} />
-          <RolloverIntroSheet maturity={rolloverIntroMaturity} onClose={() => setRolloverIntroMaturity(undefined)} />
+          <PaymentSheet onRolloverIntro={setRolloverIntro} />
+          <RolloverIntroSheet payment={rolloverIntro} onClose={() => setRolloverIntro(undefined)} />
           <InstallmentsSheet
             mode={card?.mode ?? 1}
             open={installmentsSheetOpen}
