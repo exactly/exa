@@ -216,6 +216,7 @@ contract BobScript is BaseScript {
         abi.encode(admin, factory.WEBAUTHN_OWNER_PLUGIN(), exaPlugin, factory.IMPL(), factory.ENTRYPOINT())
       )
     );
+    proposalManager.grantRole(keccak256("COLLECTOR_ROLE"), address(0x5e7));
     vm.stopBroadcast();
   }
 
