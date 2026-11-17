@@ -1,11 +1,11 @@
 import { parse } from "valibot";
 import { padHex } from "viem";
-import { anvil, base, baseSepolia } from "viem/chains";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import chain from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
-import createAlchemy, { activityNetworks, network, NETWORKS } from "../../utils/alchemy";
+import createAlchemy, { activityChain } from "../../utils/alchemy";
 import ServiceError from "../../utils/ServiceError";
 
 const account = parse(Address, padHex("0xb0b", { size: 20 }));
@@ -15,29 +15,13 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("activity networks", () => {
-  it("selects the local networks for the local stack", () => {
-    expect([...activityNetworks(anvil.id).keys()]).toStrictEqual(["ANVIL", "ANVIL2"]);
-  });
-
-  it("selects every production network for production stacks", () => {
-    expect([...activityNetworks(base.id).keys()]).toStrictEqual(
-      [...NETWORKS]
-        .filter(([name, chain]) => !["ANVIL", "ANVIL2"].includes(name) && !chain.testnet)
-        .map(([name]) => name),
-    );
-  });
-
-  it("selects every test network for test stacks", () => {
-    expect([...activityNetworks(baseSepolia.id).keys()]).toStrictEqual(
-      [...NETWORKS]
-        .filter(([name, chain]) => !["ANVIL", "ANVIL2"].includes(name) && !!chain.testnet)
-        .map(([name]) => name),
-    );
-  });
-
-  it("fails for unsupported stacks", () => {
-    expect(() => activityNetworks(0)).toThrow("unsupported activity stack");
+describe("activity chain", () => {
+  it("finds activity chains by alchemy network", () => {
+    expect(["ANVIL", "ANVIL2", "OPT_MAINNET"].map((name) => activityChain(name)?.id)).toStrictEqual([
+      31_337,
+      1281,
+      undefined,
+    ]);
   });
 });
 
@@ -118,7 +102,7 @@ describe("alchemy", () => {
 
   it("lists and finds the active webhook for the compiled network", async () => {
     const hooks = [
-      webhook("inactive", network(), false),
+      webhook("inactive", chain.alchemyNetwork, false),
       webhook("other", "ETH_MAINNET"),
       webhook("unknown", "BNB_TESTNET"),
       { ...webhook("mined"), webhook_type: "MINED_TRANSACTION" },
@@ -174,7 +158,7 @@ describe("alchemy", () => {
       },
       {
         addresses: [],
-        network: network(),
+        network: chain.alchemyNetwork,
         webhook_type: "ADDRESS_ACTIVITY",
         webhook_url: "https://example.com/activity",
       },
@@ -239,7 +223,7 @@ function bodies() {
   });
 }
 
-function webhook(id: string, current = network(), active = true) {
+function webhook(id: string, current = chain.alchemyNetwork, active = true) {
   return {
     id,
     is_active: active,
