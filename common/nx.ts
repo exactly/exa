@@ -35,10 +35,9 @@ export async function preTasksExecution(_: unknown, { argv, workspaceRoot }: Pre
   if (tests && tests < targets.length) throw new Error(`mixed test and non-test targets: ${targets.join(", ")}`);
   if (tests) process.env.CHAIN_ID = await import("viem/chains").then(({ anvil }) => String(anvil.id));
   if (targets.some((target) => /^e2e(?::|$)/.test(target))) {
-    const web = targets.some((target) => /^e2e:web(?::|$)/.test(target));
-    process.env.APP_DOMAIN ??= web ? "exa.localhost" : "localhost";
-    if (web && process.env.APP_DOMAIN !== "exa.localhost") {
-      throw new Error(`web e2e serves exa.localhost, not ${process.env.APP_DOMAIN}`);
+    process.env.APP_DOMAIN ??= "exa.localhost";
+    if (process.env.APP_DOMAIN !== "exa.localhost") {
+      throw new Error(`e2e serves exa.localhost, not ${process.env.APP_DOMAIN}`);
     }
     if (targets.includes("e2e:web")) process.env.EXPO_PACKAGER_PROXY_URL ??= "https://exa.localhost";
     process.env.EXPO_PUBLIC_ENV ??= "e2e";
