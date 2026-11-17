@@ -41,12 +41,6 @@ contract DeployExaAccountFactory is BaseScript {
     return keccak256(abi.encode(metadata.name, metadata.version));
   }
 
-  function getAddress() external returns (address) {
-    etchCanonical();
-    vm.etch(address(0), vm.getDeployedCode("ExaPlugin.sol:ExaPlugin"));
-    return create3Address(acct("admin"), _salt(IPlugin(address(0))));
-  }
-
   function constructorArguments() external returns (bytes memory) {
     return abi.encode(
       acct("admin"),
