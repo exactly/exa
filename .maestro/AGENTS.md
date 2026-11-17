@@ -59,6 +59,7 @@
 - **disambiguate**: use `below:` when a text appears twice. typed text matches tap selectors too, so type a part of the name you tap next (`eth`, then tap `WETH`).
 - **offscreen elements**: maestro web drops elements outside the viewport or entirely hidden by a scroll container, and trims partly hidden ones to their visible part (`bounds.patch`), so taps land on what users see. scroll before asserting them.
 - **disabled elements**: maestro web reports an element as disabled while it or an ancestor matches `:disabled` (`enabled.patch`), so `enabled: true` waits for a control that turns on later.
+- **moving elements**: a tap aims at its element where the screen settles, even when other elements share its text and id, like a field's label and its empty input (`aim.patch`), so a label tapped while its page still slides in focuses its field.
 - **yaml**: quote yaml 1.1 booleans like `"On"` and regexes with `?`. `${}` ends at the first `}`, so an expression can't hold a regex quantifier like `{40}`: use string methods. check edited flows with `.maestro/build/bin/maestro check-syntax <file>`.
 
 ## platforms
