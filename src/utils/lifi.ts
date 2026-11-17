@@ -256,6 +256,7 @@ function ensureConfig() {
 }
 
 export async function getRoute(
+  chainId: number,
   fromToken: Hex,
   toToken: Hex,
   toAmount: bigint,
@@ -269,8 +270,8 @@ export async function getRoute(
     fee: 0.0025,
     slippage: 0.015,
     integrator: "exa_app",
-    fromChain: chain.id,
-    toChain: chain.id,
+    fromChain: chainId,
+    toChain: chainId,
     fromToken,
     toToken,
     toAmount: String(toAmount),
@@ -284,7 +285,7 @@ export async function getRoute(
   });
   assert(QuoteEstimate, estimate);
   return {
-    ...parse(QuoteTransaction, { chainId: chain.id, value: "0", ...transactionRequest }),
+    ...parse(QuoteTransaction, { chainId, value: "0", ...transactionRequest }),
     tool,
     estimate,
     toAmount: BigInt(estimate.toAmount),

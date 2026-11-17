@@ -20,6 +20,7 @@ import type { Hex } from "@exactly/common/validation";
 
 export default function Success({
   amount,
+  chainId = chain.id,
   repayAssets,
   currency,
   maturity,
@@ -28,6 +29,7 @@ export default function Success({
   onClose,
 }: {
   amount: number;
+  chainId?: number;
   currency?: string;
   maturity: bigint;
   onClose: () => void;
@@ -39,7 +41,7 @@ export default function Success({
     t,
     i18n: { language },
   } = useTranslation();
-  const proposalManager = useProposalManager(chain.id);
+  const proposalManager = useProposalManager(chainId);
   return (
     <GradientScrollView variant={proposalManager ? "info" : "success"}>
       <View flex={1}>
@@ -106,7 +108,7 @@ export default function Success({
                 )}
               </YStack>
             </YStack>
-            <TransactionDetails />
+            <TransactionDetails chainId={chainId} />
           </YStack>
         </YStack>
         <View flex={2} justifyContent="flex-end">
