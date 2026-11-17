@@ -17,9 +17,11 @@ import Text from "../shared/Text";
 import View from "../shared/View";
 
 export default function AssetSelector({
+  chainId,
   onSubmit,
   sortBy = "usdValue",
 }: {
+  chainId?: number;
   onSubmit: (market: Address, isExternalAsset: boolean) => void;
   sortBy?: "usdcFirst" | "usdValue";
 }) {
@@ -28,7 +30,7 @@ export default function AssetSelector({
     i18n: { language },
   } = useTranslation();
   const [selectedMarket, setSelectedMarket] = useState<Address | undefined>();
-  const { assets, externalAssets, markets, isPending, isBalancesPending } = usePortfolio({ sortBy });
+  const { assets, externalAssets, markets, isPending, isBalancesPending } = usePortfolio({ chainId, sortBy });
 
   if (assets.length === 0) {
     if (isPending || isBalancesPending || !markets) {
