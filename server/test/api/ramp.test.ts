@@ -363,6 +363,40 @@ describe("ramp api", () => {
         });
       });
 
+      it("returns the qr quote without manteca user", async () => {
+        const getUser = vi.spyOn(manteca, "getUser").mockResolvedValue(null);
+        const getQuote = vi.spyOn(manteca, "getQuote").mockResolvedValue({ buyRate: "5.52", sellRate: "5.41" });
+        const getDepositDetails = vi.spyOn(manteca, "getDepositDetails");
+
+        const response = await appClient.quote.$get(
+          { query: { provider: "manteca", currency: "BRL", direction: "qr" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({
+          quote: { buyRate: "5.52", sellRate: "5.41" },
+          depositInfo: [],
+        });
+        expect(getQuote).toHaveBeenCalledExactlyOnceWith("USDC_BRL");
+        expect(getUser).not.toHaveBeenCalled();
+        expect(getDepositDetails).not.toHaveBeenCalled();
+        expect(captureException).not.toHaveBeenCalled();
+      });
+
+      it("returns 503 when the qr quote fails", async () => {
+        const getQuote = vi.spyOn(manteca, "getQuote").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
+
+        const response = await appClient.quote.$get(
+          { query: { provider: "manteca", currency: "ARS", direction: "qr" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(503);
+        await expect(response.json()).resolves.toStrictEqual({ code: "no quote" });
+        expect(getQuote).toHaveBeenCalledExactlyOnceWith("USDC_ARS");
+      });
+
       it("returns 400 for unsupported currency", async () => {
         vi.spyOn(manteca, "getUser").mockResolvedValue(mantecaUser);
 
@@ -1824,6 +1858,8 @@ describe("ramp api", () => {
           expireAt: lock.expireAt,
           recipient: "Ricardo Fort",
           receiver: settlement,
+          asset: "ARS",
+          assetAmount: "1706.37",
         });
         expect(lockQrPayment).toHaveBeenCalledWith({
           paymentDestination: "qr3",
@@ -1836,7 +1872,13 @@ describe("ramp api", () => {
 
       it("returns 206 when the qr has no amount", async () => {
         vi.spyOn(persona, "getAccount").mockResolvedValueOnce(basicAccount);
-        vi.spyOn(manteca, "lockQrPayment").mockResolvedValueOnce({ ...lock, code: "", paymentAgainstAmount: "0" });
+        const { paymentPrice: _, ...unpriced } = lock;
+        vi.spyOn(manteca, "lockQrPayment").mockResolvedValueOnce({
+          ...unpriced,
+          code: "",
+          paymentAssetAmount: "0",
+          paymentAgainstAmount: "0",
+        });
 
         const response = await appClient.qr.$post(
           { json: { qr: "qr3manualamount" } }, // cspell:ignore manualamount
@@ -1844,7 +1886,35 @@ describe("ramp api", () => {
         );
 
         expect(response.status).toBe(206);
-        await expect(response.json()).resolves.toStrictEqual({ recipient: "Ricardo Fort" });
+        await expect(response.json()).resolves.toStrictEqual({ recipient: "Ricardo Fort", asset: "ARS" });
+      });
+
+      it("returns 400 for a qr without settlement currency", async () => {
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(basicAccount);
+        vi.spyOn(manteca, "lockQrPayment").mockResolvedValueOnce({ ...lock, paymentAsset: "USD" });
+        const getSettlement = vi.spyOn(manteca, "getSettlement");
+
+        const response = await appClient.qr.$post(
+          { json: { qr: "qr3" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code: "not supported currency" });
+        expect(getSettlement).not.toHaveBeenCalled();
+      });
+
+      it("returns 400 for a qr without amount in a currency without settlement", async () => {
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(basicAccount);
+        vi.spyOn(manteca, "lockQrPayment").mockResolvedValueOnce({ ...lock, code: "", paymentAsset: "USD" });
+
+        const response = await appClient.qr.$post(
+          { json: { qr: "qr3manualamount" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code: "not supported currency" });
       });
 
       it("returns 400 without a persona account", async () => {

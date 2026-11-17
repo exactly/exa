@@ -5,6 +5,7 @@ import { describeRoute } from "hono-openapi";
 import { resolver, validator as vValidator } from "hono-openapi/valibot";
 import {
   array,
+  is,
   literal,
   nonEmpty,
   object,
@@ -58,6 +59,7 @@ const ErrorCodes = {
   INVALID_BANK_NAME: "invalid bank name",
   INVALID_DEPOSIT_ADDRESS: "invalid deposit address",
   NO_CREDENTIAL: "no credential",
+  NO_QUOTE: "no quote",
   NOT_APPROVED: "not approved",
   NOT_STARTED: "not started",
   NOT_SUPPORTED: "not supported",
@@ -152,6 +154,7 @@ export default function route({
             direction: optional(literal("onramp")),
             provider: literal("manteca"),
           }),
+          object({ currency: picklist(Manteca.QRCurrency), direction: literal("qr"), provider: literal("manteca") }),
           object({
             currency: picklist(Bridge.FiatCurrency),
             direction: optional(literal("onramp")),
@@ -220,6 +223,11 @@ export default function route({
 
         switch (query.provider) {
           case "manteca": {
+            if (query.direction === "qr") {
+              const quote = await manteca.getQuote(`USDC_${query.currency}`);
+              if (!quote) return c.json({ code: ErrorCodes.NO_QUOTE }, 503);
+              return c.json({ quote, depositInfo: [] } satisfies InferOutput<typeof RampResponse>, 200);
+            }
             const mantecaUser = await manteca.getUser(account);
             if (!mantecaUser) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
             if (mantecaUser.status !== "ACTIVE") return c.json({ code: ErrorCodes.NOT_APPROVED }, 400);
@@ -479,9 +487,9 @@ export default function route({
         description: `
 Lock the payment of a merchant QR code for the authenticated user, with the national id of the user as sender.
 
-Send the \`amount\` in the currency of the QR when the QR has none. Without it, such a QR returns \`206\` with the recipient only.
+Send the \`amount\` in the currency of the QR when the QR has none. Without it, such a QR returns \`206\` with the recipient and the currency of the QR as \`asset\`. A QR in a currency without settlement returns \`400\`.
 
-Pay the lock with a user operation that withdraws at least \`amount\` USDC to \`receiver\` before \`expireAt\`, using \`nonceKey\` as the key of its nonce. The server executes the payment once the withdraw is onchain.
+The locked payment charges \`amount\` USDC for \`assetAmount\` in \`asset\`, the currency of the QR. Pay the lock with a user operation that withdraws at least \`amount\` USDC to \`receiver\` before \`expireAt\`, using \`nonceKey\` as the key of its nonce. The server executes the payment once the withdraw is onchain.
         `,
         tags: ["QR"],
         security: [{ credentialAuth: [] }],
@@ -495,7 +503,9 @@ Pay the lock with a user operation that withdraws at least \`amount\` USDC to \`
             description: "QR without amount",
             content: {
               "application/json": {
-                schema: resolver(object({ recipient: optional(string()) }), { errorMode: "ignore" }),
+                schema: resolver(object({ recipient: optional(string()), asset: picklist(Manteca.QRCurrency) }), {
+                  errorMode: "ignore",
+                }),
               },
             },
           },
@@ -512,6 +522,7 @@ Pay the lock with a user operation that withdraws at least \`amount\` USDC to \`
                       Manteca.ErrorCodes.INVALID_QR,
                       Manteca.ErrorCodes.NO_DOCUMENT,
                       Manteca.ErrorCodes.NO_PERSONA_ACCOUNT,
+                      Manteca.ErrorCodes.NOT_SUPPORTED_CURRENCY,
                       Manteca.ErrorCodes.RISKY_SOURCE_ADDRESS,
                     ]),
                   }),
@@ -560,7 +571,11 @@ Pay the lock with a user operation that withdraws at least \`amount\` USDC to \`
               surname: personaAccount.attributes.fields.name.value.last.value,
             },
           });
-          if (!lock.code) return c.json({ recipient: lock.paymentRecipientName }, 206);
+          const asset = lock.paymentAsset;
+          if (!is(picklist(Manteca.QRCurrency), asset)) {
+            return c.json({ code: Manteca.ErrorCodes.NOT_SUPPORTED_CURRENCY }, 400);
+          }
+          if (!lock.code) return c.json({ recipient: lock.paymentRecipientName, asset }, 206);
           if (!lock.sender) throw new Error("lock without sender");
           return c.json(
             {
@@ -569,7 +584,9 @@ Pay the lock with a user operation that withdraws at least \`amount\` USDC to \`
               amount: lock.paymentAgainstAmount,
               expireAt: lock.expireAt,
               recipient: lock.paymentRecipientName,
-              receiver: await manteca.getSettlement(lock.paymentAsset),
+              receiver: await manteca.getSettlement(asset),
+              asset,
+              assetAmount: lock.paymentAssetAmount,
             } satisfies InferOutput<typeof QrLock>,
             200,
           );
@@ -803,6 +820,8 @@ const QrLock = object({
   expireAt: string(),
   recipient: optional(string()),
   receiver: Address,
+  asset: picklist(Manteca.QRCurrency),
+  assetAmount: string(),
 });
 
 const QrPayment = union([

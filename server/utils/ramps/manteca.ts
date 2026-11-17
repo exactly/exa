@@ -710,7 +710,8 @@ const CompanyResponse = object({
   }),
 });
 
-const SettlementEntity = { ARS: "WALLET_ARG", BRL: "CRYPTO_GLOBAL" };
+export const QRCurrency = ["ARS", "BRL"] as const;
+const SettlementEntity: Record<(typeof QRCurrency)[number], string> = { ARS: "WALLET_ARG", BRL: "CRYPTO_GLOBAL" };
 
 export const QuoteResponse = object({ ticker: string(), timestamp: string(), buy: string(), sell: string() });
 
