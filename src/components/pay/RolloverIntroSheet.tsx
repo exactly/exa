@@ -22,15 +22,21 @@ import Text from "../shared/Text";
 import ThemedSvg from "../shared/ThemedSvg";
 import View from "../shared/View";
 
-export default function RolloverIntroSheet({ maturity, onClose }: { maturity?: string; onClose: () => void }) {
+export default function RolloverIntroSheet({
+  payment,
+  onClose,
+}: {
+  onClose: () => void;
+  payment?: { chainId: number; maturity: string };
+}) {
   const router = useRouter();
   const { t } = useTranslation();
-  const proposalManager = useProposalManager(chain.id);
   const [open, setOpen] = useState(false);
-  const [displayMaturity, setDisplayMaturity] = useState(maturity);
+  const [displayPayment, setDisplayPayment] = useState(payment);
+  const proposalManager = useProposalManager(displayPayment?.chainId ?? chain.id);
 
-  if (maturity) {
-    if (maturity !== displayMaturity) setDisplayMaturity(maturity);
+  if (payment) {
+    if (payment !== displayPayment) setDisplayPayment(payment);
     if (!open) setOpen(true);
   }
 
@@ -46,8 +52,11 @@ export default function RolloverIntroSheet({ maturity, onClose }: { maturity?: s
     }
     queryClient.setQueryData<boolean>(["settings", "rollover-intro-shown"], true);
     close();
-    router.navigate({ pathname: "/roll-debt", params: { maturity: displayMaturity } });
-  }, [proposalManager, close, router, displayMaturity, t]);
+    router.navigate({
+      pathname: "/roll-debt",
+      params: { maturity: displayPayment?.maturity, chainId: displayPayment && String(displayPayment.chainId) },
+    });
+  }, [proposalManager, close, router, displayPayment, t]);
 
   return (
     <ModalSheet open={open} onClose={close} backgroundColor="backgroundMild" scrollsUnderInset>
