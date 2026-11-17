@@ -88,8 +88,9 @@ function handleError(error: unknown, onIssue: (issue: SignInIssue) => void, t: T
     onIssue(passkey);
     return;
   }
-  const { authKnown, bundleCancelled, passkeyCancelled, passkeyNotAllowed, walletRejected } = classifyError(error);
-  if (authKnown) {
+  const { authKnown, bundleCancelled, passkeyCancelled, passkeyMissing, passkeyNotAllowed, walletRejected } =
+    classifyError(error);
+  if (authKnown && !passkeyMissing) {
     const cancelled = bundleCancelled || passkeyCancelled || passkeyNotAllowed || walletRejected;
     if (!cancelled && !auth) reportError(error);
     queryClient.setQueryData(["method"], undefined);

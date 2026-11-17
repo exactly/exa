@@ -1,4 +1,4 @@
-import { Platform } from "react-native";
+import { Alert, AppState, Platform } from "react-native";
 import { get } from "react-native-passkeys";
 
 import {
@@ -48,6 +48,7 @@ import {
   waitForCallsStatus,
   waitForTransactionReceipt,
 } from "@wagmi/core/actions";
+import i18next from "i18next";
 import {
   BaseError,
   bytesToBigInt,
@@ -136,6 +137,25 @@ export default async function createAccountClient({ credentialId, factory, x, y,
       challenge: bufferToBase64URLString(hexToBytes(hashMessage({ raw: uoHash }), { size: 32 }).buffer as ArrayBuffer),
       allowCredentials: [{ id: credentialId, type: "public-key" }],
       userVerification: "preferred",
+    }).catch((error: unknown) => {
+      if (classifyError(error).passkeyMissing) {
+        const alert = () =>
+          Alert.alert(
+            i18next.t("No passkey found on this device"),
+            i18next.t(
+              "This account’s passkey isn’t in the password managers on this device, or one of them is locked. Try again. If it still doesn’t show up, choose the option to use a passkey from another device.",
+            ),
+          );
+        if (AppState.currentState === "active") alert();
+        else {
+          const subscription = AppState.addEventListener("change", (state) => {
+            if (state !== "active") return;
+            subscription.remove();
+            alert();
+          });
+        }
+      }
+      throw error;
     });
     if (!credential) throw new Error("no credential");
     const response: AuthenticatorAssertionResponseJSON = credential.response;

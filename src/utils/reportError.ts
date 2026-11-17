@@ -155,7 +155,9 @@ function classify({ code, endpoint, message, name, reason, revert, rpc, status }
   const passkeyCancelled =
     (code !== undefined && passkeyCancelledCodes.has(code)) ||
     (message !== undefined && passkeyCancelledPatterns.some((pattern) => pattern.test(message)));
+  const passkeyMissing = code === "Passkey Get" && (message === "NoCredentials" || message === "UnknownError");
   const passkeyKnown =
+    passkeyMissing ||
     (code !== undefined && passkeyKnownCodes.has(code)) ||
     (message !== undefined &&
       (passkeyKnownPatterns.some((pattern) => pattern.test(message)) ||
@@ -203,6 +205,7 @@ function classify({ code, endpoint, message, name, reason, revert, rpc, status }
     network,
     passkeyCancelled,
     passkeyKnown,
+    passkeyMissing,
     passkeyNotAllowed,
     passkeyWarning,
     revert,

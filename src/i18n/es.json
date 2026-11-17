@@ -853,6 +853,7 @@
   "There was an error when processing your payment: {{reason}}": "Hubo un error al procesar tu pago: {{reason}}.",
   "There was an issue with your address. Please update your information to continue.": "Hubo un problema con tu dirección. Actualiza tu información para continuar.",
   "There was an issue with your tax ID. Please update your information to continue.": "Hubo un problema con tu ID fiscal. Actualiza tu información para continuar.",
+  "This account’s passkey isn’t in the password managers on this device, or one of them is locked. Try again. If it still doesn’t show up, choose the option to use a passkey from another device.": "La llave de acceso de esta cuenta no está en los gestores de contraseñas de este dispositivo, o uno de ellos está bloqueado. Inténtalo de nuevo. Si sigue sin aparecer, elige la opción de usar una llave de acceso de otro dispositivo.",
   "This asset is no longer available on {{network}}. Choose another asset to send.": "Este activo ya no está disponible en {{network}}. Elige otro activo para enviar.",
   "This bank account is already on your list": "Esta cuenta bancaria ya está en tu lista",
   "This contact needs review before you can send.": "Este contacto necesita revisión antes de poder enviar.",

@@ -1,10 +1,11 @@
-import { AppState, Platform } from "react-native";
+import { Alert, AppState, Platform } from "react-native";
 import { get as assert, create } from "react-native-passkeys";
 
 import { sdk } from "@farcaster/miniapp-sdk";
 import { base64URLStringToBuffer } from "@simplewebauthn/browser";
 import { getConnection, signMessage, watchConnection } from "@wagmi/core";
 import { hc, parseResponse, type InferRequestType, type InferResponseType } from "hono/client";
+import i18next from "i18next";
 import { check, number, object, parse, picklist, pipe, safeParse, string, ValiError } from "valibot";
 
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
@@ -64,10 +65,31 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
         : await assert({
             ...options,
             extensions: options.extensions as Record<string, unknown> | undefined,
-          }).then((assertion) => {
-            if (!assertion) throw new Error("bad assertion");
-            return { method: "webauthn" as const, ...assertion };
-          });
+          })
+            .catch((error: unknown) => {
+              if (current && classifyError(error).passkeyMissing) {
+                const alert = () =>
+                  Alert.alert(
+                    i18next.t("No passkey found on this device"),
+                    i18next.t(
+                      "This account’s passkey isn’t in the password managers on this device, or one of them is locked. Try again. If it still doesn’t show up, choose the option to use a passkey from another device.",
+                    ),
+                  );
+                if (AppState.currentState === "active") alert();
+                else {
+                  const subscription = AppState.addEventListener("change", (state) => {
+                    if (state !== "active") return;
+                    subscription.remove();
+                    alert();
+                  });
+                }
+              }
+              throw error;
+            })
+            .then((assertion) => {
+              if (!assertion) throw new Error("bad assertion");
+              return { method: "webauthn" as const, ...assertion };
+            });
     const post = await api.auth.authentication.$post(
       { json },
       { init: { signal }, ...(sessionId && { headers: { "x-session-id": sessionId } }) },
