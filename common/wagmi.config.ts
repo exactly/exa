@@ -30,6 +30,7 @@ import Previewer from "@exactly/protocol/deployments/base/Previewer.json" with {
 import RatePreviewer from "@exactly/protocol/deployments/base/RatePreviewer.json" with { type: "json" };
 
 import alchemyNetworks from "./alchemy.json" with { type: "json" };
+import factoryChainBlocks from "./factoryChains.json" with { type: "json" };
 import factoryVersion from "./factoryVersion.json" with { type: "json" };
 
 const chainId = Number(env.CHAIN_ID ?? String(env.EAS_BUILD_RUNNER === "eas-build" ? optimism.id : optimismSepolia.id));
@@ -128,7 +129,11 @@ export default defineConfig([
             .filter((address) => address.slice(0, 5).toLowerCase() === "0xb20")
             .map((address) => address.toLowerCase());
           if (stocks.length === 0) throw new Error("missing stocks");
-          const slugs: Record<number, string | undefined> = alchemyNetworks;
+          const networkConfig: Record<string, undefined | { network: string; slug: string; testnet?: boolean }> =
+            alchemyNetworks;
+          const slugs = Object.fromEntries(
+            Object.entries(networkConfig).flatMap(([id, config]) => (config ? [[id, config.slug]] : [])),
+          ) as Record<number, string | undefined>;
           const admin = getAddress(perChain(deploy.accounts.admin));
           const create3Factory = getAddress(perChain(deploy.factory.create3));
           const version = perChain(factoryVersion);
@@ -156,11 +161,26 @@ export default defineConfig([
             versions: deploy.factory.versions.map((v) => factory(v)),
             legacy: perChain(deploy.factory.legacy).map((address) => getAddress(address)),
           };
+          function chainFields(id: number | string) {
+            return {
+              ...(networkConfig[id]?.testnet && { testnet: true }),
+              ...((id in deploy.accounts.swapper || id in factoryChainBlocks) && {
+                swapper: getAddress(perChain(deploy.accounts.swapper, Number(id))),
+              }),
+            };
+          }
+          function fieldSource(id: number | string) {
+            return Object.entries(chainFields(id))
+              .map(([key, value]) => `, ${key}: ${JSON.stringify(value)}`)
+              .join("");
+          }
           const alchemyChains: { id: number; name?: string; source: string }[] = Object.values(infra).flatMap((c) => {
             if (typeof c !== "object" || !("rpcUrls" in c)) return [];
             const { alchemy, ...rpcUrls } = c.rpcUrls;
             const slug = slugs[c.id];
             if (!alchemy && !slug) return [];
+            const alchemyNetwork = networkConfig[c.id]?.network;
+            if (!alchemyNetwork) return [];
             const url = chain
               ? (alchemy?.http[0] ?? `https://${slug}.g.alchemy.com/v2`)
               : anvil.rpcUrls.default.http[0];
@@ -171,26 +191,41 @@ export default defineConfig([
                 id: c.id,
                 name,
                 source: name
-                  ? `{ ...${name}, smartAccount: true, rpcUrls: { ...${name}.rpcUrls, alchemy: { http: ["${url}"] } } }`
-                  : `defineChain(${JSON.stringify({ ...c, smartAccount: true, rpcUrls: { ...rpcUrls, alchemy: { http: [url] } } })})`,
+                  ? `{ ...${name}, smartAccount: true, rpcUrls: { ...${name}.rpcUrls, alchemy: { http: ["${url}"] } }, alchemyNetwork: "${alchemyNetwork}"${fieldSource(c.id)} }`
+                  : `defineChain(${JSON.stringify({ ...c, smartAccount: true, rpcUrls: { ...rpcUrls, alchemy: { http: [url] } }, alchemyNetwork, ...chainFields(c.id) })})`,
               },
             ];
           });
-          for (const [id, network] of Object.entries(alchemyNetworks)) {
+          for (const [id, network] of Object.entries(slugs)) {
             if (alchemyChains.some((c) => c.id === Number(id))) continue;
             const name = Object.entries(chains).find(([, c]) => c.id === Number(id))?.[0];
             const url = chain ? `https://${network}.g.alchemy.com/v2` : anvil.rpcUrls.default.http[0];
+            const alchemyNetwork = networkConfig[id]?.network;
+            if (!alchemyNetwork) throw new Error(`missing alchemy network ${id}`);
             alchemyChains.push({
               id: Number(id),
               name,
               source: name
-                ? `{ ...${name}, rpcUrls: { ...${name}.rpcUrls, alchemy: { http: ["${url}"] } } }`
+                ? `{ ...${name}, rpcUrls: { ...${name}.rpcUrls, alchemy: { http: ["${url}"] } }, alchemyNetwork: "${alchemyNetwork}"${fieldSource(id)} }`
                 : JSON.stringify({
                     id: Number(id),
                     name: network,
                     rpcUrls: { default: { http: [url] }, alchemy: { http: [url] } },
+                    alchemyNetwork,
+                    ...chainFields(id),
                   }),
             });
+          }
+          const factoryChains = Object.entries(factoryChainBlocks).flatMap(([key, startBlock]) => {
+            const id = Number(key);
+            if (id === anvil.id || id === moonbeamDev.id) return chain ? [] : [{ id, startBlock }];
+            const known = Object.values(chains).find((c) => c.id === id);
+            if (!known) throw new Error(`unknown factory chain ${id}`);
+            if (!alchemyChains.some((c) => c.id === id)) throw new Error(`missing alchemy chain ${id}`);
+            return chain && Boolean(known.testnet) === testnet ? [{ id, startBlock }] : [];
+          });
+          for (const [id] of chainContracts) {
+            if (!factoryChains.some((current) => current.id === id)) throw new Error(`missing factory chain ${id}`);
           }
           const allowlists: Record<string, Record<string, string>> = { ...deploy.proposalManager.allowlist };
           if (!chain) {
@@ -198,7 +233,7 @@ export default defineConfig([
               { id: anvil.id, source: "chain" },
               {
                 id: moonbeamDev.id,
-                source: `defineChain(${JSON.stringify({ ...moonbeamDev, name: "Anvil2", smartAccount: true, rpcUrls: { ...moonbeamDev.rpcUrls, alchemy: moonbeamDev.rpcUrls.default } })})`,
+                source: `defineChain(${JSON.stringify({ ...moonbeamDev, name: "Anvil2", smartAccount: true, rpcUrls: { ...moonbeamDev.rpcUrls, alchemy: moonbeamDev.rpcUrls.default }, alchemyNetwork: "ANVIL2", ...chainFields(moonbeamDev.id) })})`,
               },
             );
             allowlists[moonbeamDev.id] = { "0x345108DA76464B8115ABcDBf0E8C969c470aE02c": "USDC.e" };
@@ -264,25 +299,30 @@ export default defineConfig([
               `export const factories: Readonly<Record<"legacy" | "versions", readonly \`0x\${string}\`[]>> = ${JSON.stringify(factories)}`,
               `export const pricePreviewerCode: \`0x\${string}\` = "${PricePreviewer.bytecode.object}"`,
               `export const stocks: ReadonlySet<string> = new Set(${JSON.stringify(stocks)})`,
-              'type AlchemyChain = ((Chain & { smartAccount: true }) | (Omit<Chain, "nativeCurrency"> & { nativeCurrency?: Chain["nativeCurrency"]; smartAccount?: never })) & { rpcUrls: { alchemy: { http: readonly [string] } } }',
+              'type AlchemyChain = ((Chain & { smartAccount: true }) | (Omit<Chain, "nativeCurrency"> & { nativeCurrency?: Chain["nativeCurrency"]; smartAccount?: never })) & { alchemyNetwork: string; rpcUrls: { alchemy: { http: readonly [string] } }; swapper?: `0x${string}` }',
               ...(chain
-                ? [`const chain: AlchemyChain & { smartAccount: true } = ${source}`]
+                ? [`const chain: AlchemyChain & { smartAccount: true; swapper: \`0x\${string}\` } = ${source}`]
                 : [
-                    "const chain = anvil as Chain as AlchemyChain & { smartAccount: true }",
+                    "const chain = anvil as Chain as AlchemyChain & { smartAccount: true; swapper: `0x${string}` }",
                     "chain.smartAccount = true",
                     "chain.testnet = true",
                     `chain.blockTime = ${optimism.blockTime}`,
                     `chain.rpcUrls.alchemy = { http: ["${anvil.rpcUrls.default.http[0]}"] }`,
+                    'chain.alchemyNetwork = "ANVIL"',
+                    ...Object.entries(chainFields(anvil.id)).map(
+                      ([key, value]) => `chain.${key} = ${JSON.stringify(value)}`,
+                    ),
                     `chain.contracts = { multicall3: { address: "${optimism.contracts.multicall3.address}" } }`,
                     'chain.blockExplorers = { default: { name: "Otterscan", url: "http://localhost:5100" } }',
                   ]),
               `export const alchemyChains: ReadonlyMap<number, AlchemyChain> = new Map<number, AlchemyChain>([${alchemyChains
                 .map(({ id, source: s }) => `[${id}, ${id === chainId ? "chain" : s}]`)
                 .join(", ")}])`,
-              `export const chains: ReadonlyMap<number, AlchemyChain & Readonly<Record<"auditor" | "exaPreviewer", \`0x\${string}\`>>> = ${chainMap(chainContracts)}`,
+              `export const chains: ReadonlyMap<number, AlchemyChain & Readonly<Record<"auditor" | "exaPreviewer" | "swapper", \`0x\${string}\`>>> = ${chainMap(chainContracts)}`,
+              `export const factoryChains: ReadonlyMap<number, AlchemyChain & Readonly<{ startBlock: number; swapper: \`0x\${string}\` }>> = ${chainMap(factoryChains.map(({ id, startBlock }) => [id, { startBlock }] as const))}`,
               `export const isBase: boolean = ${chainId === base.id || chainId === baseSepolia.id}`,
               `export const lifiURL: string | undefined = ${JSON.stringify({ [anvil.id]: "http://localhost:3000/e2e/lifi/v1", [base.id]: "https://li.quest/v1", [optimism.id]: "https://li.quest/v1" }[chainId])}`,
-              `export default chain as Chain & { smartAccount: true; contracts: { multicall3: { address: \`0x\${string}\` } }; rpcUrls: { alchemy: { http: readonly [string] } } }`,
+              `export default chain as Chain & { alchemyNetwork: string; swapper: \`0x\${string}\`; smartAccount: true; contracts: { multicall3: { address: \`0x\${string}\` } }; rpcUrls: { alchemy: { http: readonly [string] } } }`,
             ].join("\n"),
           };
         },
