@@ -220,13 +220,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                     if (!proposal) return;
                     return {
                       ...log,
-                      args: {
-                        caller: account,
-                        receiver: decodeWithdraw(proposal.args.data),
-                        owner: account,
-                        assets: proposal.args.amount,
-                        shares: -1n,
-                      },
+                      args: { ...log.args, receiver: decodeWithdraw(proposal.args.data) },
                     } satisfies Log<bigint, number, false, undefined, true, typeof marketAbi, "Withdraw">;
                   }
                 }),

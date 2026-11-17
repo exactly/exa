@@ -2,6 +2,7 @@ import "../expect";
 
 import "../mocks/auth";
 import "../mocks/sentry";
+import "../mocks/wallet";
 
 import { captureException } from "@sentry/node";
 import { eq } from "drizzle-orm";
@@ -12,8 +13,10 @@ import path from "node:path";
 import { parse, safeParse, type InferOutput } from "valibot";
 import {
   createWalletClient,
+  encodeAbiParameters,
   encodeFunctionData,
   erc20Abi,
+  formatEther,
   hexToBigInt,
   http,
   padHex,
@@ -23,6 +26,7 @@ import {
   type Hash,
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
+import { anvil } from "viem/chains";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
@@ -31,16 +35,21 @@ import chain, {
   auditorAddress,
   exaAccountFactoryAbi,
   exaAccountFactoryAddress,
+  exaPluginAbi,
   marketAbi,
   marketUSDCAddress,
+  marketWETHAddress,
   upgradeableModularAccountAbi,
   usdcAddress,
 } from "@exactly/common/generated/chain";
+import ProposalType from "@exactly/common/ProposalType";
+import deploy from "@exactly/plugin/deploy.json";
 
 import route, { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity } from "../../api/activity";
 import database, { cards, credentials, transactions } from "../../database";
 import authenticate from "../../middleware/auth";
 import publicClient from "../../utils/publicClient";
+import wallet from "../../utils/wallet";
 import anvilClient from "../anvilClient";
 
 function httpSerialize<T>(object: T): T {
@@ -1235,6 +1244,144 @@ describe.concurrent("authenticated", () => {
           }),
         ]),
       );
+    });
+
+    it("returns weth redeems with redeemed assets", async () => {
+      const owner = createWalletClient({
+        chain,
+        transport: http(),
+        account: privateKeyToAccount(generatePrivateKey()),
+      });
+      const redeemer = deriveAddress(exaAccountFactoryAddress, { x: padHex(owner.account.address), y: zeroHash });
+      const borrower = createWalletClient({
+        chain,
+        transport: http(),
+        account: privateKeyToAccount(generatePrivateKey()),
+      });
+      const keeper = wallet(privateKeyToAccount(padHex("0x69")));
+      const receiver = padHex("0x69", { size: 20 });
+      await Promise.all([
+        anvilClient.setBalance({ address: owner.account.address, value: 10n ** 24n }),
+        anvilClient.setBalance({ address: borrower.account.address, value: 10n ** 24n }),
+        database.insert(credentials).values({
+          id: owner.account.address,
+          publicKey: new Uint8Array(),
+          account: redeemer,
+          factory: exaAccountFactoryAddress,
+        }),
+      ]);
+      await anvilClient.waitForTransactionReceipt({
+        hash: await owner.writeContract({
+          address: exaAccountFactoryAddress,
+          abi: exaAccountFactoryAbi,
+          functionName: "createAccount",
+          args: [0n, [{ x: hexToBigInt(owner.account.address), y: 0n }]],
+        }),
+      });
+      await anvilClient.waitForTransactionReceipt({
+        hash: await borrower.writeContract({
+          address: usdcAddress,
+          abi: [
+            {
+              type: "function",
+              name: "mint",
+              inputs: [{ type: "address" }, { type: "uint256" }],
+              outputs: [],
+              stateMutability: "nonpayable",
+            },
+          ],
+          functionName: "mint",
+          args: [borrower.account.address, 3_000_000_000n],
+        }),
+      });
+      await anvilClient.waitForTransactionReceipt({
+        hash: await borrower.writeContract({
+          address: usdcAddress,
+          abi: erc20Abi,
+          functionName: "approve",
+          args: [marketUSDCAddress, 3_000_000_000n],
+        }),
+      });
+      await anvilClient.waitForTransactionReceipt({
+        hash: await borrower.writeContract({
+          address: marketUSDCAddress,
+          abi: marketAbi,
+          functionName: "deposit",
+          args: [3_000_000_000n, borrower.account.address],
+        }),
+      });
+      await anvilClient.waitForTransactionReceipt({
+        hash: await borrower.writeContract({
+          address: auditorAddress,
+          abi: auditorAbi,
+          functionName: "enterMarket",
+          args: [marketUSDCAddress],
+        }),
+      });
+      await anvilClient.waitForTransactionReceipt({
+        hash: await borrower.writeContract({
+          address: marketWETHAddress,
+          abi: marketAbi,
+          functionName: "borrow",
+          args: [5n * 10n ** 17n, borrower.account.address, borrower.account.address],
+        }),
+      });
+      await anvilClient.setBalance({ address: redeemer, value: 5n * 10n ** 16n });
+      await keeper.exaSend(
+        { name: "poke", op: "exa.poke" },
+        { address: redeemer, abi: exaPluginAbi, functionName: "pokeETH" },
+      );
+      const shares = await anvilClient.readContract({
+        address: marketWETHAddress,
+        abi: marketAbi,
+        functionName: "balanceOf",
+        args: [redeemer],
+      });
+      await anvilClient.waitForTransactionReceipt({
+        hash: await owner.writeContract({
+          address: redeemer,
+          abi: upgradeableModularAccountAbi,
+          functionName: "executeBatch",
+          args: [
+            [
+              {
+                target: redeemer,
+                value: 0n,
+                data: encodeFunctionData({
+                  abi: exaPluginAbi,
+                  functionName: "propose",
+                  args: [
+                    marketWETHAddress,
+                    shares,
+                    ProposalType.Redeem,
+                    encodeAbiParameters([{ type: "address" }], [receiver]),
+                  ],
+                }),
+              },
+            ],
+          ],
+        }),
+      });
+      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
+      const receipt = await keeper.exaSend(
+        { name: "execute proposal", op: "exa.execute" },
+        { address: redeemer, abi: exaPluginAbi, functionName: "executeProposal", args: [0n] },
+      );
+      const [withdraw] = parseEventLogs({ abi: marketAbi, eventName: "Withdraw", logs: receipt?.logs ?? [] });
+
+      expect(withdraw?.args.shares).toBe(shares);
+      expect(withdraw?.args.assets).toBeGreaterThan(shares);
+
+      const response = await appClient.index.$get(
+        { query: { include: "sent" } },
+        { headers: { "test-credential-id": owner.account.address } },
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject([
+        { type: "sent", currency: "WETH", amount: Number(formatEther(withdraw?.args.assets ?? 0n)), receiver },
+      ]);
+      expect(captureException).not.toHaveBeenCalled();
     });
   });
 
