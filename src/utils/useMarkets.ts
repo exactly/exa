@@ -4,45 +4,39 @@ import { useQuery } from "@tanstack/react-query";
 import { multicall3Abi, zeroAddress } from "viem";
 import { useReadContracts } from "wagmi";
 
-import chain, {
-  marketAbi,
-  marketUSDCAddress,
-  previewerAbi,
-  previewerAddress,
-  ratePreviewerAddress,
-} from "@exactly/common/generated/chain";
+import chain, { marketAbi, previewerAbi } from "@exactly/common/generated/chain";
 import { ratePreviewerAbi } from "@exactly/common/generated/hooks";
 import MIN_BORROW_INTERVAL from "@exactly/common/MIN_BORROW_INTERVAL";
 import { MATURITY_INTERVAL } from "@exactly/lib";
 
+import { network } from "./marketsOptions";
 import networkOptions, { withFlags } from "./networkOptions";
 import useAccount from "./useAccount";
 
-export default function useMarkets(query?: { enabled?: boolean; gcTime?: number; refetchInterval?: number }) {
+export default function useMarkets(
+  query?: { enabled?: boolean; gcTime?: number; refetchInterval?: number },
+  chainId = chain.id,
+) {
   const { address: account } = useAccount();
+  const contracts = network(chainId);
   const result = useReadContracts({
     allowFailure: false,
     contracts: [
       {
-        address: previewerAddress,
+        address: contracts.previewer,
         abi: previewerAbi,
         functionName: "exactly",
         args: [account ?? zeroAddress],
-        chainId: chain.id,
+        chainId,
       },
-      { address: ratePreviewerAddress, abi: ratePreviewerAbi, functionName: "snapshot", chainId: chain.id },
-      {
-        address: chain.contracts.multicall3.address,
-        abi: multicall3Abi,
-        functionName: "getCurrentBlockTimestamp",
-        chainId: chain.id,
-      },
-      { address: marketUSDCAddress, abi: marketAbi, functionName: "previewFloatingAssetsAverage", chainId: chain.id },
+      { address: contracts.ratePreviewer, abi: ratePreviewerAbi, functionName: "snapshot", chainId },
+      { address: contracts.multicall3, abi: multicall3Abi, functionName: "getCurrentBlockTimestamp", chainId },
+      { address: contracts.marketUSDC, abi: marketAbi, functionName: "previewFloatingAssetsAverage", chainId },
     ],
     query: { ...query, enabled: query?.enabled ?? true, staleTime: 10_000 },
   });
   const previews = useQuery({
-    ...networkOptions(account, chain.id),
+    ...networkOptions(account, chainId),
     enabled: query?.enabled ?? true,
     ...(query?.refetchInterval !== undefined && { refetchInterval: query.refetchInterval }),
     select: ({ markets: rows = [] }) => rows,
