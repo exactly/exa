@@ -8,6 +8,7 @@ import { ScrollView, XStack, YStack } from "tamagui";
 import { useQuery } from "@tanstack/react-query";
 
 import AssetList from "./AssetList";
+import DepositsAlert from "./DepositsAlert";
 import ExternalAssets from "./ExternalAssets";
 import Stocks from "./Stocks";
 import { ArrowLeft } from "../../generated/icons/ArrowLeft";
@@ -42,7 +43,9 @@ import type { PortfolioAsset } from "../../utils/usePortfolio";
 export default function Portfolio() {
   const { address } = useAccount();
   const deposits = useDeposits();
-  const { averageRate, rates, collateralUSD, totalBalanceUSD, allAssets, isPending } = usePortfolio({ deposits });
+  const { averageRate, rates, collateralUSD, totalBalanceUSD, allAssets, isPending } = usePortfolio({
+    deposits: deposits.data,
+  });
   const allowlists = useAllowlists();
   const router = useRouter();
   const insets = useInsets();
@@ -100,16 +103,20 @@ export default function Portfolio() {
                     refetchMarkets(),
                     refetchBalances(),
                     revalidateUnsupported(),
-                    queryClient.refetchQueries({ queryKey: ["markets"] }),
-                    queryClient.refetchQueries({ queryKey: ["rates"] }),
+                    queryClient.refetchQueries({ queryKey: ["network"], type: "active" }),
                   ])
                 : Promise.resolve()
             }
           />
         }
       >
+        {deposits.failed.length > 0 && (
+          <View paddingHorizontal="s4" paddingTop="s5">
+            <DepositsAlert failed={deposits.failed} />
+          </View>
+        )}
         <YStack paddingTop="s5" gap="s6" alignItems="center">
-          {isPending ? (
+          {isPending || deposits.isPending ? (
             <YStack key="portfolio-skeleton" gap="s4_5" alignItems="center">
               <Skeleton height={40} width={180} />
               <Skeleton height={20} width={100} />
@@ -163,9 +170,9 @@ export default function Portfolio() {
           </YStack>
         ) : (
           <>
-            {tab === "stocks" ? null : <AssetList titled={tab === "all"} rates={rates} deposits={deposits} />}
+            {tab === "stocks" ? null : <AssetList titled={tab === "all"} rates={rates} deposits={deposits.data} />}
             {tab === "collateral" ? null : (
-              <Stocks titled={tab === "all"} assets={stocks} pending={isBalancesFetching} />
+              <Stocks titled={tab === "all"} assets={stocks} pending={isBalancesFetching || deposits.isPending} />
             )}
             {tab === "all" ? (
               <ExternalAssets
