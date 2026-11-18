@@ -1,5 +1,6 @@
 import "../mocks/sentry";
 
+import { captureException } from "@sentry/node";
 import { parse, ValiError } from "valibot";
 import { padHex } from "viem";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
@@ -13,6 +14,8 @@ import createPanda from "../../utils/panda";
 import * as Panda from "../../utils/panda";
 import ServiceError from "../../utils/ServiceError";
 
+import type * as viem from "viem";
+
 const chainMock = vi.hoisted(() => ({ id: 0, testnet: true as boolean | undefined }));
 
 vi.mock("@exactly/common/generated/chain", async (importOriginal) => ({
@@ -21,6 +24,17 @@ vi.mock("@exactly/common/generated/chain", async (importOriginal) => ({
     rpcUrls: { ...baseSepolia.rpcUrls, alchemy: baseSepolia.rpcUrls.default },
   }),
 }));
+
+vi.mock("viem", async (importOriginal) => {
+  const original = await importOriginal<typeof viem>();
+  return {
+    ...original,
+    withRetry: (
+      callback: Parameters<typeof original.withRetry>[0],
+      options: Parameters<typeof original.withRetry>[1],
+    ) => original.withRetry(callback, { ...options, delay: 1 }),
+  };
+});
 
 const panda = { ...Panda, ...createPanda({ key: "panda", url: "https://panda.test" }) };
 
@@ -35,6 +49,8 @@ describe("decline reasons", () => {
 });
 
 describe("panda request", () => {
+  afterEach(() => vi.clearAllMocks());
+
   it("extracts entity from url on not found", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
       ok: false,
@@ -168,6 +184,83 @@ describe("panda request", () => {
       "https://panda.test/issuing/users?companyId=company-id&email=user%2Bcard%40example.com",
       expect.objectContaining({ method: "GET" }),
     );
+  });
+
+  it("retries a read on an upstream 5xx", async () => {
+    const cards = [
+      {
+        id: "3c90c3cc-0d44-4b50-8888-8dd25736052a",
+        status: "active",
+        last4: "4242",
+        expirationMonth: "9",
+        expirationYear: "2029",
+      },
+    ];
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response("<html><title>Error 502 (Bad Gateway)!</title></html>", { status: 502 }))
+      .mockResolvedValueOnce(Response.json(cards));
+
+    await expect(panda.getCards("user-id")).resolves.toStrictEqual(cards);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(fetchSpy.mock.calls[1]?.[1]?.signal).toBe(fetchSpy.mock.calls[0]?.[1]?.signal);
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ name: "Panda502", status: 502 }),
+      { level: "warning", fingerprint: ["{{ default }}", "panda.retry"] },
+    );
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      "https://panda.test/issuing/cards?userId=user-id&limit=100",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("throws the last upstream 5xx when every read fails", async () => {
+    const html = "<html><title>Error 502 (Bad Gateway)!</title></html>";
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(html, { status: 502 }))
+      .mockResolvedValueOnce(new Response(html, { status: 502 }))
+      .mockResolvedValueOnce(new Response(html, { status: 502 }));
+
+    const rejection = panda.getUser("user-id");
+    await expect(rejection).rejects.toBeInstanceOf(ServiceError);
+    await expect(rejection).rejects.toMatchObject({ name: "Panda502", status: 502 });
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+    expect(captureException).toHaveBeenCalledTimes(2);
+    expect(captureException).toHaveBeenCalledWith(expect.objectContaining({ name: "Panda502", status: 502 }), {
+      level: "warning",
+      fingerprint: ["{{ default }}", "panda.retry"],
+    });
+  });
+
+  it("does not retry a write on an upstream 5xx", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("unavailable", { status: 503 }));
+
+    await expect(panda.setPIN("card-id", "session-id", { data: "data", iv: "iv" })).rejects.toMatchObject({
+      name: "Panda503",
+      status: 503,
+    });
+    expect(fetchSpy).toHaveBeenCalledExactlyOnceWith(
+      "https://panda.test/issuing/cards/card-id/pin",
+      expect.objectContaining({ method: "PUT" }),
+    );
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("does not retry a read on a client error", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("Not Found", { status: 404 }));
+
+    await expect(panda.getUser("user-id")).rejects.toMatchObject({ name: "PandaNotFound", status: 404 });
+    expect(fetchSpy).toHaveBeenCalledOnce();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("does not retry a read with an invalid response", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json({ id: 1 }));
+
+    await expect(panda.getUser("user-id")).rejects.toThrow(ValiError);
+    expect(fetchSpy).toHaveBeenCalledOnce();
+    expect(captureException).not.toHaveBeenCalled();
   });
 });
 
@@ -308,8 +401,11 @@ describe("business application", () => {
   });
 
   it("rethrows non-404 company application errors", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("server error", { status: 500 }));
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(() => Promise.resolve(new Response("server error", { status: 500 })));
     await expect(panda.getCompanyApplication("0xbeef")).rejects.toMatchObject({ status: 500 });
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
   });
 
   it("rejects a company application for another reference id", async () => {

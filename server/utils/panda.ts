@@ -1,3 +1,4 @@
+import { captureException } from "@sentry/node";
 import { Mutex, withTimeout, type MutexInterface } from "async-mutex";
 import {
   array,
@@ -39,7 +40,7 @@ import {
   type BaseSchema,
   type InferInput,
 } from "valibot";
-import { recoverTypedDataAddress, type LocalAccount } from "viem";
+import { recoverTypedDataAddress, withRetry, type LocalAccount } from "viem";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
 import chain, { issuerCheckerAddress, usdcAddress } from "@exactly/common/generated/chain";
@@ -292,44 +293,57 @@ export default function panda({ key, url }: { key: string; url: string }) {
     method: "GET" | "PATCH" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
     timeout = 10_000,
   ) {
-    const response = await fetch(`${url}${path}`, {
-      method,
-      headers: {
-        ...headers,
-        "Api-Key": key,
-        accept: "application/json",
-        "content-type": "application/json",
-      },
-      body: body ? JSON.stringify(body) : undefined,
-      signal: AbortSignal.timeout(timeout),
-    });
+    const signal = AbortSignal.timeout(timeout);
+    return await withRetry(
+      async () => {
+        const response = await fetch(`${url}${path}`, {
+          method,
+          headers: {
+            ...headers,
+            "Api-Key": key,
+            accept: "application/json",
+            "content-type": "application/json",
+          },
+          body: body ? JSON.stringify(body) : undefined,
+          signal,
+        });
 
-    if (!response.ok) {
-      const raw = await response.text();
-      let type: string | undefined;
-      let message = raw;
-      try {
-        const payload = JSON.parse(raw) as unknown;
-        if (typeof payload === "object" && payload !== null) {
-          const { error, message: detail } = payload as { error?: unknown; message?: unknown };
-          if (typeof error === "string") type = error;
-          if (typeof detail === "string") message = detail;
+        if (!response.ok) {
+          const raw = await response.text();
+          let type: string | undefined;
+          let message = raw;
+          try {
+            const payload = JSON.parse(raw) as unknown;
+            if (typeof payload === "object" && payload !== null) {
+              const { error, message: detail } = payload as { error?: unknown; message?: unknown };
+              if (typeof error === "string") type = error;
+              if (typeof detail === "string") message = detail;
+            }
+          } catch {} // eslint-disable-line no-empty -- non-json panda errors use fallback classification
+          if (!type || (response.status === 404 && type === "Not Found")) {
+            const lower = raw.toLowerCase();
+            if (response.status === 404 && (!raw || lower.includes("not found"))) type = "NotFoundError";
+            if (response.status === 403 && (!raw || lower.includes("not approved"))) type = "ForbiddenError";
+          }
+          if (message === "Not Found") {
+            const entity = path.split("/")[2]?.replace(/s$/, "");
+            if (entity) message = entity;
+          }
+          throw new ServiceError("Panda", response.status, raw, type, message);
         }
-      } catch {} // eslint-disable-line no-empty -- non-json panda errors use fallback classification
-      if (!type || (response.status === 404 && type === "Not Found")) {
-        const lower = raw.toLowerCase();
-        if (response.status === 404 && (!raw || lower.includes("not found"))) type = "NotFoundError";
-        if (response.status === 403 && (!raw || lower.includes("not approved"))) type = "ForbiddenError";
-      }
-      if (message === "Not Found") {
-        const entity = path.split("/")[2]?.replace(/s$/, "");
-        if (entity) message = entity;
-      }
-      throw new ServiceError("Panda", response.status, raw, type, message);
-    }
-    const rawBody = await response.arrayBuffer();
-    if (rawBody.byteLength === 0) return parse(schema, {});
-    return parse(schema, JSON.parse(new TextDecoder().decode(rawBody)));
+        const rawBody = await response.arrayBuffer();
+        if (rawBody.byteLength === 0) return parse(schema, {});
+        return parse(schema, JSON.parse(new TextDecoder().decode(rawBody)));
+      },
+      {
+        signal,
+        shouldRetry: ({ error }) => {
+          const retryable = method === "GET" && error instanceof ServiceError && error.status >= 500;
+          if (retryable) captureException(error, { level: "warning", fingerprint: ["{{ default }}", "panda.retry"] });
+          return retryable;
+        },
+      },
+    );
   }
   async function setPIN(cardId: string, sessionId: string, pin: { data: string; iv: string }) {
     return await request(
