@@ -408,7 +408,7 @@ function alchemy(chain: (typeof chains)[number]) {
   );
   const signer = privateKeyToAccount(padHex("0x4337"));
   let paymaster: Hex;
-  const server = createServer((incoming, outgoing) => {
+  const server = createServer({ keepAliveTimeout: 0 }, (incoming, outgoing) => {
     outgoing.setHeader("access-control-allow-origin", "*");
     if (incoming.method === "OPTIONS") {
       outgoing
