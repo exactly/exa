@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import "../mocks/sentry";
 
-import { captureException, getActiveSpan, getIsolationScope, setUser, spanToJSON } from "@sentry/node";
+import { captureException, getActiveSpan, getClient, getIsolationScope, setUser, spanToJSON } from "@sentry/node";
 import { Job, Queue, QueueEvents, UnrecoverableError } from "bullmq";
 import { argv, env } from "node:process";
 import { nonEmpty, parse, pipe, string } from "valibot";
@@ -9,6 +9,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, expectTypeOf, it, vi 
 
 import worker, { connect } from "../../workers/worker";
 import { finished, tip } from "../redis";
+
+import type { Event } from "@sentry/node";
 
 const workers = Object.entries(import.meta.glob<{ default: unknown }>("../../workers/*/worker.ts"));
 const length = argv.length;
@@ -143,6 +145,54 @@ describe("worker", () => {
       await bullmq.quit();
     }
     expect(captureException).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the last errors before ready as breadcrumbs of the report only", async () => {
+    vi.mocked(captureException).mockClear();
+    const name = `worker-${crypto.randomUUID()}`;
+    const bullmq = connect(redisUrl);
+    const reported: Event[] = [];
+    const unsubscribe = getClient()?.on("beforeSendEvent", (event) => {
+      if (event.type === undefined) reported.push(event);
+    });
+    const errors = Array.from({ length: 21 }, (_, index) => new Error(`connect ETIMEDOUT ${index}`));
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const handle = worker({ attempts: 1, bullmq, failed: vi.fn(), name, process: vi.fn(() => Promise.resolve()) });
+
+    try {
+      for (const error of errors) handle.queue.emit("error", error);
+      expect(
+        getIsolationScope()
+          .getScopeData()
+          .breadcrumbs.filter(({ data }) => data?.queue === name),
+      ).toStrictEqual([]);
+      vi.advanceTimersByTime(120_000);
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(errors.at(-1), {
+        level: "error",
+        tags: { queue: name },
+      });
+      vi.useRealTimers();
+      const event = await vi.waitUntil(() => reported.find(({ tags }) => tags?.queue === name));
+      expect(
+        event.breadcrumbs
+          ?.filter(({ data }) => data?.queue === name)
+          .map(({ timestamp, ...breadcrumb }) => ({ ...breadcrumb, timestamp: typeof timestamp })),
+      ).toStrictEqual(
+        errors.slice(1).map(({ message }) => ({
+          category: "queue",
+          data: { queue: name },
+          level: "error",
+          message,
+          timestamp: "number",
+        })),
+      );
+    } finally {
+      vi.useRealTimers();
+      await handle.ready;
+      await handle.close();
+      await bullmq.quit();
+      unsubscribe?.();
+    }
   });
 
   it("reports errors while closing before ready", async () => {

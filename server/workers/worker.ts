@@ -6,6 +6,7 @@ import {
   startSpan,
   withActiveSpan,
   withIsolationScope,
+  withScope,
 } from "@sentry/node";
 import { DelayedError, UnrecoverableError, Worker } from "bullmq";
 import { Redis } from "ioredis";
@@ -13,7 +14,7 @@ import { argv } from "node:process";
 
 import { own } from "../supervise";
 
-import type { Scope, Span } from "@sentry/core";
+import type { Breadcrumb, Scope, Span } from "@sentry/core";
 import type * as BullMQ from "bullmq";
 
 export default function worker<Job extends { sentryBaggage?: string; sentryTrace?: string }, Ready = unknown>({
@@ -33,6 +34,7 @@ export default function worker<Job extends { sentryBaggage?: string; sentryTrace
 }) {
   const check = argv.includes("--check");
   const scopes = new WeakMap<Error, { isolation: Scope; span: Span }>();
+  const breadcrumbs: Breadcrumb[] = [];
   let started = false;
   let pending: Error | undefined;
   const queue = new Worker<Job, void>(
@@ -90,8 +92,19 @@ export default function worker<Job extends { sentryBaggage?: string; sentryTrace
       else failed(job, error);
     })
     .on("error", (error) => {
-      if (started) captureException(error, { level: "error", tags: { queue: name } });
-      else pending = error;
+      if (started) {
+        captureException(error, { level: "error", tags: { queue: name } });
+        return;
+      }
+      breadcrumbs.push({
+        category: "queue",
+        data: { queue: name },
+        level: "error",
+        message: error.message,
+        timestamp: Date.now() / 1000,
+      });
+      if (breadcrumbs.length > 20) breadcrumbs.shift();
+      pending = error;
     });
   const deadline = setTimeout(() => {
     pending ??= new Error(`${name} worker not ready`);
@@ -109,8 +122,13 @@ export default function worker<Job extends { sentryBaggage?: string; sentryTrace
   });
 
   function report() {
-    if (started || !pending) return;
-    captureException(pending, { level: "error", tags: { queue: name } });
+    const error = pending;
+    if (started || !error) return;
+    withScope((scope) => {
+      for (const breadcrumb of breadcrumbs) scope.addBreadcrumb(breadcrumb);
+      captureException(error, { level: "error", tags: { queue: name } });
+    });
+    breadcrumbs.length = 0;
     pending = undefined;
   }
 }
