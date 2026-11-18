@@ -12,7 +12,7 @@ import { Headphones } from "../../generated/icons/Headphones";
 import { newMessage, present } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
 
-import type { ExternalAsset } from "../../utils/usePortfolio";
+import type { PortfolioAsset } from "../../utils/usePortfolio";
 
 export default function UnsupportedSheet({
   asset,
@@ -21,7 +21,7 @@ export default function UnsupportedSheet({
   open,
   reason = "network",
 }: {
-  asset?: ExternalAsset;
+  asset?: PortfolioAsset;
   chainName?: string;
   onClose: () => void;
   open: boolean;
@@ -69,8 +69,13 @@ export default function UnsupportedSheet({
                         chainName,
                         chainId: asset.chainId,
                         symbol: asset.symbol,
-                        address: asset.address,
-                        amount: Number(formatUnits(asset.amount ?? 0n, asset.decimals)).toLocaleString(language, {
+                        address: asset.type === "external" ? asset.address : asset.asset,
+                        amount: Number(
+                          formatUnits(
+                            asset.type === "external" ? (asset.amount ?? 0n) : asset.floatingDepositAssets,
+                            asset.decimals,
+                          ),
+                        ).toLocaleString(language, {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: Math.min(6, asset.decimals),
                         }),
