@@ -5,22 +5,20 @@ import { useQueries, type UseQueryResult } from "@tanstack/react-query";
 import chain, { chains } from "@exactly/common/generated/chain";
 import { floatingDepositRates } from "@exactly/lib";
 
-import marketsOptions, { ratesOptions } from "./marketsOptions";
+import networkOptions from "./networkOptions";
 import useAccount from "./useAccount";
 
 import type { ProtocolAsset } from "./usePortfolio";
 
 export default function useDeposits() {
   const { address: account } = useAccount();
-  const markets = useQueries({ queries: remotes.map((chainId) => marketsOptions(account, chainId)), combine });
-  const snapshots = useQueries({ queries: remotes.map((chainId) => ratesOptions(chainId)), combine });
+  const previews = useQueries({ queries: remotes.map((chainId) => networkOptions(account, chainId)), combine });
   return useMemo<ProtocolAsset[]>(
     () =>
-      markets.flatMap((data, index) => {
-        if (!data) return [];
-        const snapshot = snapshots[index];
-        const rates = snapshot ? floatingDepositRates(snapshot[0], Number(snapshot[1])) : [];
-        return data
+      previews.flatMap((data) => {
+        if (!data?.markets) return [];
+        const rates = data.snapshot ? floatingDepositRates(data.snapshot, Number(data.timestamp)) : [];
+        return data.markets
           .filter(({ floatingDepositAssets }) => floatingDepositAssets > 0n)
           .map((market) => ({
             ...market,
@@ -30,7 +28,7 @@ export default function useDeposits() {
             usdValue: Number((market.floatingDepositAssets * market.usdPrice) / 10n ** BigInt(market.decimals)) / 1e18,
           }));
       }),
-    [markets, snapshots],
+    [previews],
   );
 }
 
