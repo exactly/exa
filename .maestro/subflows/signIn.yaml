@@ -24,8 +24,13 @@ appId: ${APP_ID ?? "app.exactly"}
       - runFlow:
           when: { true: "${maestro.platform != 'web'}" }
           commands:
-            - scrollUntilVisible: { element: ".*(${passkey}).*" }
-            - tapOn: .*(${passkey}).*
+            - evalScript: ${output.shown = false}
+            - runFlow:
+                when: { visible: "(?!For ).*(${passkey}).*" }
+                commands: [{ evalScript: "${output.shown = true}" }]
+            - runFlow: { when: { true: "${!output.shown}", platform: android }, commands: [{ tapOn: Sign-in options }] }
+            - scrollUntilVisible: { element: "(?!For ).*(${passkey}).*" }
+            - tapOn: "(?!For ).*(${passkey}).*"
             - runFlow: { when: { visible: Use Selected Passkey }, commands: [{ tapOn: Use Selected Passkey }] }
             - runFlow: { when: { visible: Continue }, commands: [{ tapOn: Continue }] }
             - matchBiometrics
