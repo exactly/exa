@@ -5,7 +5,7 @@ solc_version = "0.8.29"
 evm_version = "cancun"
 optimizer = true
 optimizer_runs = 416
-deny = "notes"
+deny = "never"
 verbosity = 3
 isolate = true
 disable_block_gas_limit = true
@@ -48,10 +48,12 @@ skip = ["script/**"]
 runs = 66_666
 
 [profile.coverage]
+deny = "notes"
 cache_path = "cache/coverage"
 out = "out/coverage"
 
 [profile.sizes]
+deny = "notes"
 cache_path = "cache/sizes"
 out = "out/sizes"
 skip = ["script/**", "test/**"]
