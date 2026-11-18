@@ -10,7 +10,6 @@ import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
 import { useQuery } from "@tanstack/react-query";
 import { safeParse } from "valibot";
 import { encodeFunctionData, formatUnits } from "viem";
-import { useSendCalls } from "wagmi";
 
 import chain, { marketUSDCAddress } from "@exactly/common/generated/chain";
 import ProposalType from "@exactly/common/ProposalType";
@@ -31,10 +30,10 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { APIError, getRampQuote, listExternalAccounts } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
+import useSend from "../../utils/useSend";
 import useSimulateProposal from "../../utils/useSimulateProposal";
 import useSingleMutation from "../../utils/useSingleMutation";
 import exa from "../../utils/wagmi/exa";
-import waitForCalls from "../../utils/waitForCalls";
 import AssetLogo from "../shared/AssetLogo";
 import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
@@ -102,24 +101,25 @@ export default function Review() {
     enabled: !!userAddress && !!depositAddress && !!usdcAmount,
   });
 
-  const { mutateAsync: mutateSendCalls } = useSendCalls();
+  const { sendCalls, submitted, status, queryKey } = useSend(chain.id, {
+    key: ["withdraw", userAddress, currencyString, contactString, String(amount)],
+  });
   const transfer = useSingleMutation({
     mutationFn: async () => {
-      if (!proposeSimulation) throw new Error("propose not ready");
-      const { address: to, abi, functionName, args } = proposeSimulation;
-      const { id } = await mutateSendCalls({
-        chainId: chain.id,
-        calls: [{ to, data: encodeFunctionData({ abi, functionName, args }) }],
-      });
-      const result = await waitForCalls(exa, id);
-      if (result.status === "failure") throw new Error("transaction failed");
-      return result.receipts?.[0]?.transactionHash;
+      if (!submitted && !proposeSimulation) throw new Error("propose not ready");
+      const receipt = await sendCalls(
+        submitted || !proposeSimulation
+          ? []
+          : [{ to: proposeSimulation.address, data: encodeFunctionData(proposeSimulation) }],
+      );
+      return receipt?.transactionHash;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["activity"] }).catch(reportError);
     },
     onError: (error) => {
       reportError(error);
+      if (queryClient.getQueryData(queryKey)) return;
       toast.error(t("Transfer failed"), { duration: 3000 });
     },
   });
@@ -130,8 +130,11 @@ export default function Review() {
   const recipientValid = !!recipient && recipient.currency === currencyString && recipient.addressValid !== false;
   const meetsMinimum = usdcAmount !== undefined && usdcAmount >= parseAmount(String(MINIMUM_USDC), 6);
 
-  if (transfer.isPending || transfer.isSuccess) {
-    const sent = transfer.isSuccess;
+  const sending = transfer.isPending || status.isFetching;
+  const sent = transfer.isSuccess || status.data?.status === "success";
+  const failed = !!status.data && !sent && !submitted && !transfer.isError;
+  if (sending || sent || submitted) {
+    const unconfirmed = !sending && !sent;
     return (
       <View fullScreen backgroundColor="backgroundSoft">
         {sent && (
@@ -164,7 +167,13 @@ export default function Review() {
               <YStack gap="s3" alignItems="center">
                 <Text headline primary>
                   <Trans
-                    i18nKey={sent ? "Sent to <em>{{recipient}}</em>" : "Sending to <em>{{recipient}}</em>"}
+                    i18nKey={
+                      sent
+                        ? "Sent to <em>{{recipient}}</em>"
+                        : unconfirmed
+                          ? "Couldn't confirm send to <em>{{recipient}}</em>"
+                          : "Sending to <em>{{recipient}}</em>"
+                    }
                     values={{ recipient: recipientName }}
                     components={{ em: <Text headline primary emphasized /> }}
                   />
@@ -181,7 +190,32 @@ export default function Review() {
               </YStack>
             </YStack>
 
-            {sent ? (
+            {unconfirmed ? (
+              <YStack gap="s3" alignItems="center">
+                <Button
+                  onPress={() => {
+                    transfer.mutate();
+                  }}
+                  primary
+                >
+                  <Button.Text>{t("Check status")}</Button.Text>
+                  <Button.Icon>
+                    <ArrowRight />
+                  </Button.Icon>
+                </Button>
+                <Text
+                  cursor="pointer"
+                  emphasized
+                  footnote
+                  color="uiBrandSecondary"
+                  onPress={() => {
+                    router.dismissTo("/(main)/(home)");
+                  }}
+                >
+                  {t("Close")}
+                </Text>
+              </YStack>
+            ) : sent ? (
               <YStack gap="s3" alignItems="center">
                 <Button
                   onPress={() => {
@@ -332,6 +366,15 @@ export default function Review() {
             />
           </YStack>
         </ScrollView>
+
+        {failed && (
+          <XStack gap="s3" alignItems="flex-start">
+            <TriangleAlert size={16} color="uiErrorSecondary" />
+            <Text secondary caption flex={1}>
+              {t("Transfer failed")}
+            </Text>
+          </XStack>
+        )}
 
         {missingTransfer && (
           <XStack gap="s3" alignItems="flex-start">
