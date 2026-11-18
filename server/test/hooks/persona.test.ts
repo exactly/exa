@@ -466,6 +466,7 @@ describe("persona hook", () => {
       testClient(
         createPersonaHook({
           allow,
+          business: true,
           database,
           panda,
           persona,
