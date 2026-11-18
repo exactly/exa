@@ -5,13 +5,12 @@ import { selectionAsync } from "expo-haptics";
 
 import { Separator, XStack, YStack } from "tamagui";
 
-import chain, { alchemyChains, marketUSDCAddress } from "@exactly/common/generated/chain";
+import chain, { alchemyChains } from "@exactly/common/generated/chain";
 import { WAD } from "@exactly/lib";
 
 import { ChevronRight } from "../../generated/icons/ChevronRight";
 import reportError from "../../utils/reportError";
 import useDebts from "../../utils/useDebts";
-import useMarkets from "../../utils/useMarkets";
 import usePendingOperations from "../../utils/usePendingOperations";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -28,9 +27,7 @@ export default function OverduePayments({
     i18n: { language },
   } = useTranslation();
   const { isProcessing } = usePendingOperations();
-  const { markets } = useMarkets({ refetchInterval: 30_000 });
-  const exaUSDC = markets?.find(({ market }) => market === marketUSDCAddress);
-  const { debts = [] } = useDebts({ refetchInterval: 30_000 });
+  const { debts, penalty } = useDebts({ refetchInterval: 30_000 });
   const payments = debts.filter(
     ({ chainId, maturity, overdue }) => overdue && (maturity !== exclude?.maturity || chainId !== exclude.chainId),
   );
@@ -43,7 +40,7 @@ export default function OverduePayments({
         </Text>
       </XStack>
       <YStack role="list" paddingHorizontal="s4" paddingBottom="s4" paddingTop="s3_5" gap="s4">
-        {payments.map(({ chainId, maturity, previewValue, position }, index) => {
+        {payments.map(({ chainId, decimals, maturity, previewValue, position }, index) => {
           const processing = isProcessing(maturity, chainId);
           const discount = Number(WAD - (previewValue * WAD) / position) / 1e18;
           const formattedDate = new Date(Number(maturity) * 1000).toLocaleDateString(language, {
@@ -51,7 +48,7 @@ export default function OverduePayments({
             month: "short",
             day: "numeric",
           });
-          const formattedAmount = `$${(Number(previewValue) / 10 ** (exaUSDC?.decimals ?? 6)).toLocaleString(language, {
+          const formattedAmount = `$${(Number(previewValue) / 10 ** decimals).toLocaleString(language, {
             style: "decimal",
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
@@ -102,7 +99,7 @@ export default function OverduePayments({
         <Text caption color="uiNeutralSecondary">
           <Text emphasized>{t("You must repay each installment manually before its due date.")} </Text>
           {t("If not, a {{rate}} penalty is added every day the payment is late.", {
-            rate: (exaUSDC ? Number(exaUSDC.penaltyRate * 86_400n) / 1e18 : 0).toLocaleString(language, {
+            rate: penalty.toLocaleString(language, {
               style: "percent",
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,

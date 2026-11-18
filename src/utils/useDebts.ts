@@ -1,50 +1,39 @@
-import { useMemo } from "react";
-
 import { useQueries, type UseQueryResult } from "@tanstack/react-query";
 
-import chain, { chains } from "@exactly/common/generated/chain";
+import { chains } from "@exactly/common/generated/chain";
 
-import marketsOptions, { network, ratesOptions } from "./marketsOptions";
+import networkOptions, { network } from "./networkOptions";
 import useAccount from "./useAccount";
-import useMarkets from "./useMarkets";
+
+import type useMarkets from "./useMarkets";
 
 export default function useDebts(query?: { refetchInterval?: number }) {
   const { address: account } = useAccount();
-  const { markets, timestamp } = useMarkets(query);
-  const remote = useQueries({
-    queries: remotes.map((id) => ({ ...marketsOptions(account, id), ...query })),
+  return useQueries({
+    queries: networks.map((id) => ({ ...networkOptions(account, id), ...query })),
     combine: settled,
   });
-  const rates = useQueries({ queries: remotes.map((id) => ({ ...ratesOptions(id), ...query })), combine: fresh });
-  return useMemo(() => {
-    if (!markets) return { complete: false };
-    const debts = [
-      { chainId: chain.id, data: markets, now: timestamp },
-      ...remotes.map((chainId, index) => ({ chainId, data: remote.data[index], now: rates[index]?.[1] ?? timestamp })),
-    ]
-      .flatMap(({ chainId, data, now }) =>
-        (data?.find(({ market }) => market === network(chainId).marketUSDC)?.fixedBorrowPositions ?? []).flatMap(
-          ({ maturity, previewValue, position: { principal, fee } }) =>
-            previewValue > 0n && principal + fee > 0n
-              ? [{ chainId, maturity, previewValue, position: principal + fee, overdue: maturity < now }]
-              : [],
+}
+
+function settled(results: UseQueryResult<{ markets?: ReturnType<typeof useMarkets>["markets"]; timestamp: bigint }>[]) {
+  const latest = results.reduce((max, { data }) => (data && data.timestamp > max ? data.timestamp : max), 0n);
+  const usdc = results.flatMap(({ data, isError }) => {
+    const market = data?.markets?.find(({ chainId, market: address }) => address === network(chainId).marketUSDC);
+    return data && market ? [{ ...market, now: isError ? latest : data.timestamp }] : [];
+  });
+  return {
+    debts: usdc
+      .flatMap(({ chainId, decimals, fixedBorrowPositions, now }) =>
+        fixedBorrowPositions.flatMap(({ maturity, previewValue, position: { principal, fee } }) =>
+          previewValue > 0n && principal + fee > 0n
+            ? [{ chainId, maturity, previewValue, position: principal + fee, overdue: maturity < now, now, decimals }]
+            : [],
         ),
       )
-      .sort((a, b) => Number(a.maturity - b.maturity) || a.chainId - b.chainId);
-    return { debts, complete: remote.complete };
-  }, [markets, rates, remote, timestamp]);
+      .sort((a, b) => Number(a.maturity - b.maturity) || a.chainId - b.chainId),
+    penalty: Math.max(...usdc.map(({ penaltyRate }) => Number(penaltyRate * 86_400n) / 1e18)),
+    complete: results.every(({ data }) => data !== undefined),
+  };
 }
 
-function combine<T>(results: UseQueryResult<T>[]) {
-  return results.map(({ data }) => data);
-}
-
-function fresh<T>(results: UseQueryResult<T>[]) {
-  return results.map(({ data, isError }) => (isError ? undefined : data));
-}
-
-function settled<T>(results: UseQueryResult<T>[]) {
-  return { data: combine(results), complete: results.every(({ data }) => data !== undefined) };
-}
-
-const remotes = [...chains.keys()].filter((id) => id !== chain.id);
+const networks = [...chains.keys()];

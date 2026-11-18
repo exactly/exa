@@ -11,7 +11,7 @@ export default function useStatements() {
   const { debts, complete } = useDebts();
   return useMemo(() => {
     if (!activity) return isPending ? undefined : [];
-    if (!debts || !complete) return;
+    if (!complete) return;
     const due = new Set(debts.map(({ maturity }) => Number(maturity)));
     const maturities = new Set<number>();
     for (const item of activity) {
