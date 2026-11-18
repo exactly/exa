@@ -253,6 +253,7 @@
   "Couldn't download your statement. Please try again.": "Não foi possível baixar seu extrato. Tente novamente.",
   "Couldn't load asset details. Please try again.": "Não foi possível carregar os dados do ativo. Tente novamente.",
   "Couldn't load networks. Please try again.": "Não foi possível carregar as redes. Tente novamente.",
+  "Couldn't load your deposits on {{networks}}. Your balance may be incomplete.": "Não foi possível carregar seus depósitos em {{networks}}. Seu saldo pode estar incompleto.",
   "Couldn't load the exchange rate. Please try again.": "Não foi possível carregar a taxa de câmbio. Tente novamente.",
   "Couldn't load this activity. Please try again.": "Não foi possível carregar esta atividade. Tente novamente.",
   "Couldn't load your contacts. Please try again.": "Não foi possível carregar seus contatos. Tente novamente.",
