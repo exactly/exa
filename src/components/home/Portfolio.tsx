@@ -100,8 +100,7 @@ export default function Portfolio() {
                     refetchMarkets(),
                     refetchBalances(),
                     revalidateUnsupported(),
-                    queryClient.refetchQueries({ queryKey: ["markets"] }),
-                    queryClient.refetchQueries({ queryKey: ["rates"] }),
+                    queryClient.refetchQueries({ queryKey: ["network"], type: "active" }),
                   ])
                 : Promise.resolve()
             }
