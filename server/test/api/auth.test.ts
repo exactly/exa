@@ -8,11 +8,12 @@ import { captureException } from "@sentry/node";
 import { verifyAuthenticationResponse, verifyRegistrationResponse } from "@simplewebauthn/server";
 import { DrizzleQueryError, eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
+import { parseSigned } from "hono/utils/cookie";
 import { decodeJwt, decodeProtectedHeader, jwtVerify } from "jose";
 import assert from "node:assert";
 import { env } from "node:process";
 import { nonEmpty, object, parse, pipe, string, type InferOutput } from "valibot";
-import { getAddress, keccak256, padHex, slice, toBytes, verifyMessage, zeroAddress, zeroHash } from "viem";
+import { getAddress, hexToBytes, keccak256, padHex, slice, toBytes, verifyMessage, zeroAddress, zeroHash } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { parseSiweMessage, validateSiweMessage } from "viem/siwe";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
@@ -29,6 +30,7 @@ import androidOrigins from "../../utils/android/origins";
 import { origins } from "../../utils/appOrigin";
 import authSecret from "../../utils/authSecret";
 import createCredentialFactory from "../../utils/createCredential";
+import decodePublicKey from "../../utils/decodePublicKey";
 import createIntercom from "../../utils/intercom";
 import * as publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
@@ -923,6 +925,108 @@ describe("authentication", () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual(expect.objectContaining({ code: "bad factory" }));
     await expect(redis.exists("session:test-session")).resolves.toBe(0);
+  });
+
+  it("signs in when another backend creates the siwe credential first", async () => {
+    const factory = [...validFactories].find((f) => f !== exaAccountFactoryAddress);
+    assert.ok(factory);
+    const id = own(parse(Address, slice(keccak256(toBytes("auth:siwe-race")), 12)));
+    const publicKey = new Uint8Array(hexToBytes(id));
+    const account = deriveAddress(factory, { ...decodePublicKey(publicKey), salt: zeroAddress });
+    const verify = vi
+      .spyOn(publicClient.default, "verifySiweMessage")
+      .mockResolvedValue(true)
+      .mockImplementationOnce(async () => {
+        await database.insert(credentials).values([{ account, factory, id, publicKey }]);
+        return true;
+      });
+
+    const response = await appClient.index.$post(
+      { json: { method: "siwe", id, signature: "0xdeadbeef" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toStrictEqual({
+      credentialId: id,
+      factory,
+      ...decodePublicKey(publicKey),
+      salt: zeroAddress,
+      auth: expect.any(Number) as number,
+      expires: expect.any(Number) as number,
+      intercomToken: expect.any(String) as string,
+    });
+    await expect(
+      parseSigned(
+        response.headers.getSetCookie().find((cookie) => cookie.startsWith("credential_id=")) ?? "",
+        authSecret,
+        "credential_id",
+      ),
+    ).resolves.toEqual({ credential_id: id });
+    expect(verify).toHaveBeenCalledTimes(2);
+    await expect(
+      database.query.credentials.findMany({
+        where: eq(credentials.id, id),
+        columns: { account: true, factory: true },
+      }),
+    ).resolves.toStrictEqual([{ account, factory }]);
+    expect(sardineCustomer).not.toHaveBeenCalled();
+    expect(subscribe.enqueue).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+    await expect(redis.exists("session:test-session")).resolves.toBe(0);
+  });
+
+  it("returns 400 when a siwe credential conflict leaves no credential", async () => {
+    vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
+    const error = new DrizzleQueryError(
+      "insert into credentials",
+      [],
+      Object.assign(new Error("duplicate key"), { code: "23505" }),
+    );
+    vi.spyOn(derive, "default").mockImplementationOnce(() => {
+      throw error;
+    });
+    const id = own(parse(Address, slice(keccak256(toBytes("auth:siwe-conflict")), 12)));
+
+    const response = await appClient.index.$post(
+      { json: { method: "siwe", id, signature: "0xdeadbeef" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toStrictEqual({ code: "no credential" });
+    expect(response.headers.getSetCookie().some((cookie) => cookie.startsWith("credential_id="))).toBe(false);
+    await expect(database.query.credentials.findFirst({ where: eq(credentials.id, id) })).resolves.toBeUndefined();
+    expect(sardineCustomer).not.toHaveBeenCalled();
+    expect(subscribe.enqueue).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+    await expect(redis.exists("session:test-session")).resolves.toBe(0);
+  });
+
+  it.each([
+    ["no cause", undefined],
+    ["a cause without code", new Error("boom")],
+    ["another database error", Object.assign(new Error("foreign key"), { code: "23503" })],
+  ])("reports siwe authentication database errors with %s", async (_, cause) => {
+    vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
+    const error = new DrizzleQueryError("insert into credentials", [], cause);
+    vi.spyOn(derive, "default").mockImplementationOnce(() => {
+      throw error;
+    });
+    const id = own(parse(Address, slice(keccak256(toBytes("auth:siwe-database-error")), 12)));
+
+    const response = await appClient.index.$post(
+      { json: { method: "siwe", id, signature: "0xdeadbeef" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
+    );
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toStrictEqual({ code: "ouch", legacy: "ouch" });
+    expect(response.headers.getSetCookie().some((cookie) => cookie.startsWith("credential_id="))).toBe(false);
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(error, { level: "error", tags: { unhandled: true } });
+    await expect(database.query.credentials.findFirst({ where: eq(credentials.id, id) })).resolves.toBeUndefined();
+    expect(sardineCustomer).not.toHaveBeenCalled();
+    expect(subscribe.enqueue).not.toHaveBeenCalled();
   });
 
   it("authenticates existing credential with matching factory", async () => {
