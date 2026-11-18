@@ -13,6 +13,7 @@ const hooks = {
   manteca: vi.fn<() => Hook>(),
   panda: vi.fn<() => Hook>(),
   persona: vi.fn<() => Hook>(),
+  sardine: vi.fn<() => Hook>(),
 };
 const workers = { hook: vi.fn<() => Worker>(), maturity: vi.fn<() => Worker>() };
 const closers = { hook: vi.fn<() => Promise<void>>(), maturity: vi.fn<() => Promise<void>>() };
@@ -90,8 +91,31 @@ describe("server", () => {
     }
   });
 
+  it.each([
+    { secret: "sardine", disabled: undefined, status: 200, calls: [[{ webhookSecret: "sardine" }]] },
+    { secret: "sardine", disabled: "sardine", status: 404, calls: [] },
+    { secret: "", disabled: "sardine", status: 404, calls: [] },
+  ])(
+    "serves sardine hook with secret $secret when disabling $disabled",
+    async ({ secret, disabled, status, calls }) => {
+      vi.stubEnv("SARDINE_WEBHOOK_SECRET", secret);
+      if (disabled !== undefined) vi.stubEnv("DISABLED_MODULES", disabled);
+
+      const { default: app } = await import("../index");
+      const created = mocks.supervise.mock.calls[0]?.[1];
+      if (!created) throw new Error("missing server");
+      const handle = await created;
+      const response = await app.request("/hooks/sardine", { method: "POST" });
+
+      expect(response.status).toBe(status);
+      expect(hooks.sardine.mock.calls).toMatchObject(calls);
+      await handle.close();
+    },
+  );
+
   it("disables business", async () => {
     vi.stubEnv("DISABLED_MODULES", "business");
+    vi.stubEnv("SARDINE_WEBHOOK_SECRET", "sardine");
 
     await import("../index");
 
@@ -104,6 +128,7 @@ describe("server", () => {
     vi.stubEnv("PAX_API_KEY", "");
     vi.stubEnv("PAX_API_URL", "");
     vi.stubEnv("PAX_ASSOCIATE_ID_KEY", "");
+    vi.stubEnv("SARDINE_WEBHOOK_SECRET", "sardine");
 
     await import("../index");
 

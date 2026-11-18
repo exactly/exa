@@ -21,6 +21,7 @@ import createBridgeHook from "./hooks/bridge";
 import createMantecaHook from "./hooks/manteca";
 import createPandaHook from "./hooks/panda";
 import createPersonaHook from "./hooks/persona";
+import createSardineHook from "./hooks/sardine";
 import supervise, { own } from "./supervise";
 import createAlchemy from "./utils/alchemy";
 import androidFingerprints from "./utils/android/fingerprints";
@@ -117,6 +118,12 @@ const hooks = {
       webhook,
       webhookKey: parse(pipe(string("panda webhooks"), nonEmpty("panda webhooks")), env.PANDA_WEBHOOKS_KEY),
     }),
+  ...(env.SARDINE_WEBHOOK_SECRET && {
+    sardine: () =>
+      createSardineHook({
+        webhookSecret: parse(pipe(string("sardine webhook"), nonEmpty("sardine webhook")), env.SARDINE_WEBHOOK_SECRET),
+      }),
+  }),
   persona: () =>
     createPersonaHook({
       allow,
@@ -137,7 +144,7 @@ const disabled = new Set<string>(
     pipe(
       optional(string(), ""),
       transform((value) => value.split(",").filter(Boolean)),
-      array(picklist([...Object.keys(hooks), ...Object.keys(workers), "business", "pax"], "unknown module")),
+      array(picklist([...Object.keys(hooks), ...Object.keys(workers), "business", "pax", "sardine"], "unknown module")),
     ),
     env.DISABLED_MODULES,
   ),
