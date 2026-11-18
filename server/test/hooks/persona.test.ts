@@ -1056,7 +1056,11 @@ describe("business representative", () => {
     await database.delete(credentials).where(eq(credentials.id, referenceId));
   });
 
-  it("creates the card for the authorized user", async () => {
+  it.each([
+    { isBase: false, tenant: "OP" },
+    { isBase: true, tenant: "BASE" },
+  ] as const)("creates the card for the authorized user in $tenant", async ({ isBase, tenant }) => {
+    mocks.isBase.mockReturnValue(isBase);
     vi.mocked(panda.getCompanyApplication).mockResolvedValueOnce({ id: "company-id", applicationStatus: "approved" });
     vi.mocked(panda.getCompanyUsers)
       .mockResolvedValueOnce([
@@ -1108,7 +1112,7 @@ describe("business representative", () => {
         where: eq(cards.credentialId, referenceId),
       }),
     ).resolves.toStrictEqual([
-      { id: "business-card", lastFour: "4321", productId: CLASSIC_PRODUCT_ID, status: "ACTIVE", tenant: "BASE" },
+      { id: "business-card", lastFour: "4321", productId: CLASSIC_PRODUCT_ID, status: "ACTIVE", tenant },
     ]);
   });
 

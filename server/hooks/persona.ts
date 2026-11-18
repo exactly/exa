@@ -383,7 +383,7 @@ export default function hook({
           with: {
             cards: {
               columns: { id: true },
-              where: and(inArray(cards.status, ["ACTIVE", "FROZEN"]), eq(cards.tenant, "BASE")),
+              where: and(inArray(cards.status, ["ACTIVE", "FROZEN"]), eq(cards.tenant, isBase ? "BASE" : "OP")),
             },
           },
         });
@@ -452,7 +452,7 @@ export default function hook({
             {
               id: card.id,
               credentialId: referenceId,
-              tenant: "BASE",
+              tenant: isBase ? "BASE" : "OP",
               lastFour: card.last4,
               productId: CLASSIC_PRODUCT_ID,
             },
