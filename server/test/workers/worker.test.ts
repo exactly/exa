@@ -121,6 +121,99 @@ describe("worker", () => {
     expect(captureException).toHaveBeenCalledExactlyOnceWith(last, { level: "error", tags: { queue: name } });
   });
 
+  it("reports the last error when not ready by the deadline", async () => {
+    vi.mocked(captureException).mockClear();
+    const name = `worker-${crypto.randomUUID()}`;
+    const bullmq = connect(redisUrl);
+    const last = new Error("connect ETIMEDOUT");
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const handle = worker({ attempts: 1, bullmq, failed: vi.fn(), name, process: vi.fn(() => Promise.resolve()) });
+
+    try {
+      handle.queue.emit("error", new Error("connect ETIMEDOUT"));
+      handle.queue.emit("error", last);
+      vi.advanceTimersByTime(119_999);
+      expect(captureException).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(last, { level: "error", tags: { queue: name } });
+    } finally {
+      vi.useRealTimers();
+      await handle.ready;
+      await handle.close();
+      await bullmq.quit();
+    }
+    expect(captureException).toHaveBeenCalledOnce();
+  });
+
+  it("reports errors while closing before ready", async () => {
+    argv.push("--check");
+    vi.mocked(captureException).mockClear();
+    const name = `worker-${crypto.randomUUID()}`;
+    const bullmq = connect(redisUrl);
+    const handle = worker({ attempts: 1, bullmq, failed: vi.fn(), name, process: vi.fn(() => Promise.resolve()) });
+    handle.ready.catch(() => undefined);
+    const timeout = new Error("connect ETIMEDOUT");
+    const cleanup = new Error("close failed");
+    const close = handle.queue.close.bind(handle.queue);
+    vi.spyOn(handle.queue, "close").mockImplementationOnce(() => {
+      handle.queue.emit("error", cleanup);
+      return close();
+    });
+
+    try {
+      handle.queue.emit("error", timeout);
+    } finally {
+      await handle.close();
+      await bullmq.quit();
+    }
+    expect(vi.mocked(captureException).mock.calls).toStrictEqual([
+      [timeout, { level: "error", tags: { queue: name } }],
+      [cleanup, { level: "error", tags: { queue: name } }],
+    ]);
+  });
+
+  it("reports a stall without errors by the deadline", async () => {
+    vi.mocked(captureException).mockClear();
+    const name = `worker-${crypto.randomUUID()}`;
+    const bullmq = connect(redisUrl);
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const handle = worker({ attempts: 1, bullmq, failed: vi.fn(), name, process: vi.fn(() => Promise.resolve()) });
+
+    try {
+      vi.advanceTimersByTime(120_000);
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error(`${name} worker not ready`), {
+        level: "error",
+        tags: { queue: name },
+      });
+    } finally {
+      vi.useRealTimers();
+      await handle.ready;
+      await handle.close();
+      await bullmq.quit();
+    }
+    expect(captureException).toHaveBeenCalledOnce();
+  });
+
+  it("skips the deadline once ready", async () => {
+    vi.mocked(captureException).mockClear();
+    const name = `worker-${crypto.randomUUID()}`;
+    const bullmq = connect(redisUrl);
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const handle = worker({ attempts: 1, bullmq, failed: vi.fn(), name, process: vi.fn(() => Promise.resolve()) });
+
+    try {
+      handle.queue.emit("error", new Error("connect ETIMEDOUT"));
+      await handle.ready;
+      vi.advanceTimersByTime(120_000);
+      expect(captureException).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+      await handle.close();
+      await bullmq.quit();
+    }
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
   it("reports exhausted jobs inside the job trace", async () => {
     const name = `worker-${crypto.randomUUID()}`;
     const redis = connect(redisUrl);

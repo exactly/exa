@@ -93,14 +93,26 @@ export default function worker<Job extends { sentryBaggage?: string; sentryTrace
       if (started) captureException(error, { level: "error", tags: { queue: name } });
       else pending = error;
     });
+  const deadline = setTimeout(() => {
+    pending ??= new Error(`${name} worker not ready`);
+    report();
+  }, 120_000);
   const connected = queue.waitUntilReady().then((client) => {
+    clearTimeout(deadline);
     started = true;
     return client;
   });
   return own({ check, queue, ready: Promise.all([connected, ready]) }, () => {
-    if (!started && pending) captureException(pending, { level: "error", tags: { queue: name } });
-    return queue.close();
+    clearTimeout(deadline);
+    report();
+    return queue.close().finally(report);
   });
+
+  function report() {
+    if (started || !pending) return;
+    captureException(pending, { level: "error", tags: { queue: name } });
+    pending = undefined;
+  }
 }
 
 export function connect(redisUrl: string) {
