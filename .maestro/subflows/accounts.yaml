@@ -24,6 +24,9 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: Accept and continue
 - assertVisible: USD Account details
 - assertVisible: "900000000001"
+- tapOn: Fees and transfer times
+- assertVisible: Banks don’t process transfers on weekends or holidays.
+- tapOn: Close
 - evalScript: ${output.bridge = true}
 - runFlow: { file: tapAria.yaml, env: { aria: Back } }
 - runFlow: { file: tapAria.yaml, env: { aria: Back } }
