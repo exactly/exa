@@ -11,7 +11,7 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { safeParse } from "valibot";
 import { formatUnits, zeroAddress } from "viem";
 
-import chain, { alchemyChains, marketWETHAddress } from "@exactly/common/generated/chain";
+import chain, { alchemyChains } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 import { withdrawLimit } from "@exactly/lib";
 
@@ -29,10 +29,12 @@ import deployedOptions from "../../utils/deployedOptions";
 import floorCents from "../../utils/floorCents";
 import { presentArticle } from "../../utils/intercom";
 import { isSendable, lifiChainsOptions, lifiTokensOptions, reachOptions } from "../../utils/lifi";
+import networkOptions, { marketWETH } from "../../utils/networkOptions";
 import parseAmount from "../../utils/parseAmount";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAllowlists from "../../utils/useAllowlists";
+import useDeposits from "../../utils/useDeposits";
 import usePortfolio from "../../utils/usePortfolio";
 import AmountInput from "../shared/AmountInput";
 import AssetLogo from "../shared/AssetLogo";
@@ -68,7 +70,8 @@ export default function Amount() {
   const [swapOpen, setSwapOpen] = useState(false);
 
   const { address } = useAccount();
-  const { allAssets, markets } = usePortfolio();
+  const deposits = useDeposits();
+  const { allAssets } = usePortfolio({ deposits });
   const { data: chains } = useQuery(lifiChainsOptions);
   const { data: reach } = useQuery(reachOptions);
   const allowlists = useAllowlists();
@@ -99,9 +102,7 @@ export default function Amount() {
       [
         ...new Set(
           allAssets.flatMap((item) =>
-            item.type === "external" && item.chainId !== chain.id && alchemyChains.get(item.chainId)?.smartAccount
-              ? [item.chainId]
-              : [],
+            item.chainId !== chain.id && alchemyChains.get(item.chainId)?.smartAccount ? [item.chainId] : [],
           ),
         ),
       ].sort((a, b) => a - b),
@@ -114,7 +115,7 @@ export default function Amount() {
   const candidates = useMemo(
     () =>
       allAssets.filter((item) => {
-        const from = item.type === "protocol" ? chain.id : item.chainId;
+        const from = item.chainId;
         return (
           (item.type === "external" || item.usdValue > 0 || item.market === payOverride) &&
           (from === chain.id || deployedChains.includes(from)) &&
@@ -134,28 +135,29 @@ export default function Amount() {
         ? candidates.find(
             (item) =>
               (item.type === "external" ? item.address : item.market) === payOverride &&
-              (item.type === "external" ? item.chainId : chain.id) === payChainParameter,
+              item.chainId === payChainParameter,
           )
         : undefined,
     [candidates, payOverride, payChainParameter],
   );
 
-  const payChain = pay?.type === "external" ? pay.chainId : chain.id;
+  const payChain = pay?.chainId ?? chain.id;
+  const { data: payMarkets } = useQuery({ ...networkOptions(address, payChain), select: ({ markets }) => markets });
   const paySymbol = pay?.symbol;
   const payDecimals = pay?.decimals ?? 18;
   const payPrice = pay ? (pay.type === "external" ? parseAmount(pay.priceUSD, 18) : pay.usdPrice) : 0n;
   const payUnderlying = pay && (pay.type === "external" ? pay.address : pay.asset);
-  const payDelivered = pay?.type === "protocol" && pay.market === marketWETHAddress ? zeroAddress : payUnderlying;
+  const payDelivered = pay?.type === "protocol" && pay.market === marketWETH(payChain) ? zeroAddress : payUnderlying;
   const payLogoURI = pay?.type === "external" ? pay.logoURI : undefined;
   const available = pay
     ? pay.type === "external"
       ? (pay.amount ?? 0n)
-      : markets
-        ? withdrawLimit(markets, pay.market)
+      : payMarkets
+        ? withdrawLimit(payMarkets, pay.market)
         : 0n
     : 0n;
   const payUSD = (available * payPrice) / 10n ** BigInt(payDecimals);
-  const payMarket = pay?.type === "protocol" ? markets?.find(({ market }) => market === pay.market) : undefined;
+  const payMarket = pay?.type === "protocol" ? payMarkets?.find(({ market }) => market === pay.market) : undefined;
   const direct =
     !!payDelivered &&
     destinationChain === payChain &&

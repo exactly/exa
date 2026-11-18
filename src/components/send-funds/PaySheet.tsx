@@ -10,7 +10,7 @@ import { withdrawLimit } from "@exactly/lib";
 
 import { Search } from "../../generated/icons/Search";
 import { lifiChainsOptions } from "../../utils/lifi";
-import usePortfolio from "../../utils/usePortfolio";
+import { useNetworkMarkets } from "../../utils/useDeposits";
 import AssetLogo from "../shared/AssetLogo";
 import ChainLogo from "../shared/ChainLogo";
 import Chip from "../shared/Chip";
@@ -37,13 +37,11 @@ export default function PaySheet({
   } = useTranslation();
   const [query, setQuery] = useState("");
   const [network, setNetwork] = useState<number>();
-  const { markets } = usePortfolio();
+  const { markets } = useNetworkMarkets();
   const { data: chains } = useQuery(lifiChainsOptions);
   const networks = useMemo(() => {
     const ids = [
-      ...new Set(
-        assets.flatMap((asset) => (asset.type === "external" ? [asset.chainId] : asset.usdValue > 0 ? [chain.id] : [])),
-      ),
+      ...new Set(assets.flatMap((asset) => (asset.type === "external" || asset.usdValue > 0 ? [asset.chainId] : []))),
     ];
     return ids
       .map((id) => ({
@@ -62,18 +60,16 @@ export default function PaySheet({
       (asset) =>
         (asset.type === "external" || asset.usdValue > 0) &&
         (!search || asset.symbol.toLowerCase().includes(search)) &&
-        (network === undefined || (asset.type === "external" ? asset.chainId : chain.id) === network),
+        (network === undefined || asset.chainId === network),
     );
-    const ids = [...new Set(matches.map((asset) => (asset.type === "external" ? asset.chainId : chain.id)))].sort(
-      (a, b) => {
-        if (a === chain.id) return -1;
-        if (b === chain.id) return 1;
-        return a - b;
-      },
-    );
+    const ids = [...new Set(matches.map(({ chainId }) => chainId))].sort((a, b) => {
+      if (a === chain.id) return -1;
+      if (b === chain.id) return 1;
+      return a - b;
+    });
     return ids.map((id) => ({
       id,
-      assets: matches.filter((asset) => (asset.type === "external" ? asset.chainId : chain.id) === id),
+      assets: matches.filter(({ chainId }) => chainId === id),
     }));
   }, [assets, query, network]);
   function close() {
@@ -154,11 +150,12 @@ export default function PaySheet({
                   </Text>
                 )}
                 {group.assets.map((asset) => {
+                  const payMarkets = markets.get(group.id);
                   const available =
                     asset.type === "external"
                       ? (asset.amount ?? 0n)
-                      : markets
-                        ? withdrawLimit(markets, asset.market)
+                      : payMarkets
+                        ? withdrawLimit(payMarkets, asset.market)
                         : 0n;
                   const usdPrice = asset.type === "external" ? Number(asset.priceUSD) : Number(asset.usdPrice) / 1e18;
                   const name =
@@ -175,7 +172,7 @@ export default function PaySheet({
                   });
                   return (
                     <XStack
-                      key={asset.type === "external" ? `${asset.chainId}:${asset.address}` : asset.market}
+                      key={`${asset.chainId}:${asset.type === "external" ? asset.address : asset.market}`}
                       gap="s3"
                       alignItems="center"
                       cursor="pointer"
