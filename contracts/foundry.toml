@@ -76,6 +76,7 @@ test = "test/mocks"
 
 [rpc_endpoints]
 arbitrum = "${ARBITRUM_RPC_URL}"
+avalanche = "${AVALANCHE_RPC_URL}"
 base = "${BASE_RPC_URL}"
 base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
 bnb_smart_chain = "${BNB_SMART_CHAIN_RPC_URL}"
@@ -83,6 +84,7 @@ mainnet = "${ETHEREUM_RPC_URL}"
 optimism = "${OPTIMISM_RPC_URL}"
 optimism_sepolia = "${OPTIMISM_SEPOLIA_RPC_URL}"
 polygon = "${POLYGON_RPC_URL}"
+world = "${WORLD_RPC_URL}"
 anvil = "http://localhost:8545"
 
 [etherscan]
