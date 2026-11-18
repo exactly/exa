@@ -990,6 +990,94 @@ describe("manteca utils", () => {
     });
   });
 
+  describe("refundQrPayment", () => {
+    const userOpHash = padHex("0x4337", { size: 32 });
+    const address = parse(Address, padHex("0xa11ce", { size: 20 }));
+
+    it("withdraws the paid amount from the principal account to the account", async () => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchResponse(refund));
+
+      await expect(manteca.refundQrPayment(userOpHash, address, 2_449_218n)).resolves.toStrictEqual({
+        id: refund.id,
+        numberId: refund.numberId,
+        userExternalId: "Exactly-argentina",
+        status: "PENDING",
+      });
+      expect(fetchSpy).toHaveBeenCalledOnce();
+      expect(fetchSpy.mock.calls[0]?.[0]).toBe("https://manteca.test/crypto/v2/withdraws");
+      expect(fetchSpy.mock.calls[0]?.[1]?.method).toBe("POST");
+      expect(JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string)).toStrictEqual({
+        externalId: `refund-${userOpHash}`,
+        userAnyId: "Exactly-argentina",
+        legalEntity: "WALLET_ARG",
+        asset: "USDC",
+        amount: "2.449218",
+        destination: { address, network: "OPTIMISM" },
+      });
+    });
+
+    it("returns null when the refund already exists", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        mockFetchError(409, JSON.stringify({ internalStatus: "WITHDRAW_EXISTS", message: "Withdraw already exists." })),
+      );
+
+      await expect(manteca.refundQrPayment(userOpHash, address, 2_449_218n)).resolves.toBeNull();
+    });
+
+    it.each([
+      [409, JSON.stringify({ internalStatus: "OPERATION_BLOCKED", message: "Operation blocked." })],
+      [400, JSON.stringify({ internalStatus: "NO_FUNDS", message: "Insufficient funds." })],
+      [500, "internal"],
+    ])("throws on %i %s", async (status, error) => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchError(status, error));
+
+      await expect(manteca.refundQrPayment(userOpHash, address, 2_449_218n)).rejects.toThrow(ServiceError);
+    });
+
+    it("throws for unsupported chain id", async () => {
+      chainMock.id = 1;
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+      await expect(manteca.refundQrPayment(userOpHash, address, 2_449_218n)).rejects.toThrow(
+        ErrorCodes.NOT_SUPPORTED_CHAIN_ID,
+      );
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("getQrRefund", () => {
+    const userOpHash = padHex("0x4337", { size: 32 });
+
+    it("returns the refund of the user operation", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(mockFetchResponse({ ...refund, status: "EXECUTED" }));
+
+      await expect(manteca.getQrRefund(userOpHash)).resolves.toStrictEqual({
+        id: refund.id,
+        numberId: refund.numberId,
+        userExternalId: "Exactly-argentina",
+        status: "EXECUTED",
+      });
+      expect(fetchSpy.mock.calls[0]?.[0]).toBe(`https://manteca.test/crypto/v2/withdraws/refund-${userOpHash}`);
+      expect(fetchSpy.mock.calls[0]?.[1]?.method).toBe("GET");
+    });
+
+    it("returns null when there is no refund", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        mockFetchError(404, JSON.stringify({ internalStatus: "WITHDRAW_NF", message: "Withdraw not found." })),
+      );
+
+      await expect(manteca.getQrRefund(userOpHash)).resolves.toBeNull();
+    });
+
+    it("throws on other errors", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchError(500, "internal"));
+
+      await expect(manteca.getQrRefund(userOpHash)).rejects.toThrow(ServiceError);
+    });
+  });
+
   describe("getSettlement", () => {
     it("returns the evm settlement address of the entity and memoizes the company", async () => {
       const evm = ["ETHEREUM", "OPTIMISM", "BASE"];
@@ -1322,6 +1410,26 @@ const mockBalanceBase = {
 
 const mockOrderResponse = { id: "order-123", numberId: "789", status: "PENDING" as const };
 const mockWithdrawResponse = { id: "withdraw-123", numberId: "789", status: "PENDING" as const };
+
+const refund = {
+  id: "6af4aa45204ef0670ed07817",
+  numberId: "100069658",
+  network: "OPTIMISM",
+  networkId: "100028332",
+  userId: "6adff39f0ee31861fc20cdaf",
+  userNumberId: "100114168",
+  userExternalId: "Exactly-argentina",
+  userLegalId: "30717771806",
+  legalEntity: "WALLET_ARG",
+  status: "PENDING",
+  asset: "USDC",
+  amount: "2.449218",
+  filledAmount: "2.449218",
+  destination: "0x00000000000000000000000000000000000A11cE",
+  externalId: `refund-${padHex("0x4337", { size: 32 })}`,
+  creationTime: "2026-11-11T14:47:49.984-03:00",
+  updatedAt: "2026-11-11T14:47:49.984-03:00",
+};
 
 const mockLimitsResponse = [
   {
