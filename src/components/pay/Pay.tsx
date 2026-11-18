@@ -56,7 +56,6 @@ export default function Pay() {
   } = useTranslation();
   const router = useRouter();
   const { market: exaUSDC } = useAsset(marketUSDCAddress);
-  const { refetch } = useMarkets({ refetchInterval: 30_000 });
   const { debts = none, complete } = useDebts({ refetchInterval: 30_000 });
   const first = debts[0];
   const proposalManager = useProposalManager(first?.chainId ?? chain.id);
@@ -67,14 +66,6 @@ export default function Pay() {
   const [historyMaturity, setHistoryMaturity] = useState<number>();
   const [infoType, setInfoType] = useState<"discount" | "fees" | "total" | null>(null);
   const scrollRef = useRef<ScrollView>(null);
-  const refresh = () =>
-    Promise.all([
-      refetch(),
-      queryClient.refetchQueries({ queryKey: ["markets"] }),
-      queryClient.refetchQueries({ queryKey: ["rates"] }),
-      queryClient.invalidateQueries({ queryKey: ["activity", "card"], exact: true }),
-      queryClient.invalidateQueries({ queryKey: ["activity", "statement"] }),
-    ]);
   useTabPress("pay-mode", () => {
     scrollRef.current?.scrollTo({ y: 0, animated: true });
     refresh().catch(reportError);
@@ -478,3 +469,11 @@ function FirstMaturityCard({
 }
 
 const none: never[] = [];
+
+function refresh() {
+  return Promise.all([
+    queryClient.refetchQueries({ queryKey: ["network"], type: "active" }),
+    queryClient.invalidateQueries({ queryKey: ["activity", "card"], exact: true }),
+    queryClient.invalidateQueries({ queryKey: ["activity", "statement"] }),
+  ]);
+}
