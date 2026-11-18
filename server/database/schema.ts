@@ -19,7 +19,7 @@ import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 
 const bytea = customType<{ data: Uint8Array<ArrayBuffer>; driverData: string }>({ dataType: () => "bytea" });
 
-export const cardStatus = pgEnum("card_status", ["ACTIVE", "FROZEN", "DELETED"]);
+export const cardStatus = pgEnum("card_status", ["ACTIVE", "FROZEN", "DELETED", "HELD"]);
 
 export const credentials = pgTable(
   "credentials",
