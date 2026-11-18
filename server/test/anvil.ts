@@ -1,9 +1,10 @@
 import { $ } from "execa";
 import { spawn } from "node:child_process";
-import { readdir, readFile } from "node:fs/promises";
+import { access, readdir, readFile, writeFile } from "node:fs/promises";
 import { Agent, createServer, request } from "node:http";
 import { env, stderr, stdout } from "node:process";
 import { text } from "node:stream/consumers";
+import { gunzipSync } from "node:zlib";
 import { Instance } from "prool";
 import { literal, object, parse, tuple } from "valibot";
 import {
@@ -11,6 +12,7 @@ import {
   createTestClient,
   encodeAbiParameters,
   erc20Abi,
+  hexToBytes,
   http,
   keccak256,
   numberToHex,
@@ -36,15 +38,23 @@ import deploy from "@exactly/plugin/deploy.json";
 
 import anvilClient from "./anvilClient";
 
-export default async function setup() {
+async function start(dump = false) {
   if (!env.NX_TASK_TARGET_PROJECT) {
     await $({ cwd: "..", env: { CHAIN_ID: String(foundry.id) }, preferLocal: true })`nx prepare server`;
   }
+  const state =
+    !dump &&
+    env.NODE_ENV !== "e2e" &&
+    (await access("generated/anvil.json").then(
+      () => true,
+      () => false,
+    ));
   const instances = chains.map(({ id, rpcUrls }) =>
     Instance.anvil({
       codeSizeLimit: 69_000,
       blockBaseFeePerGas: 1n,
       chainId: id,
+      ...(state && { loadState: "generated/anvil.json" }),
       port: Number(new URL(rpcUrls.default.http[0]).port) + (env.NODE_ENV === "e2e" ? 1 : 0),
     }),
   );
@@ -116,84 +126,99 @@ export default async function setup() {
     );
   }
 
-  await $(shell)`forge compiler resolve`;
-  await forge("test/mocks/Protocol.s.sol", "--disable-code-size-limit");
+  let started: Promise<unknown> | undefined;
+  if (state) {
+    const [{ timestamp }, now] = [await anvilClient.getBlock(), BigInt(Math.floor(Date.now() / 1000))];
+    if (now > timestamp) await anvilClient.setNextBlockTimestamp({ timestamp: now });
+    await anvilClient.mine({ blocks: 1 });
+  } else {
+    await $(shell)`forge compiler resolve`;
+    await forge("test/mocks/Protocol.s.sol", "--disable-code-size-limit");
 
-  const protocol = parse(
-    Protocol,
-    JSON.parse(await readFile("node_modules/@exactly/plugin/broadcast/Protocol.s.sol/31337/run-latest.json", "utf8")),
-  ).transactions;
-  const auditor = protocol[1].contractAddress;
-  const exa = protocol[2].contractAddress;
-  const marketEXA = protocol[4].contractAddress;
-  const usdc = protocol[9].contractAddress;
-  const marketUSDC = protocol[11].contractAddress;
-  const weth = protocol[16].contractAddress;
-  const marketWETH = protocol[18].contractAddress;
-  const balancer = protocol[23].contractAddress;
-  const debtManager = protocol[24].contractAddress;
-  const previewer = protocol[28].contractAddress;
-  const integrationPreviewer = protocol[29].contractAddress;
-  const ratePreviewer = protocol[30].contractAddress;
-  const installmentsRouter = protocol[31].contractAddress;
-  const firewall = protocol[33].contractAddress;
+    const protocol = parse(
+      Protocol,
+      JSON.parse(await readFile("node_modules/@exactly/plugin/broadcast/Protocol.s.sol/31337/run-latest.json", "utf8")),
+    ).transactions;
+    const auditor = protocol[1].contractAddress;
+    const exa = protocol[2].contractAddress;
+    const marketEXA = protocol[4].contractAddress;
+    const usdc = protocol[9].contractAddress;
+    const marketUSDC = protocol[11].contractAddress;
+    const weth = protocol[16].contractAddress;
+    const marketWETH = protocol[18].contractAddress;
+    const balancer = protocol[23].contractAddress;
+    const debtManager = protocol[24].contractAddress;
+    const previewer = protocol[28].contractAddress;
+    const integrationPreviewer = protocol[29].contractAddress;
+    const ratePreviewer = protocol[30].contractAddress;
+    const installmentsRouter = protocol[31].contractAddress;
+    const firewall = protocol[33].contractAddress;
 
-  // cspell:ignoreRegExp [\b_][A-Z]+_ADDRESS\b
-  shell.env.PROTOCOL_AUDITOR_ADDRESS = auditor;
-  shell.env.PROTOCOL_EXA_ADDRESS = exa;
-  shell.env.PROTOCOL_MARKETEXA_ADDRESS = marketEXA;
-  shell.env.PROTOCOL_USDC_ADDRESS = usdc;
-  shell.env.PROTOCOL_MARKETUSDC_ADDRESS = marketUSDC;
-  shell.env.PROTOCOL_WETH_ADDRESS = weth;
-  shell.env.PROTOCOL_MARKETWETH_ADDRESS = marketWETH;
-  shell.env.PROTOCOL_BALANCER2VAULT_ADDRESS = balancer;
-  shell.env.PROTOCOL_DEBTMANAGER_ADDRESS = debtManager;
-  shell.env.PROTOCOL_PREVIEWER_ADDRESS = previewer;
-  shell.env.PROTOCOL_INTEGRATIONPREVIEWER_ADDRESS = integrationPreviewer;
-  shell.env.PROTOCOL_RATEPREVIEWER_ADDRESS = ratePreviewer;
-  shell.env.PROTOCOL_INSTALLMENTSROUTER_ADDRESS = installmentsRouter;
-  shell.env.PROTOCOL_FIREWALL_ADDRESS = firewall;
-  shell.env.PROTOCOL_ESEXA_ADDRESS = padHex("0x666", { size: 20 });
-  shell.env.PROTOCOL_REWARDSCONTROLLER_ADDRESS = padHex("0x666", { size: 20 });
+    // cspell:ignoreRegExp [\b_][A-Z]+_ADDRESS\b
+    shell.env.PROTOCOL_AUDITOR_ADDRESS = auditor;
+    shell.env.PROTOCOL_EXA_ADDRESS = exa;
+    shell.env.PROTOCOL_MARKETEXA_ADDRESS = marketEXA;
+    shell.env.PROTOCOL_USDC_ADDRESS = usdc;
+    shell.env.PROTOCOL_MARKETUSDC_ADDRESS = marketUSDC;
+    shell.env.PROTOCOL_WETH_ADDRESS = weth;
+    shell.env.PROTOCOL_MARKETWETH_ADDRESS = marketWETH;
+    shell.env.PROTOCOL_BALANCER2VAULT_ADDRESS = balancer;
+    shell.env.PROTOCOL_DEBTMANAGER_ADDRESS = debtManager;
+    shell.env.PROTOCOL_PREVIEWER_ADDRESS = previewer;
+    shell.env.PROTOCOL_INTEGRATIONPREVIEWER_ADDRESS = integrationPreviewer;
+    shell.env.PROTOCOL_RATEPREVIEWER_ADDRESS = ratePreviewer;
+    shell.env.PROTOCOL_INSTALLMENTSROUTER_ADDRESS = installmentsRouter;
+    shell.env.PROTOCOL_FIREWALL_ADDRESS = firewall;
+    shell.env.PROTOCOL_ESEXA_ADDRESS = padHex("0x666", { size: 20 });
+    shell.env.PROTOCOL_REWARDSCONTROLLER_ADDRESS = padHex("0x666", { size: 20 });
 
-  await forge("test/mocks/Mocks.s.sol");
+    await forge("test/mocks/Mocks.s.sol");
 
-  await forge("test/mocks/Account.s.sol");
-  const [plugin, , paymaster] = parse(
-    object({
-      transactions: tuple([
-        object({ contractName: literal("WebauthnOwnerPlugin"), contractAddress: Address }),
-        object({ contractName: literal("UpgradeableModularAccount") }),
-        object({ contractName: literal("VerifyingPaymaster"), contractAddress: Address }),
-      ]),
-    }),
-    JSON.parse(await readFile("node_modules/@exactly/plugin/broadcast/Account.s.sol/31337/run-latest.json", "utf8")),
-  ).transactions;
-  shell.env.BROADCAST_WEBAUTHNOWNERPLUGIN_ADDRESS = plugin.contractAddress;
-  const started = Promise.all(rpcs.map((rpc) => rpc.start(paymaster.contractAddress)));
+    await forge("test/mocks/Account.s.sol");
+    const [plugin, , paymaster] = parse(
+      object({
+        transactions: tuple([
+          object({ contractName: literal("WebauthnOwnerPlugin"), contractAddress: Address }),
+          object({ contractName: literal("UpgradeableModularAccount") }),
+          object({ contractName: literal("VerifyingPaymaster"), contractAddress: Address }),
+        ]),
+      }),
+      JSON.parse(await readFile("node_modules/@exactly/plugin/broadcast/Account.s.sol/31337/run-latest.json", "utf8")),
+    ).transactions;
+    shell.env.BROADCAST_WEBAUTHNOWNERPLUGIN_ADDRESS = plugin.contractAddress;
+    started = Promise.all(rpcs.map((rpc) => rpc.start(paymaster.contractAddress)));
 
-  await forge("test/mocks/ExaBusinessTenant.s.sol");
-  await forge("script/IssuerChecker.s.sol");
-  await forge("script/ProposalManager.s.sol");
-  await forge("script/Refunder.s.sol");
-  await forge("script/ExaPreviewer.s.sol");
-  await forge("script/ExaPlugin.s.sol");
-  await forge("script/ExaAccountFactory.s.sol");
+    await forge("test/mocks/ExaBusinessTenant.s.sol");
+    await forge("script/IssuerChecker.s.sol");
+    await forge("script/ProposalManager.s.sol");
+    await forge("script/Refunder.s.sol");
+    await forge("script/ExaPreviewer.s.sol");
+    await forge("script/ExaPlugin.s.sol");
+    await forge("script/ExaAccountFactory.s.sol");
 
-  const bob = privateKeyToAddress(padHex("0xb0b"));
-  await Promise.all([
-    anvilClient.impersonateAccount({ address: bob }),
-    anvilClient.impersonateAccount({ address: keeper.address }),
-  ]);
-  await $(shell)`forge script test/mocks/Bob.s.sol
-      --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation --offline`;
-  await Promise.all([
-    anvilClient.stopImpersonatingAccount({ address: bob }),
-    anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[foundry.id] }),
-  ]);
-  await $(shell)`forge script test/mocks/BobExecute.s.sol --tc BobExecuteScript
-      --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation --offline`;
-  await anvilClient.stopImpersonatingAccount({ address: keeper.address });
+    const bob = privateKeyToAddress(padHex("0xb0b"));
+    await Promise.all([
+      anvilClient.impersonateAccount({ address: bob }),
+      anvilClient.impersonateAccount({ address: keeper.address }),
+    ]);
+    await $(shell)`forge script test/mocks/Bob.s.sol
+        --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation --offline`;
+    await Promise.all([
+      anvilClient.stopImpersonatingAccount({ address: bob }),
+      anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[foundry.id] }),
+    ]);
+    await $(shell)`forge script test/mocks/BobExecute.s.sol --tc BobExecuteScript
+        --unlocked --rpc-url ${foundry.rpcUrls.default.http[0]} --broadcast --skip-simulation --offline`;
+    await anvilClient.stopImpersonatingAccount({ address: keeper.address });
+  }
+  if (dump) {
+    const client = createTestClient({
+      chain: foundry,
+      mode: "anvil",
+      transport: http(undefined, { maxResponseBodySize: false }),
+    });
+    await writeFile("generated/anvil.json", gunzipSync(hexToBytes(await client.dumpState())));
+  }
 
   const [exaBusinessTenant, refunder, exaPlugin] = await Promise.all([
     readFile("node_modules/@exactly/plugin/broadcast/ExaBusinessTenant.s.sol/31337/run-latest.json", "utf8"),
@@ -522,4 +547,13 @@ function alchemy(chain: (typeof chains)[number]) {
       await bundler.stop();
     },
   };
+}
+
+export default function setup() {
+  return start();
+}
+
+export async function generate() {
+  const teardown = await start(true);
+  await teardown();
 }
