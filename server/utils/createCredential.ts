@@ -1,5 +1,6 @@
 import { captureException, setUser } from "@sentry/node";
 import { setSignedCookie } from "hono/cookie";
+import crypto from "node:crypto";
 import { parse } from "valibot";
 import { hexToBytes, isAddress, zeroAddress } from "viem";
 
@@ -10,6 +11,7 @@ import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import decodePublicKey from "./decodePublicKey";
+import { session, SESSION_TTL, signals } from "./sardine";
 import { credentials } from "../database/schema";
 
 import type { IpAddress } from "./sardine";
@@ -20,16 +22,19 @@ import type createSubscribe from "../workers/subscribe/queue";
 import type { WebAuthnCredential } from "@simplewebauthn/server";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Context } from "hono";
+import type { Redis } from "ioredis";
 
 export default function createCredential({
   authSecret,
   database,
+  redis,
   sardine,
   segment,
   subscribe,
 }: {
   authSecret: string;
   database: NodePgDatabase<typeof schema>;
+  redis: Redis;
   sardine: ReturnType<typeof createSardine>;
   segment: ReturnType<typeof createSegment>;
   subscribe: ReturnType<typeof createSubscribe>;
@@ -61,16 +66,8 @@ export default function createCredential({
       },
     ]);
 
-    const userAgent = c.req.header("user-agent");
-    const language = c.req.header("accept-language");
-    const device =
-      options?.ip || userAgent || language
-        ? {
-            ...(options?.ip && { ip: options.ip }),
-            ...(userAgent && { userAgent }),
-            ...(language && { language }),
-          }
-        : undefined;
+    const device = signals(c, options?.ip);
+    const sessionKey = crypto.randomUUID();
     await Promise.all([
       setSignedCookie(c, "credential_id", credentialId, authSecret, {
         expires,
@@ -82,6 +79,7 @@ export default function createCredential({
       sardine
         .customer({
           flow: { name: "signup", type: "signup" },
+          sessionKey,
           checkpoints: ["customer"],
           customer: {
             id: credentialId,
@@ -92,6 +90,9 @@ export default function createCredential({
           },
           ...(device && { device }),
         })
+        .catch((error: unknown) => captureException(error, { level: "error" })),
+      redis
+        .set(session(credentialId), sessionKey, "EX", SESSION_TTL)
         .catch((error: unknown) => captureException(error, { level: "error" })),
     ]);
 

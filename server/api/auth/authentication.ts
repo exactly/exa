@@ -9,7 +9,7 @@ import { Hono, type Env } from "hono";
 import { setCookie, setSignedCookie } from "hono/cookie";
 import { describeRoute } from "hono-openapi";
 import { resolver, validator as vValidator } from "hono-openapi/valibot";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import {
   any,
   array,
@@ -49,13 +49,14 @@ import androidOrigins from "../../utils/android/origins";
 import { origin, origins } from "../../utils/appOrigin";
 import decodePublicKey from "../../utils/decodePublicKey";
 import publicClient from "../../utils/publicClient";
-import { IpAddress } from "../../utils/sardine";
+import { IpAddress, session, SESSION_TTL, signals } from "../../utils/sardine";
 import validatorHook from "../../utils/validatorHook";
 import validFactories from "../../utils/validFactories";
 
 import type * as schema from "../../database/schema";
 import type createCredentialFactory from "../../utils/createCredential";
 import type createIntercom from "../../utils/intercom";
+import type createSardine from "../../utils/sardine";
 import type createWalletExtension from "../../utils/walletExtension";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Redis } from "ioredis";
@@ -147,6 +148,7 @@ export default function route({
   database,
   intercom,
   redis,
+  sardine,
   walletExtension,
 }: {
   authSecret: string;
@@ -155,6 +157,7 @@ export default function route({
   database: NodePgDatabase<typeof schema>;
   intercom: ReturnType<typeof createIntercom>;
   redis: Redis;
+  sardine: ReturnType<typeof createSardine>;
   walletExtension: ReturnType<typeof createWalletExtension>;
 }) {
   return new Hono()
@@ -491,6 +494,22 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
           captureException(error, { level: "error", tags: { unhandled: true } });
           return c.json({ code: "ouch", legacy: "ouch" }, 500);
         }
+
+        const sessionKey = randomUUID();
+        const device = signals(c, headers?.["do-connecting-ip"]);
+        Promise.all([
+          redis.set(session(assertion.id), sessionKey, "EX", SESSION_TTL),
+          sardine.customer({
+            flow: { name: "login", type: "login" },
+            sessionKey,
+            checkpoints: ["login"],
+            customer: {
+              id: assertion.id,
+              tags: [{ name: "auth_method", value: assertion.method === "siwe" ? "siwe" : "webauthn", type: "string" }],
+            },
+            ...(device && { device }),
+          }),
+        ]).catch((error: unknown) => captureException(error, { level: "error" }));
 
         const expires = new Date(Date.now() + AUTH_EXPIRY);
         const [intercomToken] = await Promise.all([

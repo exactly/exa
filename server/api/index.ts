@@ -68,7 +68,7 @@ export default function api({
   const betterAuth = createBetterAuth(database, authSecret);
   const auth = createAuth(authSecret);
   const org = createOrg(betterAuth);
-  const credential = createCredential({ authSecret, database, sardine, segment, subscribe });
+  const credential = createCredential({ authSecret, database, redis, sardine, segment, subscribe });
   const app = new Hono()
     .use(
       cors({
@@ -95,6 +95,7 @@ export default function api({
         database,
         intercom,
         redis,
+        sardine,
         walletExtension,
       }),
     )
