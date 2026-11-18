@@ -37,37 +37,37 @@ export default function networkOptions(account: Address | undefined, chainId: nu
             ),
           ];
           const contracts = chains.get(chainId);
-          const preview = await readContract(exaConfig, {
-            chainId,
-            abi: appPreviewerAbi,
-            address: previewerAddress,
-            functionName: "preview",
-            args: [
-              account,
-              contracts?.auditor ?? zeroAddress,
-              contracts?.previewer ?? zeroAddress,
-              contracts?.ratePreviewer ?? zeroAddress,
-              zeroAddress,
-              targets,
-            ],
-            stateOverride: [{ address: previewerAddress, code: appPreviewerDeployedCode }],
-          });
+          const { markets, exactly, snapshot, timestamp, floatingAssetsAverage, proposalManager, allowed } =
+            await readContract(exaConfig, {
+              chainId,
+              abi: appPreviewerAbi,
+              address: previewerAddress,
+              functionName: "preview",
+              args: [
+                account,
+                contracts?.auditor ?? zeroAddress,
+                contracts?.previewer ?? zeroAddress,
+                contracts?.ratePreviewer ?? zeroAddress,
+                contracts?.marketUSDC ?? zeroAddress,
+                targets,
+              ],
+              stateOverride: [{ address: previewerAddress, code: appPreviewerDeployedCode }],
+            });
           return {
             allowlist:
-              preview.proposalManager.proposalManager === zeroAddress
-                ? null
-                : targets.filter((_, index) => preview.allowed[index]),
+              proposalManager.proposalManager === zeroAddress ? null : targets.filter((_, index) => allowed[index]),
             lifi: tokens !== undefined,
-            timestamp: preview.timestamp,
+            timestamp,
             ...(contracts && {
               markets: withPreviews(
-                decodeFunctionResult({ abi: previewerAbi, functionName: "exactly", data: preview.exactly }),
-                preview.markets,
+                decodeFunctionResult({ abi: previewerAbi, functionName: "exactly", data: exactly }),
+                markets,
               ).map((market) => ({ ...market, chainId })),
               snapshot:
-                preview.snapshot === "0x"
+                snapshot === "0x"
                   ? undefined
-                  : decodeFunctionResult({ abi: ratePreviewerAbi, functionName: "snapshot", data: preview.snapshot }),
+                  : decodeFunctionResult({ abi: ratePreviewerAbi, functionName: "snapshot", data: snapshot }),
+              floatingAssetsAverage,
             }),
           };
         }
@@ -85,7 +85,7 @@ const previewerAddress = getContractAddress({
   salt: zeroHash,
 });
 
-export function withPreviews<T extends { isCollateral: boolean; market: Address }>(
+function withPreviews<T extends { isCollateral: boolean; market: Address }>(
   markets: readonly T[],
   previews: readonly { isFrozen: boolean; market: Address; nonCollateral: boolean }[],
 ) {
@@ -98,4 +98,10 @@ export function withPreviews<T extends { isCollateral: boolean; market: Address 
       nonCollateral: !!preview?.nonCollateral,
     };
   });
+}
+
+export function network(chainId: number) {
+  const found = chains.get(chainId);
+  if (!found) throw new Error(`unknown network ${chainId}`);
+  return found;
 }

@@ -21,7 +21,7 @@ import Text from "../../components/shared/Text";
 import View from "../../components/shared/View";
 import { ArrowLeft } from "../../generated/icons/ArrowLeft";
 import { ArrowRight } from "../../generated/icons/ArrowRight";
-import { network } from "../../utils/marketsOptions";
+import { network } from "../../utils/networkOptions";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";

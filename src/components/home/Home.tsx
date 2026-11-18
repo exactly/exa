@@ -111,7 +111,7 @@ export default function Home() {
     isProcessing,
     proposals: { refetch: refetchPendingProposals },
   } = usePendingOperations();
-  const { markets, refetch: refetchMarkets } = useMarkets();
+  const { markets } = useMarkets();
   const { approved: isKYCApproved, status: kycStatus, isFetched: isKYCFetched } = useKYC();
   const { data: card, refetch: refetchCard } = useQuery<CardDetails>({
     queryKey: ["card", "details"],
@@ -201,7 +201,6 @@ export default function Home() {
       queryClient.invalidateQueries({ queryKey: balancesOptions(account).queryKey }),
       business ? queryClient.invalidateQueries({ queryKey: ["kyc", "panda-business"], exact: true }) : undefined,
       revalidateUnsupported(),
-      account ? refetchMarkets() : undefined,
       queryClient.refetchQueries({ queryKey: ["network"], type: "active" }),
       account ? refetchBytecode() : undefined,
       account && bytecode ? refetchPendingProposals() : undefined,
