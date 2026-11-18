@@ -89,7 +89,14 @@ export default function hook({
             object({ type: literal("account_update"), id: string(), customer_id: string() }),
             object({ type: literal("activation"), id: string(), customer_id: string() }),
             object({ type: literal("deactivation"), id: string(), customer_id: string() }),
-            object({ type: literal("funds_received"), id: string(), customer_id: string() }),
+            object({
+              amount: string(),
+              currency: picklist(BridgeCurrency),
+              customer_id: string(),
+              deposit_id: string(),
+              id: string(),
+              type: literal("funds_received"),
+            }),
             object({ type: literal("funds_scheduled"), id: string(), customer_id: string() }),
             object({ type: literal("in_review"), id: string(), customer_id: string() }),
             object({ type: literal("microdeposit"), id: string(), customer_id: string() }), // cspell:ignore microdeposit
@@ -254,6 +261,34 @@ export default function hook({
             .catch((error: unknown) => captureException(error, { level: "error" }));
           return c.json({ code: "ok" }, 200);
         case "virtual_account.activity.created":
+          if (payload.event_object.type === "funds_received") {
+            const event = payload.event_object;
+            bridge
+              .getDepositEvents(event.deposit_id)
+              .then(
+                ({ data }) =>
+                  data.every(({ type }) => ["funds_scheduled", "funds_received", "in_review"].includes(type)),
+                (error: unknown) => {
+                  captureException(error, { level: "warning" });
+                  return true;
+                },
+              )
+              .then((pending) =>
+                pending
+                  ? onesignal.sendPushNotification({
+                      userId: account,
+                      headings: t("Funds received"),
+                      contents: t("We received your {{amount}} {{asset}} transfer.", {
+                        amount: f(event.amount),
+                        asset: event.currency.toUpperCase(),
+                      }),
+                      idempotencyKey: v5(`https://exact.ly/bridge-deposit/${event.deposit_id}`, v5.URL),
+                      topic: `bridge-deposit/${event.deposit_id}`,
+                    })
+                  : undefined,
+              )
+              .catch((error: unknown) => captureException(error, { level: "error" }));
+          }
           if (payload.event_object.type === "payment_submitted") {
             onesignal
               .sendPushNotification({

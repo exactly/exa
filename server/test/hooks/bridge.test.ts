@@ -13,7 +13,7 @@ import { v5 } from "uuid";
 import { nonEmpty, parse, pipe, string } from "valibot";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
@@ -53,6 +53,16 @@ describe("bridge hook", () => {
   const account = deriveAddress(factory, { x: padHex(owner), y: zeroHash });
   const fallbackAccount = deriveAddress(factory, { x: padHex(fallbackOwner), y: zeroHash });
   const businessAccount = deriveAddress(factory, { x: padHex(businessOwner), y: zeroHash, salt: business });
+  const fundsReceivedPush = {
+    userId: account,
+    headings: t("Funds received"),
+    contents: t("We received your {{amount}} {{asset}} transfer.", {
+      amount: f("1000"),
+      asset: "USD",
+    }),
+    idempotencyKey: v5("https://exact.ly/bridge-deposit/deposit_123", v5.URL),
+    topic: "bridge-deposit/deposit_123",
+  };
 
   beforeAll(async () => {
     await database.insert(credentials).values([
@@ -98,6 +108,10 @@ describe("bridge hook", () => {
         factory,
       },
     ]);
+  });
+
+  beforeEach(() => {
+    vi.spyOn(bridge, "getDepositEvents").mockResolvedValue({ data: [{ type: "funds_received" }] });
   });
 
   afterEach(() => {
@@ -187,8 +201,8 @@ describe("bridge hook", () => {
     vi.spyOn(segment, "track").mockReturnValue();
     const sendPushNotification = sendPushNotificationMock;
     const response = await appClient.index.$post({
-      header: { "x-webhook-signature": createSignature(fundsReceived) },
-      json: fundsReceived as never,
+      header: { "x-webhook-signature": createSignature(fundsScheduled) },
+      json: fundsScheduled as never,
     });
 
     expect(response.status).toBe(200);
@@ -196,6 +210,102 @@ describe("bridge hook", () => {
     expect(segment.track).not.toHaveBeenCalled();
     expect(sendPushNotification).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("sends push notification on funds_received virtual account", async () => {
+    vi.spyOn(segment, "track").mockReturnValue();
+    const sendPushNotification = sendPushNotificationMock;
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(fundsReceived) },
+      json: fundsReceived as never,
+    });
+
+    await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(segment.track).not.toHaveBeenCalled();
+    expect(bridge.getDepositEvents).toHaveBeenCalledExactlyOnceWith("deposit_123");
+    expect(sendPushNotification).toHaveBeenCalledWith(fundsReceivedPush);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("skips funds_received push when the deposit already moved on", async () => {
+    vi.mocked(bridge.getDepositEvents).mockResolvedValueOnce({
+      data: [{ type: "payment_submitted" }, { type: "funds_received" }],
+    });
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(fundsReceived) },
+      json: fundsReceived as never,
+    });
+
+    await vi.mocked(bridge.getDepositEvents).mock.results[0]?.value;
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(bridge.getDepositEvents).toHaveBeenCalledExactlyOnceWith("deposit_123");
+    expect(sendPushNotificationMock).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("sends funds_received push without a processing claim when deposit events resolve late", async () => {
+    vi.spyOn(segment, "track").mockReturnValue();
+    const events = Promise.withResolvers<{ data: { type: string }[] }>();
+    vi.mocked(bridge.getDepositEvents).mockReturnValueOnce(events.promise);
+    await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(fundsReceived) },
+      json: fundsReceived as never,
+    });
+    await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(paymentSubmitted) },
+      json: paymentSubmitted as never,
+    });
+    await vi.waitUntil(() => sendPushNotificationMock.mock.calls.length > 0);
+
+    events.resolve({ data: [{ type: "funds_received" }] });
+    await vi.waitUntil(() => sendPushNotificationMock.mock.calls.length > 1);
+
+    expect(sendPushNotificationMock.mock.calls.map(([push]) => push.headings)).toStrictEqual([
+      t("Deposited funds"),
+      t("Funds received"),
+    ]);
+    expect(sendPushNotificationMock).toHaveBeenLastCalledWith(fundsReceivedPush);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("sends funds_received push when deposit events fail", async () => {
+    const error = new Error("bridge failed");
+    vi.mocked(bridge.getDepositEvents).mockRejectedValueOnce(error);
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(fundsReceived) },
+      json: fundsReceived as never,
+    });
+
+    await vi.waitUntil(() => sendPushNotificationMock.mock.calls.length > 0);
+
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(error, { level: "warning" });
+    expect(sendPushNotificationMock).toHaveBeenCalledWith(fundsReceivedPush);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+  });
+
+  it("captures funds_received notification errors", async () => {
+    const error = new Error("push failed");
+    vi.spyOn(segment, "track").mockReturnValue();
+    sendPushNotificationMock.mockRejectedValueOnce(error);
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(fundsReceived) },
+      json: fundsReceived as never,
+    });
+
+    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error));
+
+    expect(sendPushNotificationMock).toHaveBeenCalledWith(fundsReceivedPush);
+    expect(segment.track).not.toHaveBeenCalled();
+    expect(captureException).toHaveBeenCalledWith(error, { level: "error" });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
   });
 
   it("does not track onramp for payment_submitted virtual account", async () => {
@@ -1126,8 +1236,16 @@ const fundsReceived = {
   event_object: {
     id: "evt_123",
     type: "funds_received",
+    amount: "1000",
+    currency: "usd",
     customer_id: "bridgeCustomerId",
+    deposit_id: "deposit_123",
   },
+};
+
+const fundsScheduled = {
+  event_type: "virtual_account.activity.created",
+  event_object: { id: "evt_123", type: "funds_scheduled", customer_id: "bridgeCustomerId" },
 };
 
 const paymentSubmitted = {

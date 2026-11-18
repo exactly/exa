@@ -33,6 +33,8 @@ const mock = vi.hoisted(() => {
       getCustomer: (...parameters: Parameters<Bridge["getCustomer"]>) => current().getCustomer(...parameters),
       getDepositDetails: (...parameters: Parameters<Bridge["getDepositDetails"]>) =>
         current().getDepositDetails(...parameters),
+      getDepositEvents: (...parameters: Parameters<Bridge["getDepositEvents"]>) =>
+        current().getDepositEvents(...parameters),
       getExternalAccount: (...parameters: Parameters<Bridge["getExternalAccount"]>) =>
         current().getExternalAccount(...parameters),
       getKYCLink: (...parameters: Parameters<Bridge["getKYCLink"]>) => current().getKYCLink(...parameters),
