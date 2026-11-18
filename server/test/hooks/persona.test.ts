@@ -516,6 +516,7 @@ describe("persona hook", () => {
     const client = testClient(
       createTenantHook({
         allow,
+        business: true,
         database: tenantDatabase,
         panda,
         persona,
