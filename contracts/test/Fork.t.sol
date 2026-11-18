@@ -22,7 +22,7 @@ abstract contract ForkTest is Test {
 
   constructor() {
     setChain("anvil2", ChainData("Anvil2", 1281, "http://127.0.0.1:9944"));
-    setChain("world_chain", ChainData("World Chain", 480, "https://worldchain-mainnet.g.alchemy.com/public"));
+    setChain("world", ChainData("World Chain", 480, "https://worldchain-mainnet.g.alchemy.com/public"));
     // TODO remove after https://github.com/lifinance/create3-factory/issues/14
     if (block.chainid == 11_155_420) CREATE3_FACTORY = ICreate3Factory(0xcc3f41204a1324DD91F1Dbfc46208535293A371e);
     // TODO remove after https://github.com/lifinance/create3-factory/issues/18
