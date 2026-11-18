@@ -1,5 +1,23 @@
 # @exactly/server
 
+## 0.3.15
+
+### Patch Changes
+
+- [#2009](https://github.com/exactly/exa/pull/2009) [`26f1bc4`](https://github.com/exactly/exa/commit/26f1bc4d617f9e495c76061b3e623c89588a25af) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🐛 subscribe new accounts on both backends
+
+- [#1921](https://github.com/exactly/exa/pull/1921) [`3177fa7`](https://github.com/exactly/exa/commit/3177fa7456f2456842f7c7e510a4d5d600f403ba) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🗃️ scope cards by tenant
+
+- [#1923](https://github.com/exactly/exa/pull/1923) [`f876d70`](https://github.com/exactly/exa/commit/f876d703f4980d5c329e79d0d8230927365d6919) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🧵 make panda user creation idempotent
+
+- [#2010](https://github.com/exactly/exa/pull/2010) [`338f007`](https://github.com/exactly/exa/commit/338f007d763bb7cf8e92e81e373a9ec3dd5a6c86) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🧵 handle concurrent siwe credential creation
+
+- [#1960](https://github.com/exactly/exa/pull/1960) [`a8981d6`](https://github.com/exactly/exa/commit/a8981d662ca87831bbcf9d3d77c1c73813527d50) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🚩 make pax optional
+
+- [#1921](https://github.com/exactly/exa/pull/1921) [`a319a74`](https://github.com/exactly/exa/commit/a319a747863c068d71d0b5fd1bc95861b8176985) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🚩 restrict business representative to base
+
+- [#1918](https://github.com/exactly/exa/pull/1918) [`83ad05b`](https://github.com/exactly/exa/commit/83ad05baa88c6a14ad06883a974fbd872a4b68f3) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🗃️ add base panda id
+
 ## 0.3.14
 
 ### Patch Changes
