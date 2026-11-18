@@ -26,7 +26,7 @@ import { ArrowLeft } from "../../generated/icons/ArrowLeft";
 import { ChevronRight } from "../../generated/icons/ChevronRight";
 import { Coins } from "../../generated/icons/Coins";
 import { getRoute, getRouteFrom } from "../../utils/lifi";
-import { network } from "../../utils/marketsOptions";
+import { network } from "../../utils/networkOptions";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
