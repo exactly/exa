@@ -303,6 +303,14 @@ describe("worker", () => {
         {
           attempts: 2,
           span: expect.objectContaining({
+            data: expect.objectContaining({
+              "messaging.destination.name": name,
+              "messaging.message.body.size": expect.any(Number) as number,
+              "messaging.message.id": "exhausted",
+              "messaging.message.receive.latency": expect.any(Number) as number,
+              "messaging.message.retry.count": 1,
+              "messaging.system": "redis",
+            }) as unknown,
             description: "exhaust",
             op: "queue.process",
             status: "exhausted",

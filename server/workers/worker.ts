@@ -45,6 +45,7 @@ export default function worker<Job extends { sentryBaggage?: string; sentryTrace
           startSpan(
             {
               attributes: {
+                "messaging.system": "redis",
                 "messaging.destination.name": name,
                 "messaging.message.body.size": Buffer.byteLength(JSON.stringify(job.data)),
                 "messaging.message.id": job.id,
