@@ -20,16 +20,11 @@ export default async function pay(
     nonce,
     success,
     logs,
-  }: { logs: Log[]; nonce: bigint; sender: Address; success: boolean; userOpHash: Hash },
+    refund,
+  }: { logs: Log[]; nonce: bigint; refund: boolean; sender: Address; success: boolean; userOpHash: Hash },
 ) {
   if (!success) return { code: ErrorCodes.INVALID_PAYMENT };
-  const settlements = Object.values(await manteca.getSettlements());
-  const withdraws = parseEventLogs({ abi: marketAbi, eventName: "Withdraw", logs }).filter(
-    ({ address, args }) =>
-      isAddressEqual(address, marketUSDCAddress) &&
-      isAddressEqual(args.owner, sender) &&
-      settlements.some((settlement) => isAddressEqual(settlement, args.receiver)),
-  );
+  const withdraws = withdrawn(Object.values(await manteca.getSettlements()), sender, logs);
   const paid = withdraws.reduce((total, { args }) => total + args.assets, 0n);
   const contexts = { payment: { account: sender, userOpHash, amount: String(paid) } };
   const code = nonceKey.decode(nonce);
@@ -56,7 +51,23 @@ export default async function pay(
   return await manteca.executeQrPayment(code, userOpHash);
 
   function fail(reason: string) {
-    if (paid > 0n) captureException(new Error("qr payment not executed"), { level: "error", contexts });
+    if (paid > 0n) {
+      captureException(
+        new Error("qr payment not executed"),
+        refund
+          ? { level: "info", contexts: { payment: { ...contexts.payment, refund: "automatic" } } }
+          : { level: "error", contexts },
+      );
+    }
     return { code: reason };
   }
+}
+
+export function withdrawn(settlements: Address[], sender: Address, logs: Log[]) {
+  return parseEventLogs({ abi: marketAbi, eventName: "Withdraw", logs }).filter(
+    ({ address, args }) =>
+      isAddressEqual(address, marketUSDCAddress) &&
+      isAddressEqual(args.owner, sender) &&
+      settlements.some((settlement) => isAddressEqual(settlement, args.receiver)),
+  );
 }
