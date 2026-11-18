@@ -4,8 +4,6 @@ import { useTranslation } from "react-i18next";
 import { selectionAsync } from "expo-haptics";
 import { useRouter } from "expo-router";
 
-import chain from "@exactly/common/generated/chain";
-
 import AssetRow from "./AssetRow";
 import formatTokenAmount from "../../utils/formatTokenAmount";
 import reportError from "../../utils/reportError";
@@ -42,14 +40,10 @@ export default function MarketRow({
       name={symbol}
       balance={`${formatTokenAmount(floatingDepositAssets, decimals, language)} ${symbol}`}
       value={value}
-      onPress={
-        chainId === chain.id
-          ? () => {
-              selectionAsync().catch(reportError);
-              router.push({ pathname: "/asset", params: { chainId: String(chainId), address: asset, market } });
-            }
-          : undefined
-      }
+      onPress={() => {
+        selectionAsync().catch(reportError);
+        router.push({ pathname: "/asset", params: { chainId: String(chainId), address: asset, market } });
+      }}
     >
       {children}
     </AssetRow>
