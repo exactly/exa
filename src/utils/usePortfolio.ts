@@ -175,7 +175,6 @@ export default function usePortfolio(options?: { deposits?: ProtocolAsset[]; sor
   return {
     portfolio,
     averageRate,
-    rates,
     assets,
     allAssets,
     protocolAssets,

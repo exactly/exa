@@ -1,6 +1,6 @@
 import { queryOptions, skipToken } from "@tanstack/react-query";
 import { readContract } from "@wagmi/core/actions";
-import { getContractAddress, isAddress, zeroAddress, zeroHash } from "viem";
+import { decodeFunctionResult, getContractAddress, isAddress, zeroAddress, zeroHash } from "viem";
 
 import {
   allowlists,
@@ -8,7 +8,9 @@ import {
   appPreviewerCode,
   appPreviewerDeployedCode,
   chains,
+  previewerAbi,
 } from "@exactly/common/generated/chain";
+import { ratePreviewerAbi } from "@exactly/common/generated/hooks";
 
 import { lifiTokensOptions } from "./lifi";
 import queryClient from "./queryClient";
@@ -34,16 +36,17 @@ export default function networkOptions(account: Address | undefined, chainId: nu
               ].map((target) => target.toLowerCase() as Address),
             ),
           ];
-          const { proposalManager, allowed, markets } = await readContract(exaConfig, {
+          const contracts = chains.get(chainId);
+          const preview = await readContract(exaConfig, {
             chainId,
             abi: appPreviewerAbi,
             address: previewerAddress,
             functionName: "preview",
             args: [
               account,
-              chains.get(chainId)?.auditor ?? zeroAddress,
-              zeroAddress,
-              zeroAddress,
+              contracts?.auditor ?? zeroAddress,
+              contracts?.previewer ?? zeroAddress,
+              contracts?.ratePreviewer ?? zeroAddress,
               zeroAddress,
               targets,
             ],
@@ -51,11 +54,24 @@ export default function networkOptions(account: Address | undefined, chainId: nu
           });
           return {
             allowlist:
-              proposalManager.proposalManager === zeroAddress ? null : targets.filter((_, index) => allowed[index]),
-            collateral: markets
+              preview.proposalManager.proposalManager === zeroAddress
+                ? null
+                : targets.filter((_, index) => preview.allowed[index]),
+            collateral: preview.markets
               .filter(({ isFrozen, nonCollateral }) => !isFrozen && !nonCollateral)
               .flatMap(({ asset, symbol }) => [asset.toLowerCase(), ...(symbol === "WETH" ? [zeroAddress] : [])]),
             lifi: tokens !== undefined,
+            timestamp: preview.timestamp,
+            ...(contracts && {
+              markets: withPreviews(
+                decodeFunctionResult({ abi: previewerAbi, functionName: "exactly", data: preview.exactly }),
+                preview.markets,
+              ).map((market) => ({ ...market, chainId })),
+              snapshot:
+                preview.snapshot === "0x"
+                  ? undefined
+                  : decodeFunctionResult({ abi: ratePreviewerAbi, functionName: "snapshot", data: preview.snapshot }),
+            }),
           };
         }
       : skipToken,
@@ -71,3 +87,18 @@ const previewerAddress = getContractAddress({
   opcode: "CREATE2",
   salt: zeroHash,
 });
+
+export function withPreviews<T extends { isCollateral: boolean; market: Address }>(
+  markets: readonly T[],
+  previews: readonly { isFrozen: boolean; market: Address; nonCollateral: boolean }[],
+) {
+  return markets.map((market) => {
+    const preview = previews.find(({ market: address }) => address === market.market);
+    return {
+      ...market,
+      isCollateral: market.isCollateral && !preview?.nonCollateral,
+      isFrozen: !!preview?.isFrozen,
+      nonCollateral: !!preview?.nonCollateral,
+    };
+  });
+}
