@@ -100,6 +100,10 @@ function withPreviews<T extends { isCollateral: boolean; market: Address }>(
   });
 }
 
+export function marketWETH(chainId: number) {
+  return chains.get(chainId)?.marketWETH;
+}
+
 export function network(chainId: number) {
   const found = chains.get(chainId);
   if (!found) throw new Error(`unknown network ${chainId}`);

@@ -9,8 +9,6 @@ import { Spinner } from "tamagui";
 import { getAddress } from "viem";
 import { useReadContracts } from "wagmi";
 
-import chain from "@exactly/common/generated/chain";
-
 import AssetRow from "./AssetRow";
 import AssetSection from "./AssetSection";
 import formatTokenAmount from "../../utils/formatTokenAmount";
@@ -100,19 +98,13 @@ export default function Stocks({
                   })
             }
             value={usdValue}
-            onPress={
-              market && chainId !== chain.id
-                ? undefined
-                : () => {
-                    selectionAsync().catch(reportError);
-                    router.push({
-                      pathname: "/asset",
-                      params: market
-                        ? { chainId: String(chainId), address, market }
-                        : { chainId: String(chainId), address },
-                    });
-                  }
-            }
+            onPress={() => {
+              selectionAsync().catch(reportError);
+              router.push({
+                pathname: "/asset",
+                params: market ? { chainId: String(chainId), address, market } : { chainId: String(chainId), address },
+              });
+            }}
           >
             <Trend chainId={chainId} address={address} symbol={symbol} />
           </AssetRow>
