@@ -20,7 +20,7 @@ import { Info } from "../../generated/icons/Info";
 import { RefreshCw } from "../../generated/icons/RefreshCw";
 import { date } from "../../i18n";
 import { presentArticle } from "../../utils/intercom";
-import { network } from "../../utils/marketsOptions";
+import { network } from "../../utils/networkOptions";
 import reportError from "../../utils/reportError";
 import useAsset from "../../utils/useAsset";
 import useNetwork from "../../utils/useNetwork";
