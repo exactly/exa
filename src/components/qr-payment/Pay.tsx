@@ -86,7 +86,7 @@ export default function Pay() {
   const usdc = assets ?? estimate;
   const local = fixed ? locked.assetAmount : amount;
   const expireAt = valid ? Date.parse(locked.expireAt) : undefined;
-  const remaining = expireAt === undefined ? undefined : Math.max(0, expireAt - 30_000 - now);
+  const remaining = expireAt === undefined ? undefined : Math.max(0, expireAt - 150_000 - now);
   const expired = remaining === 0;
   const insufficient = !!markets && usdc !== undefined && usdc > available;
 
@@ -139,12 +139,17 @@ export default function Pay() {
     queryFn: () => (payment.data ? getQRPayment(payment.data) : null),
     enabled: !!payment.data,
     refetchInterval: ({ state }) =>
-      state.data?.status === "COMPLETED" || state.data?.status === "CANCELLED" || state.data?.status === "EXPIRED"
+      state.data?.status === "COMPLETED" ||
+      state.data?.status === "CANCELLED" ||
+      state.data?.status === "EXPIRED" ||
+      state.data?.status === "FAILED" ||
+      (state.data === null && expireAt !== undefined && Date.now() > expireAt)
         ? false
         : 2000,
   });
 
   const failed = synthetic?.status === "CANCELLED" || synthetic?.status === "EXPIRED";
+  const unpaid = synthetic?.status === "FAILED" || (synthetic === null && expireAt !== undefined && now > expireAt);
   const stalled = !!payment.data && synthetic?.status !== "COMPLETED" && now - payment.submittedAt > 300_000;
 
   if (!scanned) return <Redirect href="/qr-payment" />;
@@ -190,14 +195,14 @@ export default function Pay() {
     );
   }
 
-  if (payment.isError || failed || stalled) {
+  if (payment.isError || unpaid || failed || stalled) {
     return (
       <Status
         variant="error"
         title={
           <Trans
             i18nKey={
-              payment.isError || failed
+              payment.isError || unpaid || failed
                 ? "Payment to <em>{{recipient}}</em> failed"
                 : "We couldn't confirm the payment to <em>{{recipient}}</em>"
             }
@@ -208,7 +213,7 @@ export default function Pay() {
         amount={display.amount}
         usdc={display.usdc}
         description={
-          payment.isError
+          payment.isError || unpaid
             ? t("No funds were moved. Try scanning the QR code again.")
             : failed
               ? t("The merchant didn't receive the payment. Contact support to get your USDC back.")
@@ -216,7 +221,7 @@ export default function Pay() {
         }
         onClose={close}
       >
-        {payment.isError ? (
+        {payment.isError || unpaid ? (
           <Button primary width="100%" onPress={() => router.back()}>
             <Button.Text>{t("Scan again")}</Button.Text>
             <Button.Icon>
