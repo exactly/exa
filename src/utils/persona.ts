@@ -2,6 +2,7 @@ import { Platform } from "react-native";
 import type { Environment } from "react-native-persona";
 
 import { sdk } from "@farcaster/miniapp-sdk";
+import { flush, metrics } from "@sentry/react-native";
 
 import domain from "@exactly/common/domain";
 
@@ -43,13 +44,15 @@ export function startKYC() {
     }
 
     if (Platform.OS === "web") {
+      const scope = isBusiness() ? "business" : "basic";
       const [{ Client }, { inquiryId, sessionToken }] = await Promise.all([
         import("persona"),
-        getKYCTokens(isBusiness() ? "business" : "basic", await getRedirectURI()),
+        getKYCTokens(scope, await getRedirectURI()),
       ]);
       if (signal.aborted) throw signal.reason;
 
       return new Promise<KYCResult>((resolve, reject) => {
+        let camera = false;
         const onAbort = () => {
           client.destroy();
           reject(new Error("persona inquiry aborted", { cause: signal.reason }));
@@ -65,6 +68,7 @@ export function startKYC() {
             client.destroy();
             handleComplete();
             resolve({ status: "complete" });
+            if (camera) count({ scope, outcome: "complete" });
           },
           onCancel: () => {
             signal.removeEventListener("abort", onAbort);
@@ -72,14 +76,22 @@ export function startKYC() {
             client.destroy();
             handleCancel();
             resolve({ status: "cancel" });
+            if (camera) count({ scope, outcome: "cancel" });
           },
           onError: (error: { code: string }) => {
-            if (error.code === "camera_error") return;
+            if (error.code === "camera_error") {
+              if (!camera) {
+                camera = true;
+                count({ scope });
+              }
+              return;
+            }
             signal.removeEventListener("abort", onAbort);
             globalThis.removeEventListener("pagehide", onPageHide);
             client.destroy();
             reportError(error);
             reject(new Error("persona inquiry failed", { cause: error }));
+            if (camera) count({ scope, outcome: "error" });
           },
         });
         signal.addEventListener("abort", onAbort, { once: true });
@@ -169,6 +181,7 @@ function startScopedInquiry(
       if (signal.aborted) throw signal.reason;
 
       return new Promise<InquiryResult>((resolve, reject) => {
+        let camera = false;
         const onAbort = () => {
           client.destroy();
           reject(new Error("persona inquiry aborted", { cause: signal.reason }));
@@ -184,6 +197,7 @@ function startScopedInquiry(
             client.destroy();
             queryClient.invalidateQueries({ queryKey }).catch(reportError);
             resolve({ status: "complete" });
+            if (camera) count({ scope, outcome: "complete" });
           },
           onCancel: () => {
             signal.removeEventListener("abort", onAbort);
@@ -191,14 +205,22 @@ function startScopedInquiry(
             client.destroy();
             queryClient.invalidateQueries({ queryKey }).catch(reportError);
             resolve({ status: "cancel" });
+            if (camera) count({ scope, outcome: "cancel" });
           },
           onError: (error: { code: string }) => {
-            if (error.code === "camera_error") return;
+            if (error.code === "camera_error") {
+              if (!camera) {
+                camera = true;
+                count({ scope });
+              }
+              return;
+            }
             signal.removeEventListener("abort", onAbort);
             globalThis.removeEventListener("pagehide", onPageHide);
             client.destroy();
             reportError(error);
             resolve({ status: "error" });
+            if (camera) count({ scope, outcome: "error" });
           },
         });
         signal.addEventListener("abort", onAbort, { once: true });
@@ -255,6 +277,11 @@ async function getRedirectURI() {
       }/exa-app`;
   }
   return Platform.OS === "web" ? origin : undefined;
+}
+
+function count(attributes: { outcome?: "cancel" | "complete" | "error"; scope: string }) {
+  metrics.count("persona.camera", 1, { attributes });
+  flush().catch(reportError);
 }
 
 function handleComplete() {
