@@ -1,12 +1,19 @@
 import { SPAN_STATUS_ERROR, SPAN_STATUS_OK } from "@sentry/core";
-import { captureException, continueTrace, startSpan, withIsolationScope } from "@sentry/node";
+import {
+  captureException,
+  continueTrace,
+  getIsolationScope,
+  startSpan,
+  withActiveSpan,
+  withIsolationScope,
+} from "@sentry/node";
 import { DelayedError, UnrecoverableError, Worker } from "bullmq";
 import { Redis } from "ioredis";
 import { argv } from "node:process";
 
 import { own } from "../supervise";
 
-import type { Span } from "@sentry/core";
+import type { Scope, Span } from "@sentry/core";
 import type * as BullMQ from "bullmq";
 
 export default function worker<Job extends { sentryBaggage?: string; sentryTrace?: string }, Ready = unknown>({
@@ -25,6 +32,7 @@ export default function worker<Job extends { sentryBaggage?: string; sentryTrace
   ready?: Promise<Ready>;
 }) {
   const check = argv.includes("--check");
+  const scopes = new WeakMap<Error, { isolation: Scope; span: Span }>();
   let started = false;
   let pending: Error | undefined;
   const queue = new Worker<Job, void>(
@@ -60,7 +68,9 @@ export default function worker<Job extends { sentryBaggage?: string; sentryTrace
                 const status = { code: SPAN_STATUS_ERROR, message } as const;
                 span.setStatus(status);
                 parent.setStatus(status);
-                throw error instanceof Error ? error : new Error(message, { cause: error });
+                const failure = error instanceof Error ? error : new Error(message, { cause: error });
+                scopes.set(failure, { isolation: getIsolationScope(), span });
+                throw failure;
               }
             },
           ),
@@ -75,7 +85,9 @@ export default function worker<Job extends { sentryBaggage?: string; sentryTrace
   )
     .on("failed", (job, error) => {
       if (job && job.attemptsMade < (job.opts.attempts ?? attempts) && !(error instanceof UnrecoverableError)) return;
-      failed(job, error);
+      const scope = scopes.get(error);
+      if (scope) withIsolationScope(scope.isolation, () => withActiveSpan(scope.span, () => failed(job, error)));
+      else failed(job, error);
     })
     .on("error", (error) => {
       if (started) captureException(error, { level: "error", tags: { queue: name } });

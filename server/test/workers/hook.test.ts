@@ -684,7 +684,11 @@ describe("hook worker", () => {
       Promise.resolve(Response.json({ code: "err" }, { status: 500 })),
     );
 
-    const result = jobFinished("wk-terminal", { removeOnFail: false }, { account });
+    const result = jobFinished(
+      "wk-terminal",
+      { removeOnFail: false },
+      { account, sentryTrace: "fedcba9876543210fedcba9876543210-fedcba9876543210-1" }, // cspell:ignore fedcba
+    );
 
     await expect(result).rejects.toThrow("webhook failed");
     await expect(queue.getJobState("wk-terminal")).resolves.toBe("failed");
@@ -701,7 +705,13 @@ describe("hook worker", () => {
       tags: { queue: "hook", job: "hook" },
       extra: { attempts: 1, id: "wk-terminal" },
     });
-    expect(reported.find(({ extra }) => extra?.id === "wk-terminal")?.user).toStrictEqual({ id: account });
+    const event = reported.find(({ extra }) => extra?.id === "wk-terminal");
+    expect(event?.user).toStrictEqual({ id: account });
+    expect(event?.contexts?.trace).toStrictEqual({
+      parent_span_id: expect.stringMatching(/^[\da-f]{16}$/) as unknown,
+      span_id: expect.stringMatching(/^[\da-f]{16}$/) as unknown,
+      trace_id: "fedcba9876543210fedcba9876543210",
+    });
     await job.remove();
   });
 

@@ -1,8 +1,8 @@
 /// <reference types="vite/client" />
 import "../mocks/sentry";
 
-import { captureException, getIsolationScope, setUser } from "@sentry/node";
-import { Queue, QueueEvents } from "bullmq";
+import { captureException, getActiveSpan, getIsolationScope, setUser, spanToJSON } from "@sentry/node";
+import { Job, Queue, QueueEvents, UnrecoverableError } from "bullmq";
 import { argv, env } from "node:process";
 import { nonEmpty, parse, pipe, string } from "valibot";
 import { afterAll, afterEach, beforeAll, describe, expect, expectTypeOf, it, vi } from "vitest";
@@ -119,6 +119,161 @@ describe("worker", () => {
       await bullmq.quit();
     }
     expect(captureException).toHaveBeenCalledExactlyOnceWith(last, { level: "error", tags: { queue: name } });
+  });
+
+  it("reports exhausted jobs inside the job trace", async () => {
+    const name = `worker-${crypto.randomUUID()}`;
+    const redis = connect(redisUrl);
+    const queue = new Queue(name, { connection: redis });
+    const events = new QueueEvents(name, { connection: connect(redisUrl), lastEventId: await tip(redis, queue) });
+    const error = new Error("exhausted");
+    const process = vi.fn(() => {
+      setUser({ id: "exhausted" });
+      return Promise.reject(error);
+    });
+    const failures: unknown[] = [];
+    const failed = vi.fn((job: Job | undefined) => {
+      const span = getActiveSpan();
+      failures.push({
+        attempts: job?.attemptsMade,
+        span: span && spanToJSON(span),
+        user: getIsolationScope().getUser(),
+      });
+    });
+    const bullmq = connect(redisUrl);
+    const handle = worker({ attempts: 1, bullmq, failed, name, process });
+
+    try {
+      await Promise.all([handle.ready, events.waitUntilReady()]);
+      const result = finished(events, "exhausted");
+      await queue.add(
+        "exhaust",
+        { sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1" },
+        { attempts: 2, backoff: { type: "fixed", delay: 1 }, jobId: "exhausted", removeOnFail: true },
+      );
+      await expect(result).rejects.toThrow("exhausted");
+      expect(process).toHaveBeenCalledTimes(2);
+      await vi.waitFor(() => {
+        expect(failed).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: "exhausted" }), error);
+      });
+      expect(failures).toStrictEqual([
+        {
+          attempts: 2,
+          span: expect.objectContaining({
+            description: "exhaust",
+            op: "queue.process",
+            status: "exhausted",
+            trace_id: "0123456789abcdef0123456789abcdef", // cspell:ignore abcdef
+          }) as unknown,
+          user: { id: "exhausted" },
+        },
+      ]);
+      expect(getIsolationScope().getUser()).toStrictEqual({});
+    } finally {
+      await handle.close();
+      await bullmq.quit();
+      await events.close();
+      await queue.close();
+      await redis.quit();
+    }
+  });
+
+  it("reports unrecoverable jobs on the first attempt", async () => {
+    const name = `worker-${crypto.randomUUID()}`;
+    const redis = connect(redisUrl);
+    const queue = new Queue(name, { connection: redis });
+    const events = new QueueEvents(name, { connection: connect(redisUrl), lastEventId: await tip(redis, queue) });
+    const error = new UnrecoverableError("unrecoverable");
+    const process = vi.fn(() => Promise.reject(error));
+    const failures: unknown[] = [];
+    const failed = vi.fn((job: Job | undefined) => {
+      const span = getActiveSpan();
+      failures.push({ attempts: job?.attemptsMade, span: span && spanToJSON(span) });
+    });
+    const bullmq = connect(redisUrl);
+    const handle = worker({ attempts: 3, bullmq, failed, name, process });
+
+    try {
+      await Promise.all([handle.ready, events.waitUntilReady()]);
+      const result = finished(events, "unrecoverable");
+      await queue.add("unrecoverable", {}, { attempts: 3, jobId: "unrecoverable", removeOnFail: true });
+      await expect(result).rejects.toThrow("unrecoverable");
+      expect(process).toHaveBeenCalledOnce();
+      await vi.waitFor(() => {
+        expect(failed).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: "unrecoverable" }), error);
+      });
+      expect(failures).toStrictEqual([
+        {
+          attempts: 1,
+          span: expect.objectContaining({
+            description: "unrecoverable",
+            op: "queue.process",
+            status: "unrecoverable",
+          }) as unknown,
+        },
+      ]);
+    } finally {
+      await handle.close();
+      await bullmq.quit();
+      await events.close();
+      await queue.close();
+      await redis.quit();
+    }
+  });
+
+  it("reports failures outside the processor", async () => {
+    const name = `worker-${crypto.randomUUID()}`;
+    const failed = vi.fn();
+    const bullmq = connect(redisUrl);
+    const handle = worker({ attempts: 3, bullmq, failed, name, process: vi.fn(() => Promise.resolve()) });
+    const job = { attemptsMade: 0, data: {}, name, opts: {} } as Job;
+    const stalled = new UnrecoverableError("job stalled more than allowable limit");
+    const intermediate = new Error("intermediate");
+    const missing = new Error("missing job");
+
+    try {
+      await handle.ready;
+      handle.queue.emit("failed", job, intermediate, "active");
+      handle.queue.emit("failed", job, stalled, "active");
+      handle.queue.emit("failed", undefined, missing, "active");
+      expect(failed.mock.calls).toStrictEqual([
+        [job, stalled],
+        [undefined, missing],
+      ]);
+    } finally {
+      await handle.close();
+      await bullmq.quit();
+    }
+  });
+
+  it("skips exhausted jobs whose failure is not saved", async () => {
+    vi.mocked(captureException).mockClear();
+    const name = `worker-${crypto.randomUUID()}`;
+    const redis = connect(redisUrl);
+    const queue = new Queue(name, { connection: redis });
+    const lost = new Error("Missing lock for job lost. moveToFinished");
+    const moveToFailed = vi.spyOn(Job.prototype, "moveToFailed").mockRejectedValueOnce(lost);
+    const process = vi.fn(() => Promise.reject(new Error("exhausted")));
+    const failed = vi.fn();
+    const bullmq = connect(redisUrl);
+    const handle = worker({ attempts: 1, bullmq, failed, name, process });
+
+    try {
+      await handle.ready;
+      await queue.add("lost", {}, { attempts: 1, jobId: "lost", removeOnFail: true });
+      await vi.waitFor(() => {
+        expect(captureException).toHaveBeenCalledExactlyOnceWith(lost, { level: "error", tags: { queue: name } });
+      });
+      expect(process).toHaveBeenCalledOnce();
+      expect(moveToFailed).toHaveBeenCalledOnce();
+      expect(failed).not.toHaveBeenCalled();
+    } finally {
+      moveToFailed.mockRestore();
+      await handle.close();
+      await bullmq.quit();
+      await queue.close();
+      await redis.quit();
+    }
   });
 
   it("isolates scope per job", async () => {
