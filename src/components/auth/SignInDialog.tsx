@@ -11,11 +11,13 @@ import ErrorDialog from "../shared/ErrorDialog";
 import type { SignInIssue } from "../../utils/useAuth";
 
 export default function SignInDialog({
+  hybrid,
   issue,
   open,
   onClose,
   onRetry,
 }: {
+  hybrid: boolean;
   issue: SignInIssue;
   onClose: () => void;
   onRetry: () => void;
@@ -112,7 +114,7 @@ export default function SignInDialog({
           title={t("This passkey can’t be backed up")}
           description={`${t(
             "The password manager you picked keeps this passkey only on this device, so losing the device would mean losing your account. Try again and save it to a password manager that syncs, like Google Password Manager, iCloud Keychain or 1Password.",
-          )}${Platform.OS === "web" ? ` ${t("You can also save it on your phone.")}` : ""}`}
+          )}${hybrid ? ` ${t("On a computer, trying again shows a QR code: scan it with your phone to save the passkey there.")}` : Platform.OS === "web" ? ` ${t("You can also save it on your phone.")}` : ""}`}
           action={{
             icon: <RefreshCw />,
             label: t("Try again"),

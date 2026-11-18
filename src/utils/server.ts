@@ -372,7 +372,7 @@ export async function getCredential() {
   return credential;
 }
 
-export async function createCredential() {
+export async function createCredential(hints?: string[]) {
   const method = queryClient.getQueryData<AuthMethod>(["method"]);
   const credentialId = method === "siwe" ? getConnection(ownerConfig).address : undefined;
   if (method === "siwe" && !credentialId) throw new Error("invalid operation");
@@ -388,6 +388,7 @@ export async function createCredential() {
         }
       : await create({
           ...options,
+          ...(hints && { hints }),
           extensions: options.extensions as Record<string, unknown> | undefined,
         }).then((attestation) => {
           if (!attestation) throw new Error("bad attestation");

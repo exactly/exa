@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Platform } from "react-native";
 
 import { toast } from "@tamagui/toast";
 
@@ -24,10 +25,11 @@ export default function useAuth(onSuccess?: (credential: Credential) => unknown)
   const { t } = useTranslation();
   const [issue, setIssue] = useState<SignInIssue>("domain");
   const [open, setOpen] = useState(false);
+  const [hybrid, setHybrid] = useState(false);
   const { mutateAsync: connectExa } = useConnect();
   const { mutateAsync: connectOwner } = useConnect({ config: ownerConfig });
   const { mutate: signIn, ...mutation } = useMutation({
-    mutationFn: async ({ method, register }: { method: AuthMethod; register?: boolean }) => {
+    mutationFn: async ({ method, register, hints }: { hints?: string[]; method: AuthMethod; register?: boolean }) => {
       queryClient.setQueryData(["method"], isPasskeyEnabled ? method : "siwe");
       if (method === "siwe") {
         const connection = getConnection(ownerConfig);
@@ -37,7 +39,7 @@ export default function useAuth(onSuccess?: (credential: Credential) => unknown)
           await switchChain(ownerConfig, { chainId: chain.id });
         }
       }
-      const credential = method === "siwe" || !register ? await getCredential() : await createCredential();
+      const credential = method === "siwe" || !register ? await getCredential() : await createCredential(hints);
       queryClient.setQueryData<Credential>(["credential"], credential);
       await connectExa({ connector: alchemyConnector });
       return credential;
@@ -48,6 +50,7 @@ export default function useAuth(onSuccess?: (credential: Credential) => unknown)
         error,
         (value) => {
           setIssue(value);
+          setHybrid(value === "backup" && hybridTransport);
           setOpen(true);
         },
         t,
@@ -60,11 +63,13 @@ export default function useAuth(onSuccess?: (credential: Credential) => unknown)
     dialog: {
       issue,
       open,
+      hybrid,
       onClose: () => {
         setOpen(false);
       },
       onRetry: () => {
-        if (mutation.variables) signIn(mutation.variables);
+        if (!mutation.variables) return;
+        signIn({ ...mutation.variables, hints: hybrid ? ["hybrid"] : undefined });
       },
     },
     ...mutation,
@@ -123,3 +128,17 @@ function handleError(error: unknown, onIssue: (issue: SignInIssue) => void, t: T
 }
 
 export type SignInIssue = "backup" | "biometrics" | "domain" | "passkey" | "pending" | "stolen" | "unlinked";
+
+let hybridTransport = false;
+if (
+  Platform.OS === "web" &&
+  typeof PublicKeyCredential !== "undefined" &&
+  "getClientCapabilities" in PublicKeyCredential &&
+  (navigator as { userAgentData?: { mobile: boolean } }).userAgentData?.mobile === false
+) {
+  PublicKeyCredential.getClientCapabilities()
+    .then(({ hybridTransport: available }) => {
+      hybridTransport = available === true;
+    })
+    .catch(reportError);
+}
