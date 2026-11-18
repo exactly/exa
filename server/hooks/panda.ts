@@ -52,6 +52,7 @@ import { MATURITY_INTERVAL, splitInstallments } from "@exactly/lib";
 
 import { cards, credentials, transactions } from "../database/schema";
 import t, { f } from "../i18n";
+import { heldSince, hold } from "../utils/hold";
 import {
   collectors,
   createMutex,
@@ -191,6 +192,7 @@ export default function hook({
 
       switch (payload.action) {
         case "requested": {
+          const readAt = performance.now();
           const card = await database.query.cards.findFirst({
             columns: { mode: true, status: true },
             where: eq(cards.id, payload.body.spend.cardId),
@@ -203,7 +205,7 @@ export default function hook({
           const account = v.parse(Address, card.credential.account);
           setUser({ id: account });
 
-          if (card.status === "FROZEN") {
+          if (card.status === "FROZEN" || card.status === "HELD") {
             trackAuthorizationRejected(account, payload, card.mode, card.credential.source, "frozen-card", segment);
 
             await reject(payload, jsonBody, "frozenCard");
@@ -283,6 +285,13 @@ export default function hook({
             throw error;
           }
           setContext("mutex", { locked: mutex.isLocked() });
+          if (heldSince(card.credential.id, readAt)) {
+            mutex.release();
+            setContext("mutex", { locked: mutex.isLocked() });
+            trackAuthorizationRejected(account, payload, card.mode, card.credential.source, "frozen-card", segment);
+            await reject(payload, jsonBody, "frozenCard");
+            return c.json({ code: "frozen card", rejectionCode: "NOT_PERMITTED" }, 403 as UnofficialStatusCode);
+          }
 
           try {
             const { amount, call, transaction } = await prepareCollection(
@@ -309,6 +318,7 @@ export default function hook({
                 if (assessment.level === "high" || assessment.level === "very_high") {
                   captureException(new Error("high risk verification"), { level: "error" });
                 }
+                if (assessment.level === "very_high") await hold({ database, segment }, card.credential.id);
               }).catch((error: unknown) => captureException(error, { level: "error" }));
               return authorize();
             }
@@ -324,6 +334,7 @@ export default function hook({
               if (assessment.level === "high" || assessment.level === "very_high") {
                 captureException(new Error("high risk authorization"), { level: "error" });
               }
+              if (assessment.level === "very_high") await hold({ database, segment }, card.credential.id);
             }).catch((error: unknown) => captureException(error, { level: "error" }));
             try {
               const trace = await startSpan({ name: "debug_traceCall", op: "tx.trace" }, () =>

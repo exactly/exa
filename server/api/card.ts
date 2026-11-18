@@ -351,7 +351,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
           with: {
             cards: {
               columns: { id: true, lastFour: true, status: true, mode: true, productId: true },
-              where: and(inArray(cards.status, ["ACTIVE", "FROZEN"]), eq(cards.tenant, isBase ? "BASE" : "OP")),
+              where: and(inArray(cards.status, ["ACTIVE", "FROZEN", "HELD"]), eq(cards.tenant, isBase ? "BASE" : "OP")),
             },
           },
         });
@@ -442,7 +442,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
               lastFour,
               mode,
               provider: "panda" as const,
-              status,
+              status: status === "HELD" ? "FROZEN" : status,
               limit,
               productId: parse(CardResponse.entries.productId, productId),
               ...(challenge && { challenge }),
@@ -614,7 +614,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
                 cards: {
                   columns: { id: true, status: true, productId: true },
                   where: and(
-                    inArray(cards.status, ["ACTIVE", "FROZEN", "DELETED"]),
+                    inArray(cards.status, ["ACTIVE", "FROZEN", "HELD", "DELETED"]),
                     eq(cards.tenant, isBase ? "BASE" : "OP"),
                   ),
                 },
@@ -632,7 +632,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
               ({ status, productId }) => status === "DELETED" && productId === PLATINUM_PRODUCT_ID,
             );
 
-            const activeCards = credential.cards.filter(({ status }) => status === "ACTIVE" || status === "FROZEN");
+            const activeCards = credential.cards.filter(({ status }) => status !== "DELETED");
 
             let cardCount = activeCards.length;
             for (const card of activeCards) {
@@ -664,7 +664,9 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
                 .getCards(pandaId)
                 .then((pandaCards) => pandaCards.find(({ status }) => status === "active"))
                 .then(async (orphan) => {
-                  if (orphan) {
+                  if (orphan && credential.cards.some(({ id, status }) => id === orphan.id && status === "DELETED")) {
+                    await panda.updateCard({ id: orphan.id, status: "canceled" });
+                  } else if (orphan) {
                     captureException(new Error("orphan card adopted"), {
                       level: "warning",
                       fingerprint: ["orphan-card-adopted"],
@@ -675,27 +677,26 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
                       },
                     });
                     return orphan;
-                  } else {
-                    return panda.createCard(
-                      pandaId,
-                      productId,
-                      await persona
-                        .getAccount(credentialId, "cardLimit")
-                        .then((profile) =>
-                          profile?.attributes.fields.card_limit_usd?.value == null
-                            ? undefined
-                            : profile.attributes.fields.card_limit_usd.value * 100,
-                        )
-                        .catch((error: unknown): undefined => {
-                          captureException(error, {
-                            level: "error",
-                            contexts: { details: { credentialId, scope: "cardLimit" } },
-                          });
-                        }),
-                      undefined,
-                      credential.source,
-                    );
                   }
+                  return panda.createCard(
+                    pandaId,
+                    productId,
+                    await persona
+                      .getAccount(credentialId, "cardLimit")
+                      .then((profile) =>
+                        profile?.attributes.fields.card_limit_usd?.value == null
+                          ? undefined
+                          : profile.attributes.fields.card_limit_usd.value * 100,
+                      )
+                      .catch((error: unknown): undefined => {
+                        captureException(error, {
+                          level: "error",
+                          contexts: { details: { credentialId, scope: "cardLimit" } },
+                        });
+                      }),
+                    undefined,
+                    credential.source,
+                  );
                 });
 
               await database
@@ -878,7 +879,14 @@ async function encryptPIN(pin: string) {
           403: {
             description: "Forbidden",
             content: {
-              "application/json": { schema: resolver(object({ code: literal("no panda") }), { errorMode: "ignore" }) },
+              "application/json": {
+                schema: resolver(
+                  union([object({ code: literal("no panda") }), object({ code: literal("risk hold") })]),
+                  {
+                    errorMode: "ignore",
+                  },
+                ),
+              },
             },
           },
           404: {
@@ -930,28 +938,28 @@ async function encryptPIN(pin: string) {
               }
               case "status": {
                 const { status } = patch;
+                if (card.status === "HELD") return c.json({ code: "risk hold" }, 403);
                 if (card.status === status) return c.json({ code: "already set", status }, 400);
-                if (status === "DELETED") await panda.updateCard({ id: card.id, status: "canceled" });
                 const [updated] = await database
                   .update(cards)
                   .set({ status })
-                  .where(and(eq(cards.id, card.id), ne(cards.status, "DELETED")))
+                  .where(and(eq(cards.id, card.id), inArray(cards.status, ["ACTIVE", "FROZEN"])))
                   .returning({ id: cards.id });
-                if (updated) {
-                  segment.track({
-                    userId: account,
-                    event: ({ ACTIVE: "CardUnfrozen", DELETED: "CardDeleted", FROZEN: "CardFrozen" } as const)[status],
-                    properties: { source: credential.source },
-                  });
-                  report(c, credentialId, {
-                    name: ({ ACTIVE: "card.unfrozen", DELETED: "card.deleted", FROZEN: "card.frozen" } as const)[
-                      status
-                    ],
-                    type: "account_update",
-                  });
-                } else if (status !== "DELETED") {
-                  return c.json({ code: "no card" }, 404);
+                if (!updated) return c.json({ code: "no card" }, 404);
+                if (status === "DELETED") {
+                  await panda
+                    .updateCard({ id: card.id, status: "canceled" })
+                    .catch((error: unknown) => captureException(error, { level: "error" }));
                 }
+                segment.track({
+                  userId: account,
+                  event: ({ ACTIVE: "CardUnfrozen", DELETED: "CardDeleted", FROZEN: "CardFrozen" } as const)[status],
+                  properties: { source: credential.source },
+                });
+                report(c, credentialId, {
+                  name: ({ ACTIVE: "card.unfrozen", DELETED: "card.deleted", FROZEN: "card.frozen" } as const)[status],
+                  type: "account_update",
+                });
                 return c.json({ status } satisfies InferOutput<typeof UpdatedCardResponse>, 200);
               }
               case "pin": {
