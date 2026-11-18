@@ -1,9 +1,11 @@
 import "./mocks/sentry";
 
 import { Hono } from "hono";
+import { anvil, optimism, optimismSepolia } from "viem/chains";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type * as Supervise from "../supervise";
+import type * as Chain from "@exactly/common/generated/chain";
 import type { Context } from "hono";
 
 const hooks = {
@@ -15,7 +17,12 @@ const hooks = {
   persona: vi.fn<() => Hook>(),
 };
 const workers = { hook: vi.fn<() => Worker>(), maturity: vi.fn<() => Worker>() };
-const closers = { hook: vi.fn<() => Promise<void>>(), maturity: vi.fn<() => Promise<void>>() };
+const closers = {
+  block: vi.fn<() => Promise<void>>(),
+  hook: vi.fn<() => Promise<void>>(),
+  maturity: vi.fn<() => Promise<void>>(),
+};
+const replication = { close: vi.fn<() => Promise<void>>(), create: vi.fn<() => Worker>() };
 const mocks = {
   api: vi.fn<() => Hook>(),
   supervise: vi.fn<(name: string, created: Promise<Handle>) => void>(),
@@ -24,6 +31,7 @@ const mocks = {
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.doUnmock("@hono/node-server/serve-static");
+  vi.doUnmock("@exactly/common/generated/chain");
 });
 
 beforeEach(() => {
@@ -34,13 +42,18 @@ beforeEach(() => {
     create.mockReset().mockReturnValue({
       app: new Hono().post("/", (c) => c.json({ hook: name })),
       ready: Promise.resolve(),
+      ...(name === "block" && { close: closers.block }),
     });
     vi.doMock(`../hooks/${name}`, () => ({ default: create }));
   }
+  closers.block.mockReset().mockResolvedValue();
   for (const name of ["hook", "maturity"] as const) {
     closers[name].mockReset().mockResolvedValue();
     workers[name].mockReset().mockReturnValue({ close: closers[name], ready: Promise.resolve() });
   }
+  replication.close.mockReset().mockResolvedValue();
+  replication.create.mockReset().mockReturnValue({ close: replication.close, ready: Promise.resolve() });
+  vi.doMock("../workers/replication/worker", () => ({ default: replication.create }));
   vi.doMock("../api", () => ({ default: mocks.api }));
   vi.doMock("../supervise", async (importOriginal) => ({
     ...(await importOriginal<typeof Supervise>()),
@@ -88,6 +101,45 @@ describe("server", () => {
     for (const [name, close] of Object.entries(closers)) {
       expect(close).toHaveBeenCalledTimes(enabled.includes(name) ? 1 : 0);
     }
+    expect(replication.create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { disabled: undefined, started: true },
+    { disabled: "replication", started: false },
+  ])("monitors replication on base when disabling $disabled", async ({ disabled, started }) => {
+    if (disabled !== undefined) vi.stubEnv("DISABLED_MODULES", disabled);
+    vi.doMock("@exactly/common/generated/chain", async (importOriginal) => ({
+      ...(await importOriginal<typeof Chain>()),
+      isBase: true,
+    }));
+
+    await import("../index");
+    const created = mocks.supervise.mock.calls[0]?.[1];
+    if (!created) throw new Error("missing server");
+    const handle = await created;
+    const [{ bullmq }, { default: database }] = await Promise.all([import("../utils/redis"), import("../database")]);
+
+    await expect(handle.ready).resolves.toHaveLength(started ? 10 : 9);
+    expect(replication.create.mock.calls).toStrictEqual(started ? [[{ bullmq, database }]] : []);
+    await handle.close();
+    expect(replication.close).toHaveBeenCalledTimes(started ? 1 : 0);
+  });
+
+  it.each([
+    { id: anvil.id, testnet: true, source: "indexer" },
+    { id: optimismSepolia.id, testnet: true, source: "indexer" },
+    { id: optimism.id, testnet: false, source: "alchemy" },
+  ])("reads hooks from $source on chain $id", async ({ id, testnet, source }) => {
+    vi.doMock("@exactly/common/generated/chain", async (importOriginal) => {
+      const original = await importOriginal<typeof Chain>();
+      return { ...original, default: { ...original.default, id, testnet } };
+    });
+
+    await import("../index");
+
+    expect(hooks.block).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ source }));
+    vi.doUnmock("@exactly/common/generated/chain");
   });
 
   it("disables business", async () => {
@@ -97,6 +149,23 @@ describe("server", () => {
 
     expect(mocks.api).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ business: false }));
     for (const create of Object.values({ ...hooks, ...workers })) expect(create).toHaveBeenCalledOnce();
+  });
+
+  it("starts without pax", async () => {
+    vi.stubEnv("PAX_API_KEY", "");
+
+    await import("../index");
+
+    expect(mocks.api).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ pax: undefined }));
+    expect(hooks.persona).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ pax: undefined }));
+  });
+
+  it("rejects pax without its url before starting", async () => {
+    vi.stubEnv("PAX_API_URL", "");
+
+    await expect(import("../index")).rejects.toThrow("pax url");
+    for (const create of Object.values({ ...hooks, ...workers })) expect(create).not.toHaveBeenCalled();
+    expect(mocks.supervise).not.toHaveBeenCalled();
   });
 
   it("rejects unknown modules before starting any", async () => {
@@ -133,6 +202,6 @@ describe("server", () => {
   });
 });
 
-type Hook = { app: Hono; ready: Promise<unknown> };
+type Hook = { app: Hono; close?: () => Promise<void>; ready: Promise<unknown> };
 type Worker = { close: () => Promise<void>; ready: Promise<unknown> };
 type Handle = { app: Hono; close(): Promise<unknown>; ready: Promise<unknown[]> };

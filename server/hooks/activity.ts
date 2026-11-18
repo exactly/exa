@@ -13,14 +13,13 @@ import { Hono } from "hono";
 import { validator } from "hono/validator";
 import * as v from "valibot";
 import { bytesToHex, hexToBigInt } from "viem";
-import { anvil } from "viem/chains";
 
 import exaChain, { exaPreviewerAbi, exaPreviewerAddress, lifiURL, wethAddress } from "@exactly/common/generated/chain";
 import { Address, Hash, Hex } from "@exactly/common/validation";
 
 import { credentials } from "../database/schema";
 import t, { f } from "../i18n";
-import { activityNetworks, activityUrl, NETWORKS } from "../utils/alchemy";
+import { activityUrl, NETWORKS } from "../utils/alchemy";
 import publicClient from "../utils/publicClient";
 import validatorHook from "../utils/validatorHook";
 import verifySignature from "../utils/verifySignature";
@@ -51,7 +50,6 @@ export default function hook({
   poke: ReturnType<typeof createPoke>;
   redis: Redis;
 }) {
-  const networks = activityNetworks();
   let entries = new Map<string, { network: string; signingKey: string }>();
   let refreshed = 0;
   let refreshing: Promise<void> | undefined;
@@ -68,7 +66,7 @@ export default function hook({
       const identity = v.safeParse(Identity, parsed);
       if (!identity.success) return c.json({ code: "unauthorized" }, 401);
       if (valid(identity.output, signature, payload)) return;
-      if (!entries.has(identity.output.webhookId) && networks.has(identity.output.event.network)) {
+      if (!entries.has(identity.output.webhookId) && NETWORKS.has(identity.output.event.network)) {
         await refresh(true);
         if (valid(identity.output, signature, payload)) return;
       }
@@ -122,16 +120,16 @@ export default function hook({
       );
       const accounts = await database.query.credentials
         .findMany({
-          columns: { account: true, publicKey: true, factory: true, salt: true, source: true },
+          columns: { account: true, publicKey: true, factory: true, pandaId: true, salt: true, source: true },
           where: inArray(credentials.account, [...new Set(transfers.map(({ toAddress }) => toAddress))]),
         })
         .then((result) =>
           Object.fromEntries(
             result.map(
-              ({ account, publicKey, factory, salt, source }) =>
+              ({ account, publicKey, factory, pandaId, salt, source }) =>
                 [
                   v.parse(Address, account),
-                  { publicKey, factory: v.parse(Address, factory), salt: v.parse(Address, salt), source },
+                  { publicKey, factory: v.parse(Address, factory), pandaId, salt: v.parse(Address, salt), source },
                 ] as const,
             ),
           ),
@@ -152,6 +150,7 @@ export default function hook({
         {
           assets: Set<Address>;
           factory: Address;
+          pandaId: null | string;
           publicKey: Uint8Array<ArrayBuffer>;
           salt: Address;
           source: null | string;
@@ -192,18 +191,19 @@ export default function hook({
         if (pokes.has(account)) {
           pokes.get(account)?.assets.add(asset);
         } else {
-          const { publicKey, factory, salt, source } = accounts[account];
-          pokes.set(account, { publicKey, factory, salt, source, assets: new Set([asset]) });
+          const { publicKey, factory, pandaId, salt, source } = accounts[account];
+          pokes.set(account, { publicKey, factory, pandaId, salt, source, assets: new Set([asset]) });
         }
       }
       await Promise.all(
-        [...pokes].map(([account, { assets, factory, publicKey, salt, source }]) =>
+        [...pokes].map(([account, { assets, factory, pandaId, publicKey, salt, source }]) =>
           poke.enqueue({
             account,
             assets: [...assets],
             chainId: chain.id,
             factory,
             origin: "activity",
+            ...(pandaId && { pandaId }),
             publicKey: bytesToHex(publicKey),
             salt,
             source,
@@ -234,7 +234,7 @@ export default function hook({
                 current.is_active &&
                 current.webhook_type === "ADDRESS_ACTIVITY" &&
                 current.webhook_url === activityUrl &&
-                networks.has(current.network),
+                NETWORKS.has(current.network),
             )
             .map((current) => [current.id, { network: current.network, signingKey: current.signing_key }]),
         );
@@ -250,7 +250,6 @@ export default function hook({
 const Identity = v.object({ webhookId: v.string(), event: v.object({ network: v.string() }) });
 
 async function isKnownToken(chainId: number, address: Address, redis: Redis) {
-  if (chainId === anvil.id) return true;
   const key = `lifi:tokens:${chainId}`;
   try {
     const [[, isMember], [, count]] = v.parse(
@@ -259,7 +258,7 @@ async function isKnownToken(chainId: number, address: Address, redis: Redis) {
     );
     if (isMember) return true;
     if (count > 0) return false;
-    const response = await fetch(`${lifiURL ?? "https://li.quest/v1"}/tokens?chains=${chainId}`, {
+    const response = await fetch(`${lifiURL}/tokens?chains=${chainId}`, {
       signal: AbortSignal.timeout(5000),
     });
     if (!response.ok) throw new Error(`lifi tokens ${response.status}`);

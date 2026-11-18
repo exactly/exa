@@ -1,11 +1,12 @@
 import { captureException, withScope } from "@sentry/node";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
-import { marketUSDCAddress, previewerAbi, previewerAddress } from "@exactly/common/generated/chain";
+import { isBase, marketUSDCAddress, networks, previewerAbi, previewerAddress } from "@exactly/common/generated/chain";
 
 import { attempts, name, type Job } from "./job";
 import { cards, credentials } from "../../database/schema";
 import t from "../../i18n";
+import { refresh } from "../../utils/liquidity";
 import publicClient from "../../utils/publicClient";
 import createWorker from "../worker";
 
@@ -38,6 +39,7 @@ export default function worker({
     },
     name,
     async process(job, span) {
+      for (const chainId of networks.keys()) refresh(database, bullmq, job.data.account, chainId);
       const markets = await publicClient.readContract({
         address: previewerAddress,
         functionName: "exactly",
@@ -60,23 +62,27 @@ export default function worker({
           columns: {},
           with: {
             cards: {
-              columns: { id: true, mode: true },
-              where: inArray(cards.status, ["ACTIVE", "FROZEN"]),
+              columns: { id: true },
+              where: and(
+                inArray(cards.status, ["ACTIVE", "FROZEN"]),
+                eq(cards.mode, 0),
+                eq(cards.tenant, isBase ? "BASE" : "OP"),
+              ),
             },
           },
         });
-        const card = credential?.cards[0];
-        span.setAttribute("exa.card", card?.id);
-        if (card?.mode === 0) {
-          await database.update(cards).set({ mode: 1 }).where(eq(cards.id, card.id));
+        const ids = credential?.cards.map(({ id }) => id) ?? [];
+        span.setAttribute("exa.cards", ids);
+        if (ids.length > 0) {
+          await database.update(cards).set({ mode: 1 }).where(inArray(cards.id, ids));
           span.setAttribute("exa.mode", 1);
           await onesignal
             .sendPushNotification({
               userId: job.data.account,
               headings: t("Credit mode activated"),
-              contents: t("Your card is now in credit mode"),
+              contents: t("Your card is now in credit mode", { count: ids.length }),
             })
-            .catch((error: unknown) => captureException(error));
+            .catch((error: unknown) => captureException(error, { level: "error" }));
         }
       }
     },

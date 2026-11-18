@@ -16,12 +16,13 @@ const segment = { close: vi.fn<() => Promise<void>>() };
 const whatsapp = {};
 const mocks = {
   alchemy: vi.fn<(key: string) => object>(),
-  allow: vi.fn<(config: { allower: typeof allower; bullmq: object }) => Handle>(),
+  allow: vi.fn<(config: { allower: typeof allower; bullmq: object; database: typeof database }) => Handle>(),
   chat: vi.fn<(config: { anthropicKey: string; bullmq: object; whatsapp: object }) => Handle>(),
   close: vi.fn<() => Promise<void>>(),
   credit: vi.fn<(config: { bullmq: object; database: typeof database; onesignal: object }) => Handle>(),
   drizzle: vi.fn<() => typeof database>(),
   hook: vi.fn<(config: { bullmq: object; database: typeof database; panda: object }) => Handle>(),
+  mockfi: vi.fn<(config: { bridger: typeof refunder; bullmq: object; database: typeof database }) => Handle>(),
   onesignal: vi.fn<(key: string) => object>(),
   panda: vi.fn<(config: { key: string; url: string }) => object>(),
   poke: vi.fn<
@@ -65,6 +66,7 @@ beforeEach(() => {
   mocks.poke.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.chat.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.refund.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
+  mocks.mockfi.mockReset().mockReturnValue({ close: mocks.close, ready: Promise.resolve() });
   mocks.sardine.mockReset().mockReturnValue(sardine);
   mocks.secret.mockReset().mockImplementation((name) => Promise.resolve(name));
   mocks.segment.mockReset().mockReturnValue(segment);
@@ -81,6 +83,7 @@ beforeEach(() => {
         readonly redisUrl: string,
         readonly options: { maxRetriesPerRequest: null },
       ) {}
+      quit = () => Promise.resolve("OK");
     },
   }));
   vi.doMock("../../supervise", async (importOriginal) => ({
@@ -99,6 +102,7 @@ beforeEach(() => {
   vi.doMock("../../workers/chat/worker", () => ({ default: mocks.chat }));
   vi.doMock("../../workers/credit/worker", () => ({ default: mocks.credit }));
   vi.doMock("../../workers/hook/worker", () => ({ default: mocks.hook }));
+  vi.doMock("../../workers/mockfi/worker", () => ({ default: mocks.mockfi }));
   vi.doMock("../../workers/poke/worker", () => ({ default: mocks.poke }));
   vi.doMock("../../workers/refund/worker", () => ({ default: mocks.refund }));
   vi.doMock("../../workers/subscribe/worker", () => ({ default: mocks.subscribe }));
@@ -112,12 +116,14 @@ describe("bin", () => {
     if (!created) throw new Error("missing worker");
     expect(mocks.supervise).toHaveBeenCalledExactlyOnceWith("allow", created);
     await created;
-    expect(mocks.secret.mock.calls.map(([secret]) => secret)).toStrictEqual(["redis-url"]);
+    expect(mocks.secret.mock.calls.map(([secret]) => secret)).toStrictEqual(["redis-url", "allow-postgres-url"]);
     expect(new Set(mocks.secret.mock.calls.map(([, secrets]) => secrets)).size).toBe(1);
     expect(mocks.signer.mock.calls.map(([signer]) => signer)).toStrictEqual(["allower"]);
+    expect(mocks.panda).not.toHaveBeenCalled();
     expect(mocks.allow).toHaveBeenCalledExactlyOnceWith({
       allower,
       bullmq: expect.objectContaining({ redisUrl: "redis-url", options: { maxRetriesPerRequest: null } }) as object,
+      database,
     });
   });
 
@@ -135,6 +141,42 @@ describe("bin", () => {
     await expect(created).rejects.toBe(error);
     expect(mocks.signer.mock.calls.map(([signer]) => signer)).toStrictEqual(["allower"]);
     expect(mocks.allow).not.toHaveBeenCalled();
+  });
+
+  it("resolves mockfi private config before constructing and supervising its worker", async () => {
+    await import("../../workers/mockfi/bin");
+    const created = mocks.supervise.mock.calls[0]?.[1];
+    if (!created) throw new Error("missing worker");
+
+    expect(mocks.supervise).toHaveBeenCalledExactlyOnceWith("mockfi", created);
+    const handle = await created;
+    expect(mocks.secret.mock.calls.map(([secret]) => secret)).toStrictEqual(["redis-url", "mockfi-postgres-url"]);
+    expect(new Set(mocks.secret.mock.calls.map(([, secrets]) => secrets)).size).toBe(1);
+    expect(mocks.signer.mock.calls.map(([signer]) => signer)).toStrictEqual(["bridger"]);
+    expect(mocks.mockfi).toHaveBeenCalledExactlyOnceWith({
+      bridger: refunder,
+      bullmq: expect.objectContaining({ redisUrl: "redis-url", options: { maxRetriesPerRequest: null } }) as object,
+      database,
+    });
+    database.$client.end.mockReset().mockResolvedValue();
+    await handle.close();
+    expect(mocks.close).toHaveBeenCalledOnce();
+    expect(database.$client.end).toHaveBeenCalledOnce();
+  });
+
+  it("fails before constructing the mockfi worker without its bridger account", async () => {
+    const error = new Error("missing bridger");
+    mocks.signer.mockRejectedValueOnce(error);
+    mocks.supervise.mockImplementation((_, created) => {
+      created.catch(() => undefined);
+    });
+
+    await import("../../workers/mockfi/bin");
+    const created = mocks.supervise.mock.calls[0]?.[1];
+    if (!created) throw new Error("missing worker");
+
+    await expect(created).rejects.toBe(error);
+    expect(mocks.mockfi).not.toHaveBeenCalled();
   });
 
   it("resolves chat config before constructing and supervising its worker", async () => {

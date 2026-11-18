@@ -5,7 +5,7 @@ import * as sardine from "../mocks/sardine";
 import "../mocks/sentry";
 
 import { captureException, setUser } from "@sentry/node";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { parse } from "valibot";
 import { hexToBytes, padHex, zeroAddress, zeroHash } from "viem";
@@ -13,7 +13,7 @@ import { privateKeyToAddress } from "viem/accounts";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
-import chain, { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
+import { exaAccountFactoryAddress, networks } from "@exactly/common/generated/chain";
 import { CLASSIC_PRODUCT_ID } from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
 
@@ -29,6 +29,7 @@ import type createAllow from "../../workers/allow/queue";
 import type * as C from "@exactly/common/generated/chain";
 
 const allow = {
+  backfill: vi.fn<ReturnType<typeof createAllow>["backfill"]>(),
   close: vi.fn<ReturnType<typeof createAllow>["close"]>(),
   enqueue: vi.fn<ReturnType<typeof createAllow>["enqueue"]>(),
 };
@@ -49,21 +50,21 @@ const personaHook = createPersonaHook({
 });
 const app = personaHook.app;
 const appClient = testClient(app);
-const mocks = vi.hoisted(() => ({ firewall: vi.fn<(address: string | undefined) => string | undefined>() }));
+const mocks = vi.hoisted(() => ({ isBase: vi.fn<(base: boolean) => boolean>() }));
 
 vi.mock("@sentry/node", { spy: true });
 vi.mock("@exactly/common/generated/chain", async (importOriginal) => {
   const original = await importOriginal<typeof C>();
   return {
     ...original,
-    get firewallAddress() {
-      return mocks.firewall(original.firewallAddress);
+    get isBase() {
+      return mocks.isBase(original.isBase);
     },
   };
 });
 
 beforeEach(() => {
-  mocks.firewall.mockReset().mockImplementation((address) => address);
+  mocks.isBase.mockReset().mockImplementation((base) => base);
   allow.close.mockReset().mockResolvedValue();
   allow.enqueue.mockReset().mockResolvedValue();
 });
@@ -126,14 +127,18 @@ describe("with reference", () => {
 
     expect(p?.pandaId).toBe("pandaId");
 
-    expect(allow.enqueue).toHaveBeenCalledExactlyOnceWith({
-      account,
-      chainId: chain.id,
-      factory,
-      salt: zeroAddress,
-      publicKey: owner.toLowerCase(),
-      source: null,
-    });
+    expect(allow.enqueue.mock.calls).toStrictEqual(
+      [...networks.keys()].map((chainId) => [
+        {
+          account,
+          chainId,
+          factory,
+          publicKey: owner.toLowerCase(),
+          salt: zeroAddress,
+          source: null,
+        },
+      ]),
+    );
     expect(response.status).toBe(200);
   });
 
@@ -260,14 +265,18 @@ describe("with reference", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(allow.enqueue).toHaveBeenCalledExactlyOnceWith({
-      account,
-      chainId: chain.id,
-      factory,
-      salt: zeroAddress,
-      publicKey: owner.toLowerCase(),
-      source: null,
-    });
+    expect(allow.enqueue.mock.calls).toStrictEqual(
+      [...networks.keys()].map((chainId) => [
+        {
+          account,
+          chainId,
+          factory,
+          publicKey: owner.toLowerCase(),
+          salt: zeroAddress,
+          source: null,
+        },
+      ]),
+    );
     expect(panda.createUser).not.toHaveBeenCalled();
   });
 
@@ -391,7 +400,10 @@ describe("persona hook", () => {
 
   afterEach(async () => {
     await new Promise((resolve) => setImmediate(resolve));
-    await database.update(credentials).set({ account, pandaId: null }).where(eq(credentials.id, "persona-ref"));
+    await database
+      .update(credentials)
+      .set({ account, pandaId: null, otherPandaId: null })
+      .where(eq(credentials.id, "persona-ref"));
     vi.restoreAllMocks();
   });
 
@@ -416,23 +428,30 @@ describe("persona hook", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(allow.enqueue).toHaveBeenCalledExactlyOnceWith({
-      account,
-      chainId: chain.id,
-      factory: exaAccountFactoryAddress,
-      salt: zeroAddress,
-      publicKey: "0x",
-      source: null,
-    });
-    expect(panda.createUser).toHaveBeenCalledWith({
-      accountPurpose: "business",
-      annualSalary: "100000",
-      expectedMonthlyVolume: "1000",
-      ipAddress: "127.0.0.1",
-      isTermsOfServiceAccepted: true,
-      occupation: "engineer",
-      personaShareToken: "inq_123",
-    });
+    expect(allow.enqueue.mock.calls).toStrictEqual(
+      [...networks.keys()].map((chainId) => [
+        {
+          account,
+          chainId,
+          factory: exaAccountFactoryAddress,
+          publicKey: "0x",
+          salt: zeroAddress,
+          source: null,
+        },
+      ]),
+    );
+    expect(panda.createUser).toHaveBeenCalledExactlyOnceWith(
+      {
+        accountPurpose: "business",
+        annualSalary: "100000",
+        expectedMonthlyVolume: "1000",
+        ipAddress: "127.0.0.1",
+        isTermsOfServiceAccepted: true,
+        occupation: "engineer",
+        personaShareToken: "inq_123",
+      },
+      "evt_123",
+    );
     expect(pax.addCapita).toHaveBeenCalledWith({
       birthdate: "1990-01-01",
       document: "DOC123",
@@ -445,6 +464,84 @@ describe("persona hook", () => {
       ),
       product: "travel insurance",
     });
+  });
+
+  it("creates panda user without pax config", async () => {
+    const response = await postInquiry(
+      testClient(
+        createPersonaHook({
+          allow,
+          database,
+          panda,
+          persona,
+          personaWebhookSecret: "persona",
+          sardine: createSardine(sardineConfig.key, sardineConfig.url),
+        }).app,
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ id: "new-panda-id" });
+    expect(allow.enqueue.mock.calls).toStrictEqual(
+      [...networks.keys()].map((chainId) => [
+        {
+          account,
+          chainId,
+          factory: exaAccountFactoryAddress,
+          publicKey: "0x",
+          salt: zeroAddress,
+          source: null,
+        },
+      ]),
+    );
+    expect(panda.createUser).toHaveBeenCalledExactlyOnceWith(
+      {
+        accountPurpose: "business",
+        annualSalary: "100000",
+        expectedMonthlyVolume: "1000",
+        ipAddress: "127.0.0.1",
+        isTermsOfServiceAccepted: true,
+        occupation: "engineer",
+        personaShareToken: "inq_123",
+      },
+      "evt_123",
+    );
+    await expect(
+      database.query.credentials.findFirst({ columns: { pandaId: true }, where: eq(credentials.id, "persona-ref") }),
+    ).resolves.toStrictEqual({ pandaId: "new-panda-id" });
+    expect(pax.addCapita).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { isBase: false, own: "panda_id", other: "bamboo_id" },
+    { isBase: true, own: "bamboo_id", other: "panda_id" },
+  ])("keeps the panda id in $own when base is $isBase", async ({ isBase, own, other }) => {
+    mocks.isBase.mockReturnValue(isBase);
+    vi.resetModules();
+    const { default: tenantDatabase } = await import("../../database");
+    const { default: createTenantHook } = await import("../../hooks/persona");
+    const client = testClient(
+      createTenantHook({
+        allow,
+        database: tenantDatabase,
+        panda,
+        persona,
+        personaWebhookSecret: "persona",
+        sardine: createSardine(sardineConfig.key, sardineConfig.url),
+      }).app,
+    );
+    await database.execute(sql`update credentials set ${sql.identifier(other)} = 'other' where id = 'persona-ref'`);
+
+    const created = await postInquiry(client);
+    const repeated = await postInquiry(client);
+    const stored = await database.execute(sql`select panda_id, bamboo_id from credentials where id = 'persona-ref'`);
+    await tenantDatabase.$client.end();
+
+    expect(created.status).toBe(200);
+    await expect(repeated.json()).resolves.toStrictEqual({ code: "already created" });
+    expect(panda.createUser).toHaveBeenCalledOnce();
+    expect(stored.rows).toStrictEqual([{ [own]: "new-panda-id", [other]: "other" }]);
   });
 
   it("does not allow very high risk accounts", async () => {
@@ -489,16 +586,6 @@ describe("persona hook", () => {
     expect(panda.createUser).toHaveBeenCalledOnce();
   });
 
-  it("skips allow without a firewall deployment", async () => {
-    mocks.firewall.mockReset();
-
-    const response = await postInquiry();
-
-    expect(response.status).toBe(200);
-    expect(allow.enqueue).not.toHaveBeenCalled();
-    expect(panda.createUser).toHaveBeenCalledOnce();
-  });
-
   it("fails before panda creation when allow cannot be queued", async () => {
     const error = new Error("redis unavailable");
     const errorConsole = vi.spyOn(console, "error").mockImplementation(() => undefined);
@@ -508,7 +595,7 @@ describe("persona hook", () => {
 
     expect(response.status).toBe(500);
     expect(errorConsole).toHaveBeenCalledWith(error);
-    expect(allow.enqueue).toHaveBeenCalledOnce();
+    expect(allow.enqueue).toHaveBeenCalledTimes(networks.size);
     expect(panda.createUser).not.toHaveBeenCalled();
   });
 
@@ -647,7 +734,9 @@ describe("card limit case", () => {
 
   it("updates card with dynamic limit when approved", async () => {
     await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, referenceId));
-    await database.insert(cards).values([{ id: "case-card", credentialId: referenceId, lastFour: "1234" }]);
+    await database
+      .insert(cards)
+      .values([{ id: "case-card", credentialId: referenceId, tenant: "OP", lastFour: "1234" }]);
     vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
       data: { attributes: { "reference-id": referenceId } },
     });
@@ -669,7 +758,7 @@ describe("card limit case", () => {
     await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, referenceId));
     await database
       .insert(cards)
-      .values([{ id: "case-card", credentialId: referenceId, lastFour: "1234", status: "FROZEN" }]);
+      .values([{ id: "case-card", credentialId: referenceId, tenant: "OP", lastFour: "1234", status: "FROZEN" }]);
     vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
       data: { attributes: { "reference-id": referenceId } },
     });
@@ -684,6 +773,73 @@ describe("card limit case", () => {
       id: "case-card",
       limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
     });
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("captures and skips limit updates when credential has multiple cards", async () => {
+    await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, referenceId));
+    await database.insert(cards).values([
+      { id: "case-card", credentialId: referenceId, tenant: "OP", lastFour: "1234" },
+      { id: "case-card-frozen", credentialId: referenceId, tenant: "OP", lastFour: "5678", status: "FROZEN" },
+    ]);
+    vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
+      data: { attributes: { "reference-id": referenceId } },
+    });
+    const response = await postCase(casePayload({ status: "Approved", cardLimitUsd: 20_000 }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "multiple cards" });
+    expect(persona.updateCardLimit).not.toHaveBeenCalled();
+    expect(panda.updateCard).not.toHaveBeenCalled();
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ message: "multiple cards" }), {
+      level: "error",
+      contexts: { credential: { referenceId } },
+    });
+  });
+
+  it.each([
+    { isBase: false, own: "OP", other: "BASE" },
+    { isBase: true, own: "BASE", other: "OP" },
+  ] as const)("updates the card limit of $own tenant", async ({ isBase, own, other }) => {
+    mocks.isBase.mockReturnValue(isBase);
+    await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, referenceId));
+    await database.insert(cards).values([
+      { id: "case-card-other", credentialId: referenceId, tenant: other, lastFour: "4321" },
+      { id: "case-card", credentialId: referenceId, tenant: own, lastFour: "1234" },
+    ]);
+    vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
+      data: { attributes: { "reference-id": referenceId } },
+    });
+    vi.spyOn(persona, "updateCardLimit").mockResolvedValueOnce(cardLimitUpdateResponse);
+    vi.spyOn(panda, "updateCard").mockResolvedValueOnce(cardUpdateResponse);
+    const response = await postCase(casePayload({ status: "Approved", cardLimitUsd: 20_000 }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000);
+    expect(panda.updateCard).toHaveBeenCalledExactlyOnceWith({
+      id: "case-card",
+      limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
+    });
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("does not update the card limit of another tenant", async () => {
+    await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, referenceId));
+    await database
+      .insert(cards)
+      .values([{ id: "case-card-other", credentialId: referenceId, tenant: "BASE", lastFour: "4321" }]);
+    vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
+      data: { attributes: { "reference-id": referenceId } },
+    });
+    vi.spyOn(persona, "updateCardLimit").mockResolvedValueOnce(cardLimitUpdateResponse);
+    vi.spyOn(panda, "updateCard");
+    const response = await postCase(casePayload({ status: "Approved", cardLimitUsd: 20_000 }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000);
+    expect(panda.updateCard).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -718,7 +874,9 @@ describe("card limit case", () => {
 
   it("returns 500 and captures drift context when updateCard fails after updateCardLimit succeeds", async () => {
     await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, referenceId));
-    await database.insert(cards).values([{ id: "case-card", credentialId: referenceId, lastFour: "1234" }]);
+    await database
+      .insert(cards)
+      .values([{ id: "case-card", credentialId: referenceId, tenant: "OP", lastFour: "1234" }]);
     vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
       data: { attributes: { "reference-id": referenceId } },
     });
@@ -745,7 +903,9 @@ describe("card limit case", () => {
 
   it("returns 500 when updateCardLimit fails before updateCard", async () => {
     await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, referenceId));
-    await database.insert(cards).values([{ id: "case-card", credentialId: referenceId, lastFour: "1234" }]);
+    await database
+      .insert(cards)
+      .values([{ id: "case-card", credentialId: referenceId, tenant: "OP", lastFour: "1234" }]);
     vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
       data: { attributes: { "reference-id": referenceId } },
     });
@@ -899,6 +1059,7 @@ describe("business representative", () => {
   });
 
   beforeEach(() => {
+    mocks.isBase.mockReturnValue(true);
     vi.spyOn(panda, "createCard");
     vi.spyOn(panda, "createCompanyUser");
     vi.spyOn(panda, "getCompanyApplication");
@@ -948,14 +1109,18 @@ describe("business representative", () => {
       200_000,
       "evt_representative_123",
     );
-    expect(allow.enqueue).toHaveBeenCalledExactlyOnceWith({
-      account,
-      chainId: chain.id,
-      factory,
-      publicKey: owner.toLowerCase(),
-      salt,
-      source: null,
-    });
+    expect(allow.enqueue.mock.calls).toStrictEqual(
+      [...networks.keys()].map((chainId) => [
+        {
+          account,
+          chainId,
+          factory,
+          publicKey: owner.toLowerCase(),
+          salt,
+          source: null,
+        },
+      ]),
+    );
     expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
     expect(captureException).not.toHaveBeenCalled();
     await expect(
@@ -963,11 +1128,11 @@ describe("business representative", () => {
     ).resolves.toStrictEqual({ pandaId: "business-user" });
     await expect(
       database.query.cards.findMany({
-        columns: { id: true, lastFour: true, productId: true, status: true },
+        columns: { id: true, lastFour: true, productId: true, status: true, tenant: true },
         where: eq(cards.credentialId, referenceId),
       }),
     ).resolves.toStrictEqual([
-      { id: "business-card", lastFour: "4321", productId: CLASSIC_PRODUCT_ID, status: "ACTIVE" },
+      { id: "business-card", lastFour: "4321", productId: CLASSIC_PRODUCT_ID, status: "ACTIVE", tenant: "BASE" },
     ]);
   });
 
@@ -1094,6 +1259,31 @@ describe("business representative", () => {
     );
   });
 
+  it("ignores the representative inquiry outside base", async () => {
+    mocks.isBase.mockReturnValue(false);
+
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: representativePayload({ referenceId, status: "approved", weeklyCardLimit: 2000 }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(panda.getCompanyApplication).not.toHaveBeenCalled();
+    expect(panda.getCompanyUsers).not.toHaveBeenCalled();
+    expect(panda.createCompanyUser).not.toHaveBeenCalled();
+    expect(panda.createCard).not.toHaveBeenCalled();
+    expect(allow.enqueue).not.toHaveBeenCalled();
+    expect(setUser).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+    await expect(
+      database.query.credentials.findFirst({ columns: { pandaId: true }, where: eq(credentials.id, referenceId) }),
+    ).resolves.toStrictEqual({ pandaId: null });
+    await expect(database.query.cards.findMany({ where: eq(cards.credentialId, referenceId) })).resolves.toStrictEqual(
+      [],
+    );
+  });
+
   it("ignores a representative inquiry that is not approved", async () => {
     const response = await appClient.index.$post({
       header: { "persona-signature": "t=1,v1=sha256" },
@@ -1135,7 +1325,9 @@ describe("business representative", () => {
   });
 
   it("returns already created when an active card exists", async () => {
-    await database.insert(cards).values([{ id: "business-card", credentialId: referenceId, lastFour: "4321" }]);
+    await database
+      .insert(cards)
+      .values([{ id: "business-card", credentialId: referenceId, tenant: "BASE", lastFour: "4321" }]);
 
     const response = await appClient.index.$post({
       header: { "persona-signature": "t=1,v1=sha256" },
@@ -1189,7 +1381,7 @@ describe("business representative", () => {
       undefined,
       "evt_representative_123",
     );
-    expect(allow.enqueue).toHaveBeenCalledOnce();
+    expect(allow.enqueue).toHaveBeenCalledTimes(networks.size);
     expect(captureException).not.toHaveBeenCalled();
     await expect(
       database.query.credentials.findFirst({ columns: { pandaId: true }, where: eq(credentials.id, referenceId) }),
@@ -1360,7 +1552,7 @@ describe("business representative", () => {
       200_000,
       "evt_representative_123",
     );
-    expect(allow.enqueue).toHaveBeenCalledOnce();
+    expect(allow.enqueue).toHaveBeenCalledTimes(networks.size);
     expect(captureException).not.toHaveBeenCalled();
     await expect(
       database.query.cards.findMany({
@@ -1370,33 +1562,6 @@ describe("business representative", () => {
     ).resolves.toStrictEqual([
       { id: "business-card", lastFour: "4321", productId: CLASSIC_PRODUCT_ID, status: "ACTIVE" },
     ]);
-  });
-
-  it("skips allow without a firewall deployment", async () => {
-    mocks.firewall.mockReset();
-    await database.update(credentials).set({ pandaId: "business-user" }).where(eq(credentials.id, referenceId));
-    vi.mocked(panda.getCompanyApplication).mockResolvedValueOnce({ id: "company-id", applicationStatus: "approved" });
-    vi.mocked(panda.getCompanyUsers).mockResolvedValueOnce([]);
-    vi.mocked(panda.createCompanyUser).mockResolvedValueOnce(user);
-    vi.mocked(panda.createCard).mockResolvedValueOnce(card);
-
-    const response = await appClient.index.$post({
-      header: { "persona-signature": "t=1,v1=sha256" },
-      json: representativePayload({ referenceId, status: "approved" }),
-    });
-
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-    expect(allow.enqueue).not.toHaveBeenCalled();
-    expect(panda.createCard).toHaveBeenCalledExactlyOnceWith(
-      "authorized-user",
-      CLASSIC_PRODUCT_ID,
-      undefined,
-      "evt_representative_123",
-    );
-    await expect(
-      database.query.cards.findMany({ columns: { id: true }, where: eq(cards.credentialId, referenceId) }),
-    ).resolves.toStrictEqual([{ id: "business-card" }]);
   });
 });
 
@@ -2496,8 +2661,8 @@ const mantecaPayload = {
   },
 } as const;
 
-function postInquiry() {
-  return appClient.index.$post({
+function postInquiry(client = appClient) {
+  return client.index.$post({
     header: {
       "persona-signature": "t=1733865120,v1=debbacfe1b0c5f8797a1d68e8428fba435aa4ca3b5d9a328c3c96ee4d04d84df",
     },

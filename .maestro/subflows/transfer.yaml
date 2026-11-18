@@ -3,9 +3,16 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     file: mint.yaml
     env: { asset: USDC, to: "${output.account}", amount: "420" }
+- runScript: { file: ../dist/awaitDeployment.js, env: { account: "${output.account}" } }
+- runScript: { file: ../dist/downgradePlugin.js, env: { account: "${output.account}" } }
 - runFlow:
     file: send.yaml
     env: { asset: USDC, network: Anvil, to: "0x000000000000000000000000000000000000dEaD", amount: "69" }
+- tapOn: Card
+- tapOn: Upgrade account now
+- runFlow: sign.yaml
+- runScript: { file: ../dist/awaitUpgrade.js, env: { account: "${output.account}" } }
+- tapOn: Home
 - tapOn: Send
 - tapOn: Digital assets
 - assertVisible: Send to

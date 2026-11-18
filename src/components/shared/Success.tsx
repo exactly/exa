@@ -4,26 +4,23 @@ import { Pressable } from "react-native";
 
 import { Square, XStack, YStack } from "tamagui";
 
-import { useQuery } from "@tanstack/react-query";
-
-import accountInit from "@exactly/common/accountInit";
-import chain, { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
-import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
+import chain, { marketUSDCAddress } from "@exactly/common/generated/chain";
 
 import GradientScrollView from "./GradientScrollView";
 import IconButton from "./IconButton";
 import View from "./View";
 import { Check } from "../../generated/icons/Check";
 import { X } from "../../generated/icons/X";
-import useAccount from "../../utils/useAccount";
+import useProposalManager from "../../utils/useProposalManager";
 import AssetLogo from "../shared/AssetLogo";
 import Text from "../shared/Text";
 import TransactionDetails from "../shared/TransactionDetails";
 
-import type { Credential, Hex } from "@exactly/common/validation";
+import type { Hex } from "@exactly/common/validation";
 
 export default function Success({
   amount,
+  chainId = chain.id,
   repayAssets,
   currency,
   maturity,
@@ -32,6 +29,7 @@ export default function Success({
   onClose,
 }: {
   amount: number;
+  chainId?: number;
   currency?: string;
   maturity: bigint;
   onClose: () => void;
@@ -43,18 +41,9 @@ export default function Success({
     t,
     i18n: { language },
   } = useTranslation();
-  const { address } = useAccount();
-  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
-  const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
-    address,
-    chainId: chain.id,
-    factory: credential?.factory,
-    factoryData: credential && accountInit(credential),
-    query: { enabled: !!address && !!credential },
-  });
-  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
+  const proposalManager = useProposalManager(chainId);
   return (
-    <GradientScrollView variant={isLatestPlugin ? "info" : "success"}>
+    <GradientScrollView variant={proposalManager ? "info" : "success"}>
       <View flex={1}>
         <YStack gap="s5" justifyContent="space-between">
           <YStack>
@@ -64,7 +53,7 @@ export default function Success({
                 <Square
                   borderRadius="r4"
                   backgroundColor={
-                    isLatestPlugin ? "interactiveBaseInformationSoftDefault" : "interactiveBaseSuccessSoftDefault"
+                    proposalManager ? "interactiveBaseInformationSoftDefault" : "interactiveBaseSuccessSoftDefault"
                   }
                   size="s10"
                 >
@@ -73,7 +62,7 @@ export default function Success({
               </XStack>
               <YStack gap="s4_5" justifyContent="center" alignItems="center">
                 <Text secondary body>
-                  {isLatestPlugin ? t("Processing") : t("Paid")}&nbsp;
+                  {proposalManager ? t("Processing") : t("Paid")}&nbsp;
                   <Text emphasized primary body color={maturity <= timestamp ? "uiErrorSecondary" : "uiNeutralPrimary"}>
                     {t("Due {{date}}", {
                       date: useMemo(
@@ -119,7 +108,7 @@ export default function Success({
                 )}
               </YStack>
             </YStack>
-            <TransactionDetails />
+            <TransactionDetails chainId={chainId} />
           </YStack>
         </YStack>
         <View flex={2} justifyContent="flex-end">

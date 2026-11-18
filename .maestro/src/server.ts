@@ -2,20 +2,7 @@ import { secp256k1 } from "@noble/curves/secp256k1.js";
 import { hmac } from "@noble/hashes/hmac.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils.js";
-import {
-  encodeAbiParameters,
-  erc20Abi,
-  ethAddress,
-  keccak256,
-  pad,
-  toBytes,
-  toHex,
-  zeroAddress,
-  zeroHash,
-  type Address,
-  type Hash,
-  type Hex,
-} from "viem";
+import { erc20Abi, ethAddress, keccak256, toBytes, toHex, zeroAddress, zeroHash, type Address, type Hash } from "viem";
 import { publicKeyToAddress } from "viem/accounts";
 import { parseUnits } from "viem/utils";
 
@@ -54,50 +41,6 @@ export function activity(asset: Address, toAddress: Address, value: number, hash
     headers: {
       "content-type": "application/json",
       "x-alchemy-signature": bytesToHex(hmac(sha256, utf8ToBytes("activity"), utf8ToBytes(payload))),
-    },
-    body: payload,
-  });
-  if (!ok) throw new Error(`${status} ${body}`);
-}
-
-export function block(
-  account: Address,
-  proposals: {
-    amount: bigint;
-    data: Hex;
-    market: Address;
-    nonce: bigint;
-    proposalType: number;
-    unlock: bigint;
-  }[],
-) {
-  const payload = JSON.stringify({
-    type: "GRAPHQL",
-    event: {
-      data: {
-        block: {
-          timestamp: Math.floor(Date.now() / 1000),
-          logs: proposals.map(({ nonce, market, proposalType, amount, data, unlock }) => ({
-            topics: [
-              "0x4cf7794d9c19185f7d95767c53e511e2e67ae50f68ece9c9079c6ae83403a3e7", // Proposed
-              pad(account),
-              pad(toHex(nonce)),
-              pad(market),
-            ],
-            data: encodeAbiParameters(
-              [{ type: "uint8" }, { type: "uint256" }, { type: "bytes" }, { type: "uint256" }],
-              [proposalType, amount, data, unlock],
-            ),
-            account: { address: account },
-          })),
-        },
-      },
-    },
-  });
-  const { ok, status, body } = http.post("http://localhost:3000/hooks/block", {
-    headers: {
-      "content-type": "application/json",
-      "x-alchemy-signature": bytesToHex(hmac(sha256, utf8ToBytes("block"), utf8ToBytes(payload))),
     },
     body: payload,
   });
@@ -172,11 +115,18 @@ export function persona(referenceId: string, event = "approved") {
   if (!ok) throw new Error(`${status} ${body}`);
 }
 
-export function purchase(cardId: string, amount: number, merchantName: string) {
-  const id = String(Date.now());
+let purchases = 0;
+export function purchase(
+  cardId: string,
+  userId: string,
+  amount: number,
+  merchantName: string,
+  declinedReason?: string,
+) {
+  const id = `${Date.now()}${String(purchases++).padStart(3, "0")}`;
   const cents = Math.round(amount * 100);
   const authorizedAt = new Date().toISOString();
-  for (const action of ["created", "completed"] as const) {
+  for (const action of declinedReason ? ["created"] : ["requested", "created", "completed"]) {
     const payload = JSON.stringify({
       id: `${id}-${action}`,
       resource: "transaction",
@@ -198,8 +148,9 @@ export function purchase(cardId: string, amount: number, merchantName: string) {
           merchantCity: "London",
           merchantCountry: "GB",
           merchantName,
-          userId: "e2e",
-          status: action === "created" ? "pending" : "completed",
+          userId,
+          status: declinedReason ? "declined" : action === "completed" ? "completed" : "pending",
+          ...(declinedReason && { declinedReason }),
           ...(action === "completed" && { postedAt: new Date().toISOString() }),
         },
       },

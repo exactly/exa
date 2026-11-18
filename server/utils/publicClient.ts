@@ -1,22 +1,34 @@
 import { getActiveSpan } from "@sentry/node";
 import { inspect } from "node:util";
 import { array, object, optional, parse, string, unknown, type InferOutput } from "valibot";
-import { createPublicClient, http } from "viem";
+import { createPublicClient, http, type Chain, type PublicClient } from "viem";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import chain from "@exactly/common/generated/chain";
+import chain, { alchemyChains, networks } from "@exactly/common/generated/chain";
 
-if (!chain.rpcUrls.alchemy.http[0]) throw new Error("missing alchemy rpc url");
+const publicClient = alchemyClient(chain);
+export default publicClient;
 
-export default createPublicClient({
-  chain,
-  transport: http(`${chain.rpcUrls.alchemy.http[0]}/${alchemyAPIKey}`, {
-    batch: true,
-    async onFetchRequest(request) {
-      captureRequests(parse(Requests, await request.json()));
-    },
-  }),
-});
+export const clients: ReadonlyMap<number, PublicClient> = new Map(
+  [...networks.keys()].map((id) => [
+    id,
+    id === chain.id ? publicClient : alchemyClient(alchemyChains.get(id) as Chain),
+  ]),
+);
+
+export function alchemyClient<C extends Chain>(network: C) {
+  const url = network.rpcUrls.alchemy?.http[0];
+  if (!url) throw new Error("missing alchemy rpc url");
+  return createPublicClient({
+    chain: network,
+    transport: http(`${url}/${alchemyAPIKey}`, {
+      batch: true,
+      async onFetchRequest(request) {
+        captureRequests(parse(Requests, await request.json()));
+      },
+    }),
+  });
+}
 
 export function captureRequests(requests: InferOutput<typeof Requests>) {
   const span = getActiveSpan();

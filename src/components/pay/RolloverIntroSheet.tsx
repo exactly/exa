@@ -7,11 +7,7 @@ import { useRouter } from "expo-router";
 import { toast } from "@tamagui/toast";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
-import { useQuery } from "@tanstack/react-query";
-
-import accountInit from "@exactly/common/accountInit";
-import { exaPluginAddress } from "@exactly/common/generated/chain";
-import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
+import chain from "@exactly/common/generated/chain";
 
 import calendarRollover from "../../assets/images/calendar-rollover.svg";
 import { ArrowRight } from "../../generated/icons/ArrowRight";
@@ -19,32 +15,28 @@ import { Calendar } from "../../generated/icons/Calendar";
 import { CirclePercent } from "../../generated/icons/CirclePercent";
 import { Siren } from "../../generated/icons/Siren";
 import queryClient from "../../utils/queryClient";
-import useAccount from "../../utils/useAccount";
+import useProposalManager from "../../utils/useProposalManager";
 import ModalSheet, { Inset } from "../shared/ModalSheet";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import ThemedSvg from "../shared/ThemedSvg";
 import View from "../shared/View";
 
-import type { Credential } from "@exactly/common/validation";
-
-export default function RolloverIntroSheet({ maturity, onClose }: { maturity?: string; onClose: () => void }) {
+export default function RolloverIntroSheet({
+  payment,
+  onClose,
+}: {
+  onClose: () => void;
+  payment?: { chainId: number; maturity: string };
+}) {
   const router = useRouter();
-  const { address } = useAccount();
   const { t } = useTranslation();
-  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
-  const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
-    address,
-    factory: credential?.factory,
-    factoryData: credential && accountInit(credential),
-    query: { refetchOnMount: true, enabled: !!address && !!credential },
-  });
-  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
   const [open, setOpen] = useState(false);
-  const [displayMaturity, setDisplayMaturity] = useState(maturity);
+  const [displayPayment, setDisplayPayment] = useState(payment);
+  const proposalManager = useProposalManager(displayPayment?.chainId ?? chain.id);
 
-  if (maturity) {
-    if (maturity !== displayMaturity) setDisplayMaturity(maturity);
+  if (payment) {
+    if (payment !== displayPayment) setDisplayPayment(payment);
     if (!open) setOpen(true);
   }
 
@@ -54,14 +46,17 @@ export default function RolloverIntroSheet({ maturity, onClose }: { maturity?: s
   }, [onClose]);
 
   const navigate = useCallback(() => {
-    if (!isLatestPlugin) {
+    if (!proposalManager) {
       toast.error(t("Upgrade account to rollover"), { duration: 1000 });
       return;
     }
     queryClient.setQueryData<boolean>(["settings", "rollover-intro-shown"], true);
     close();
-    router.navigate({ pathname: "/roll-debt", params: { maturity: displayMaturity } });
-  }, [isLatestPlugin, close, router, displayMaturity, t]);
+    router.navigate({
+      pathname: "/roll-debt",
+      params: { maturity: displayPayment?.maturity, chainId: displayPayment && String(displayPayment.chainId) },
+    });
+  }, [proposalManager, close, router, displayPayment, t]);
 
   return (
     <ModalSheet open={open} onClose={close} backgroundColor="backgroundMild" scrollsUnderInset>

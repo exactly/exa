@@ -16,12 +16,14 @@ import {
   exaPluginAbi,
   marketUSDCAddress,
   marketWETHAddress,
+  networks,
   usdcAddress,
   wethAddress,
 } from "@exactly/common/generated/chain";
 
 import database, { cards, credentials } from "../../database";
 import t from "../../i18n";
+import { key } from "../../utils/liquidity";
 import createOnesignal from "../../utils/onesignal";
 import publicClient from "../../utils/publicClient";
 import { bullmq } from "../../utils/redis";
@@ -31,6 +33,7 @@ import creditWorker from "../../workers/credit/worker";
 import { finished, tip } from "../redis";
 
 import type { Job as Credit } from "../../workers/credit/job";
+import type * as C from "@exactly/common/generated/chain";
 import type { Address } from "@exactly/common/validation";
 import type * as sentry from "@sentry/node";
 import type { JobsOptions } from "bullmq";
@@ -39,6 +42,7 @@ const account = derive("0xc12ed1");
 const debit = derive("0xc12ed2");
 const empty = derive("0xc12ed3");
 const unknown = derive("0xc12ed4");
+const holder = derive("0xc12ed5");
 const keeper = wallet(privateKeyToAccount(padHex("0x69")));
 const credit = createCredit(bullmq);
 const onesignal = createOnesignal("onesignal");
@@ -46,17 +50,37 @@ const queue = new Queue<Credit, void, "credit">("credit", { connection: bullmq }
 const events = new QueueEvents("credit", { connection: bullmq, lastEventId: await tip(bullmq, queue) });
 const readContract = publicClient.readContract;
 let worker: ReturnType<typeof creditWorker>;
+const tenants = [
+  { isBase: false, own: "OP", other: "BASE" },
+  { isBase: true, own: "BASE", other: "OP" },
+] as const;
+const mocks = vi.hoisted(() => ({ isBase: vi.fn<(base: boolean) => boolean>() }));
+
+vi.mock("@exactly/common/generated/chain", async (importOriginal) => {
+  const original = await importOriginal<typeof C>();
+  return {
+    ...original,
+    get isBase() {
+      return mocks.isBase(original.isBase);
+    },
+  };
+});
 
 beforeAll(async () => {
   await database.insert(credentials).values([
     { id: "credit-worker", account, factory: exaAccountFactoryAddress, publicKey: new Uint8Array() },
     { id: "credit-debit", account: debit, factory: exaAccountFactoryAddress, publicKey: new Uint8Array() },
     { id: "credit-empty", account: empty, factory: exaAccountFactoryAddress, publicKey: new Uint8Array() },
+    { id: "credit-holder", account: holder, factory: exaAccountFactoryAddress, publicKey: new Uint8Array() },
   ]);
   await database.insert(cards).values([
-    { id: "credit-card", credentialId: "credit-worker", lastFour: "1234" },
-    { id: "credit-debit-card", credentialId: "credit-debit", lastFour: "1234" },
-    { id: "credit-empty-card", credentialId: "credit-empty", lastFour: "1234" },
+    { id: "credit-card", credentialId: "credit-worker", tenant: "OP", lastFour: "1234" },
+    { id: "credit-debit-card", credentialId: "credit-debit", tenant: "OP", lastFour: "1234" },
+    { id: "credit-empty-card", credentialId: "credit-empty", tenant: "OP", lastFour: "1234" },
+    { id: "credit-active", credentialId: "credit-holder", tenant: "OP", lastFour: "1111" },
+    { id: "credit-deleted", credentialId: "credit-holder", tenant: "OP", lastFour: "2222", status: "DELETED" },
+    { id: "credit-frozen", credentialId: "credit-holder", tenant: "OP", lastFour: "3333", status: "FROZEN" },
+    { id: "credit-installments", credentialId: "credit-holder", tenant: "OP", lastFour: "4444", mode: 3 },
   ]);
   await Promise.all([
     collateralize("0xc12ed1", [wethAddress, marketWETHAddress, parseEther("1")]),
@@ -66,18 +90,27 @@ beforeAll(async () => {
       [usdcAddress, marketUSDCAddress, 1_000_000n],
     ),
     collateralize("0xc12ed4", [wethAddress, marketWETHAddress, parseEther("1")]),
+    collateralize("0xc12ed5", [wethAddress, marketWETHAddress, parseEther("1")]),
   ]);
 });
 
 beforeEach(async () => {
   vi.restoreAllMocks();
+  mocks.isBase.mockReset().mockImplementation((base) => base);
   sendPushNotificationMock.mockResolvedValue({});
-  await database.update(cards).set({ mode: 0, status: "ACTIVE" }).where(eq(cards.credentialId, "credit-worker"));
+  await database
+    .update(cards)
+    .set({ mode: 0, status: "ACTIVE", tenant: "OP" })
+    .where(eq(cards.credentialId, "credit-worker"));
 });
 
 afterAll(async () => {
-  await database.delete(cards).where(inArray(cards.credentialId, ["credit-worker", "credit-debit", "credit-empty"]));
-  await database.delete(credentials).where(inArray(credentials.id, ["credit-worker", "credit-debit", "credit-empty"]));
+  await database
+    .delete(cards)
+    .where(inArray(cards.credentialId, ["credit-worker", "credit-debit", "credit-empty", "credit-holder"]));
+  await database
+    .delete(credentials)
+    .where(inArray(credentials.id, ["credit-worker", "credit-debit", "credit-empty", "credit-holder"]));
   await Promise.all([queue.close(), events.close(), credit.close()]);
 });
 
@@ -145,7 +178,7 @@ describe("credit worker", () => {
     });
     expect(setAttribute.mock.calls.filter(([attribute]) => String(attribute).startsWith("exa."))).toStrictEqual([
       ["exa.autoCredit", true],
-      ["exa.card", "credit-card"],
+      ["exa.cards", ["credit-card"]],
       ["exa.mode", 1],
     ]);
     expect(startSpan).toHaveBeenCalledWith(
@@ -155,6 +188,41 @@ describe("credit worker", () => {
     expect(startSpan).toHaveBeenCalledWith(
       expect.objectContaining({ name: "credit", op: "queue.process" }),
       expect.any(Function),
+    );
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("activates credit mode on every active or frozen debit card", async () => {
+    await jobFinished(holder);
+
+    await expect(
+      database.query.cards.findMany({
+        columns: { id: true, mode: true },
+        where: eq(cards.credentialId, "credit-holder"),
+        orderBy: cards.id,
+      }),
+    ).resolves.toStrictEqual([
+      { id: "credit-active", mode: 1 },
+      { id: "credit-deleted", mode: 0 },
+      { id: "credit-frozen", mode: 1 },
+      { id: "credit-installments", mode: 3 },
+    ]);
+    expect(sendPushNotificationMock).toHaveBeenCalledExactlyOnceWith({
+      userId: holder,
+      headings: t("Credit mode activated"),
+      contents: t("Your card is now in credit mode", { count: 2 }),
+    });
+  });
+
+  it("stores liquidity of card users on every network", async () => {
+    await database.update(credentials).set({ pandaId: "credit-panda" }).where(eq(credentials.id, "credit-empty"));
+
+    await jobFinished(empty);
+
+    await vi.waitFor(() =>
+      expect(bullmq.hkeys(key("credit-panda")).then((fields) => fields.toSorted())).resolves.toStrictEqual(
+        [...networks.keys()].map(String).toSorted(),
+      ),
     );
     expect(captureException).not.toHaveBeenCalled();
   });
@@ -199,6 +267,34 @@ describe("credit worker", () => {
     expect(sendPushNotificationMock).not.toHaveBeenCalled();
   });
 
+  it.each(tenants)("activates credit mode on cards of $own tenant", async ({ isBase, own }) => {
+    mocks.isBase.mockReturnValue(isBase);
+    await database.update(cards).set({ tenant: own }).where(eq(cards.id, "credit-card"));
+
+    await jobFinished(account);
+
+    await expect(
+      database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-card") }),
+    ).resolves.toStrictEqual({ mode: 1 });
+    expect(sendPushNotificationMock).toHaveBeenCalledExactlyOnceWith({
+      userId: account,
+      headings: t("Credit mode activated"),
+      contents: t("Your card is now in credit mode"),
+    });
+  });
+
+  it.each(tenants)("does not change cards from $other tenant", async ({ isBase, other }) => {
+    mocks.isBase.mockReturnValue(isBase);
+    await database.update(cards).set({ tenant: other }).where(eq(cards.id, "credit-card"));
+
+    await jobFinished(account);
+
+    await expect(
+      database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-card") }),
+    ).resolves.toStrictEqual({ mode: 0 });
+    expect(sendPushNotificationMock).not.toHaveBeenCalled();
+  });
+
   it("does not change cards for unknown accounts", async () => {
     await jobFinished(unknown);
 
@@ -215,7 +311,7 @@ describe("credit worker", () => {
 
     await jobFinished(account);
 
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(error);
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(error, { level: "error" });
     expect(reads(spy)).toHaveLength(1);
     await expect(
       database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-card") }),

@@ -8,17 +8,9 @@ import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import { waitForCallsStatus } from "@wagmi/core/actions";
 import { digits, nonEmpty, pipe, safeParse, string, transform } from "valibot";
-import { encodeDeployData, encodeFunctionData } from "viem";
-import { useReadContract, useSendCalls } from "wagmi";
+import { encodeFunctionData } from "viem";
+import { useSendCalls } from "wagmi";
 
-import chain, {
-  auditorAddress,
-  exaPreviewerAbi,
-  exaPreviewerCode,
-  marketUSDCAddress,
-  previewerAddress,
-  proposalManagerAddress,
-} from "@exactly/common/generated/chain";
 import { useReadPreviewerPreviewBorrowAtMaturity } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
 import { MATURITY_INTERVAL, WAD } from "@exactly/lib";
@@ -29,10 +21,13 @@ import Text from "../../components/shared/Text";
 import View from "../../components/shared/View";
 import { ArrowLeft } from "../../generated/icons/ArrowLeft";
 import { ArrowRight } from "../../generated/icons/ArrowRight";
+import { network } from "../../utils/marketsOptions";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useInsets from "../../utils/useInsets";
+import useNetwork from "../../utils/useNetwork";
+import usePendingOperations from "../../utils/usePendingOperations";
 import useSimulateProposal from "../../utils/useSimulateProposal";
 import useSingleMutation from "../../utils/useSingleMutation";
 import exa from "../../utils/wagmi/exa";
@@ -48,7 +43,9 @@ export default function Pay() {
   const { address } = useAccount();
   const insets = useInsets();
   const router = useRouter();
-  const { market: exaUSDC, timestamp, isFetching } = useAsset(marketUSDCAddress);
+  const chainId = useNetwork();
+  const { marketUSDC, previewer } = network(chainId);
+  const { market: exaUSDC, timestamp, isFetching } = useAsset(marketUSDC, chainId);
   const { success, output: repayMaturity } = safeParse(
     pipe(string(), nonEmpty("no maturity"), digits("bad maturity"), transform(BigInt as (input: string) => bigint)),
     useLocalSearchParams().maturity,
@@ -78,9 +75,9 @@ export default function Pay() {
   const rolloverMaturityBorrow = exaUSDC?.fixedBorrowPositions.find((b) => b.maturity === borrowMaturity);
 
   const { data: borrowPreview } = useReadPreviewerPreviewBorrowAtMaturity({
-    address: previewerAddress,
-    chainId: chain.id,
-    args: [marketUSDCAddress, borrowMaturity, borrow?.previewValue ?? 0n],
+    address: previewer,
+    chainId,
+    args: [marketUSDC, borrowMaturity, borrow?.previewValue ?? 0n],
     query: { enabled: !!exaUSDC && !!borrow && !!address && !!borrowMaturity },
   });
 
@@ -240,6 +237,8 @@ function RolloverButton({
   const { t } = useTranslation();
   const { address } = useAccount();
   const router = useRouter();
+  const chainId = useNetwork();
+  const { marketUSDC } = network(chainId);
 
   const slippage = (WAD * 105n) / 100n;
   const maxRepayAssets = (borrow.previewValue * slippage) / WAD;
@@ -247,8 +246,9 @@ function RolloverButton({
 
   const { request: proposeSimulation, error: executeProposalError } = useSimulateProposal({
     account: address,
+    chainId,
     amount: maxRepayAssets,
-    market: marketUSDCAddress,
+    market: marketUSDC,
     proposalType: ProposalType.RollDebt,
     borrowMaturity,
     maxRepayAssets,
@@ -258,21 +258,8 @@ function RolloverButton({
   });
 
   const {
-    data: pendingProposals,
-    refetch: refetchPendingProposals,
-    isPending: isPendingProposalsPending,
-  } = useReadContract({
-    abi: exaPreviewerAbi,
-    functionName: "pendingProposals",
-    code: encodeDeployData({
-      abi: exaPreviewerAbi,
-      bytecode: exaPreviewerCode,
-      args: [auditorAddress, marketUSDCAddress, proposalManagerAddress],
-    }),
-    chainId: chain.id,
-    args: address ? [address] : undefined,
-    query: { enabled: !!address, gcTime: 0, refetchInterval: 30_000 },
-  });
+    proposals: { data: pendingProposals, refetch: refetchPendingProposals, isPendingOn: isProposalsPendingOn },
+  } = usePendingOperations();
 
   const { mutateAsync: mutateSendCalls } = useSendCalls();
   const {
@@ -286,8 +273,9 @@ function RolloverButton({
       if (!proposeSimulation) throw new Error("no propose roll debt simulation");
       const { address: to, abi, functionName, args } = proposeSimulation;
       const { id } = await mutateSendCalls({
-        chainId: chain.id,
+        chainId,
         calls: [{ to, data: encodeFunctionData({ abi, functionName, args }) }],
+        capabilities: { spend: { amount: maxRepayAssets, token: marketUSDC } },
       });
       const { status } = await waitForCallsStatus(exa, { id });
       if (status === "failure") throw new Error("failed to propose rollover");
@@ -303,9 +291,10 @@ function RolloverButton({
     },
   });
 
-  const hasProposed = pendingProposals?.some(
-    ({ proposal }) =>
-      proposal.market === marketUSDCAddress &&
+  const hasProposed = pendingProposals.some(
+    ({ chainId: proposalChainId, proposal }) =>
+      proposalChainId === chainId &&
+      proposal.market === marketUSDC &&
       proposal.proposalType === (ProposalType.RollDebt as number) &&
       proposal.amount === maxRepayAssets,
   );
@@ -314,7 +303,7 @@ function RolloverButton({
     isError ||
     !!executeProposalError ||
     isProposeRollDebtPending ||
-    isPendingProposalsPending ||
+    isProposalsPendingOn(chainId) ||
     !proposeSimulation ||
     hasProposed;
   return (

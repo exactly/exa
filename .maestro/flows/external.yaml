@@ -10,7 +10,7 @@ env:
 - tapOn: Swap now
 - tapOn: { text: "0", index: 0 }
 - inputText: "20000"
-- assertVisible: "High price impact: you receive 2\\.2% less value than you pay\\."
+- assertVisible: "High price impact: you receive 2\\.7% less value than you pay\\."
 - tapOn: Swap USDT for USDC
 - assertVisible: completed
 - runScript:
@@ -49,6 +49,11 @@ env:
     file: ../subflows/borrow.yaml
     env: { amount: "100", installments: "1", receiver: "0x000000000000000000000000000000000000dEaD" }
 - runFlow: { file: ../subflows/repay.yaml, env: { external: USDT } }
+- tapOn: Activity
+- assertVisible: Swapped USDT for USDC
+- tapOn: Loan
+- assertVisible: { text: '100[\s\xa0]USDC', below: Loan }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
 - tapOn: Home
 - scrollUntilVisible: { element: "Good (morning|afternoon|evening)!", direction: UP }
 - runFlow: ../subflows/storeCoverage.yaml

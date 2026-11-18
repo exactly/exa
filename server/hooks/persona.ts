@@ -1,6 +1,6 @@
 import { vValidator } from "@hono/valibot-validator";
 import { captureException, getActiveSpan, SEMANTIC_ATTRIBUTE_SENTRY_OP, setContext, setUser } from "@sentry/node";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import {
   array,
@@ -29,7 +29,7 @@ import {
 } from "valibot";
 import { bytesToHex } from "viem";
 
-import chain, { firewallAddress } from "@exactly/common/generated/chain";
+import { isBase, networks } from "@exactly/common/generated/chain";
 import { CLASSIC_PRODUCT_ID } from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
 
@@ -87,7 +87,7 @@ export default function hook({
   allow: ReturnType<typeof createAllow>;
   database: NodePgDatabase<typeof schema>;
   panda: ReturnType<typeof createPanda>;
-  pax: ReturnType<typeof createPax>;
+  pax?: ReturnType<typeof createPax>;
   persona: ReturnType<typeof createPersona>;
   personaWebhookSecret: string;
   sardine: ReturnType<typeof createSardine>;
@@ -312,11 +312,21 @@ export default function hook({
         const credential = await database.query.credentials.findFirst({
           columns: { pandaId: true },
           where: eq(credentials.id, referenceId),
-          with: { cards: { columns: { id: true }, where: inArray(cards.status, ["ACTIVE", "FROZEN"]), limit: 1 } },
+          with: {
+            cards: {
+              columns: { id: true },
+              where: and(inArray(cards.status, ["ACTIVE", "FROZEN"]), eq(cards.tenant, isBase ? "BASE" : "OP")),
+              limit: 2,
+            },
+          },
         });
         if (!credential) {
           captureException(new Error("no credential"), { level: "error", contexts: { credential: { referenceId } } });
           return c.json({ code: "ok" }, 200);
+        }
+        if (credential.cards.length > 1) {
+          captureException(new Error("multiple cards"), { level: "error", contexts: { credential: { referenceId } } });
+          return c.json({ code: "multiple cards" }, 200);
         }
         await persona.updateCardLimit(referenceId, limitUsd).catch((error: unknown) => {
           captureException(error, {
@@ -367,12 +377,17 @@ export default function hook({
       }
       if (payload.template === "representative") {
         getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "persona.inquiry.representative");
-        if (payload.data.attributes.status !== "approved") return c.json({ code: "ok" }, 200);
+        if (!isBase || payload.data.attributes.status !== "approved") return c.json({ code: "ok" }, 200);
         const { referenceId } = payload.data.attributes;
         const credential = await database.query.credentials.findFirst({
           columns: { account: true, factory: true, pandaId: true, publicKey: true, salt: true, source: true },
           where: eq(credentials.id, referenceId),
-          with: { cards: { columns: { id: true }, where: inArray(cards.status, ["ACTIVE", "FROZEN"]) } },
+          with: {
+            cards: {
+              columns: { id: true },
+              where: and(inArray(cards.status, ["ACTIVE", "FROZEN"]), eq(cards.tenant, "BASE")),
+            },
+          },
         });
         if (!credential) {
           captureException(new Error("no credential"), { level: "error", contexts: { credential: { referenceId } } });
@@ -398,16 +413,18 @@ export default function hook({
                 .where(eq(credentials.id, referenceId))
                 .then(() => user.id);
             }));
-        if (firewallAddress) {
-          await allow.enqueue({
-            account,
-            chainId: chain.id,
-            factory: parse(Address, credential.factory),
-            publicKey: bytesToHex(credential.publicKey),
-            salt: parse(Address, credential.salt),
-            source: credential.source,
-          });
-        }
+        await Promise.all(
+          [...networks.keys()].map((chainId) =>
+            allow.enqueue({
+              account,
+              chainId,
+              factory: parse(Address, credential.factory),
+              publicKey: bytesToHex(credential.publicKey),
+              salt: parse(Address, credential.salt),
+              source: credential.source,
+            }),
+          ),
+        );
         const { value: mail } = payload.data.attributes.fields.authUserEmail;
         try {
           const card = await panda
@@ -435,9 +452,15 @@ export default function hook({
                 c.req.valid("json").data.id,
               ),
             );
-          await database
-            .insert(cards)
-            .values([{ id: card.id, credentialId: referenceId, lastFour: card.last4, productId: CLASSIC_PRODUCT_ID }]);
+          await database.insert(cards).values([
+            {
+              id: card.id,
+              credentialId: referenceId,
+              tenant: "BASE",
+              lastFour: card.last4,
+              productId: CLASSIC_PRODUCT_ID,
+            },
+          ]);
           return c.json({ code: "ok" }, 200);
         } catch (error) {
           if (
@@ -479,15 +502,19 @@ export default function hook({
 
       const account = safeParse(Address, credential.account);
       async function enqueueAllow(current: NonNullable<typeof credential>) {
-        if (account.success && firewallAddress)
-          await allow.enqueue({
-            account: account.output,
-            chainId: chain.id,
-            factory: parse(Address, current.factory),
-            publicKey: bytesToHex(current.publicKey),
-            salt: parse(Address, current.salt),
-            source: current.source,
-          });
+        if (account.success)
+          await Promise.all(
+            [...networks.keys()].map((chainId) =>
+              allow.enqueue({
+                account: account.output,
+                chainId,
+                factory: parse(Address, current.factory),
+                publicKey: bytesToHex(current.publicKey),
+                salt: parse(Address, current.salt),
+                source: current.source,
+              }),
+            ),
+          );
       }
       if (credential.pandaId) {
         await enqueueAllow(credential);
@@ -552,15 +579,18 @@ export default function hook({
       await enqueueAllow(credential);
 
       // TODO implement error handling to return 200 if event should not be retried
-      const { id } = await panda.createUser({
-        accountPurpose: fields.accountPurpose.value,
-        annualSalary,
-        expectedMonthlyVolume,
-        ipAddress: session.attributes.IPAddress,
-        isTermsOfServiceAccepted: true,
-        occupation: fields.inputSelect.value,
-        personaShareToken,
-      });
+      const { id } = await panda.createUser(
+        {
+          accountPurpose: fields.accountPurpose.value,
+          annualSalary,
+          expectedMonthlyVolume,
+          ipAddress: session.attributes.IPAddress,
+          isTermsOfServiceAccepted: true,
+          occupation: fields.inputSelect.value,
+          personaShareToken,
+        },
+        c.req.valid("json").data.id,
+      );
 
       await database.update(credentials).set({ pandaId: id }).where(eq(credentials.id, referenceId));
 
@@ -569,7 +599,7 @@ export default function hook({
 
       if (account.success) {
         pax
-          .addCapita({
+          ?.addCapita({
             birthdate: fields.birthdate.value,
             document: fields.identificationNumber.value,
             firstName: fields.nameFirst.value,

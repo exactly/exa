@@ -2,17 +2,20 @@ import {
   encodeAbiParameters,
   encodeErrorResult,
   encodeFunctionData,
+  getContractAddress,
   multicall3Abi,
   parseAbi,
   slice,
   zeroAddress,
+  zeroHash,
   type Address,
   type Hex,
 } from "viem";
-import { useReadContracts, type UseWriteContractReturnType } from "wagmi";
+import { ChainNotConfiguredError, useReadContract, useReadContracts, type UseWriteContractReturnType } from "wagmi";
 
-import chain, { proposalManagerAddress } from "@exactly/common/generated/chain";
+import { alchemyChains, appPreviewerCode, appPreviewerDeployedCode } from "@exactly/common/generated/chain";
 import {
+  appPreviewerAbi,
   auditorAbi,
   exaPluginAbi,
   proposalManagerAbi,
@@ -25,11 +28,7 @@ import useSimulateBlocks from "./wagmi/useSimulateBlocks";
 export default function useSimulateProposal({
   account,
   amount,
-  chain: {
-    contracts: {
-      multicall3: { address: multicall3Address },
-    },
-  } = chain,
+  chainId,
   enabled = true,
   market,
   poll = false,
@@ -37,7 +36,7 @@ export default function useSimulateProposal({
 }: {
   account: Address | undefined;
   amount: bigint | undefined;
-  chain?: { contracts: { multicall3: { address: Address } } };
+  chainId: number;
   enabled?: boolean;
   market: Address | undefined;
   poll?: boolean;
@@ -78,48 +77,16 @@ export default function useSimulateProposal({
   | { proposalType: typeof ProposalType.Withdraw; receiver: Address | undefined }
 )) {
   const {
-    data: reads,
-    error: readsError,
-    isFetchedAfterMount,
-    refetch: refetchReads,
-  } = useReadContracts({
-    contracts: [
-      { address: account, abi: upgradeableModularAccountAbi, functionName: "getInstalledPlugins" },
-      { address: proposalManagerAddress, abi: proposalManagerAbi, functionName: "delay" },
-      {
-        address: proposalManagerAddress,
-        abi: proposalManagerAbi,
-        functionName: "queueNonces",
-        args: account ? [account] : undefined,
-      },
-      {
-        address: proposalManagerAddress,
-        abi: proposalManagerAbi,
-        functionName: "nonces",
-        args: account ? [account] : undefined,
-      },
-      { address: multicall3Address, abi: multicall3Abi, functionName: "getCurrentBlockTimestamp" },
-      {
-        address: multicall3Address,
-        abi: [
-          {
-            type: "function",
-            name: "getBlockNumber",
-            inputs: [],
-            outputs: [{ type: "uint256" }],
-            stateMutability: "view",
-          },
-        ],
-        functionName: "getBlockNumber",
-      },
-    ] as const,
-    allowFailure: false,
-    query: {
-      enabled: enabled && !!account,
-      refetchInterval: ({ state: { data } }) => (poll && data && data[2] > data[3] ? 5000 : false),
-    },
-  });
-  const [plugins, delay, nonce, executed, timestamp, blockNumber] = isFetchedAfterMount ? (reads ?? []) : [];
+    preview,
+    delay,
+    timestamp,
+    blockNumber,
+    plugins,
+    error: previewError,
+    refetch: refetchPreview,
+  } = useProposalPreview({ account, chainId, enabled, poll, fresh: true });
+  const nonce = preview?.queueNonce;
+  const executed = preview?.nonce;
   const proposalData =
     proposal.proposalType === ProposalType.BorrowAtMaturity
       ? encodeBorrowAtMaturity(proposal)
@@ -139,6 +106,7 @@ export default function useSimulateProposal({
       ? undefined
       : encodeFunctionData({ abi: exaPluginAbi, functionName: "executeProposal", args: [nonce] });
   const simulation = useSimulateBlocks({
+    chainId,
     blockNumber,
     blocks: blocks(account, calldata, execution, timestamp, delay),
     query: {
@@ -186,6 +154,7 @@ export default function useSimulateProposal({
         ? outdated && { request: outdated, calls: [encodeFunctionData(outdated), execution] }
         : undefined;
   const retry = useSimulateBlocks({
+    chainId,
     blockNumber,
     blocks: blocks(account, fallback?.calls[0], fallback?.calls[1], timestamp, delay),
     query: {
@@ -204,7 +173,7 @@ export default function useSimulateProposal({
       : { simulation: retry, request: fallback.request, propose: retryPropose, execute: retryExecute };
   const queued = enabled && nonce !== undefined && executed !== undefined && nonce > executed;
   const error =
-    readsError ??
+    previewError ??
     settled.simulation.error ??
     (settled.propose?.status === "failure" ? settled.propose.error : null) ??
     (settled.execute?.status === "failure" ? settled.execute.error : null);
@@ -218,7 +187,87 @@ export default function useSimulateProposal({
     delay,
     queued,
     refetch: () =>
-      Promise.all([refetchReads(), simulation.error && simulation.refetch(), retry.error && retry.refetch()]),
+      Promise.all([refetchPreview(), simulation.error && simulation.refetch(), retry.error && retry.refetch()]),
+  };
+}
+
+export function useProposalPreview({
+  account,
+  chainId,
+  enabled = true,
+  fresh = false,
+  poll = false,
+}: {
+  account: Address | undefined;
+  chainId: number;
+  enabled?: boolean;
+  fresh?: boolean;
+  poll?: boolean;
+}) {
+  const multicall3Address = alchemyChains.get(chainId)?.contracts?.multicall3?.address;
+  const {
+    data,
+    error: readsError,
+    isFetchedAfterMount,
+    isLoading: isReadsLoading,
+    refetch: refetchReads,
+  } = useReadContracts({
+    chainId,
+    multicallAddress: multicall3Address,
+    contracts: [
+      {
+        address: previewerAddress,
+        abi: appPreviewerAbi,
+        functionName: "proposalManager",
+        args: account ? [account] : undefined,
+      },
+      { address: multicall3Address, abi: multicall3Abi, functionName: "getCurrentBlockTimestamp" },
+      {
+        address: multicall3Address,
+        abi: [
+          {
+            type: "function",
+            name: "getBlockNumber",
+            inputs: [],
+            outputs: [{ type: "uint256" }],
+            stateMutability: "view",
+          },
+        ],
+        functionName: "getBlockNumber",
+      },
+      { address: account, abi: upgradeableModularAccountAbi, functionName: "getInstalledPlugins" },
+    ] as const,
+    allowFailure: false,
+    stateOverride: [{ address: previewerAddress, code: appPreviewerDeployedCode }],
+    query: {
+      enabled: enabled && !!account && !!multicall3Address,
+      refetchInterval: ({ state: { data: reads } }) =>
+        poll && reads && reads[0].queueNonce > reads[0].nonce ? 5000 : false,
+    },
+  });
+  const [preview, timestamp, blockNumber, plugins] = (!fresh || isFetchedAfterMount ? data : undefined) ?? [];
+  const outdated = preview?.proposalManager === zeroAddress;
+  const {
+    data: outdatedDelay,
+    error: outdatedError,
+    isLoading: isOutdatedLoading,
+    refetch: refetchOutdated,
+  } = useReadContract({
+    address: plugins?.[0],
+    abi: outdatedAbi,
+    functionName: "PROPOSAL_DELAY",
+    chainId,
+    query: { enabled: enabled && outdated && !!plugins?.[0], staleTime: Infinity },
+  });
+  return {
+    preview,
+    delay: outdated ? outdatedDelay : preview?.delay,
+    timestamp,
+    blockNumber,
+    plugins,
+    isLoading: isReadsLoading || isOutdatedLoading,
+    error: enabled && !multicall3Address ? chainNotConfigured : (readsError ?? outdatedError),
+    refetch: () => Promise.all([refetchReads(), outdatedError && refetchOutdated()]),
   };
 }
 
@@ -433,12 +482,20 @@ function encodeAddress(receiver: Address | undefined) {
   return receiver && encodeAbiParameters([{ type: "address" }], [receiver]);
 }
 
+const chainNotConfigured = new ChainNotConfiguredError();
 const proposeAbi = [...upgradeableModularAccountAbi, ...exaPluginAbi, ...proposalManagerAbi, ...auditorAbi];
 const outdatedAbi = [
   ...upgradeableModularAccountAbi,
   ...parseAbi([
+    "function PROPOSAL_DELAY() view returns (uint256)",
     "function executeProposal()",
     "function propose(address market, uint256 amount, address receiver)",
     "function withdraw()",
   ]),
 ];
+const previewerAddress = getContractAddress({
+  bytecode: appPreviewerCode,
+  from: zeroAddress,
+  opcode: "CREATE2",
+  salt: zeroHash,
+});

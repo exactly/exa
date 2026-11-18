@@ -8,7 +8,6 @@ import { readContract, waitForCallsStatus } from "@wagmi/core/actions";
 import {
   decodeErrorResult,
   encodeAbiParameters,
-  encodeDeployData,
   encodeErrorResult,
   encodeFunctionData,
   getAbiItem,
@@ -20,15 +19,9 @@ import { simulateBlocks } from "viem/actions";
 import { useBytecode, useSendCalls } from "wagmi";
 
 import accountInit from "@exactly/common/accountInit";
-import chain, {
-  auditorAddress,
-  exaPluginAddress,
-  exaPreviewerCode,
-  marketUSDCAddress,
-} from "@exactly/common/generated/chain";
+import chain, { appPreviewerAbi, appPreviewerCode, exaPluginAddress } from "@exactly/common/generated/chain";
 import {
   exaPluginAbi,
-  exaPreviewerAbi,
   upgradeableModularAccountAbi,
   useReadExaPluginPluginManifest,
   useReadUpgradeableModularAccountGetInstalledPlugins,
@@ -119,20 +112,8 @@ export default function PluginUpgrade() {
       const simulation = await simulate(address, [batch]);
       if (simulation && pending(simulation.calls[0])) {
         const proposals = await readContract(exa, {
-          abi: exaPreviewerAbi,
-          code: encodeDeployData({
-            abi: exaPreviewerAbi,
-            bytecode: exaPreviewerCode,
-            args: [
-              auditorAddress,
-              marketUSDCAddress,
-              await readContract(exa, {
-                address: installedPlugins[0],
-                abi: exaPluginAbi,
-                functionName: "proposalManager",
-              }),
-            ],
-          }),
+          abi: appPreviewerAbi,
+          code: appPreviewerCode,
           functionName: "pendingProposals",
           args: [address],
         });
@@ -141,12 +122,13 @@ export default function PluginUpgrade() {
         const resolutions: Hex[] = [];
         for (const { nonce } of proposals) {
           const execution = encodeFunctionData({ abi: exaPluginAbi, functionName: "executeProposal", args: [nonce] });
-          const block = await simulate(address, [...resolutions, execution]);
-          resolutions.push(
-            block?.calls.at(-1)?.status === "success"
-              ? execution
-              : encodeFunctionData({ abi: exaPluginAbi, functionName: "setProposalNonce", args: [nonce + 1n] }),
-          );
+          const skip = encodeFunctionData({ abi: exaPluginAbi, functionName: "setProposalNonce", args: [nonce + 1n] });
+          const block = await simulate(address, [...resolutions, execution, skip]);
+          const executed = block?.calls.at(-2)?.status === "success";
+          const consumed = block?.calls.at(-1)?.status === "failure";
+          if (executed && !consumed)
+            reportError(new Error("upgrade skipped executable proposal"), { level: "warning" });
+          resolutions.push(executed && consumed ? execution : skip);
         }
         calls = [
           ...resolutions.map((data) => ({ target: address, value: 0n, data })),

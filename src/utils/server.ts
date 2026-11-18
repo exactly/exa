@@ -3,6 +3,12 @@ import { get as assert, create } from "react-native-passkeys";
 
 import { sdk } from "@farcaster/miniapp-sdk";
 import { base64URLStringToBuffer } from "@simplewebauthn/browser";
+import {
+  InfiniteQueryObserver,
+  infiniteQueryOptions,
+  type InfiniteData,
+  type InfiniteQueryObserverResult,
+} from "@tanstack/react-query";
 import { getConnection, signMessage, watchConnection } from "@wagmi/core";
 import { hc, parseResponse, type InferRequestType, type InferResponseType } from "hono/client";
 import { check, number, object, parse, picklist, pipe, safeParse, string, ValiError } from "valibot";
@@ -133,24 +139,32 @@ const api = hc<ExaAPI>(new URL(origin).hostname === "localhost" ? "http://localh
   },
 });
 
-async function getCard(sessionid?: string) {
-  await auth();
-  const response = await api.card.$get({ header: sessionid ? { sessionid } : {} });
-  if (!response.ok) {
-    const { code } = await response.json();
-    if (response.status === 404 && code === "no card") return null;
-    if (response.status === 403 && code === "no panda") return null;
-    throw new APIError("GET", response, code);
-  }
-  const card = await response.json();
-  if (card.mode > 0) queryClient.setQueryData(["settings", "installments"], card.mode);
-  return card;
-}
 queryClient.setQueryDefaults(["card", "details"], {
-  queryFn: () => getCard(),
+  queryFn: async () => {
+    await auth();
+    const response = await api.cards.$get();
+    if (!response.ok) {
+      const { code } = await response.json();
+      if (response.status === 403 && code === "no panda") return null;
+      throw new APIError("GET", response, code);
+    }
+    const shown = queryClient.getQueryData<CardDetails>(["card", "details"])?.lastFour;
+    const cards = await response.json();
+    const live = cards.filter(({ status }) => status !== "DELETED");
+    const card =
+      live.find(({ lastFour }) => lastFour === shown) ??
+      live.sort(
+        (a, b) =>
+          Number(a.status === "FROZEN") - Number(b.status === "FROZEN") ||
+          Number(a.type === "physical") - Number(b.type === "physical"),
+      )[0];
+    if (!card) return null;
+    if (card.mode > 0) queryClient.setQueryData(["settings", "installments"], card.mode);
+    return card;
+  },
   meta: {
     persist: (card: Card) => ({
-      cardId: card.cardId,
+      lastFour: card.lastFour,
       limit: card.limit,
       mode: card.mode,
       productId: card.productId,
@@ -158,13 +172,23 @@ queryClient.setQueryDefaults(["card", "details"], {
     }),
   },
 });
-export type CardDetails = null | (Partial<Card> & Pick<Card, "cardId" | "limit" | "mode" | "productId" | "status">);
-type Card = NonNullable<Awaited<ReturnType<typeof getCard>>>;
+export type CardDetails = null | (Partial<Card> & Pick<Card, "lastFour" | "limit" | "mode" | "productId" | "status">);
+type Card = InferResponseType<typeof api.cards.$get, 200>[number];
 
-async function getSecrets() {
+async function getSecrets(lastFour: string | undefined) {
   const { id, secret } = await session();
-  const card = await getCard(id);
-  if (!card) return card;
+  await auth();
+  const response = await api.card.$get({ header: { sessionid: id }, query: { lastFour } });
+  if (!response.ok) {
+    const { code } = await response.json();
+    if (response.status === 404 && code === "no card") {
+      if (!lastFour) return null;
+      queryClient.invalidateQueries({ queryKey: ["card", "details"] }).catch(reportError);
+    }
+    if (response.status === 403 && code === "no panda") return null;
+    throw new APIError("GET", response, code);
+  }
+  const card = await response.json();
   const { encryptedPan, encryptedCvc } = card;
   const [pan, cvc] =
     encryptedPan && encryptedCvc
@@ -175,17 +199,20 @@ async function getSecrets() {
       : [];
   return { ...card, secret, pan, cvc };
 }
-queryClient.setQueryDefaults(["card", "secrets"], { queryFn: getSecrets });
+queryClient.setQueryDefaults(["card", "secrets"], {
+  queryFn: ({ queryKey }) => getSecrets(typeof queryKey[2] === "string" ? queryKey[2] : undefined),
+});
 export type CardSecrets = Awaited<ReturnType<typeof getSecrets>>;
 
 async function getPIN() {
-  const result = await getSecrets();
+  const lastFour = queryClient.getQueryData<CardDetails>(["card", "details"])?.lastFour;
+  const result = await getSecrets(lastFour);
   if (!result?.pan || !result.cvc) return null;
   const { secret, pan, cvc, pin } = result;
   const decryptedPIN = pin ? await decryptPIN(pin.data, pin.iv, secret) : null;
   if (!decryptedPIN) {
     const newPIN = String(Math.floor(Math.random() * 10_000)).padStart(4, "0");
-    await setCardPIN(newPIN);
+    await setCardPIN(newPIN, lastFour);
     return { ...result, details: { pan, cvc, pin: newPIN } };
   }
   return { ...result, details: { pan, cvc, pin: decryptedPIN } };
@@ -201,8 +228,9 @@ export async function createCard() {
 }
 
 export async function setCardStatus(status: "ACTIVE" | "DELETED" | "FROZEN") {
+  const lastFour = queryClient.getQueryData<CardDetails>(["card", "details"])?.lastFour;
   await auth();
-  const response = await api.card.$patch({ json: { status } });
+  const response = await api.card.$patch({ json: { lastFour, status } });
   if (response.ok) return response.json();
   const body = await response.json();
   if ("code" in body && body.code === "already set") return { status };
@@ -210,8 +238,9 @@ export async function setCardStatus(status: "ACTIVE" | "DELETED" | "FROZEN") {
 }
 
 async function setCardMode(mode: number) {
+  const lastFour = queryClient.getQueryData<CardDetails>(["card", "details"])?.lastFour;
   await auth();
-  const response = await api.card.$patch({ json: { mode } });
+  const response = await api.card.$patch({ json: { lastFour, mode } });
   if (response.ok) return response.json();
   const body = await response.json();
   if ("code" in body && body.code === "already set") return { mode };
@@ -239,10 +268,10 @@ queryClient.setMutationDefaults(cardModeMutationOptions.mutationKey, {
   },
 });
 
-export async function setCardPIN(pin: string) {
+export async function setCardPIN(pin: string, lastFour: string | undefined) {
   await auth();
   const json = await encryptPIN(pin);
-  const response = await api.card.$patch({ json });
+  const response = await api.card.$patch({ json: { ...json, lastFour } });
   if (!response.ok) throw new APIError("PATCH", response, stringOrLegacy(await response.json()));
 }
 
@@ -432,20 +461,92 @@ async function getActivity(
   if (typeof activity === "string" || activity instanceof Uint8Array) throw new Error("bad activity response");
   return activity;
 }
-queryClient.setQueryDefaults(["activity"], {
-  staleTime: 60_000,
-  gcTime: isServer ? Infinity : 60 * 60_000,
-  queryFn: () => getActivity(),
+const activityPage = 50;
+const activityQuery = {
+  include: ["card", "received", "repay", "sent", "loan", "rollover", "swap", "liquidation", "bridge"],
+  limit: String(activityPage),
+} satisfies NonNullable<Parameters<typeof api.activity.$get>[0]>["query"];
+const collator = new Intl.Collator(undefined, { numeric: true });
+queryClient.setQueryDefaults(["activity"], { staleTime: 60_000, gcTime: isServer ? Infinity : 60 * 60_000 });
+export const activityOptions = infiniteQueryOptions<
+  Activity,
+  Error,
+  InfiniteData<Activity>,
+  string[],
+  { before?: string }
+>({
+  queryKey: ["activity"],
+  initialPageParam: {},
+  queryFn: ({ pageParam }) => getActivity({ ...activityQuery, ...pageParam }),
+  getNextPageParam: (page) => {
+    const last = page.at(-1);
+    return page.length >= activityPage && last ? { before: `${last.timestamp},${last.id}` } : undefined;
+  },
 });
+export function refreshActivity() {
+  queryClient.setQueryData(
+    activityOptions.queryKey,
+    (data) => data && { pages: data.pages.slice(0, 1), pageParams: data.pageParams.slice(0, 1) },
+  );
+  return queryClient.invalidateQueries({ queryKey: activityOptions.queryKey, exact: true });
+}
+export async function mergeActivity() {
+  const latest = await getActivity(activityQuery);
+  const data = queryClient.getQueryData(activityOptions.queryKey);
+  if (!data) return;
+  const fresh = new Map(latest.map((item) => [item.id, item]));
+  const [first = [], ...pages] = data.pages.map((page) =>
+    page.map((item) => {
+      const found = fresh.get(item.id);
+      fresh.delete(item.id);
+      return found ?? item;
+    }),
+  );
+  if (fresh.size === activityPage) return refreshActivity();
+  queryClient.setQueryData(activityOptions.queryKey, {
+    ...data,
+    pages: [
+      [...fresh.values(), ...first].toSorted(
+        (a, b) => b.timestamp.localeCompare(a.timestamp) || collator.compare(b.id, a.id),
+      ),
+      ...pages,
+    ],
+  });
+}
+export async function findActivity(id: string) {
+  const cached = await queryClient.ensureInfiniteQueryData(activityOptions);
+  if (!cached.pages.some((page) => page.some((entry) => entry.id === id))) await mergeActivity();
+  const observer = new InfiniteQueryObserver(queryClient, activityOptions);
+  return find(observer.getCurrentResult(), 10);
+  async function find(
+    { data, hasNextPage }: InfiniteQueryObserverResult<InfiniteData<Activity>>,
+    pages: number,
+  ): Promise<Activity[number] | null> {
+    const item = data?.pages.flat().find((entry) => entry.id === id);
+    if (item) return item;
+    if (!hasNextPage) return null;
+    if (pages === 0) throw new Error("activity not loaded");
+    return find(await observer.fetchNextPage({ throwOnError: true }), pages - 1);
+  }
+}
 queryClient.setQueryDefaults(["activity", "card"], {
   queryFn: async () => {
     const activity = await getActivity({ include: "card" });
-    return activity.filter((item): item is CardActivity => item.type === "card" || item.type === "panda");
+    const cards = activity.filter((item): item is CardActivity => item.type === "card" || item.type === "panda");
+    const fresh = new Map(cards.map((item) => [item.id, item]));
+    queryClient.setQueryData(
+      activityOptions.queryKey,
+      (data) => data && { ...data, pages: data.pages.map((page) => page.map((item) => fresh.get(item.id) ?? item)) },
+    );
+    return cards;
   },
 });
 
 export async function getStatement(maturity: number) {
-  return getActivity({ maturity: String(maturity) }, "application/pdf");
+  return getActivity(
+    { maturity: String(maturity), timezone: new Intl.DateTimeFormat().resolvedOptions().timeZone },
+    "application/pdf",
+  );
 }
 
 export async function getStatementActivity(maturity: number) {

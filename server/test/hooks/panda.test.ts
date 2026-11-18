@@ -5,43 +5,59 @@ import * as segment from "../mocks/segment";
 import "../mocks/sentry";
 import "../mocks/wallet";
 
-import { captureException, captureMessage, getClient, setUser, spanToJSON } from "@sentry/node";
+import { captureException, captureMessage, getClient, setTag, setUser, spanToJSON, startSpan } from "@sentry/node";
+import { serialize } from "@wagmi/core";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
-import { parse } from "valibot";
+import { array, looseObject, number, object, optional, parse, string } from "valibot";
 import {
   BaseError,
   ContractFunctionExecutionError,
   ContractFunctionRevertedError,
+  createPublicClient,
   createWalletClient,
   decodeEventLog,
+  decodeFunctionData,
   encodeAbiParameters,
   encodeErrorResult,
   encodeFunctionData,
   erc20Abi,
+  getAbiItem,
   hexToBigInt,
   http,
+  keccak256,
   padHex,
+  toBytes,
+  toFunctionSelector,
   toHex,
   zeroAddress,
   zeroHash,
+  type Chain,
   type Hex,
   type TransactionReceipt,
   type WalletClient,
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { anvil } from "viem/chains";
+import { anvil, moonbeamDev } from "viem/chains";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import chain, {
+  alchemyChains,
   auditorAbi,
   exaAccountFactoryAbi,
   exaAccountFactoryAddress,
   exaPluginAbi,
+  exaPluginAddress,
+  exaPreviewerAbi,
+  factories,
+  firewallAbi,
   issuerCheckerAbi,
+  issuerCheckerAddress,
+  issuerCheckerPreviewerCode,
   marketAbi,
   marketUSDCAddress,
+  networks,
   refunderAddress,
   upgradeableModularAccountAbi,
   usdcAddress,
@@ -53,12 +69,14 @@ import { proposalManager } from "@exactly/plugin/deploy.json";
 import database, { cards, credentials, transactions } from "../../database";
 import createPandaHook from "../../hooks/panda";
 import t, { f } from "../../i18n";
+import remember, { key as liquidity } from "../../utils/liquidity";
 import createOnesignal from "../../utils/onesignal";
 import createPanda, * as Panda from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
+import redis from "../../utils/redis";
 import createSardine from "../../utils/sardine";
 import createSegment from "../../utils/segment";
-import traceClient from "../../utils/traceClient";
+import traceClient, { type CallFrame } from "../../utils/traceClient";
 import wallet from "../../utils/wallet";
 import anvilClient from "../anvilClient";
 
@@ -84,6 +102,7 @@ const dependencies = {
   issuer,
   onesignal: createOnesignal("onesignal"),
   panda,
+  redis,
   refund,
   sardine: createSardine(sardineConfig.key, sardineConfig.url),
   segment: createSegment("segment"),
@@ -117,7 +136,7 @@ beforeAll(async () => {
       await tx
         .insert(credentials)
         .values([{ id: "cred", publicKey: new Uint8Array(), account, factory: exaAccountFactoryAddress }]);
-      await tx.insert(cards).values([{ id: "card", credentialId: "cred", lastFour: "1234" }]);
+      await tx.insert(cards).values([{ id: "card", credentialId: "cred", tenant: "OP", lastFour: "1234" }]);
     }),
     anvilClient.setBalance({ address: owner.account.address, value: 10n ** 24n }),
   ]);
@@ -198,13 +217,110 @@ describe("card operations", () => {
         expect(captureException).not.toHaveBeenCalled();
       });
 
+      it("fails when no issuer checker trusts the issuer", async () => {
+        const hook = createPandaHook({ ...dependencies, issuer: privateKeyToAccount(generatePrivateKey()) });
+        await hook.ready;
+
+        const response = await testClient(hook.app).index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: {
+              ...authorization.json.body,
+              spend: { ...authorization.json.body.spend, cardId: "card", amount: 70 },
+            },
+          },
+        });
+
+        expect(response.status).toBe(550);
+      });
+
+      it("authorizes and collects with previous issuer inside its window", async () => {
+        await rotate();
+        const hook = createPandaHook(dependencies);
+        await hook.ready;
+        await database
+          .insert(cards)
+          .values([{ id: "previous", credentialId: "cred", tenant: "OP", lastFour: "4242", mode: 0 }]);
+
+        const authorized = await testClient(hook.app).index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: {
+              ...authorization.json.body,
+              spend: { ...authorization.json.body.spend, cardId: "card", amount: 70 },
+            },
+          },
+        });
+        const collected = await testClient(hook.app).index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: "previous",
+              spend: { ...authorization.json.body.spend, cardId: "previous", amount: 63 },
+            },
+          },
+        });
+        const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, "previous") });
+
+        expect(authorized.status).toBe(200);
+        expect(collected.status).toBe(200);
+        expect(
+          usdcToCollector(
+            await publicClient.waitForTransactionReceipt({ hash: transaction?.hashes[0] as Hex, confirmations: 0 }),
+          ),
+        ).toBe(630_000n);
+        await expect(
+          publicClient.readContract({
+            address: issuerCheckerAddress,
+            abi: issuerCheckerAbi,
+            functionName: "prevIssuer",
+          }),
+        ).resolves.toBe(issuer.address);
+      });
+
+      it("fails with previous issuer after its window", async () => {
+        const timestamp = await rotate();
+        const window = await publicClient.readContract({
+          address: issuerCheckerAddress,
+          abi: issuerCheckerAbi,
+          functionName: "prevIssuerWindow",
+        });
+        const hook = createPandaHook(dependencies);
+        await hook.ready;
+        const authorizedAt = new Date().toISOString();
+        vi.useFakeTimers({ now: Number(timestamp + window + 1n) * 1000, toFake: ["Date"] });
+        onTestFinished(() => {
+          vi.useRealTimers();
+        });
+
+        const response = await testClient(hook.app).index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: {
+              ...authorization.json.body,
+              spend: { ...authorization.json.body.spend, authorizedAt, cardId: "card", amount: 71 },
+            },
+          },
+        });
+
+        expect(response.status).toBe(550);
+      });
+
       it("fails with replay", async () => {
         vi.spyOn(traceClient, "traceCall").mockResolvedValue({
           ...callFrame,
           output: encodeErrorResult({ abi: issuerCheckerAbi, errorName: "Replay" }),
         });
 
-        await database.insert(cards).values([{ id: "replay", credentialId: "cred", lastFour: "2222", mode: 4 }]);
+        await database
+          .insert(cards)
+          .values([{ id: "replay", credentialId: "cred", tenant: "OP", lastFour: "2222", mode: 4 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -244,7 +360,9 @@ describe("card operations", () => {
       it("fails with frozen card", async () => {
         const cardId = "rc-frozen";
         const transactionId = crypto.randomUUID();
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "0001", status: "FROZEN" }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "0001", status: "FROZEN" }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -277,7 +395,7 @@ describe("card operations", () => {
         const cardId = "rc-deleted";
         await database
           .insert(cards)
-          .values([{ id: cardId, credentialId: "cred", lastFour: "0002", status: "DELETED" }]);
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "0002", status: "DELETED" }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -316,8 +434,26 @@ describe("card operations", () => {
         expect(response.status).toBe(200);
       });
 
+      it("authorizes physical cards", async () => {
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: {
+              ...authorization.json.body,
+              spend: { ...authorization.json.body.spend, cardId: "card", cardType: "physical" },
+            },
+          },
+        });
+
+        expect(response.status).toBe(200);
+        expect(captureException).not.toHaveBeenCalledWith(new Error("bad panda"), expect.anything());
+      });
+
       it("authorizes debit", async () => {
-        await database.insert(cards).values([{ id: "debit", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: "debit", credentialId: "cred", tenant: "OP", lastFour: "5678", mode: 0 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -335,7 +471,9 @@ describe("card operations", () => {
         error.name = "TimeoutError";
         vi.spyOn(sardine, "risk").mockRejectedValueOnce(error);
         const span = spyRiskSpan();
-        await database.insert(cards).values([{ id: "risk-timeout", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: "risk-timeout", credentialId: "cred", tenant: "OP", lastFour: "5678", mode: 0 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -359,7 +497,9 @@ describe("card operations", () => {
         const error = new Error("risk failed");
         vi.spyOn(sardine, "risk").mockRejectedValueOnce(error);
         const span = spyRiskSpan();
-        await database.insert(cards).values([{ id: "risk-failed", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: "risk-failed", credentialId: "cred", tenant: "OP", lastFour: "5678", mode: 0 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -381,7 +521,9 @@ describe("card operations", () => {
         const { promise, resolve } = Promise.withResolvers<Awaited<ReturnType<typeof sardine.risk>>>();
         vi.spyOn(sardine, "risk").mockReturnValueOnce(promise);
         const span = spyRiskSpan();
-        await database.insert(cards).values([{ id: "risk-pending", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: "risk-pending", credentialId: "cred", tenant: "OP", lastFour: "5678", mode: 0 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -401,7 +543,9 @@ describe("card operations", () => {
       });
 
       it("authorizes installments", async () => {
-        await database.insert(cards).values([{ id: "inst", credentialId: "cred", lastFour: "5678", mode: 6 }]);
+        await database
+          .insert(cards)
+          .values([{ id: "inst", credentialId: "cred", tenant: "OP", lastFour: "5678", mode: 6 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -477,7 +621,9 @@ describe("card operations", () => {
           }),
         });
 
-        await database.insert(cards).values([{ id: "failed_trace", credentialId: "cred", lastFour: "2222", mode: 4 }]);
+        await database
+          .insert(cards)
+          .values([{ id: "failed_trace", credentialId: "cred", tenant: "OP", lastFour: "2222", mode: 4 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -508,7 +654,9 @@ describe("card operations", () => {
       it("fails with bad collection", async () => {
         vi.spyOn(traceClient, "traceCall").mockResolvedValueOnce({ ...callFrame });
         const cardId = "rc-bad-collection";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "0004", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "0004", mode: 0 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -527,7 +675,7 @@ describe("card operations", () => {
 
       it("fails with mutex timeout", async () => {
         const cardId = "rc-mutex";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "0003" }]);
+        await database.insert(cards).values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "0003" }]);
         const mutex = Panda.createMutex(account);
         await mutex.acquire();
         try {
@@ -550,9 +698,16 @@ describe("card operations", () => {
       });
 
       it("fails with unexpected outer-catch error", async () => {
-        vi.spyOn(Panda, "signIssuerOp").mockRejectedValueOnce(new Error("sign failed"));
+        onTestFinished(() => {
+          vi.mocked(setTag).mockReset();
+        });
+        vi.mocked(setTag).mockImplementation((key) => {
+          if (key === "exa.mode") throw new Error("unexpected");
+        });
         const cardId = "rc-ouch";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "0005", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "0005", mode: 0 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -579,7 +734,9 @@ describe("card operations", () => {
           reasonCodes: ["AR01"],
         });
         const span = spyRiskSpan();
-        await database.insert(cards).values([{ id: "high-risk", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: "high-risk", credentialId: "cred", tenant: "OP", lastFour: "5678", mode: 0 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -610,7 +767,7 @@ describe("card operations", () => {
         const span = spyRiskSpan();
         await database
           .insert(cards)
-          .values([{ id: "high-risk-verifications", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+          .values([{ id: "high-risk-verifications", credentialId: "cred", tenant: "OP", lastFour: "5678", mode: 0 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -644,7 +801,7 @@ describe("card operations", () => {
         const span = spyRiskSpan();
         await database
           .insert(cards)
-          .values([{ id: "high-risk-refund", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+          .values([{ id: "high-risk-refund", credentialId: "cred", tenant: "OP", lastFour: "5678", mode: 0 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -683,7 +840,9 @@ describe("card operations", () => {
         });
 
         it("declines collection", async () => {
-          await database.insert(cards).values([{ id: "drain", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+          await database
+            .insert(cards)
+            .values([{ id: "drain", credentialId: "cred", tenant: "OP", lastFour: "5678", mode: 0 }]);
 
           const response = await appClient.index.$post({
             ...authorization,
@@ -718,7 +877,9 @@ describe("card operations", () => {
 
       it("clears debit", async () => {
         const cardId = "debits";
-        await database.insert(cards).values([{ id: "debits", credentialId: "cred", lastFour: "3456", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: "debits", credentialId: "cred", tenant: "OP", lastFour: "3456", mode: 0 }]);
         const response = await appClient.index.$post({
           ...authorization,
           json: {
@@ -756,7 +917,9 @@ describe("card operations", () => {
         const amount = 10;
 
         const cardId = "credits";
-        await database.insert(cards).values([{ id: "credits", credentialId: "cred", lastFour: "7890", mode: 1 }]);
+        await database
+          .insert(cards)
+          .values([{ id: "credits", credentialId: "cred", tenant: "OP", lastFour: "7890", mode: 1 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -787,7 +950,9 @@ describe("card operations", () => {
         const createdAt = new Date().toISOString();
 
         const cardId = "tUpdate";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 1 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 1 }]);
         const createResponse = await appClient.index.$post({
           ...authorization,
           json: {
@@ -856,7 +1021,9 @@ describe("card operations", () => {
         const authorizedAt = new Date().toISOString();
 
         const cardId = "tRepeatedUpdate";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 0 }]);
         const createResponse = await appClient.index.$post({
           ...authorization,
           json: {
@@ -912,7 +1079,39 @@ describe("card operations", () => {
         const amount = 120;
 
         const cardId = "splits";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "6754", mode: 6 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "6754", mode: 6 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: { ...authorization.json.body.spend, cardId, amount },
+            },
+          },
+        });
+
+        const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
+        const purchaseReceipt = await publicClient.waitForTransactionReceipt({
+          hash: transaction?.hashes[0] as Hex,
+          confirmations: 0,
+        });
+
+        expect(usdcToCollector(purchaseReceipt)).toBe(BigInt(amount * 1e4));
+        expect(response.status).toBe(200);
+      });
+
+      it("collects installments", async () => {
+        const amount = 1200;
+        const cardId = "installments";
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "6755", mode: 6 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -945,7 +1144,9 @@ describe("card operations", () => {
         });
         const localAmount = 123_456;
         const cardId = "locale-notify";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "9999", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "9999", mode: 0 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -963,7 +1164,7 @@ describe("card operations", () => {
         expect(response.status).toBe(200);
         expect(sendPushNotification).toHaveBeenCalledWith({
           userId: account,
-          headings: t("Card purchase"),
+          headings: t("Card purchase •••• {{lastFour}}", { lastFour: "9999" }),
           contents: t("{{amount}} at {{merchantName}}. Paid in {{count}} installments", {
             count: 0,
             amount: f(localAmount / 100, "ARS"),
@@ -980,7 +1181,9 @@ describe("card operations", () => {
           await args[2]?.onHash?.(zeroHash as Hash);
         });
         const cardId = "locale-notify-error";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "9999", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "9999", mode: 0 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -1012,7 +1215,9 @@ describe("card operations", () => {
           await args[2]?.onHash?.(zeroHash as Hash);
         });
         const cardId = "locale-feedback-error";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "9999", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "9999", mode: 0 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -1051,7 +1256,9 @@ describe("card operations", () => {
         });
         const existing = { ...attempt("existing", 70), createdAt: authorizedAt };
         const attempts = [attempt("first", 80), attempt("second", 90)];
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "9999", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "9999", mode: 0 }]);
         await database
           .insert(transactions)
           .values([
@@ -1061,22 +1268,28 @@ describe("card operations", () => {
         const feedback = vi.spyOn(sardine, "feedback");
         const pending: (() => unknown)[] = [];
         let appended: Promise<unknown> | undefined;
+        const sent = Promise.withResolvers<boolean>();
         // @ts-expect-error mock implementation
         vi.spyOn(keeper, "exaSend").mockImplementation(async (...args) => {
           const hash = amountHash(args[1].args?.[0] as bigint);
           pending.push(() => args[2]?.onHash?.(hash));
+          sent.resolve(true);
           if (pending.length === attempts.length)
             appended = Promise.all([...pending, ...pending].map((append) => append()));
           await appended;
         });
 
-        const responses = await Promise.all(attempts.map((json) => appClient.index.$post({ ...authorization, json })));
+        const responses = await Promise.all(
+          attempts.map(async (json, index) => {
+            if (index > 0) await sent.promise;
+            return appClient.index.$post({ ...authorization, json });
+          }),
+        );
         const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
         const bodies = new Map<string, unknown>(
-          [existing, ...attempts.map((json) => ({ ...json, createdAt: authorizedAt }))].map((body) => [
-            amountHash(BigInt(body.body.spend.amount) * 10_000n),
-            body,
-          ]),
+          [existing, ...attempts.map((json) => ({ ...json, createdAt: authorizedAt, chainId: chain.id }))].map(
+            (body) => [amountHash(BigInt(body.body.spend.amount) * 10_000n), body],
+          ),
         );
 
         expect(responses.map(({ status }) => status)).toStrictEqual([200, 200]);
@@ -1091,7 +1304,7 @@ describe("card operations", () => {
         for (const call of [1, 2]) {
           expect(sendPushNotificationMock).toHaveBeenNthCalledWith(call, {
             userId: account,
-            headings: t("Card purchase"),
+            headings: t("Card purchase •••• {{lastFour}}", { lastFour: "9999" }),
             contents: t("{{amount}} at {{merchantName}}. Paid in {{count}} installments", {
               count: 0,
               amount: f(authorization.json.body.spend.localAmount / 100, authorization.json.body.spend.localCurrency),
@@ -1119,8 +1332,8 @@ describe("card operations", () => {
         const cardId = "mismatched-card";
         const hash = padHex("0xb1", { size: 32 });
         await database.insert(cards).values([
-          { id: cardId, credentialId: "cred", lastFour: "9998", mode: 0 },
-          { id: "other-card", credentialId: "cred", lastFour: "9997", mode: 0 },
+          { id: cardId, credentialId: "cred", tenant: "OP", lastFour: "9998", mode: 0 },
+          { id: "other-card", credentialId: "cred", tenant: "OP", lastFour: "9997", mode: 0 },
         ]);
         await database
           .insert(transactions)
@@ -1166,7 +1379,9 @@ describe("card operations", () => {
         });
 
         const cardId = "timeout";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "7777", mode: 6 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "7777", mode: 6 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -1198,6 +1413,7 @@ describe("card operations", () => {
           userId: account,
           event: "TransactionRejected",
           properties: {
+            cardId,
             cardMode: 6,
             declinedReason: "collection:created:collectCredit:timeout",
             id: cardId,
@@ -1220,6 +1436,7 @@ describe("card operations", () => {
             action: "created",
             amount: 60,
             authorizedAmount: authorization.json.body.spend.authorizedAmount,
+            cardId,
             cardMode: 6,
             functionName: "collectCredit",
             id: cardId,
@@ -1255,7 +1472,9 @@ describe("card operations", () => {
         const exaSend = vi.spyOn(keeper, "exaSend");
 
         const cardId = "timeout-debit";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "7171", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "7171", mode: 0 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -1306,7 +1525,9 @@ describe("card operations", () => {
         });
 
         const cardId = "revert";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 5 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 5 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -1340,7 +1561,9 @@ describe("card operations", () => {
 
       it("returns ok on replay", async () => {
         const cardId = "replay-collect";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "9999", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "9999", mode: 0 }]);
 
         const authorizedAt = new Date().toISOString();
         const json = {
@@ -1367,11 +1590,49 @@ describe("card operations", () => {
         );
       });
 
+      it("returns ok on replay of a collection stored without network", async () => {
+        const cardId = "replay-legacy";
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "9998", mode: 0 }]);
+
+        const json = {
+          ...authorization.json,
+          action: "created" as const,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, amount: 40, authorizedAt: new Date().toISOString() },
+          },
+        };
+
+        const first = await appClient.index.$post({ ...authorization, json });
+        expect(first.status).toBe(200);
+        const tx = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
+        await publicClient.waitForTransactionReceipt({ hash: tx?.hashes[0] as Hex, confirmations: 0 });
+        await database
+          .update(transactions)
+          .set({ payload: { type: "panda", bodies: [{ ...json, createdAt: new Date().toISOString() }] } })
+          .where(eq(transactions.id, cardId));
+        vi.mocked(Panda.signIssuerOp).mockClear();
+
+        const second = await appClient.index.$post({ ...authorization, json });
+
+        expect(second.status).toBe(200);
+        expect(vi.mocked(Panda.signIssuerOp).mock.calls.map((parameters) => parameters[3])).toStrictEqual([chain.id]);
+        expect(captureException).toHaveBeenCalledExactlyOnceWith(
+          expect.any(BaseError),
+          expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "Replay"] }),
+        );
+      });
+
       it("fails with unexpected error", async () => {
         vi.spyOn(publicClient, "simulateContract").mockRejectedValue(new Error("Unexpected Error"));
 
         const cardId = "unexpected";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 4 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 4 }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -1411,7 +1672,9 @@ describe("card operations", () => {
 
         it("clears debit", async () => {
           const amount = 180;
-          await database.insert(cards).values([{ id: "drain-coll", credentialId: "cred", lastFour: "5678", mode: 0 }]);
+          await database
+            .insert(cards)
+            .values([{ id: "drain-coll", credentialId: "cred", tenant: "OP", lastFour: "5678", mode: 0 }]);
 
           const response = await appClient.index.$post({
             ...authorization,
@@ -1843,7 +2106,9 @@ describe("card operations", () => {
         const capture = 7;
 
         const cardId = "settles-debit";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 0 }]);
         const createResponse = await appClient.index.$post({
           ...authorization,
           json: {
@@ -1897,7 +2162,9 @@ describe("card operations", () => {
         const capture = 12;
 
         const cardId = "settlement-failure";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 0 }]);
         const createdAt = new Date().toISOString();
         await database.insert(transactions).values([
           {
@@ -1943,6 +2210,7 @@ describe("card operations", () => {
           userId: account,
           event: "TransactionRejected",
           properties: {
+            cardId,
             cardMode: 0,
             declinedReason: "collection:completed:collectDebit:settlement failed",
             id: cardId,
@@ -1965,6 +2233,7 @@ describe("card operations", () => {
             action: "completed",
             amount: capture,
             authorizedAmount: hold,
+            cardId,
             cardMode: 0,
             functionName: "collectDebit",
             id: cardId,
@@ -2015,7 +2284,9 @@ describe("card operations", () => {
         const capture = 120;
 
         const cardId = "over-capture-fraud";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 0 }]);
         const updateUser = vi.spyOn(panda, "updateUser").mockResolvedValue(userResponseTemplate);
 
         const createResponse = await appClient.index.$post({
@@ -2085,13 +2356,18 @@ describe("card operations", () => {
 
       it("captures collection errors when transaction lookup fails", async () => {
         const cardId = "lookup-failure";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 6 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 6 }]);
 
         const collectionError = new Error("collection failed");
         const lookupError = new Error("transaction lookup failed");
         const track = vi.spyOn(segment, "track").mockReturnValue();
         vi.spyOn(keeper, "exaSend").mockRejectedValueOnce(collectionError);
-        vi.spyOn(database.query.transactions, "findFirst").mockRejectedValueOnce(lookupError);
+        const stored = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
+        vi.spyOn(database.query.transactions, "findFirst")
+          .mockResolvedValueOnce(stored)
+          .mockRejectedValueOnce(lookupError);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -2156,7 +2432,9 @@ describe("card operations", () => {
         const capture = 12;
         const cardId = "settlement-lookup-failure";
 
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 0 }]);
         const createdAt = new Date().toISOString();
         await database.insert(transactions).values([
           {
@@ -2234,7 +2512,9 @@ describe("card operations", () => {
         const capture = 18;
 
         const cardId = "over-capture-frozen-debit";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 0 }]);
         const createResponse = await appClient.index.$post({
           ...authorization,
           json: {
@@ -2288,7 +2568,9 @@ describe("card operations", () => {
         const capture = 30;
 
         const cardId = "over-capture-debit";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 0 }]);
         const createResponse = await appClient.index.$post({
           ...authorization,
           json: {
@@ -2341,7 +2623,9 @@ describe("card operations", () => {
         const authorizedAt = new Date().toISOString();
 
         const cardId = "over-capture-double";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 0 }]);
         const createResponse = await appClient.index.$post({
           ...authorization,
           json: {
@@ -2396,7 +2680,9 @@ describe("card operations", () => {
         const authorizedAt = new Date().toISOString();
 
         const cardId = "over-capture-replay";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 0 }]);
         const createResponse = await appClient.index.$post({
           ...authorization,
           json: {
@@ -2455,7 +2741,9 @@ describe("card operations", () => {
         const authorizedAt = new Date().toISOString();
 
         const cardId = "force-capture-replay";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 0 }]);
         const createResponse = await appClient.index.$post({
           ...authorization,
           json: {
@@ -2516,7 +2804,9 @@ describe("card operations", () => {
             args: [refunderAddress, 100_000_000n],
           },
         );
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 0 }]);
         const createResponse = await appClient.index.$post({
           ...authorization,
           json: {
@@ -2568,7 +2858,9 @@ describe("card operations", () => {
         const capture = 42;
 
         const cardId = "force-capture-debit";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 0 }]);
         const { authorizedAmount, ...spend } = authorization.json.body.spend;
         const completeResponse = await appClient.index.$post({
           ...authorization,
@@ -2606,7 +2898,9 @@ describe("card operations", () => {
         const capture = 30;
 
         const cardId = "over-capture-feedback-error";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 0 }]);
         await appClient.index.$post({
           ...authorization,
           json: {
@@ -2662,7 +2956,9 @@ describe("card operations", () => {
         const capture = Number(currentFunds) / 1e4 + 10_000;
 
         const cardId = "force-capture-fraud";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 0 }]);
         const { authorizedAmount, ...spend } = authorization.json.body.spend;
         const completeResponse = await appClient.index.$post({
           ...authorization,
@@ -2701,7 +2997,9 @@ describe("card operations", () => {
         const capture = 80;
 
         const cardId = "force-capture-uncreated";
-        await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "8888", mode: 0 }]);
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "8888", mode: 0 }]);
         await database.insert(transactions).values([
           {
             id: cardId,
@@ -2757,6 +3055,1568 @@ describe("card operations", () => {
       });
     });
   });
+});
+
+describe("plugin 1.0.0", () => {
+  const owner100 = createWalletClient({ chain, transport: http(), account: privateKeyToAccount(generatePrivateKey()) });
+  const factory = parse(
+    Address,
+    factories.versions.find((address) => address !== exaAccountFactoryAddress),
+  );
+  const account100 = deriveAddress(factory, { x: padHex(owner100.account.address), y: zeroHash });
+  const authorizedAt = new Date().toISOString();
+  let release: Address;
+
+  beforeAll(async () => {
+    await database.transaction(async (tx) => {
+      await tx
+        .insert(credentials)
+        .values([{ id: account100, publicKey: new Uint8Array(), account: account100, factory }]);
+      await tx.insert(cards).values([
+        { id: `${account100}-debit`, credentialId: account100, tenant: "OP", lastFour: "1000", mode: 0 },
+        { id: `${account100}-credit`, credentialId: account100, tenant: "OP", lastFour: "1001", mode: 1 },
+        { id: `${account100}-upgraded`, credentialId: account100, tenant: "OP", lastFour: "1002", mode: 0 },
+      ]);
+    });
+    await Promise.all([
+      keeper.exaSend(
+        { name: "create account", op: "exa.account" },
+        {
+          address: factory,
+          abi: exaAccountFactoryAbi,
+          functionName: "createAccount",
+          args: [0n, [{ x: hexToBigInt(owner100.account.address), y: 0n }]],
+        },
+      ),
+      keeper.exaSend(
+        { name: "mint usdc", op: "tx.mint" },
+        { address: usdcAddress, abi: mockERC20Abi, functionName: "mint", args: [account100, 420_000_000n] },
+      ),
+      anvilClient.setBalance({ address: owner100.account.address, value: 10n ** 24n }),
+    ]);
+    await keeper.exaSend(
+      { name: "poke", op: "exa.poke" },
+      { address: account100, abi: exaPluginAbi, functionName: "poke", args: [marketUSDCAddress] },
+    );
+    release = await publicClient
+      .readContract({ address: account100, abi: upgradeableModularAccountAbi, functionName: "getInstalledPlugins" })
+      .then(([plugin]) => parse(Address, plugin));
+  });
+
+  afterEach(() => Panda.getMutex(account100)?.release());
+
+  it("collects debit", async () => {
+    const traceCall = vi.spyOn(traceClient, "traceCall");
+    const feedback = vi.spyOn(sardine, "feedback");
+    sendPushNotificationMock.mockClear();
+
+    await expect(collectSpend(`${account100}-debit`, 900, authorizedAt)).resolves.toStrictEqual([200, 9_000_000n]);
+
+    expect(captureException).not.toHaveBeenCalled();
+    expect(sendPushNotificationMock).toHaveBeenCalledOnce();
+    expect(feedback).toHaveBeenCalledOnce();
+    expect(traceCall.mock.calls.map(([{ from, to }]) => [from, to])).toStrictEqual([
+      [keeper.account.address, account100],
+      [keeper.account.address, account100],
+    ]);
+    const checkers = await Promise.all(
+      [exaPluginAddress, release].map((address) =>
+        publicClient.readContract({ address, abi: exaPluginAbi, functionName: "ISSUER_CHECKER" }),
+      ),
+    );
+    expect(checkers[0]).not.toBe(checkers[1]);
+    expect(
+      vi
+        .mocked(Panda.signIssuerOp)
+        .mock.calls.filter((parameters) => parameters[3] === chain.id)
+        .map((parameters) => parameters[2]),
+    ).toStrictEqual(checkers);
+  });
+
+  it("collects credit", async () => {
+    const feedback = vi.spyOn(sardine, "feedback");
+    sendPushNotificationMock.mockClear();
+
+    await expect(collectSpend(`${account100}-credit`, 10)).resolves.toStrictEqual([200, 100_000n]);
+
+    expect(captureException).not.toHaveBeenCalled();
+    expect(sendPushNotificationMock).toHaveBeenCalledOnce();
+    expect(feedback).toHaveBeenCalledOnce();
+  });
+
+  it("fails collection when the trace has no issuer check", async () => {
+    const checkIssuer = toFunctionSelector("checkIssuer(address,uint256,uint256,bytes)");
+    const strip = (frame: CallFrame): CallFrame => ({
+      ...frame,
+      calls: frame.calls?.filter(({ input }) => !input.startsWith(checkIssuer)).map((call) => strip(call)),
+    });
+    const { traceCall: trace } = traceClient;
+    const traceCall = vi
+      .spyOn(traceClient, "traceCall")
+      .mockImplementationOnce(async (parameters) => strip(await trace(parameters)));
+    const feedback = vi.spyOn(sardine, "feedback");
+    sendPushNotificationMock.mockClear();
+
+    const { status } = await appClient.index.$post({
+      ...authorization,
+      json: {
+        ...authorization.json,
+        action: "created",
+        body: {
+          ...authorization.json.body,
+          id: `${account100}-unchecked`,
+          spend: { ...authorization.json.body.spend, amount: 902, cardId: `${account100}-debit` },
+        },
+      },
+    });
+
+    expect(status).toBe(569);
+    expect(traceCall.mock.calls.map(([{ from, to }]) => [from, to])).toStrictEqual([
+      [keeper.account.address, account100],
+    ]);
+    expect(captureException).toHaveBeenCalledWith(expect.objectContaining({ name: "ValiError" }), {
+      level: "warning",
+      tags: { chainId: chain.id },
+    });
+    expect(captureException).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "network failure" }),
+      expect.objectContaining({
+        level: "fatal",
+        tags: expect.objectContaining({ "panda.failure": "collection" }) as unknown,
+      }),
+    );
+    expect(sendPushNotificationMock).not.toHaveBeenCalled();
+    expect(feedback).not.toHaveBeenCalled();
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, `${account100}-unchecked`) }),
+    ).resolves.toBeUndefined();
+  });
+
+  it.each([
+    ["debit", 901],
+    ["credit", 11],
+  ] as const)("authorizes %s with one trace", async (mode, amount) => {
+    const checker = await publicClient.readContract({
+      address: release,
+      abi: exaPluginAbi,
+      functionName: "ISSUER_CHECKER",
+    });
+    const traceCall = vi.spyOn(traceClient, "traceCall");
+
+    await expect(authorize(`${account100}-${mode}`, amount)).resolves.toBe(200);
+
+    expect(captureException).not.toHaveBeenCalled();
+    expect(traceCall.mock.calls.map(([{ stateOverride }]) => stateOverride)).toStrictEqual([
+      expect.arrayContaining([
+        { address: release, stateDiff: [expect.any(Object)] },
+        { address: checker, code: issuerCheckerPreviewerCode },
+      ]),
+    ]);
+  });
+
+  it("authorizes when factories share a plugin", async () => {
+    const { readContract } = publicClient;
+    vi.spyOn(publicClient, "readContract").mockImplementationOnce((parameters) =>
+      readContract({ ...parameters, args: [[...factories.versions, ...factories.versions]] }),
+    );
+    const hook = createPandaHook(dependencies);
+    await hook.ready;
+
+    const { status } = await testClient(hook.app).index.$post({
+      ...authorization,
+      json: {
+        ...authorization.json,
+        body: {
+          ...authorization.json.body,
+          id: `${account100}-shared-authorization`,
+          spend: { ...authorization.json.body.spend, amount: 903, cardId: `${account100}-debit` },
+        },
+      },
+    });
+
+    expect(status).toBe(200);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  describe("after upgrade", () => {
+    beforeAll(async () => {
+      await anvilClient.waitForTransactionReceipt({
+        hash: await owner100.writeContract({
+          address: account100,
+          abi: upgradeableModularAccountAbi,
+          functionName: "executeBatch",
+          args: [
+            [
+              {
+                target: account100,
+                value: 0n,
+                data: encodeFunctionData({
+                  abi: upgradeableModularAccountAbi,
+                  functionName: "uninstallPlugin",
+                  args: [
+                    release,
+                    encodeAbiParameters(
+                      [
+                        {
+                          type: "tuple",
+                          components: [
+                            { name: "serializedManifest", type: "bytes" },
+                            { name: "forceUninstall", type: "bool" },
+                            { name: "callbackGasLimit", type: "uint256" },
+                          ],
+                        },
+                      ],
+                      [{ serializedManifest: "0x", forceUninstall: false, callbackGasLimit: 0n }],
+                    ),
+                    "0x",
+                  ],
+                }),
+              },
+              {
+                target: account100,
+                value: 0n,
+                data: encodeFunctionData({
+                  abi: upgradeableModularAccountAbi,
+                  functionName: "installPlugin",
+                  args: [
+                    exaPluginAddress,
+                    keccak256(
+                      encodeAbiParameters(getAbiItem({ abi: exaPluginAbi, name: "pluginManifest" }).outputs, [
+                        await publicClient.readContract({
+                          address: exaPluginAddress,
+                          abi: exaPluginAbi,
+                          functionName: "pluginManifest",
+                        }),
+                      ]),
+                    ),
+                    "0x",
+                    [],
+                  ],
+                }),
+              },
+            ],
+          ],
+        }),
+      });
+    });
+
+    it("skips spends collected before the upgrade", async () => {
+      const exaSend = vi.spyOn(keeper, "exaSend");
+      const feedback = vi.spyOn(sardine, "feedback");
+      sendPushNotificationMock.mockClear();
+
+      const { status, replay } = await startSpan({ name: "replay" }, async (span) => ({
+        status: await appClient.index
+          .$post({
+            ...authorization,
+            json: {
+              ...authorization.json,
+              action: "created",
+              body: {
+                ...authorization.json.body,
+                id: `${account100}-debit`,
+                spend: { ...authorization.json.body.spend, amount: 900, cardId: `${account100}-debit`, authorizedAt },
+              },
+            },
+          })
+          .then(({ status: code }) => code),
+        replay: spanToJSON(span).data["panda.replay"],
+      }));
+
+      expect(status).toBe(200);
+      expect(exaSend).not.toHaveBeenCalled();
+      expect(replay).toBe(true);
+      expect(sendPushNotificationMock).not.toHaveBeenCalled();
+      expect(feedback).not.toHaveBeenCalled();
+      await expect(
+        database.query.transactions
+          .findFirst({ where: eq(transactions.id, `${account100}-debit`) })
+          .then((transaction) => transaction?.hashes),
+      ).resolves.toHaveLength(1);
+    });
+
+    it("collects debit", async () => {
+      const traceCall = vi.spyOn(traceClient, "traceCall");
+      const feedback = vi.spyOn(sardine, "feedback");
+      sendPushNotificationMock.mockClear();
+
+      await expect(collectSpend(`${account100}-upgraded`, 904)).resolves.toStrictEqual([200, 9_040_000n]);
+
+      expect(captureException).not.toHaveBeenCalled();
+      expect(sendPushNotificationMock).toHaveBeenCalledOnce();
+      expect(feedback).toHaveBeenCalledOnce();
+      expect(traceCall.mock.calls.map(([{ from, to }]) => [from, to])).toStrictEqual([
+        [keeper.account.address, account100],
+      ]);
+    });
+
+    it("authorizes with one trace", async () => {
+      const traceCall = vi.spyOn(traceClient, "traceCall");
+
+      await expect(authorize(`${account100}-upgraded`, 901)).resolves.toBe(200);
+
+      expect(captureException).not.toHaveBeenCalled();
+      expect(traceCall).toHaveBeenCalledOnce();
+    });
+
+    it("declines replayed authorization", async () => {
+      const id = `${account100}-replay`;
+      const spend = {
+        ...authorization.json.body.spend,
+        amount: 902,
+        cardId: `${account100}-upgraded`,
+        authorizedAt: new Date().toISOString(),
+      };
+      const created = await appClient.index.$post({
+        ...authorization,
+        json: { ...authorization.json, action: "created", body: { ...authorization.json.body, id, spend } },
+      });
+      await publicClient.waitForTransactionReceipt({
+        hash: await database.query.transactions
+          .findFirst({ where: eq(transactions.id, id) })
+          .then((transaction) => transaction?.hashes[0] as Hex),
+        confirmations: 0,
+      });
+
+      const replayed = await appClient.index.$post({
+        ...authorization,
+        json: { ...authorization.json, body: { ...authorization.json.body, id: `${id}-authorization`, spend } },
+      });
+
+      expect([created.status, replayed.status]).toStrictEqual([200, 558]);
+    });
+  });
+});
+
+describe("multi-chain", () => {
+  const ownerMulti = createWalletClient({
+    chain,
+    transport: http(),
+    account: privateKeyToAccount(generatePrivateKey()),
+  });
+  const accountMulti = deriveAddress(exaAccountFactoryAddress, { x: padHex(ownerMulti.account.address), y: zeroHash });
+  const remote = alchemyChains.get(moonbeamDev.id) as Chain;
+  const remoteClient = createPublicClient({ chain: remote, transport: http() });
+
+  beforeAll(async () => {
+    const remoteKeeper = wallet(privateKeyToAccount(padHex("0x69")), remote);
+    await database.transaction(async (tx) => {
+      await tx
+        .insert(credentials)
+        .values([
+          { id: accountMulti, publicKey: new Uint8Array(), account: accountMulti, factory: exaAccountFactoryAddress },
+        ]);
+      await tx.insert(cards).values([
+        { id: `${accountMulti}-debit`, credentialId: accountMulti, tenant: "OP", lastFour: "2000", mode: 0 },
+        { id: `${accountMulti}-credit`, credentialId: accountMulti, tenant: "OP", lastFour: "2001", mode: 1 },
+        { id: `${accountMulti}-retry`, credentialId: accountMulti, tenant: "OP", lastFour: "2002", mode: 0 },
+        { id: `${accountMulti}-uncovered`, credentialId: accountMulti, tenant: "OP", lastFour: "2003", mode: 0 },
+        { id: `${accountMulti}-failure`, credentialId: accountMulti, tenant: "OP", lastFour: "2004", mode: 0 },
+        { id: `${accountMulti}-unauthorized`, credentialId: accountMulti, tenant: "OP", lastFour: "2005", mode: 0 },
+        { id: `${accountMulti}-moved`, credentialId: accountMulti, tenant: "OP", lastFour: "2006", mode: 0 },
+        { id: `${accountMulti}-stranded`, credentialId: accountMulti, tenant: "OP", lastFour: "2008", mode: 1 },
+        { id: `${accountMulti}-collected`, credentialId: accountMulti, tenant: "OP", lastFour: "2009", mode: 0 },
+      ]);
+    });
+    const create = {
+      address: exaAccountFactoryAddress,
+      abi: exaAccountFactoryAbi,
+      functionName: "createAccount",
+      args: [0n, [{ x: hexToBigInt(ownerMulti.account.address), y: 0n }]],
+    } as const;
+    await Promise.all([
+      keeper.exaSend({ name: "create account", op: "exa.account" }, create),
+      remoteKeeper.exaSend(
+        { name: "allow", op: "exa.firewall" },
+        {
+          address: await remoteKeeper
+            .readContract({
+              address: parse(Address, networks.get(remote.id)?.exaPreviewer),
+              abi: exaPreviewerAbi,
+              functionName: "discover",
+              args: [[]],
+            })
+            .then(({ firewall }) => firewall),
+          abi: firewallAbi,
+          functionName: "allow",
+          args: [accountMulti, true],
+        },
+      ),
+    ]);
+    await Promise.all([
+      remoteKeeper.exaSend({ name: "create account", op: "exa.account" }, create),
+      remoteKeeper.exaSend(
+        { name: "mint usdc", op: "tx.mint" },
+        { address: usdcAddress, abi: mockERC20Abi, functionName: "mint", args: [accountMulti, 420_000_000n] },
+      ),
+    ]);
+    await remoteKeeper.exaSend(
+      { name: "poke", op: "exa.poke" },
+      { address: accountMulti, abi: exaPluginAbi, functionName: "poke", args: [marketUSDCAddress] },
+    );
+  });
+
+  afterEach(() => Panda.getMutex(accountMulti)?.release());
+
+  it("collects debit from the network that covers it", async () => {
+    await expect(remotePurchase(`${accountMulti}-debit`, 900)).resolves.toStrictEqual([200, 200, 9_000_000n]);
+
+    const transaction = await database.query.transactions.findFirst({
+      where: eq(transactions.id, `${accountMulti}-debit`),
+    });
+
+    expect(transaction?.payload).toMatchObject({ bodies: [{ action: "created", chainId: remote.id }] });
+    expect(segment.track).toHaveBeenCalledWith(
+      expect.objectContaining({ event: "TransactionAuthorized", userId: accountMulti }),
+    );
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("collects credit from the network that covers it", async () => {
+    await expect(remotePurchase(`${accountMulti}-credit`, 10)).resolves.toStrictEqual([200, 200, 100_000n]);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("keeps retried collection on the same network", async () => {
+    const cardId = `${accountMulti}-retry`;
+    const authorizedAt = new Date().toISOString();
+
+    await expect(remotePurchase(cardId, 300, authorizedAt)).resolves.toStrictEqual([200, 200, 3_000_000n]);
+    vi.mocked(Panda.signIssuerOp).mockClear();
+
+    const response = await appClient.index.$post({
+      ...authorization,
+      json: {
+        ...authorization.json,
+        action: "created",
+        body: {
+          ...authorization.json.body,
+          id: cardId,
+          spend: { ...authorization.json.body.spend, amount: 300, cardId, authorizedAt },
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(vi.mocked(Panda.signIssuerOp).mock.calls.map((parameters) => parameters[3])).toStrictEqual([remote.id]);
+    const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
+    expect(transaction?.hashes).toHaveLength(1);
+    expect(transaction?.payload).toMatchObject({ bodies: [{ action: "created", chainId: remote.id }] });
+    expect(vi.mocked(captureException).mock.calls.map(([, hint]) => hint)).toStrictEqual([
+      { level: "error", fingerprint: ["{{ default }}", "Replay"] },
+    ]);
+  });
+
+  it("collects on another network when the stored one no longer covers", async () => {
+    const cardId = `${accountMulti}-moved`;
+    const body = {
+      ...authorization.json.body,
+      id: cardId,
+      spend: { ...authorization.json.body.spend, amount: 200, cardId, authorizedAt: new Date().toISOString() },
+    };
+    await database.insert(transactions).values([
+      {
+        id: cardId,
+        cardId,
+        hashes: [zeroHash],
+        payload: { type: "panda", bodies: [{ ...authorization.json, action: "created", body, chainId: chain.id }] },
+      },
+    ]);
+
+    const response = await appClient.index.$post({
+      ...authorization,
+      json: { ...authorization.json, action: "created", body },
+    });
+
+    expect(response.status).toBe(200);
+    const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
+    expect(transaction?.payload).toMatchObject({ bodies: [{ chainId: chain.id }, { chainId: remote.id }] });
+    expect(
+      usdcToAddress(
+        await remoteClient.waitForTransactionReceipt({ hash: transaction?.hashes[1] as Hex, confirmations: 0 }),
+        Panda.collectors(remote.id)[0],
+      ),
+    ).toBe(2_000_000n);
+  });
+
+  it("skips spends collected by an older issuer checker on the stored network", async () => {
+    const cardId = `${accountMulti}-collected`;
+    const authorizedAt = new Date();
+    const body = {
+      ...authorization.json.body,
+      id: cardId,
+      spend: { ...authorization.json.body.spend, amount: 500, cardId, authorizedAt: authorizedAt.toISOString() },
+    };
+    const operation = keccak256(
+      encodeAbiParameters(
+        [{ type: "uint256" }, { type: "uint256" }],
+        [5_000_000n, BigInt(Math.floor(authorizedAt.getTime() / 1000))],
+      ),
+    );
+    const checker = await publicClient
+      .readContract({
+        address: parse(Address, networks.get(chain.id)?.exaPreviewer),
+        abi: exaPreviewerAbi,
+        functionName: "discover",
+        args: [factories.versions],
+      })
+      .then(({ issuerCheckers }) =>
+        parse(
+          Address,
+          issuerCheckers.find((address) => address.toLowerCase() !== issuerCheckerAddress.toLowerCase()),
+        ),
+      );
+    await Promise.all([
+      anvilClient.setStorageAt({
+        address: checker,
+        index: keccak256(
+          encodeAbiParameters(
+            [{ type: "bytes32" }, { type: "bytes32" }],
+            [operation, keccak256(encodeAbiParameters([{ type: "address" }, { type: "uint256" }], [accountMulti, 6n]))],
+          ),
+        ),
+        value: padHex("0x1", { size: 32 }),
+      }),
+      database.insert(transactions).values([
+        {
+          id: cardId,
+          cardId,
+          hashes: [zeroHash],
+          payload: { type: "panda", bodies: [{ ...authorization.json, action: "created", body, chainId: chain.id }] },
+        },
+      ]),
+    ]);
+    await expect(
+      publicClient.readContract({
+        address: checker,
+        abi: issuerCheckerAbi,
+        functionName: "collections",
+        args: [accountMulti, operation],
+      }),
+    ).resolves.toBe(true);
+
+    const response = await appClient.index.$post({
+      ...authorization,
+      json: { ...authorization.json, action: "created", body },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(
+      database.query.transactions
+        .findFirst({ where: eq(transactions.id, cardId) })
+        .then((transaction) => transaction?.hashes),
+    ).resolves.toStrictEqual([zeroHash]);
+  });
+
+  it("fails collection when no network can collect", async () => {
+    const empty = deriveAddress(exaAccountFactoryAddress, { x: padHex("0x404"), y: zeroHash });
+    const cardId = `${empty}-empty`;
+    await database
+      .insert(credentials)
+      .values([{ id: empty, publicKey: new Uint8Array(), account: empty, factory: exaAccountFactoryAddress }]);
+    await database.insert(cards).values([{ id: cardId, credentialId: empty, tenant: "OP", lastFour: "2007", mode: 0 }]);
+    const body = { ...authorization.json.body, id: cardId, spend: { ...authorization.json.body.spend, cardId } };
+    await database.insert(transactions).values([
+      {
+        id: cardId,
+        cardId,
+        hashes: [zeroHash],
+        payload: { type: "panda", bodies: [{ ...authorization.json, action: "created", body, chainId: remote.id }] },
+      },
+    ]);
+
+    const response = await appClient.index.$post({
+      ...authorization,
+      json: { ...authorization.json, action: "created", body },
+    });
+
+    expect(response.status).toBe(569);
+    await expect(response.text()).resolves.toBe("bad collection");
+    Panda.getMutex(empty)?.release();
+    await expect(database.query.transactions.findFirst({ where: eq(transactions.id, cardId) })).resolves.toMatchObject({
+      hashes: [zeroHash],
+      payload: { bodies: [{ chainId: remote.id }] },
+    });
+    expect(captureException).toHaveBeenCalledWith(
+      new Error("bad collection"),
+      expect.objectContaining({
+        level: "fatal",
+        fingerprint: ["{{ default }}", "panda.collection", "created", "collectDebit", "unknown"],
+      }),
+    );
+  });
+
+  it("fails when no network covers the amount", async () => {
+    const response = await appClient.index.$post({
+      ...authorization,
+      json: {
+        ...authorization.json,
+        body: {
+          ...authorization.json.body,
+          id: `${accountMulti}-uncovered`,
+          spend: { ...authorization.json.body.spend, amount: 1_000_000, cardId: `${accountMulti}-uncovered` },
+        },
+      },
+    });
+
+    expect(response.status).toBe(557);
+    expect(segment.track).toHaveBeenCalledWith(
+      expect.objectContaining({ event: "AuthorizationRejected", userId: accountMulti }),
+    );
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, `${accountMulti}-uncovered`) }),
+    ).resolves.toMatchObject({ payload: { bodies: [{ status: "declined" }] } });
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("reports failures on other networks", async () => {
+    const failure = new Error("remote failure");
+    const signIssuerOp = vi.mocked(Panda.signIssuerOp);
+    const original = signIssuerOp.getMockImplementation()!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+    signIssuerOp.mockImplementation((operation, signer, verifyingContract, chainId) =>
+      chainId === remote.id ? Promise.reject(failure) : original(operation, signer, verifyingContract, chainId),
+    );
+    const body = {
+      ...authorization.json.body,
+      id: `${accountMulti}-failure`,
+      spend: { ...authorization.json.body.spend, amount: 100, cardId: `${accountMulti}-failure` },
+    };
+
+    try {
+      await expect(
+        appClient.index.$post({ ...authorization, json: { ...authorization.json, body } }).then(({ status }) => status),
+      ).resolves.toBe(200);
+      await expect(
+        appClient.index
+          .$post({ ...authorization, json: { ...authorization.json, action: "created", body } })
+          .then(({ status }) => status),
+      ).resolves.toBe(569);
+    } finally {
+      signIssuerOp.mockImplementation(original);
+    }
+
+    const warning = { level: "warning", tags: { chainId: remote.id } };
+    expect(vi.mocked(captureException).mock.calls.filter(([error]) => error === failure)).toStrictEqual([
+      [failure, warning],
+    ]);
+  });
+
+  it("keeps the cardholder active when another network fails a stored settlement", async () => {
+    const cardId = `${accountMulti}-stranded`;
+    const failure = new Error("remote failure");
+    const signIssuerOp = vi.mocked(Panda.signIssuerOp);
+    const original = signIssuerOp.getMockImplementation()!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+    signIssuerOp.mockImplementation((operation, signer, verifyingContract, chainId) =>
+      chainId === remote.id ? Promise.reject(failure) : original(operation, signer, verifyingContract, chainId),
+    );
+    const updateUser = vi.spyOn(panda, "updateUser").mockResolvedValue(userResponseTemplate);
+    const authorizedAt = new Date().toISOString();
+    const spend = { ...authorization.json.body.spend, amount: 100, authorizedAt, cardId, userId: accountMulti };
+    const body = { ...authorization.json.body, id: cardId, spend };
+    await database.insert(transactions).values([
+      {
+        id: cardId,
+        cardId,
+        hashes: [zeroHash],
+        payload: { type: "panda", bodies: [{ ...authorization.json, action: "created", body, chainId: chain.id }] },
+      },
+    ]);
+
+    try {
+      const response = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "completed",
+          body: {
+            ...body,
+            spend: {
+              ...spend,
+              amount: 120,
+              authorizedAmount: 100,
+              postedAt: new Date().toISOString(),
+              status: "completed",
+            },
+          },
+        },
+      });
+
+      expect(response.status).toBe(569);
+      await expect(response.text()).resolves.toBe("network failure");
+    } finally {
+      signIssuerOp.mockImplementation(original);
+    }
+
+    expect(updateUser).not.toHaveBeenCalled();
+  });
+
+  it("resigns unauthorized collections on other networks", async () => {
+    const signIssuerOp = vi.mocked(Panda.signIssuerOp);
+    const original = signIssuerOp.getMockImplementation()!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
+    const impostor = privateKeyToAccount(padHex("0x421"));
+    signIssuerOp.mockImplementation((operation, signer, verifyingContract, chainId) =>
+      original(operation, chainId === remote.id ? impostor : signer, verifyingContract, chainId),
+    );
+
+    try {
+      const response = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: `${accountMulti}-unauthorized`,
+            spend: { ...authorization.json.body.spend, amount: 100, cardId: `${accountMulti}-unauthorized` },
+          },
+        },
+      });
+
+      expect(response.status).toBe(569);
+    } finally {
+      signIssuerOp.mockImplementation(original);
+    }
+
+    const checker = await remoteClient
+      .readContract({ address: accountMulti, abi: upgradeableModularAccountAbi, functionName: "getInstalledPlugins" })
+      .then(([plugin]) =>
+        remoteClient.readContract({
+          address: parse(Address, plugin),
+          abi: exaPluginAbi,
+          functionName: "ISSUER_CHECKER",
+        }),
+      );
+    expect(
+      signIssuerOp.mock.calls.filter((parameters) => parameters[3] === remote.id).map((parameters) => parameters[2]),
+    ).toStrictEqual([checker, checker]);
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, `${accountMulti}-unauthorized`) }),
+    ).resolves.toBeUndefined();
+    expect(captureException).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        level: "fatal",
+        fingerprint: ["{{ default }}", "panda.collection", "created", "collectDebit", "Panic"],
+      }),
+    );
+  });
+
+  async function remotePurchase(cardId: string, amount: number, authorizedAt = new Date().toISOString()) {
+    const body = {
+      ...authorization.json.body,
+      id: cardId,
+      spend: { ...authorization.json.body.spend, amount, cardId, authorizedAt },
+    };
+    return [
+      await appClient.index
+        .$post({ ...authorization, json: { ...authorization.json, body } })
+        .then(({ status }) => status),
+      await appClient.index
+        .$post({ ...authorization, json: { ...authorization.json, action: "created", body } })
+        .then(({ status }) => status),
+      usdcToAddress(
+        await database.query.transactions
+          .findFirst({ where: eq(transactions.id, cardId) })
+          .then((transaction) =>
+            remoteClient.waitForTransactionReceipt({ hash: transaction?.hashes[0] as Hex, confirmations: 0 }),
+          ),
+        Panda.collectors(remote.id)[0],
+      ),
+    ];
+  }
+});
+
+describe("partial", () => {
+  const remote = alchemyChains.get(moonbeamDev.id) as Chain;
+  const remoteClient = createPublicClient({ chain: remote, transport: http() });
+  const remoteKeeper = wallet(privateKeyToAccount(padHex("0x69")), remote);
+  const clients = new Map([
+    [chain.id, createPublicClient({ chain, transport: http() })],
+    [remote.id, remoteClient],
+  ]);
+
+  it("authorizes and collects debit split across networks", async () => {
+    const user = await prepare("split");
+    await recall(user);
+
+    await expect(purchase(user, 15_000).then(({ status }) => status)).resolves.toBe(200);
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(200);
+
+    const collections = await collected(user.cardId);
+    expect(collections.map(({ chainId }) => chainId).toSorted()).toStrictEqual([chain.id, remote.id].toSorted());
+    expect(collections.reduce((total, { amount }) => total + amount, 0n)).toBe(150_000_000n);
+    expect(collections.every(({ amount, recorded }) => amount > 0n && recorded === amount)).toBe(true);
+    expect(segment.track).toHaveBeenCalledWith(
+      expect.objectContaining({ event: "TransactionAuthorized", userId: user.account }),
+    );
+    expect(hookQueue.enqueue.mock.calls.filter(([{ receipt }]) => receipt)).toStrictEqual([
+      [
+        {
+          account: user.account,
+          receipt: { blockNumber: expect.any(Number) as number, transactionHash: expect.any(String) as string },
+        },
+        authorization.json.id,
+      ],
+    ]);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("authorizes and collects credit split across networks", async () => {
+    const user = await prepare("credit-split", 1);
+    await recall(user);
+
+    await expect(purchase(user, 15_000).then(({ status }) => status)).resolves.toBe(200);
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(200);
+
+    const collections = await collected(user.cardId);
+    expect(collections.map(({ chainId }) => chainId).toSorted()).toStrictEqual([chain.id, remote.id].toSorted());
+    expect(collections.reduce((total, { amount }) => total + amount, 0n)).toBe(150_000_000n);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("authorizes a split without transaction id", async () => {
+    const user = await prepare("anonymous");
+    await recall(user);
+
+    const response = await appClient.index.$post({
+      ...authorization,
+      json: {
+        ...authorization.json,
+        body: {
+          ...authorization.json.body,
+          id: undefined,
+          spend: {
+            ...authorization.json.body.spend,
+            amount: 15_000,
+            authorizedAt: user.authorizedAt,
+            cardId: user.cardId,
+            userId: user.user,
+          },
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("signs split parts apart from full purchases of the same second", async () => {
+    const user = await prepare("apart");
+    await recall(user);
+    await purchase(user, 15_000);
+    vi.mocked(Panda.signIssuerOp).mockClear();
+
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(200);
+
+    const authorized = Math.floor(new Date(user.authorizedAt).getTime() / 1000);
+    const stamps = vi
+      .mocked(Panda.signIssuerOp)
+      .mock.calls.filter(([{ amount }]) => amount !== 150_000_000n)
+      .map(([{ timestamp }]) => timestamp);
+    expect(stamps).toHaveLength(2);
+    expect(stamps.every((timestamp) => timestamp < authorized && timestamp > authorized - 3600)).toBe(true);
+  });
+
+  it("keeps retried split collection", async () => {
+    const user = await prepare("retry");
+    await recall(user);
+    await purchase(user, 15_000);
+    await purchase(user, 15_000, "created");
+    const before = await database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) });
+
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(200);
+
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) }),
+    ).resolves.toStrictEqual(before);
+    expect(vi.mocked(captureException).mock.calls.map(([, hint]) => hint)).toStrictEqual([
+      { level: "error", fingerprint: ["{{ default }}", "Replay"] },
+    ]);
+  });
+
+  it("completes split collection when a landed part lost its record", async () => {
+    const user = await prepare("lost");
+    await recall(user);
+    await purchase(user, 15_000);
+    await purchase(user, 15_000, "created");
+    const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) });
+    const { bodies } = parse(Bodies, transaction?.payload);
+    await database
+      .update(transactions)
+      .set({ hashes: transaction?.hashes.slice(0, 1), payload: { type: "panda", bodies: bodies.slice(0, 1) } })
+      .where(eq(transactions.id, user.cardId));
+
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(200);
+
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) }),
+    ).resolves.toMatchObject({ hashes: transaction?.hashes.slice(0, 1) });
+    expect(vi.mocked(captureException).mock.calls.map(([, hint]) => hint)).toStrictEqual([
+      { level: "error", fingerprint: ["{{ default }}", "Replay"] },
+    ]);
+  });
+
+  it("reuses the split plan when every record is lost", async () => {
+    const user = await prepare("forgotten");
+    await recall(user);
+    await purchase(user, 15_000);
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(200);
+    await database.delete(transactions).where(eq(transactions.id, user.cardId));
+
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(200);
+
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) }),
+    ).resolves.toBeUndefined();
+    expect(vi.mocked(captureException).mock.calls.map(([, hint]) => hint)).toStrictEqual([
+      { level: "error", fingerprint: ["{{ default }}", "Replay"] },
+    ]);
+  });
+
+  it("reuses the split plan when a settlement finds no record", async () => {
+    const user = await prepare("settled");
+    await recall(user);
+    await purchase(user, 15_000);
+    await purchase(user, 15_000, "created");
+    await database.delete(transactions).where(eq(transactions.id, user.cardId));
+
+    const response = await appClient.index.$post({
+      ...authorization,
+      json: {
+        ...authorization.json,
+        action: "completed",
+        id: "fedcba-654321",
+        body: {
+          ...authorization.json.body,
+          id: user.cardId,
+          spend: {
+            ...authorization.json.body.spend,
+            amount: 15_000,
+            authorizedAmount: 15_000,
+            authorizedAt: user.authorizedAt,
+            postedAt: new Date().toISOString(),
+            cardId: user.cardId,
+            status: "completed",
+            userId: user.user,
+          },
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("replays a recovered single network plan when the settlement amount differs", async () => {
+    const user = await prepare("resettled");
+    await recall(user);
+    await purchase(user, 5000);
+    await purchase(user, 5000, "created");
+    await database.delete(transactions).where(eq(transactions.id, user.cardId));
+
+    const response = await appClient.index.$post({
+      ...authorization,
+      json: {
+        ...authorization.json,
+        action: "completed",
+        id: "fedcba-654321",
+        body: {
+          ...authorization.json.body,
+          id: user.cardId,
+          spend: {
+            ...authorization.json.body.spend,
+            amount: 6000,
+            authorizedAmount: 5000,
+            authorizedAt: user.authorizedAt,
+            postedAt: new Date().toISOString(),
+            cardId: user.cardId,
+            status: "completed",
+            userId: user.user,
+          },
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    const collections = await collected(user.cardId);
+    expect(collections.reduce((total, { amount }) => total + amount, 0n)).toBe(10_000_000n);
+  });
+
+  it("skips a settlement planned before the authorization claimed", async () => {
+    const user = await prepare("overlapped");
+    await recall(user);
+    await purchase(user, 5000);
+    await purchase(user, 5000, "created");
+    await database.delete(transactions).where(eq(transactions.id, user.cardId));
+    vi.spyOn(redis, "hgetall").mockResolvedValueOnce({});
+
+    const response = await appClient.index.$post({
+      ...authorization,
+      json: {
+        ...authorization.json,
+        action: "completed",
+        id: "fedcba-654321",
+        body: {
+          ...authorization.json.body,
+          id: user.cardId,
+          spend: {
+            ...authorization.json.body.spend,
+            amount: 5000,
+            authorizedAmount: 5000,
+            authorizedAt: user.authorizedAt,
+            postedAt: new Date().toISOString(),
+            cardId: user.cardId,
+            status: "completed",
+            userId: user.user,
+          },
+        },
+      },
+    });
+
+    expect(response.status).toBe(569);
+    await expect(response.text()).resolves.toBe("plan changed");
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("skips an authorization already collected by a force capture", async () => {
+    const user = await prepare("forced");
+    await recall(user);
+    await purchase(user, 15_000);
+    await expect(
+      appClient.index
+        .$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "completed",
+            id: "fedcba-654321",
+            body: {
+              ...authorization.json.body,
+              id: user.cardId,
+              spend: {
+                ...authorization.json.body.spend,
+                amount: 15_000,
+                authorizedAmount: 15_000,
+                authorizedAt: user.authorizedAt,
+                postedAt: new Date().toISOString(),
+                cardId: user.cardId,
+                status: "completed",
+                userId: user.user,
+              },
+            },
+          },
+        })
+        .then(({ status }) => status),
+    ).resolves.toBe(200);
+
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(200);
+
+    const collections = await collected(user.cardId);
+    expect(collections.reduce((total, { amount }) => total + amount, 0n)).toBe(150_000_000n);
+  });
+
+  it("skips collection when another plan was saved meanwhile", async () => {
+    const user = await prepare("raced");
+    await recall(user);
+    await purchase(user, 15_000);
+    await redis.hset(
+      `split:${user.cardId}`,
+      `created:${authorization.json.id}`,
+      JSON.stringify([{ chainId: chain.id, collected: "150000000" }]),
+    );
+    vi.spyOn(redis, "hgetall").mockResolvedValueOnce({});
+
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(569);
+
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("skips a single network collection when another plan was saved meanwhile", async () => {
+    const user = await prepare("overtaken");
+    await recall(user);
+    await purchase(user, 5000);
+    await redis.hset(
+      `split:${user.cardId}`,
+      `created:${authorization.json.id}`,
+      JSON.stringify([
+        { chainId: chain.id, collected: "25000000" },
+        { chainId: remote.id, collected: "25000000" },
+      ]),
+    );
+    vi.spyOn(redis, "hgetall").mockResolvedValueOnce({});
+
+    await expect(purchase(user, 5000, "created").then(({ status }) => status)).resolves.toBe(569);
+
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("keeps a claimed part that no longer covers", async () => {
+    const user = await prepare("pinned");
+    await recall(user);
+    await purchase(user, 15_000);
+    await redis.hset(`split:${user.cardId}`, {
+      [`created:${authorization.json.id}`]: JSON.stringify([{ chainId: chain.id, collected: "150000000" }]),
+      version: "1",
+    });
+
+    const response = await purchase(user, 15_000, "created");
+
+    expect(response.status).toBe(569);
+    await expect(response.text()).resolves.toContain("InsufficientAccountLiquidity");
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("skips collection when the plan is out of reach", async () => {
+    const user = await prepare("unplanned");
+    await recall(user);
+    await purchase(user, 15_000);
+    vi.spyOn(redis, "hgetall").mockRejectedValueOnce(new Error("redis failure"));
+
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(500);
+
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("skips collection when the plan read stalls", async () => {
+    const user = await prepare("stalled");
+    await recall(user);
+    await purchase(user, 15_000);
+    vi.spyOn(redis, "hgetall").mockReturnValueOnce(new Promise(() => undefined));
+
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(500);
+
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("skips collection when the plan write stalls", async () => {
+    const user = await prepare("unsaved");
+    await recall(user);
+    await purchase(user, 15_000);
+    vi.spyOn(redis, "eval").mockReturnValueOnce(new Promise(() => undefined));
+
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(569);
+
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("retries a recorded part that never landed on its network", async () => {
+    const user = await prepare("unlanded");
+    const body = {
+      ...authorization.json.body,
+      id: user.cardId,
+      spend: {
+        ...authorization.json.body.spend,
+        amount: 15_000,
+        authorizedAt: user.authorizedAt,
+        cardId: user.cardId,
+        userId: user.user,
+      },
+    };
+    await database.insert(transactions).values([
+      {
+        id: user.cardId,
+        cardId: user.cardId,
+        hashes: [zeroHash],
+        payload: {
+          type: "panda",
+          bodies: [{ ...authorization.json, action: "created", body, chainId: chain.id, collected: "75000000" }],
+        },
+      },
+    ]);
+
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(200);
+
+    const collections = await collected(user.cardId);
+    expect(collections.slice(1).toSorted((a, b) => a.chainId - b.chainId)).toStrictEqual(
+      [
+        { amount: 75_000_000n, chainId: chain.id, recorded: 75_000_000n },
+        { amount: 75_000_000n, chainId: remote.id, recorded: 75_000_000n },
+      ].toSorted((a, b) => a.chainId - b.chainId),
+    );
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("counts a landed part recorded twice once", async () => {
+    const user = await prepare("twice");
+    const authorized = Math.floor(new Date(user.authorizedAt).getTime() / 1000);
+    const part = authorized - Number(BigInt(keccak256(toBytes(user.cardId))) % 3600n);
+    await expect(
+      purchase({ ...user, authorizedAt: new Date(part * 1000).toISOString() }, 7500, "created").then(
+        ({ status }) => status,
+      ),
+    ).resolves.toBe(200);
+    const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) });
+    const [first] = parse(Bodies, transaction?.payload).bodies;
+    const body = {
+      ...authorization.json,
+      action: "created",
+      body: {
+        ...authorization.json.body,
+        id: user.cardId,
+        spend: {
+          ...authorization.json.body.spend,
+          amount: 15_000,
+          authorizedAt: user.authorizedAt,
+          cardId: user.cardId,
+          userId: user.user,
+        },
+      },
+      chainId: first?.chainId,
+      collected: "75000000",
+    };
+    await database
+      .update(transactions)
+      .set({
+        hashes: [transaction?.hashes[0] ?? zeroHash, transaction?.hashes[0] ?? zeroHash],
+        payload: { type: "panda", bodies: [body, body] },
+      })
+      .where(eq(transactions.id, user.cardId));
+
+    await expect(purchase(user, 15_000, "created").then(({ status }) => status)).resolves.toBe(200);
+
+    const collections = await collected(user.cardId);
+    expect(collections.slice(2)).toStrictEqual([
+      { amount: 75_000_000n, chainId: first?.chainId === chain.id ? remote.id : chain.id, recorded: 75_000_000n },
+    ]);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("skips collection when a split part fails", async () => {
+    const user = await prepare("overrated");
+    await recall(user);
+    const { traceCall } = traceClient;
+    let drained = false;
+    vi.spyOn(traceClient, "traceCall").mockImplementation(async (parameters) => {
+      if (
+        !drained &&
+        parameters.to === user.account &&
+        parameters.data &&
+        decodeFunctionData({ abi: exaPluginAbi, data: parameters.data }).args[0] !== 190_000_000n
+      ) {
+        drained = true;
+        const timestamp = Math.floor(Date.now() / 1000);
+        await keeper.exaSend(
+          { name: "drain", op: "exa.collect" },
+          {
+            address: user.account,
+            abi: exaPluginAbi,
+            functionName: "collectDebit",
+            args: [
+              60_000_000n,
+              BigInt(timestamp),
+              await Panda.signIssuerOp({ account: user.account, amount: 60_000_000n, timestamp }, issuer),
+            ],
+          },
+        );
+      }
+      return traceCall(parameters);
+    });
+
+    const response = await purchase(user, 19_000, "created");
+
+    expect(response.status).toBe(569);
+    await expect(response.text()).resolves.toBe("bad collection");
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) }),
+    ).resolves.toBeUndefined();
+    expect(captureException).toHaveBeenCalledWith(
+      new Error("bad collection"),
+      expect.objectContaining({ level: "fatal" }),
+    );
+  });
+
+  it("fails collection when a split part replays and another fails", async () => {
+    const user = await prepare("replayed");
+    await recall(user);
+    const failure = new Error("receipt timeout");
+    const failures = [
+      new ContractFunctionExecutionError(
+        new ContractFunctionRevertedError({
+          abi: issuerCheckerAbi,
+          functionName: "collectDebit",
+          data: encodeErrorResult({ abi: issuerCheckerAbi, errorName: "Replay" }),
+        }),
+        { abi: exaPluginAbi, functionName: "collectDebit", args: [] },
+      ),
+      failure,
+    ];
+    const reject = () => Promise.reject(failures.shift() ?? new Error("unexpected collection"));
+    const hook = createPandaHook(dependencies);
+    await hook.ready;
+    const { calls, results } = vi.mocked(wallet).mock;
+    vi.spyOn(keeper, "exaSend").mockImplementationOnce(reject);
+    vi.spyOn(
+      results.findLast((_, index) => calls[index]?.[1]?.id === remote.id)?.value as typeof keeper,
+      "exaSend",
+    ).mockImplementationOnce(reject);
+
+    const response = await testClient(hook.app).index.$post({
+      ...authorization,
+      json: {
+        ...authorization.json,
+        action: "created",
+        body: {
+          ...authorization.json.body,
+          id: user.cardId,
+          spend: {
+            ...authorization.json.body.spend,
+            amount: 15_000,
+            authorizedAt: user.authorizedAt,
+            cardId: user.cardId,
+            userId: user.user,
+          },
+        },
+      },
+    });
+
+    expect(failures).toStrictEqual([]);
+    expect(response.status).toBe(569);
+    expect(captureException).toHaveBeenCalledWith(failure, expect.objectContaining({ level: "fatal" }));
+  });
+
+  it("declines when a part does not cover", async () => {
+    const user = await prepare("stale");
+    const [, positions] = await recall(user);
+    await redis.hset(
+      liquidity(user.user),
+      String(remote.id),
+      serialize(
+        positions.map((position) =>
+          position.market === parse(Address, marketUSDCAddress)
+            ? { ...position, floatingDepositAssets: 180_000_000n }
+            : position,
+        ),
+      ),
+    );
+
+    const response = await purchase(user, 19_000);
+
+    expect(response.status).toBe(557);
+    await expect(response.json()).resolves.toStrictEqual({
+      code: "InsufficientAccountLiquidity",
+      rejectionCode: "INSUFFICIENT_FUNDS",
+    });
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("declines when a split network fails", async () => {
+    const user = await prepare("broken");
+    await recall(user);
+    const failure = new Error("trace failure");
+    vi.spyOn(traceClient, "traceCall").mockRejectedValueOnce(failure);
+
+    const response = await purchase(user, 15_000);
+
+    expect(response.status).toBe(569);
+    expect(captureException).toHaveBeenCalledWith(failure, { level: "warning", tags: { chainId: chain.id } });
+    expect(captureException).toHaveBeenCalledWith(new Error("network failure"));
+  });
+
+  it("races every network when a snapshot is unreadable", async () => {
+    const user = await prepare("unreadable");
+    await recall(user);
+    await redis.hset(liquidity(user.user), String(chain.id), "bad");
+
+    const response = await purchase(user, 15_000);
+
+    expect(response.status).toBe(557);
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(SyntaxError), { level: "warning" });
+  });
+
+  it("races every network when snapshots are out of reach", async () => {
+    const user = await prepare("unreachable");
+    await recall(user);
+    const failure = new Error("redis failure");
+    vi.spyOn(redis, "hgetall").mockRejectedValueOnce(failure);
+
+    const response = await purchase(user, 15_000);
+
+    expect(response.status).toBe(557);
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(failure, { level: "warning" });
+  });
+
+  it("races every network when snapshots are too slow", async () => {
+    const user = await prepare("slow");
+    await recall(user);
+    vi.spyOn(redis, "hgetall").mockReturnValueOnce(new Promise(() => undefined));
+
+    const response = await purchase(user, 15_000);
+
+    expect(response.status).toBe(557);
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("liquidity timeout"), { level: "warning" });
+  });
+
+  it("races every network when snapshots exceed the amount", async () => {
+    const user = await prepare("short");
+    await recall(user);
+
+    const response = await purchase(user, 25_000);
+
+    expect(response.status).toBe(557);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("fails collection when a snapshot cannot be refreshed", async () => {
+    const user = await prepare("forgetful");
+    const failure = new Error("redis failure");
+    vi.spyOn(redis, "hset").mockRejectedValueOnce(failure);
+
+    const response = await purchase(user, 15_000, "created");
+
+    expect(response.status).toBe(569);
+    expect(captureException).toHaveBeenCalledWith(failure, {
+      level: "warning",
+      tags: { chainId: expect.any(Number) as number },
+    });
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("fails collection when a snapshot write stalls", async () => {
+    const user = await prepare("stalled");
+    vi.spyOn(redis, "hset").mockReturnValueOnce(new Promise(() => undefined) as never);
+
+    const response = await purchase(user, 15_000, "created");
+
+    expect(response.status).toBe(569);
+    expect(captureException).toHaveBeenCalledWith(new Error("snapshot timeout"), {
+      level: "warning",
+      tags: { chainId: expect.any(Number) as number },
+    });
+    await expect(
+      database.query.transactions.findFirst({ where: eq(transactions.id, user.cardId) }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("reports snapshot failures after collection", async () => {
+    const user = await prepare("receipt");
+    const failure = new Error("redis failure");
+    const hset = vi.spyOn(redis, "hset").mockRejectedValue(failure);
+    onTestFinished(() => hset.mockRestore());
+
+    await expect(purchase(user, 5000, "created").then(({ status }) => status)).resolves.toBe(200);
+
+    const [collection] = await collected(user.cardId);
+    await vi.waitFor(() =>
+      expect(captureException).toHaveBeenCalledWith(failure, {
+        level: "warning",
+        tags: { chainId: collection?.chainId },
+      }),
+    );
+  });
+
+  async function prepare(name: string, mode = 0) {
+    const signer = privateKeyToAccount(generatePrivateKey());
+    const address = deriveAddress(exaAccountFactoryAddress, { x: padHex(signer.address), y: zeroHash });
+    const user = {
+      account: address,
+      authorizedAt: new Date().toISOString(),
+      cardId: `${name}-${address}`,
+      user: `${name}-${address}`,
+    };
+    await database.insert(credentials).values([
+      {
+        id: address,
+        publicKey: new Uint8Array(),
+        account: address,
+        factory: exaAccountFactoryAddress,
+        pandaId: user.user,
+      },
+    ]);
+    await database
+      .insert(cards)
+      .values([{ id: user.cardId, credentialId: address, tenant: "OP", lastFour: "3000", mode }]);
+    const create = {
+      address: exaAccountFactoryAddress,
+      abi: exaAccountFactoryAbi,
+      functionName: "createAccount",
+      args: [0n, [{ x: hexToBigInt(signer.address), y: 0n }]],
+    } as const;
+    const mint = {
+      address: usdcAddress,
+      abi: mockERC20Abi,
+      functionName: "mint",
+      args: [address, 100_000_000n],
+    } as const;
+    const poke = { address, abi: exaPluginAbi, functionName: "poke", args: [marketUSDCAddress] } as const;
+    await Promise.all([
+      keeper.exaSend({ name: "create account", op: "exa.account" }, create),
+      remoteKeeper.exaSend(
+        { name: "allow", op: "exa.firewall" },
+        {
+          address: await remoteKeeper
+            .readContract({
+              address: parse(Address, networks.get(remote.id)?.exaPreviewer),
+              abi: exaPreviewerAbi,
+              functionName: "discover",
+              args: [[]],
+            })
+            .then(({ firewall }) => firewall),
+          abi: firewallAbi,
+          functionName: "allow",
+          args: [address, true],
+        },
+      ),
+    ]);
+    await Promise.all([
+      keeper.exaSend({ name: "mint usdc", op: "tx.mint" }, mint),
+      remoteKeeper.exaSend({ name: "create account", op: "exa.account" }, create),
+    ]);
+    await Promise.all([
+      keeper.exaSend({ name: "poke", op: "exa.poke" }, poke),
+      remoteKeeper.exaSend({ name: "mint usdc", op: "tx.mint" }, mint),
+    ]);
+    await remoteKeeper.exaSend({ name: "poke", op: "exa.poke" }, poke);
+    onTestFinished(() => Panda.getMutex(address)?.release());
+    return user;
+  }
+
+  function recall({ account: address, user }: { account: Address; user: string }) {
+    return Promise.all([remember(redis, user, address, chain.id), remember(redis, user, address, remote.id)]);
+  }
+
+  async function collected(cardId: string) {
+    const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
+    const { bodies } = parse(Bodies, transaction?.payload);
+    return Promise.all(
+      bodies.map(async ({ chainId, collected: recorded }, index) => {
+        const hash = transaction?.hashes[index] as Hex;
+        const client = clients.get(chainId);
+        return {
+          amount:
+            hash === zeroHash || !client
+              ? 0n
+              : usdcToAddress(
+                  await client.waitForTransactionReceipt({ hash, confirmations: 0 }),
+                  Panda.collectors(chainId)[0],
+                ),
+          chainId,
+          recorded: recorded === undefined ? undefined : BigInt(recorded),
+        };
+      }),
+    );
+  }
+});
+
+const Bodies = object({
+  bodies: array(looseObject({ chainId: number(), collected: optional(string()) })),
 });
 
 describe("card notification", () => {
@@ -2854,7 +4714,7 @@ describe("card notification", () => {
 describe("card updated", () => {
   it("deletes canceled card", async () => {
     const id = crypto.randomUUID();
-    await database.insert(cards).values([{ id, credentialId: "cred", lastFour: "7392" }]);
+    await database.insert(cards).values([{ id, credentialId: "cred", tenant: "OP", lastFour: "7392" }]);
 
     const response = await appClient.index.$post({
       ...cardUpdated,
@@ -2872,7 +4732,7 @@ describe("card updated", () => {
     expect(segment.track).toHaveBeenCalledExactlyOnceWith({
       userId: account,
       event: "CardDeleted",
-      properties: { source: null },
+      properties: { cardId: id, source: null },
     });
     expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, cardUpdated.json.id);
     expect(captureException).not.toHaveBeenCalled();
@@ -2880,7 +4740,9 @@ describe("card updated", () => {
 
   it("skips tracking already deleted card", async () => {
     const id = crypto.randomUUID();
-    await database.insert(cards).values([{ id, credentialId: "cred", lastFour: "7392", status: "DELETED" }]);
+    await database
+      .insert(cards)
+      .values([{ id, credentialId: "cred", tenant: "OP", lastFour: "7392", status: "DELETED" }]);
 
     const response = await appClient.index.$post({
       ...cardUpdated,
@@ -2921,7 +4783,7 @@ describe("card updated", () => {
 
   it.each(["active", "locked", "notActivated"] as const)("keeps card status when %s", async (status) => {
     const id = crypto.randomUUID();
-    await database.insert(cards).values([{ id, credentialId: "cred", lastFour: "7392" }]);
+    await database.insert(cards).values([{ id, credentialId: "cred", tenant: "OP", lastFour: "7392" }]);
 
     const response = await appClient.index.$post({
       ...cardUpdated,
@@ -2969,7 +4831,9 @@ describe("concurrency", () => {
       await tx
         .insert(credentials)
         .values([{ id: account2, publicKey: new Uint8Array(), account: account2, factory: exaAccountFactoryAddress }]);
-      await tx.insert(cards).values([{ id: `${account2}-card`, credentialId: account2, lastFour: "1234", mode: 0 }]);
+      await tx
+        .insert(cards)
+        .values([{ id: `${account2}-card`, credentialId: account2, tenant: "OP", lastFour: "1234", mode: 0 }]);
     });
   });
 
@@ -3412,7 +5276,7 @@ describe("concurrency", () => {
       const call = sendPushNotificationSpy.mock.calls[0]?.[0];
       expect(call).toMatchObject({
         userId: account,
-        headings: t("Exa Card purchase rejected"),
+        headings: t("Card •••• {{lastFour}} purchase rejected", { lastFour: "1234" }),
         contents: t("Transaction at {{merchantName}} for {{amount}} rejected: {{reason}}", {
           amount: f(authorization.json.body.spend.localAmount / 100, authorization.json.body.spend.localCurrency),
           merchantName: authorization.json.body.spend.merchantName,
@@ -3787,7 +5651,7 @@ describe("concurrency", () => {
       await vi.waitFor(() => expect(sendPushNotificationSpy).toHaveBeenCalled());
       expect(sendPushNotificationSpy.mock.calls[0]?.[0]).toMatchObject({
         userId: account2,
-        headings: t("Exa Card purchase rejected"),
+        headings: t("Card •••• {{lastFour}} purchase rejected", { lastFour: "1234" }),
         contents: t("Transaction at {{merchantName}} for {{amount}} rejected: {{reason}}", {
           amount: f(authorization.json.body.spend.localAmount / 100, authorization.json.body.spend.localCurrency),
           merchantName: authorization.json.body.spend.merchantName,
@@ -3870,7 +5734,12 @@ describe("concurrency", () => {
 
     it("stores unexpected error when a non-panda error escapes authorization", async () => {
       const txId = crypto.randomUUID();
-      vi.spyOn(Panda, "signIssuerOp").mockRejectedValueOnce(new Error("sign failed"));
+      onTestFinished(() => {
+        vi.mocked(setTag).mockReset();
+      });
+      vi.mocked(setTag).mockImplementation((key) => {
+        if (key === "exa.mode") throw new Error("unexpected");
+      });
 
       const response = await appClient.index.$post({
         ...authorization,
@@ -4023,6 +5892,21 @@ describe("webhooks", () => {
     await expect(response.json()).resolves.toStrictEqual({ code: "user not found" });
     expect(setUser).not.toHaveBeenCalled();
     expect(hookQueue.enqueue).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("enqueues physical card updated webhooks", async () => {
+    const response = await appClient.index.$post({
+      ...cardUpdated,
+      json: {
+        ...cardUpdated.json,
+        body: { ...cardUpdated.json.body, type: "physical", tokenWallets: ["Apple"], userId: "cred" },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, cardUpdated.json.id);
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -4311,7 +6195,9 @@ describe("webhooks", () => {
       } as TransactionReceipt);
     });
     const cardId = "receipt-enqueue-failure";
-    await database.insert(cards).values([{ id: cardId, credentialId: "cred", lastFour: "4321", mode: 0 }]);
+    await database
+      .insert(cards)
+      .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "4321", mode: 0 }]);
 
     const response = await appClient.index.$post({
       ...authorization,
@@ -4336,6 +6222,25 @@ describe("webhooks", () => {
     );
   });
 });
+
+function purchase(
+  { authorizedAt, cardId, user }: { authorizedAt: string; cardId: string; user: string },
+  amount: number,
+  action: "created" | "requested" = "requested",
+) {
+  return appClient.index.$post({
+    ...authorization,
+    json: {
+      ...authorization.json,
+      action,
+      body: {
+        ...authorization.json.body,
+        id: cardId,
+        spend: { ...authorization.json.body.spend, amount, authorizedAt, cardId, userId: user },
+      },
+    },
+  });
+}
 
 const authorization = {
   header: { signature: "panda-signature" },
@@ -4501,6 +6406,66 @@ function usdcToCollector(purchaseReceipt: TransactionReceipt) {
   return usdcToAddress(purchaseReceipt, parse(Address, "0xDb90CDB64CfF03f254e4015C4F705C3F3C834400"));
 }
 
+async function collectSpend(cardId: string, amount: number, authorizedAt?: string) {
+  const body = {
+    ...authorization.json.body,
+    id: cardId,
+    spend: { ...authorization.json.body.spend, amount, cardId, authorizedAt },
+  };
+
+  return [
+    await appClient.index
+      .$post({ ...authorization, json: { ...authorization.json, action: "created", body } })
+      .then(({ status }) => status),
+    usdcToCollector(
+      await database.query.transactions
+        .findFirst({ where: eq(transactions.id, cardId) })
+        .then((transaction) =>
+          publicClient.waitForTransactionReceipt({ hash: transaction?.hashes[0] as Hex, confirmations: 0 }),
+        ),
+    ),
+  ];
+}
+
+async function authorize(cardId: string, amount: number) {
+  const { status } = await appClient.index.$post({
+    ...authorization,
+    json: {
+      ...authorization.json,
+      body: {
+        ...authorization.json.body,
+        id: `${cardId}-authorization`,
+        spend: { ...authorization.json.body.spend, amount, cardId },
+      },
+    },
+  });
+  return status;
+}
+
+async function rotate() {
+  const [admin] = await anvilClient.getAddresses();
+  if (!admin) throw new Error("no admin");
+  const setIssuer = async (address: Hex) => {
+    const { blockNumber } = await anvilClient.waitForTransactionReceipt({
+      hash: await anvilClient.writeContract({
+        account: admin,
+        chain: anvilClient.chain,
+        address: issuerCheckerAddress,
+        abi: issuerCheckerAbi,
+        functionName: "setIssuer",
+        args: [address],
+        gas: 100_000n,
+      }),
+    });
+    return anvilClient.getBlock({ blockNumber }).then(({ timestamp }) => timestamp);
+  };
+  const timestamp = await setIssuer(privateKeyToAccount(generatePrivateKey()).address);
+  onTestFinished(async () => {
+    await setIssuer(issuer.address);
+  });
+  return timestamp;
+}
+
 async function execute(calldata: Hex) {
   return anvilClient.waitForTransactionReceipt({
     hash: await owner.writeContract({
@@ -4583,8 +6548,9 @@ vi.mock("debug", () => {
   return { default: createDebug };
 });
 
-afterEach(() => {
+afterEach(async () => {
   vi.restoreAllMocks();
+  await redis.del(liquidity(authorization.json.body.spend.userId));
 });
 
 function amountHash(amount: bigint) {

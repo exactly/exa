@@ -55,7 +55,6 @@ import {
   quoteValidity,
   routeCalls,
   statusOptions,
-  trackable,
 } from "../../utils/lifi";
 import parseAmount from "../../utils/parseAmount";
 import queryClient from "../../utils/queryClient";
@@ -193,6 +192,7 @@ export default function Confirm() {
     refetch: refetchPropose,
   } = useSimulateProposal({
     account: address,
+    chainId: payChain,
     amount: fromAmount,
     market: market?.market,
     proposalType: ProposalType.Withdraw,
@@ -288,6 +288,7 @@ export default function Confirm() {
     refetch: refetchBridgePropose,
   } = useSimulateProposal({
     account: address,
+    chainId: payChain,
     amount: fromAmount,
     market: market?.market,
     proposalType: ProposalType.Swap,
@@ -587,10 +588,14 @@ export default function Confirm() {
   const proposal = useMemo(() => {
     if (!receipt) return;
     const [topic] = encodeEventTopics({ abi: proposalManagerAbi, eventName: "Proposed" });
-    const nonce = receipt.logs.find(({ topics }) => topics[0] === topic)?.topics[2];
-    return nonce ? { nonce: BigInt(nonce), since: receipt.blockNumber } : undefined;
+    const log = receipt.logs.find(({ topics }) => topics[0] === topic);
+    return log?.topics[2]
+      ? { proposalManager: log.address, nonce: BigInt(log.topics[2]), since: receipt.blockNumber }
+      : undefined;
   }, [receipt]);
-  const { data: execution } = useQuery(executionOptions(address, proposal?.nonce, proposal?.since));
+  const { data: execution } = useQuery(
+    executionOptions(payChain, address, proposal?.proposalManager, proposal?.nonce, proposal?.since),
+  );
   const executionHash = execution?.executed ? execution.hash : undefined;
   const { data: routeStatus } = useQuery(
     statusOptions(
@@ -608,9 +613,7 @@ export default function Confirm() {
     routeStatus?.substatus === "REFUNDED"; // cspell:ignore substatus
   const processing =
     !failed &&
-    (routed && destinationChain !== payChain
-      ? trackable && routeStatus?.status !== "DONE"
-      : !!proposal && !executionHash);
+    (routed && destinationChain !== payChain ? routeStatus?.status !== "DONE" : !!proposal && !executionHash);
   useEffect(() => {
     if (routeStatus?.status !== "DONE" && routeStatus?.status !== "FAILED") return;
     queryClient.invalidateQueries({ queryKey: ["lifi", "balances"] }).catch(reportError);

@@ -79,6 +79,9 @@
         "inputs": [
           "^production",
           "{projectRoot}/alchemy.json",
+          "{projectRoot}/alchemyAPIKeys.ts",
+          "{projectRoot}/factoryChains.json",
+          "{projectRoot}/factoryVersion.json",
           "{projectRoot}/wagmi.config.ts",
           {
             "env": "CHAIN_ID"

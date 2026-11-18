@@ -2,31 +2,23 @@ import { useMemo } from "react";
 
 import { useQuery } from "@tanstack/react-query";
 
-import { marketUSDCAddress } from "@exactly/common/generated/chain";
+import useDebts from "./useDebts";
 
-import useMarkets from "./useMarkets";
-
-import type { ActivityItem } from "./queryClient";
+import type { CardActivity } from "./server";
 
 export default function useStatements() {
-  const { data: activity, isPending } = useQuery<ActivityItem[]>({ queryKey: ["activity"] });
-  const { markets } = useMarkets();
+  const { data: activity, isPending } = useQuery<CardActivity[]>({ queryKey: ["activity", "card"] });
+  const { debts, complete } = useDebts();
   return useMemo(() => {
     if (!activity) return isPending ? undefined : [];
-    if (!markets) return;
-    const debts = new Set(
-      markets
-        .filter(({ market }) => market === marketUSDCAddress)
-        .flatMap(({ fixedBorrowPositions }) =>
-          fixedBorrowPositions.filter(({ previewValue }) => previewValue > 0n).map(({ maturity }) => Number(maturity)),
-        ),
-    );
+    if (!debts || !complete) return;
+    const due = new Set(debts.map(({ maturity }) => Number(maturity)));
     const maturities = new Set<number>();
     for (const item of activity) {
       const borrows =
         item.type === "panda"
           ? item.operations.flatMap((operation) => ("borrow" in operation ? [operation.borrow] : []))
-          : item.type === "card" && "borrow" in item
+          : "borrow" in item
             ? [item.borrow]
             : [];
       for (const borrow of borrows) {
@@ -35,6 +27,6 @@ export default function useStatements() {
         else maturities.add(borrow.maturity);
       }
     }
-    return [...maturities].filter((m) => !debts.has(m)).sort((a, b) => b - a);
-  }, [activity, isPending, markets]);
+    return [...maturities].filter((m) => !due.has(m)).sort((a, b) => b - a);
+  }, [activity, complete, debts, isPending]);
 }

@@ -10,7 +10,7 @@ import { array, nonEmpty, optional, parse, picklist, pipe, string, transform } f
 import { base } from "viem/chains";
 
 import domain from "@exactly/common/domain";
-import chain from "@exactly/common/generated/chain";
+import chain, { isBase, lifiURL } from "@exactly/common/generated/chain";
 import { tenantScript } from "@exactly/common/tenants";
 
 import createApi from "./api";
@@ -44,6 +44,7 @@ import createHook from "./workers/hook/queue";
 import createHookWorker from "./workers/hook/worker";
 import createPoke from "./workers/poke/queue";
 import createRefund from "./workers/refund/queue";
+import createReplicationWorker from "./workers/replication/worker";
 import createSubscribe from "./workers/subscribe/queue";
 
 const alchemy = createAlchemy(parse(pipe(string("alchemy"), nonEmpty("alchemy")), env.ALCHEMY_WEBHOOKS_KEY));
@@ -63,11 +64,13 @@ const panda = createPanda({
   key: parse(pipe(string("panda key"), nonEmpty("panda key")), env.PANDA_API_KEY),
   url: parse(pipe(string("panda url"), nonEmpty("panda url")), env.PANDA_API_URL),
 });
-const pax = createPax({
-  associateKey: parse(pipe(string("pax associate"), nonEmpty("pax associate")), env.PAX_ASSOCIATE_ID_KEY),
-  key: parse(pipe(string("pax key"), nonEmpty("pax key")), env.PAX_API_KEY),
-  url: parse(pipe(string("pax url"), nonEmpty("pax url")), env.PAX_API_URL),
-});
+const pax = env.PAX_API_KEY
+  ? createPax({
+      associateKey: parse(pipe(string("pax associate"), nonEmpty("pax associate")), env.PAX_ASSOCIATE_ID_KEY),
+      key: env.PAX_API_KEY,
+      url: parse(pipe(string("pax url"), nonEmpty("pax url")), env.PAX_API_URL),
+    })
+  : undefined;
 const persona = createPersona(
   parse(pipe(string("persona key"), nonEmpty("persona key")), env.PERSONA_API_KEY),
   parse(pipe(string("persona url"), nonEmpty("persona url")), env.PERSONA_URL),
@@ -86,9 +89,21 @@ const subscribe = createSubscribe(redis);
 const walletExtension = createWalletExtension(
   parse(pipe(string("wallet"), nonEmpty("wallet")), env.WALLET_EXTENSION_SECRET),
 );
+const source = chain.testnet ? "indexer" : "alchemy";
 const hooks = {
   activity: () => createActivityHook({ alchemy, database, onesignal, poke, redis }),
-  block: () => createBlockHook({ alchemy, blockKey: env.ALCHEMY_BLOCK_KEY, executor: keeper, onesignal, redis }),
+  block: () =>
+    createBlockHook({
+      alchemy,
+      blockKey: env.ALCHEMY_BLOCK_KEY,
+      database,
+      executor: keeper,
+      manteca,
+      onesignal,
+      persona,
+      redis,
+      source,
+    }),
   bridge: () =>
     createBridgeHook({
       bridge,
@@ -112,6 +127,7 @@ const hooks = {
       issuer,
       onesignal,
       panda,
+      redis,
       refund,
       sardine,
       segment,
@@ -133,6 +149,7 @@ const hooks = {
 const workers = {
   hook: () => createHookWorker({ bullmq, database, panda }),
   maturity: () => createMaturity(onesignal),
+  ...(isBase && { replication: () => createReplicationWorker({ bullmq, database }) }),
 };
 const disabled = new Set<string>(
   parse(
@@ -270,7 +287,7 @@ frontend.use(
       ],
       connectSrc: [
         "'self'",
-        "https://li.quest",
+        new URL(lifiURL).origin,
         "https://*.g.alchemy.com",
         "https://assets.smold.app",
         "https://assets.exactly.app",
@@ -288,6 +305,9 @@ frontend.use(
         "https://*.google-analytics.com",
         "https://www.google.com",
         // #endregion
+        ...(domain.endsWith("localhost")
+          ? ["http://localhost:3000", "http://127.0.0.1:8545", "http://127.0.0.1:9944"]
+          : []),
         // #region intercom https://www.intercom.com/help/en/articles/3894-using-intercom-with-content-security-policy
         "https://via.intercom.io",
         "https://api.intercom.io",
@@ -494,6 +514,7 @@ export const close = supervise(
         },
         () => allow.close(),
         () => credit.close(),
+        ...enabledHooks.flatMap(([, hook]) => ("close" in hook ? [hook.close] : [])),
         ...enabledWorkers.map((worker) => () => worker.close()),
         () => poke.close(),
         () => refund.close(),

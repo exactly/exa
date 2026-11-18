@@ -4,10 +4,12 @@ import "../mocks/sentry";
 import "../mocks/traceClient";
 import "../mocks/wallet";
 
-import { captureException, continueTrace, withScope } from "@sentry/node";
+import * as core from "@sentry/core";
+import { captureException, continueTrace, setExtra, withScope } from "@sentry/node";
 import { deserialize } from "@wagmi/core";
 import { testClient } from "hono/testing";
 import { Redis } from "ioredis";
+import { array, parse } from "valibot";
 import {
   ContractFunctionExecutionError,
   ContractFunctionRevertedError,
@@ -15,16 +17,22 @@ import {
   decodeEventLog,
   encodeAbiParameters,
   encodeErrorResult,
+  encodeEventTopics,
   encodeFunctionData,
+  encodePacked,
   erc20Abi,
   formatUnits,
   getAbiItem,
   getAddress,
   getContractError,
+  hexToBigInt,
+  hexToBytes,
   http,
+  HttpRequestError,
   maxUint256,
   nonceManager,
   padHex,
+  parseAbi,
   parseEventLogs,
   RawContractError,
   toEventSelector,
@@ -36,36 +44,46 @@ import {
   type Log,
   type TransactionReceipt,
 } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import { entryPoint06Abi, entryPoint06Address, getUserOperationHash } from "viem/account-abstraction";
+import { generatePrivateKey, privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { anvil } from "viem/chains";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import chain, {
   auditorAbi,
+  exaAccountFactoryAbi,
   exaAccountFactoryAddress,
   exaPluginAbi,
+  exaPluginAddress,
   exaPreviewerAbi,
   exaPreviewerAddress,
+  factories,
   issuerCheckerAbi,
   marketAbi,
   marketUSDCAddress,
   marketWETHAddress,
   proposalManagerAbi,
-  proposalManagerAddress,
   upgradeableModularAccountAbi,
   usdcAddress,
 } from "@exactly/common/generated/chain";
+import * as nonceKey from "@exactly/common/nonceKey";
 import ProposalType, { decodeWithdraw } from "@exactly/common/ProposalType";
 import shortenHex from "@exactly/common/shortenHex";
+import * as validation from "@exactly/common/validation";
 import deploy from "@exactly/plugin/deploy.json";
 
+import database, { credentials } from "../../database";
 import createBlockHook from "../../hooks/block";
 import t, { f } from "../../i18n";
 import createAlchemy from "../../utils/alchemy";
+import appOrigin from "../../utils/appOrigin";
 import ensClient from "../../utils/ensClient";
+import { refresh } from "../../utils/liquidity";
 import createOnesignal from "../../utils/onesignal";
+import createPersona from "../../utils/persona";
 import publicClient from "../../utils/publicClient";
+import createManteca from "../../utils/ramps/manteca";
 import redis from "../../utils/redis";
 import revertFingerprint from "../../utils/revertFingerprint";
 import wallet from "../../utils/wallet";
@@ -81,10 +99,16 @@ const bob = createWalletClient({
   account: privateKeyToAccount(padHex("0xb0b"), { nonceManager }),
 });
 const bobAccount = deriveAddress(exaAccountFactoryAddress, { x: padHex(bob.account.address), y: zeroHash });
+const manteca = createManteca("manteca", "https://manteca.test");
+const persona = createPersona("persona", "https://persona.test");
+const settlement = parse(validation.Address, padHex("0x5e7", { size: 20 }));
 const defaults = {
   alchemy: createAlchemy("webhooks"),
+  database,
   executor: bob.account,
+  manteca,
   onesignal: createOnesignal("onesignal"),
+  persona,
   redis,
 };
 vi.mocked(findWebhook).mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined -- create path
@@ -97,41 +121,32 @@ beforeAll(async () => {
 });
 
 describe("initialization", () => {
+  const existing: NonNullable<Awaited<ReturnType<typeof findWebhook>>> = {
+    id: "existing",
+    is_active: true,
+    network: "ANVIL",
+    signing_key: "existing-signing-key",
+    webhook_type: "GRAPHQL",
+    webhook_url: "http://localhost:8081/hooks/block",
+  };
+
+  beforeEach(() => redis.del(`alchemy:block:${existing.id}`, "alchemy:block:mock-webhook-id"));
+
   it("starts with a discovered key when reconciliation fails", async () => {
-    const existing: NonNullable<Awaited<ReturnType<typeof findWebhook>>> = {
-      id: "existing",
-      is_active: true,
-      network: "ANVIL",
-      signing_key: "existing-signing-key",
-      webhook_type: "GRAPHQL",
-      webhook_url: "http://localhost:8081/hooks/block",
-    };
+    const error = new Error("redis unavailable");
     vi.mocked(findWebhook).mockResolvedValueOnce(existing);
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("not found", { status: 404 }));
+    vi.spyOn(redis, "get").mockRejectedValueOnce(error);
     const currentHook = createBlockHook(defaults);
 
     await expect(currentHook.ready).resolves.toBeDefined();
     expect(createWebhook).not.toHaveBeenCalled();
     expect(headerValidator).toHaveBeenLastCalledWith(new Set([existing.signing_key]));
-    expect(captureException).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "Alchemy404", message: "not found", status: 404 }),
-      { level: "warning" },
-    );
+    expect(captureException).toHaveBeenCalledWith(error, { level: "warning" });
   });
 
   it("keeps both keys when the old webhook deletion fails", async () => {
-    const existing: NonNullable<Awaited<ReturnType<typeof findWebhook>>> = {
-      id: "stale",
-      is_active: true,
-      network: "ANVIL",
-      signing_key: "stale-signing-key",
-      webhook_type: "GRAPHQL",
-      webhook_url: "http://localhost:8081/hooks/block",
-    };
     vi.mocked(findWebhook).mockResolvedValueOnce(existing);
-    vi.spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(Response.json({ data: { graphql_query: "{ block { timestamp } }" } }))
-      .mockResolvedValueOnce(new Response("unavailable", { status: 503 }));
+    mockDeletion(new Response("unavailable", { status: 503 }));
     const currentHook = createBlockHook(defaults);
 
     await expect(currentHook.ready).resolves.toBeDefined();
@@ -143,6 +158,47 @@ describe("initialization", () => {
     );
   });
 
+  it("replaces a webhook without a known query", async () => {
+    const addresses = await watched();
+    vi.mocked(findWebhook).mockResolvedValueOnce(existing);
+    mockDeletion();
+
+    await createBlockHook(defaults).ready;
+
+    const options = vi.mocked(createWebhook).mock.lastCall?.[0];
+    const created = options && "graphql_query" in options ? options.graphql_query.query : undefined;
+    expect(createWebhook).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ webhook_type: "GRAPHQL", webhook_url: `${appOrigin}/hooks/block` }),
+    );
+    expect(addresses).toContain(marketUSDCAddress);
+    expect(created).toContain(`addresses: ${JSON.stringify(addresses)}`);
+    expect(created).toContain(`"${withdrawTopic}" # Withdraw`);
+    expect(created).toMatch(/transaction \{\s+hash\s+\}/);
+    expect(await redis.get("alchemy:block:mock-webhook-id")).toBe(created);
+    expect(await redis.exists(`alchemy:block:${existing.id}`)).toBe(0);
+    expect(fetch).toHaveBeenCalledWith(`https://dashboard.alchemy.com/api/delete-webhook?webhook_id=${existing.id}`, {
+      headers: defaults.alchemy.headers,
+      method: "DELETE",
+    });
+    expect(headerValidator).toHaveBeenLastCalledWith(new Set(["mock-signing-key"]));
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("keeps the webhook with the current query", async () => {
+    await createBlockHook(defaults).ready;
+    const query = await redis.get("alchemy:block:mock-webhook-id");
+    if (query === null) throw new Error("missing query");
+    await redis.set(`alchemy:block:${existing.id}`, query);
+    vi.mocked(createWebhook).mockClear();
+    vi.mocked(findWebhook).mockResolvedValueOnce(existing);
+
+    await createBlockHook(defaults).ready;
+
+    expect(createWebhook).not.toHaveBeenCalled();
+    expect(headerValidator).toHaveBeenLastCalledWith(new Set([existing.signing_key]));
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
   it("fails without a signing key when initialization fails", async () => {
     const error = new Error("discovery failed");
     vi.mocked(findWebhook).mockRejectedValueOnce(error);
@@ -150,6 +206,100 @@ describe("initialization", () => {
 
     await expect(currentHook.ready).rejects.toBe(error);
   });
+
+  it("watches the proposal manager of every installed plugin", async () => {
+    const owner = privateKeyToAccount(generatePrivateKey());
+    const factory = factories.versions.find((address) => address !== exaAccountFactoryAddress);
+    if (!factory) throw new Error("missing previous factory");
+    const account = deriveAddress(factory, { x: padHex(owner.address), y: zeroHash });
+    await keeper.exaSend(
+      { name: "create account", op: "exa.account" },
+      {
+        address: factory,
+        abi: exaAccountFactoryAbi,
+        functionName: "createAccount",
+        args: [0n, [{ x: hexToBigInt(owner.address), y: 0n }]],
+      },
+    );
+    const [plugin] = await publicClient.readContract({
+      address: account,
+      abi: upgradeableModularAccountAbi,
+      functionName: "getInstalledPlugins",
+    });
+    if (!plugin) throw new Error("missing installed plugin");
+    await waitForIndexer(await anvilClient.getBlockNumber({ cacheTime: 0 }));
+    vi.mocked(createWebhook).mockClear();
+
+    await createBlockHook(defaults).ready;
+
+    const proposalManagers = await Promise.all(
+      [plugin, exaPluginAddress].map((address) =>
+        publicClient.readContract({ address, abi: exaPluginAbi, functionName: "proposalManager" }),
+      ),
+    );
+    const options = vi.mocked(createWebhook).mock.lastCall?.[0];
+    const query = options && "graphql_query" in options ? options.graphql_query.query : undefined;
+    for (const proposalManager of proposalManagers) expect(query).toContain(proposalManager);
+  });
+
+  it("watches plugins without a proposal manager", async () => {
+    const plugin = getAddress(padHex("0x1e9a", { size: 20 }));
+    const { blockNumber } = await anvilClient.waitForTransactionReceipt({
+      hash: await anvilClient.writeContract({
+        address: exaPluginAddress,
+        abi: exaPluginAbi,
+        functionName: "allowPlugin",
+        args: [plugin, true],
+        account: null,
+      }),
+    });
+    await waitForIndexer(blockNumber);
+    vi.mocked(createWebhook).mockClear();
+
+    await createBlockHook(defaults).ready;
+
+    const options = vi.mocked(createWebhook).mock.lastCall?.[0];
+    const query = options && "graphql_query" in options ? options.graphql_query.query : undefined;
+    expect(query).toContain(plugin);
+  });
+
+  it("replaces a webhook watching stale emitters", async () => {
+    const stale = getAddress(padHex("0xdead", { size: 20 }));
+    vi.mocked(findWebhook).mockResolvedValueOnce(existing);
+    await redis.set(
+      `alchemy:block:${existing.id}`,
+      `{ block { number logs(filter: { addresses: ["${stale}"] }) { topics } } }`,
+    );
+    mockDeletion();
+
+    await createBlockHook(defaults).ready;
+
+    const options = vi.mocked(createWebhook).mock.lastCall?.[0];
+    const query = options && "graphql_query" in options ? options.graphql_query.query : undefined;
+    expect(query).toContain(
+      await publicClient.readContract({
+        address: exaPluginAddress,
+        abi: exaPluginAbi,
+        functionName: "proposalManager",
+      }),
+    );
+    expect(query).not.toContain(stale);
+    expect(fetch).toHaveBeenCalledWith(`https://dashboard.alchemy.com/api/delete-webhook?webhook_id=${existing.id}`, {
+      headers: defaults.alchemy.headers,
+      method: "DELETE",
+    });
+    expect(headerValidator).toHaveBeenLastCalledWith(new Set(["mock-signing-key"]));
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  function mockDeletion(deletion = new Response()) {
+    const { fetch } = globalThis;
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) =>
+      input === `https://dashboard.alchemy.com/api/delete-webhook?webhook_id=${existing.id}`
+        ? Promise.resolve(deletion)
+        : fetch(input, init),
+    );
+  }
 });
 
 describe("validation", () => {
@@ -162,6 +312,24 @@ describe("validation", () => {
 
 describe("proposal", () => {
   let proposals: Log<bigint, number, false, (typeof proposalManagerAbi)[29], true>[];
+
+  function logs(emitter?: Address) {
+    return proposals.map(({ topics, data, address }) => ({ topics, data, account: { address: emitter ?? address } }));
+  }
+
+  function scheduled(zadd: ReturnType<typeof spyZadd>, account: Address = bobAccount) {
+    return zadd.mock.calls.filter(([key, , message]) => {
+      if (key !== "proposals" || typeof message !== "string") return false;
+      const proposalPayload = deserialize(message);
+      if (typeof proposalPayload !== "object" || proposalPayload === null) return false;
+      return (
+        "account" in proposalPayload &&
+        proposalPayload.account === account &&
+        "nonce" in proposalPayload &&
+        proposals.some(({ args }) => args.nonce === proposalPayload.nonce)
+      );
+    });
+  }
 
   describe("with valid proposals", () => {
     beforeEach(async () => {
@@ -263,7 +431,114 @@ describe("proposal", () => {
       });
       expect(hasExpectedTransfers(receipts, expected)).toBe(true);
       expect(removals).toStrictEqual([1, 1]);
+      expect(refresh).toHaveBeenCalledWith(database, redis, bobAccount, chain.id);
       expect(setUser).toHaveBeenCalledWith({ id: bobAccount });
+    });
+
+    it("ignores proposals emitted by another contract", async () => {
+      const sendPushNotification = sendPushNotificationMock.mockResolvedValue({});
+      vi.spyOn(ensClient, "getEnsName").mockResolvedValue(null);
+      const zadd = spyZadd();
+
+      const ignored = await post(logs(exaPluginAddress));
+
+      expect(ignored.status).toBe(200);
+      expect(scheduled(zadd)).toStrictEqual([]);
+
+      const executions = waitForSuccessfulProposalExecutions(proposals.map(({ args }) => args.nonce));
+      const removals = waitForProposalRemovals(proposals.map(({ args }) => args));
+      const [response, , removed] = await Promise.all([post(logs()), executions, removals]);
+      await vi.waitUntil(() => sendPushNotification.mock.calls.length === proposals.length, 26_666);
+
+      expect(response.status).toBe(200);
+      expect(scheduled(zadd)).toHaveLength(proposals.length);
+      expect(removed).toStrictEqual(proposals.map(() => 1));
+    });
+
+    it("ignores proposals of accounts whose proposal manager lookup reverts", async () => {
+      const sendPushNotification = sendPushNotificationMock.mockResolvedValue({});
+      vi.spyOn(ensClient, "getEnsName").mockResolvedValue(null);
+      const owner = privateKeyToAccount(generatePrivateKey());
+      const account = deriveAddress(exaAccountFactoryAddress, { x: padHex(owner.address), y: zeroHash });
+      await keeper.exaSend(
+        { name: "create account", op: "exa.account" },
+        {
+          address: exaAccountFactoryAddress,
+          abi: exaAccountFactoryAbi,
+          functionName: "createAccount",
+          args: [0n, [{ x: hexToBigInt(owner.address), y: 0n }]],
+        },
+      );
+      const { readContract } = publicClient;
+      vi.spyOn(publicClient, "readContract").mockImplementation((parameters) =>
+        parameters.functionName === "proposalManager" && parameters.args?.[0] === account
+          ? Promise.reject(revertError("proposalManager"))
+          : readContract(parameters),
+      );
+      const zadd = spyZadd();
+      const [proposal] = proposals;
+      if (!proposal) throw new Error("missing proposal");
+      const [signature, , ...indexed] = proposal.topics;
+      const executions = waitForSuccessfulProposalExecutions(proposals.map(({ args }) => args.nonce));
+      const removals = waitForProposalRemovals(proposals.map(({ args }) => args));
+
+      const [response, , removed] = await Promise.all([
+        post([
+          {
+            topics: [signature, encodeAbiParameters([{ type: "address" }], [account]), ...indexed],
+            data: proposal.data,
+            account: { address: proposal.address },
+          },
+          ...logs(),
+        ]),
+        executions,
+        removals,
+      ]);
+      await vi.waitUntil(() => sendPushNotification.mock.calls.length === proposals.length, 26_666);
+
+      expect(response.status).toBe(200);
+      expect(scheduled(zadd)).toHaveLength(proposals.length);
+      expect(scheduled(zadd, account)).toStrictEqual([]);
+      expect(removed).toStrictEqual(proposals.map(() => 1));
+    });
+
+    it.each([
+      ["plain", new Error("rpc unavailable")],
+      [
+        "wrapped",
+        getContractError(new HttpRequestError({ url: "http://localhost:8545", details: "rpc unavailable" }), {
+          abi: [],
+          args: [],
+          functionName: "proposalManager",
+        }),
+      ],
+    ])("fails when the proposal manager of an account can't be read (%s error)", async (_, error) => {
+      const sendPushNotification = sendPushNotificationMock.mockResolvedValue({});
+      vi.spyOn(ensClient, "getEnsName").mockResolvedValue(null);
+      const { readContract } = publicClient;
+      const read = vi
+        .spyOn(publicClient, "readContract")
+        .mockImplementation((parameters) =>
+          parameters.functionName === "proposalManager" && parameters.args?.[0] === bobAccount
+            ? Promise.reject(error)
+            : readContract(parameters),
+        );
+      const zadd = spyZadd();
+
+      const failed = await post(logs());
+
+      expect(failed.status).toBe(500);
+      expect(scheduled(zadd)).toStrictEqual([]);
+      expect(vi.mocked(captureException).mock.calls.filter(([captured]) => captured === error)).toStrictEqual([]);
+
+      read.mockRestore();
+      const executions = waitForSuccessfulProposalExecutions(proposals.map(({ args }) => args.nonce));
+      const removals = waitForProposalRemovals(proposals.map(({ args }) => args));
+      const [response, , removed] = await Promise.all([post(logs()), executions, removals]);
+      await vi.waitUntil(() => sendPushNotification.mock.calls.length === proposals.length, 26_666);
+
+      expect(response.status).toBe(200);
+      expect(removed).toStrictEqual(proposals.map(() => 1));
     });
 
     it("executes withdrawals despite a notification failure", async () => {
@@ -324,6 +599,59 @@ describe("proposal", () => {
     });
   });
 
+  describe("with a withdraw in the block", () => {
+    beforeEach(async () => {
+      proposals = await getLogs([await proposeWithdraw(3_000_000n, padHex("0x69", { size: 20 }))]);
+      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
+      vi.setSystemTime(new Date(Number((proposals[0]?.args.unlock ?? 0n) + 10n) * 1000));
+    });
+
+    afterEach(() => vi.useRealTimers());
+
+    it("executes the proposal", async () => {
+      const sendPushNotification = sendPushNotificationMock.mockResolvedValue({});
+      vi.spyOn(ensClient, "getEnsName").mockResolvedValue(null);
+      const getSettlements = vi.spyOn(manteca, "getSettlements").mockResolvedValueOnce({ ARS: settlement });
+      const getPaymentLock = vi.spyOn(manteca, "getPaymentLock");
+      const executions = waitForSuccessfulProposalExecutions(proposals.map(({ args }) => args.nonce));
+      const removals = waitForProposalRemovals(proposals.map(({ args }) => args));
+
+      const [response, receipts, removed] = await Promise.all([
+        appClient.index.$post(
+          withLogs([
+            ...proposals.map(({ topics, data, address }) => ({ topics, data, account: { address } })),
+            withdrawLog({ receiver: getAddress(padHex("0x69", { size: 20 })), owner: bobAccount }),
+          ]),
+        ),
+        executions,
+        removals,
+      ]);
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual({});
+      expect(
+        hasExpectedTransfers(receipts, [{ receiver: getAddress(padHex("0x69", { size: 20 })), amount: 3_000_000n }]),
+      ).toBe(true);
+      expect(removed).toStrictEqual([1]);
+      expect(getSettlements).toHaveBeenCalledOnce();
+      expect(getPaymentLock).not.toHaveBeenCalled();
+      expect(setExtra).not.toHaveBeenCalledWith("exa.ignore", true);
+      await vi.waitFor(
+        () =>
+          expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
+            userId: bobAccount,
+            headings: t("Withdraw completed"),
+            contents: t("{{amount}} {{symbol}} sent to {{recipient}}", {
+              amount: f("3"),
+              symbol: "USDC",
+              recipient: shortenHex(padHex("0x69", { size: 20 })),
+            }),
+          }),
+        26_666,
+      );
+    });
+  });
+
   describe("with weth withdraw proposal", () => {
     beforeEach(async () => {
       const hash = await proposeWithdraw(69n, padHex("0x69", { size: 20 }), marketWETHAddress);
@@ -367,7 +695,7 @@ describe("proposal", () => {
       expect(removals).toStrictEqual([1]);
       await expect(
         publicClient.readContract({
-          address: proposalManagerAddress,
+          address: withdraw.address,
           abi: proposalManagerAbi,
           functionName: "nonces",
           args: [bobAccount],
@@ -406,7 +734,11 @@ describe("proposal", () => {
       const executions = waitForSuccessfulProposalExecutions([redeem.args.nonce]);
       const removals = waitForProposalRemovals([{ account: redeem.args.account, nonce: redeem.args.nonce }]);
 
-      const [, [receipt], removed] = await Promise.all([postProposal(redeem), executions, removals]);
+      const [, [receipt], removed] = await Promise.all([
+        post([{ topics: redeem.topics, data: redeem.data, account: { address: redeem.address } }]),
+        executions,
+        removals,
+      ]);
       const [withdraw] = parseEventLogs({ abi: marketAbi, eventName: "Withdraw", logs: receipt?.logs ?? [] });
       await vi.waitUntil(() => sendPushNotification.mock.calls.length === 1, 26_666);
 
@@ -423,7 +755,7 @@ describe("proposal", () => {
       expect(removed).toStrictEqual([1]);
       await expect(
         publicClient.readContract({
-          address: proposalManagerAddress,
+          address: redeem.address,
           abi: proposalManagerAbi,
           functionName: "nonces",
           args: [bobAccount],
@@ -455,7 +787,11 @@ describe("proposal", () => {
       const executions = waitForSuccessfulProposalExecutions([redeem.args.nonce]);
       const removals = waitForProposalRemovals([{ account: redeem.args.account, nonce: redeem.args.nonce }]);
 
-      const [, [receipt], removed] = await Promise.all([postProposal(redeem), executions, removals]);
+      const [, [receipt], removed] = await Promise.all([
+        post([{ topics: redeem.topics, data: redeem.data, account: { address: redeem.address } }]),
+        executions,
+        removals,
+      ]);
       const [withdraw] = parseEventLogs({ abi: marketAbi, eventName: "Withdraw", logs: receipt?.logs ?? [] });
       await vi.waitUntil(() => sendPushNotification.mock.calls.length === 1, 26_666);
 
@@ -511,7 +847,10 @@ describe("proposal", () => {
       });
       const removals = waitForProposalRemovals([{ account: redeem.args.account, nonce: redeem.args.nonce }]);
 
-      const [, removed] = await Promise.all([postProposal(redeem), removals]);
+      const [, removed] = await Promise.all([
+        post([{ topics: redeem.topics, data: redeem.data, account: { address: redeem.address } }]),
+        removals,
+      ]);
       await vi.waitUntil(() => sendPushNotification.mock.calls.length === 1, 26_666);
 
       expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
@@ -525,7 +864,13 @@ describe("proposal", () => {
       expect(captureException).toHaveBeenCalledWith(new Error("missing withdraw event"), {
         level: "error",
         contexts: {
-          proposal: { account: redeem.args.account, market: marketUSDCAddress, nonce: Number(redeem.args.nonce), hash },
+          proposal: {
+            account: redeem.args.account,
+            chainId: chain.id,
+            market: marketUSDCAddress,
+            nonce: Number(redeem.args.nonce),
+            hash,
+          },
         },
       });
       expect(removed).toStrictEqual([1]);
@@ -572,7 +917,7 @@ describe("proposal", () => {
       expect(removals).toStrictEqual([1]);
       await expect(
         publicClient.readContract({
-          address: proposalManagerAddress,
+          address: revert.address,
           abi: proposalManagerAbi,
           functionName: "nonces",
           args: [bobAccount],
@@ -660,11 +1005,22 @@ describe("proposal", () => {
       expect(vi.mocked(captureException).mock.calls.filter((call) => match.capture(call))).toEqual([]);
     });
 
-    it("requeues Timelocked proposals without nonce skipping", async () => {
+    it.each([
+      { pending: true, name: "the pending unlock" },
+      { pending: false, name: "the next block" },
+    ])("requeues Timelocked proposals at $name without nonce skipping", async ({ pending }) => {
       const setUser = await spyScopeSetUser();
       const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
       const match = matchProposal(proposal.args.account, proposal.args.nonce);
-      const { simulateContract } = publicClient;
+      const { readContract, simulateContract } = publicClient;
+      const getBlock = vi.spyOn(publicClient, "getBlock");
+      if (!pending) {
+        vi.spyOn(publicClient, "readContract").mockImplementation((parameters) =>
+          parameters.functionName === "pendingProposals" && parameters.args?.[0] === proposal.args.account
+            ? Promise.resolve([])
+            : readContract(parameters),
+        );
+      }
       const add: (key: string, score: number, member: string) => Promise<number> = redis.zadd.bind(redis);
       const zadd = vi.spyOn<{ zadd: typeof add }, "zadd">(Redis.prototype, "zadd");
       const removals = waitForRemovals([match]);
@@ -735,6 +1091,7 @@ describe("proposal", () => {
         expect.objectContaining({ level: "warning", fingerprint: ["{{ default }}", "Timelocked"] }),
       ]);
       expect(exaSendSpy.mock.calls.some(([, call]) => call.functionName === "setProposalNonce")).toBe(false);
+      expect(getBlock).toHaveBeenCalledTimes(pending ? 1 : 2);
       expect(setUser).toHaveBeenCalledWith({ id: bobAccount });
     });
 
@@ -1279,7 +1636,7 @@ describe("proposal", () => {
 
       await expect(
         publicClient.readContract({
-          address: proposalManagerAddress,
+          address: none.address,
           abi: proposalManagerAbi,
           functionName: "nonces",
           args: [bobAccount],
@@ -1442,12 +1799,25 @@ describe("proposal", () => {
 
 describe("legacy withdraw", () => {
   const withdrawUnlock = 1000n;
-  const withdrawAccount = getAddress(padHex("0xdead", { size: 20 }));
+  const owner = privateKeyToAccount(generatePrivateKey());
+  const withdrawAccount = deriveAddress(exaAccountFactoryAddress, { x: padHex(owner.address), y: zeroHash });
   const withdrawMarket = getAddress(padHex("0xbeef", { size: 20 }));
   const withdrawReceiver = getAddress(padHex("0xcafe", { size: 20 }));
-  const { simulateContract } = publicClient;
+  const { readContract, simulateContract } = publicClient;
 
-  function legacyPayload(amount: bigint) {
+  beforeAll(async () => {
+    await keeper.exaSend(
+      { name: "create account", op: "exa.account" },
+      {
+        address: exaAccountFactoryAddress,
+        abi: exaAccountFactoryAbi,
+        functionName: "createAccount",
+        args: [0n, [{ x: hexToBigInt(owner.address), y: 0n }]],
+      },
+    );
+  });
+
+  function legacyPayload(amount: bigint, emitter: Address = exaPluginAddress, account: Address = withdrawAccount) {
     return {
       header: {},
       json: {
@@ -1461,12 +1831,12 @@ describe("legacy withdraw", () => {
                 {
                   topics: [
                     "0x0c652a21d96e4efed065c3ef5961e4be681be99b95dd55126669ae9be95767e0",
-                    encodeAbiParameters([{ type: "address" }], [withdrawAccount]),
+                    encodeAbiParameters([{ type: "address" }], [account]),
                     encodeAbiParameters([{ type: "address" }], [withdrawMarket]),
                     encodeAbiParameters([{ type: "address" }], [withdrawReceiver]),
                   ] as [Hex, ...Hex[]],
                   data: encodeAbiParameters([{ type: "uint256" }, { type: "uint256" }], [amount, withdrawUnlock]),
-                  account: { address: zeroAddress },
+                  account: { address: emitter },
                 },
               ],
             },
@@ -1475,6 +1845,65 @@ describe("legacy withdraw", () => {
       },
     };
   }
+
+  it("ignores withdrawals emitted by a plugin the account didn't install", async () => {
+    const zadd = vi.spyOn<{ zadd: (key: string, score: number, member: string) => Promise<number> }, "zadd">(
+      Redis.prototype,
+      "zadd",
+    );
+
+    const response = await appClient.index.$post(legacyPayload(1_500_000n, zeroAddress));
+
+    expect(response.status).toBe(200);
+    expect(zadd.mock.calls.filter(([key]) => key === "withdraw")).toStrictEqual([]);
+  });
+
+  it("ignores withdrawals from an undeployed account", async () => {
+    const zadd = vi.spyOn<{ zadd: (key: string, score: number, member: string) => Promise<number> }, "zadd">(
+      Redis.prototype,
+      "zadd",
+    );
+
+    const response = await appClient.index.$post(
+      legacyPayload(1_600_000n, exaPluginAddress, getAddress(padHex("0xdead", { size: 20 }))),
+    );
+
+    expect(response.status).toBe(200);
+    expect(zadd.mock.calls.filter(([key]) => key === "withdraw")).toStrictEqual([]);
+  });
+
+  it("ignores withdrawals from an account whose plugins read reverts", async () => {
+    vi.spyOn(publicClient, "readContract").mockImplementation((parameters) =>
+      parameters.functionName === "getInstalledPlugins" && parameters.address === withdrawAccount
+        ? Promise.reject(revertError("getInstalledPlugins"))
+        : readContract(parameters),
+    );
+    const zadd = spyZadd();
+
+    const response = await appClient.index.$post(legacyPayload(1_650_000n));
+
+    expect(response.status).toBe(200);
+    expect(zadd.mock.calls.filter(([key]) => key === "withdraw")).toStrictEqual([]);
+  });
+
+  it("fails when the account's plugins can't be read", async () => {
+    const error = new Error("rpc unavailable");
+    vi.spyOn(publicClient, "readContract").mockImplementation((parameters) =>
+      parameters.functionName === "getInstalledPlugins" && parameters.address === withdrawAccount
+        ? Promise.reject(error)
+        : readContract(parameters),
+    );
+    const zadd = vi.spyOn<{ zadd: (key: string, score: number, member: string) => Promise<number> }, "zadd">(
+      Redis.prototype,
+      "zadd",
+    );
+
+    const response = await appClient.index.$post(legacyPayload(1_750_000n));
+
+    expect(response.status).toBe(500);
+    expect(zadd.mock.calls.filter(([key]) => key === "withdraw")).toStrictEqual([]);
+    expect(vi.mocked(captureException).mock.calls.filter(([captured]) => captured === error)).toStrictEqual([]);
+  });
 
   it("removes withdraw from queue on InsufficientAccountLiquidity", async () => {
     const setUser = await spyScopeSetUser();
@@ -1585,9 +2014,10 @@ describe("legacy withdraw", () => {
         ? Promise.resolve({ status: "success" } as TransactionReceipt)
         : exaSend(span, call, options),
     );
-    vi.spyOn(publicClient, "readContract").mockImplementation(({ functionName }) => {
-      if (functionName === "decimals") return Promise.resolve(6);
-      if (functionName === "symbol") return Promise.resolve("exaUSDC");
+    vi.spyOn(publicClient, "readContract").mockImplementation((parameters) => {
+      if (parameters.functionName === "getInstalledPlugins") return readContract(parameters);
+      if (parameters.functionName === "decimals") return Promise.resolve(6);
+      if (parameters.functionName === "symbol") return Promise.resolve("exaUSDC");
       return Promise.reject(new Error("unexpected readContract call"));
     });
 
@@ -1604,6 +2034,7 @@ describe("legacy withdraw", () => {
       }),
     });
     expect(vi.mocked(captureException).mock.calls.filter((call) => match.capture(call))).toEqual([]);
+    expect(refresh).toHaveBeenCalledWith(database, redis, withdrawAccount, chain.id);
     expect(setUser).toHaveBeenCalledWith({ id: withdrawAccount });
   });
 
@@ -1620,9 +2051,10 @@ describe("legacy withdraw", () => {
         ? Promise.resolve({ status: "success" } as TransactionReceipt)
         : exaSend(span, call, options),
     );
-    vi.spyOn(publicClient, "readContract").mockImplementation(({ functionName }) => {
-      if (functionName === "decimals") return Promise.resolve(6);
-      if (functionName === "symbol") return Promise.resolve("exaUSDC");
+    vi.spyOn(publicClient, "readContract").mockImplementation((parameters) => {
+      if (parameters.functionName === "getInstalledPlugins") return readContract(parameters);
+      if (parameters.functionName === "decimals") return Promise.resolve(6);
+      if (parameters.functionName === "symbol") return Promise.resolve("exaUSDC");
       return Promise.reject(new Error("unexpected readContract call"));
     });
 
@@ -1654,9 +2086,10 @@ describe("legacy withdraw", () => {
         ? Promise.resolve({ status: "success" } as TransactionReceipt)
         : exaSend(span, call, options),
     );
-    vi.spyOn(publicClient, "readContract").mockImplementation(({ functionName }) => {
-      if (functionName === "decimals") return Promise.resolve(6);
-      if (functionName === "symbol") return Promise.resolve("exaUSDC");
+    vi.spyOn(publicClient, "readContract").mockImplementation((parameters) => {
+      if (parameters.functionName === "getInstalledPlugins") return readContract(parameters);
+      if (parameters.functionName === "decimals") return Promise.resolve(6);
+      if (parameters.functionName === "symbol") return Promise.resolve("exaUSDC");
       return Promise.reject(new Error("unexpected readContract call"));
     });
 
@@ -1691,9 +2124,10 @@ describe("legacy withdraw", () => {
         ? Promise.resolve({ status: "success" } as TransactionReceipt)
         : exaSend(span, call, options),
     );
-    vi.spyOn(publicClient, "readContract").mockImplementation(({ functionName }) => {
-      if (functionName === "decimals") return Promise.resolve(6);
-      if (functionName === "symbol") return Promise.resolve("exaUSDC");
+    vi.spyOn(publicClient, "readContract").mockImplementation((parameters) => {
+      if (parameters.functionName === "getInstalledPlugins") return readContract(parameters);
+      if (parameters.functionName === "decimals") return Promise.resolve(6);
+      if (parameters.functionName === "symbol") return Promise.resolve("exaUSDC");
       return Promise.reject(new Error("unexpected readContract call"));
     });
 
@@ -2418,6 +2852,485 @@ describe("legacy withdraw", () => {
   });
 });
 
+describe("qr payment", () => {
+  const payer = deriveAddress(exaAccountFactoryAddress, {
+    x: padHex(privateKeyToAddress(padHex("0xa11ce"))),
+    y: zeroHash,
+  });
+  const code = "8d0f05d6-fb17-4adc-8003-de9a0ec9c77a";
+  const nonce = BigInt(nonceKey.encode(code)) << 64n;
+  const userOpHash = padHex("0x4337", { size: 32 });
+  const hash = padHex("0x7e", { size: 32 });
+  const lock = {
+    code,
+    type: "QR3",
+    companyId: "68a6270d62a6d9f582f40c00",
+    userId: "6adff39f0ee31861fc20cdaf",
+    userNumberId: "100114168",
+    userExternalId: "Exactly-argentina",
+    sender: { exchange: "ARGENTINA", legalId: "30123456", name: "Jane", surname: "Doe" },
+    paymentRecipientName: "Ricardo Fort",
+    paymentRecipientLegalId: "20505736195",
+    paymentAssetAmount: "1706.37",
+    paymentAsset: "ARS",
+    paymentPrice: "696.70000000",
+    paymentAgainstAmount: "2.44921774",
+    expireAt: "2026-11-11T11:33:26.000-03:00",
+    creationTime: "2026-11-11T11:28:26.096-03:00",
+  };
+  const synthetic = {
+    id: "synthetic",
+    numberId: "70009",
+    externalId: userOpHash,
+    status: "STARTING" as const,
+    type: "QR3_PAYMENT",
+  };
+  const stranger = getAddress(padHex("0x57a", { size: 20 }));
+  const payment = withdrawLog({ receiver: settlement, owner: payer, hash });
+
+  beforeAll(async () => {
+    await database.insert(credentials).values({
+      id: "block-qr",
+      publicKey: new Uint8Array(hexToBytes(payer)),
+      account: payer,
+      factory: exaAccountFactoryAddress,
+    });
+  });
+
+  it("executes a payment made onchain", async () => {
+    const owner = privateKeyToAccount(generatePrivateKey());
+    const account = deriveAddress(exaAccountFactoryAddress, { x: padHex(owner.address), y: zeroHash });
+    await database.insert(credentials).values({
+      id: "block-qr-onchain",
+      publicKey: new Uint8Array(hexToBytes(owner.address)),
+      account,
+      factory: exaAccountFactoryAddress,
+    });
+    await keeper.exaSend(
+      { name: "create account", op: "exa.account" },
+      {
+        address: exaAccountFactoryAddress,
+        abi: exaAccountFactoryAbi,
+        functionName: "createAccount",
+        args: [0n, [{ x: hexToBigInt(owner.address), y: 0n }]],
+      },
+    );
+    await keeper.exaSend(
+      { name: "mint usdc", op: "exa.usdc" },
+      {
+        address: usdcAddress,
+        abi: parseAbi(["function mint(address to, uint256 amount)"]),
+        functionName: "mint",
+        args: [account, 3_000_000n],
+      },
+    );
+    await keeper.exaSend(
+      { name: "poke", op: "exa.poke" },
+      { address: account, abi: exaPluginAbi, functionName: "poke", args: [marketUSDCAddress] },
+    );
+    await anvilClient.setBalance({ address: account, value: 10n ** 18n });
+    const userOperation = {
+      sender: account,
+      nonce: await publicClient.readContract({
+        address: entryPoint06Address,
+        abi: entryPoint06Abi,
+        functionName: "getNonce",
+        args: [account, BigInt(nonceKey.encode(code))],
+      }),
+      initCode: "0x",
+      callData: encodeFunctionData({
+        abi: upgradeableModularAccountAbi,
+        functionName: "execute",
+        args: [
+          marketUSDCAddress,
+          0n,
+          encodeFunctionData({ abi: marketAbi, functionName: "withdraw", args: [2_449_218n, settlement, account] }),
+        ],
+      }),
+      callGasLimit: 1_000_000n,
+      verificationGasLimit: 1_000_000n,
+      preVerificationGas: 100_000n,
+      maxFeePerGas: 1_000_000_000n,
+      maxPriorityFeePerGas: 1_000_000n,
+      paymasterAndData: "0x",
+      signature: "0x",
+    } as const;
+    const receipt = await keeper.exaSend(
+      { name: "handle ops", op: "exa.ops" },
+      {
+        address: entryPoint06Address,
+        abi: entryPoint06Abi,
+        functionName: "handleOps",
+        args: [
+          [
+            {
+              ...userOperation,
+              signature: encodePacked(
+                ["uint8", "bytes"],
+                [
+                  0,
+                  await owner.signMessage({
+                    message: {
+                      raw: getUserOperationHash({
+                        chainId: chain.id,
+                        entryPointAddress: entryPoint06Address,
+                        entryPointVersion: "0.6",
+                        userOperation,
+                      }),
+                    },
+                  }),
+                ],
+              ),
+            },
+          ],
+          bob.account.address,
+        ],
+      },
+    );
+    if (!receipt) throw new Error("missing receipt");
+    const [operation] = parseEventLogs({ abi: entryPoint06Abi, eventName: "UserOperationEvent", logs: receipt.logs });
+    const [withdraw] = parseEventLogs({ abi: marketAbi, eventName: "Withdraw", logs: receipt.logs });
+    if (!operation || !withdraw) throw new Error("missing logs");
+    expect(operation.args).toMatchObject({ sender: account, nonce: userOperation.nonce, success: true });
+    expect(withdraw.args).toStrictEqual({
+      caller: account,
+      receiver: settlement,
+      owner: account,
+      assets: 2_449_218n,
+      shares: withdraw.args.shares,
+    });
+    const getSettlements = vi.spyOn(manteca, "getSettlements").mockResolvedValue({ ARS: settlement });
+    const getPaymentLock = vi.spyOn(manteca, "getPaymentLock").mockResolvedValueOnce(lock);
+    const getAccount = vi.spyOn(persona, "getAccount").mockResolvedValueOnce(basicAccount);
+    const getSettlement = vi.spyOn(manteca, "getSettlement").mockResolvedValueOnce(settlement);
+    const executeQrPayment = vi.spyOn(manteca, "executeQrPayment").mockResolvedValueOnce(synthetic);
+
+    const response = await appClient.index.$post(
+      withLogs([
+        {
+          topics: withdraw.topics as [Hex, ...Hex[]],
+          data: withdraw.data,
+          account: { address: withdraw.address },
+          transaction: { hash: receipt.transactionHash },
+        },
+      ]),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({});
+    expect(getSettlements).toHaveBeenCalledTimes(2);
+    expect(getPaymentLock).toHaveBeenCalledExactlyOnceWith(code);
+    expect(getAccount).toHaveBeenCalledExactlyOnceWith("block-qr-onchain", "basic");
+    expect(getSettlement).toHaveBeenCalledExactlyOnceWith("ARS");
+    expect(executeQrPayment).toHaveBeenCalledExactlyOnceWith(code, operation.args.userOpHash);
+    expect(core.captureException).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+    expect(setExtra).not.toHaveBeenCalledWith("exa.ignore", true);
+  });
+
+  it("pays only the user operations of the payment", async () => {
+    const getTransactionReceipt = vi
+      .spyOn(publicClient, "getTransactionReceipt")
+      .mockResolvedValueOnce(
+        transactionReceipt(hash, [
+          receiptLog({ receiver: settlement, owner: payer }),
+          operationLog({ sender: payer, nonce }),
+          operationLog({ sender: stranger, nonce }),
+          operationLog({ sender: payer, nonce, address: padHex("0xe4", { size: 20 }) }),
+          operationLog({ sender: payer, nonce: 0n }),
+        ]),
+      );
+    vi.spyOn(manteca, "getSettlements").mockResolvedValue({ ARS: settlement });
+    const getPaymentLock = vi.spyOn(manteca, "getPaymentLock").mockResolvedValueOnce(lock);
+    vi.spyOn(persona, "getAccount").mockResolvedValueOnce(basicAccount);
+    vi.spyOn(manteca, "getSettlement").mockResolvedValueOnce(settlement);
+    const executeQrPayment = vi.spyOn(manteca, "executeQrPayment").mockResolvedValueOnce(synthetic);
+
+    const response = await appClient.index.$post(withLogs([payment, payment]));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({});
+    expect(getTransactionReceipt).toHaveBeenCalledExactlyOnceWith({ hash });
+    expect(getPaymentLock).toHaveBeenCalledExactlyOnceWith(code);
+    expect(executeQrPayment).toHaveBeenCalledExactlyOnceWith(code, userOpHash);
+    expect(core.captureException).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("executes once when the hook redelivers the payment", async () => {
+    vi.spyOn(publicClient, "getTransactionReceipt").mockResolvedValue(
+      transactionReceipt(hash, [
+        receiptLog({ receiver: settlement, owner: payer }),
+        operationLog({ sender: payer, nonce }),
+      ]),
+    );
+    vi.spyOn(manteca, "getSettlements").mockResolvedValue({ ARS: settlement });
+    vi.spyOn(manteca, "getPaymentLock").mockResolvedValue(lock);
+    vi.spyOn(persona, "getAccount").mockResolvedValue(basicAccount);
+    vi.spyOn(manteca, "getSettlement").mockResolvedValue(settlement);
+    const { fetch: realFetch } = globalThis;
+    const fetch = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      if (input === "https://manteca.test/crypto/v2/synthetics/qr-payment") {
+        return Promise.resolve(
+          fetch.mock.calls.some(([url], index, calls) => url === input && index < calls.length - 1)
+            ? Response.json({ internalStatus: "SYNTHETIC_EXISTS", message: "Synthetic exists" }, { status: 409 })
+            : Response.json(synthetic),
+        );
+      }
+      if (input === `https://manteca.test/crypto/v2/synthetics/${userOpHash}`) {
+        return Promise.resolve(Response.json(synthetic));
+      }
+      return realFetch(input, init);
+    });
+
+    const first = await appClient.index.$post(withLogs([payment]));
+    const second = await appClient.index.$post(withLogs([payment]));
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    const executions = fetch.mock.calls.filter(
+      ([url]) => url === "https://manteca.test/crypto/v2/synthetics/qr-payment",
+    );
+    expect(executions.map(([, init]) => init?.body)).toStrictEqual([
+      JSON.stringify({ qrCode: code, externalId: userOpHash }),
+      JSON.stringify({ qrCode: code, externalId: userOpHash }),
+    ]);
+    expect(fetch).toHaveBeenCalledWith(
+      `https://manteca.test/crypto/v2/synthetics/${userOpHash}`,
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(core.captureException).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["a payment below the lock amount", { assets: 2_449_217n }, basicAccount, lock, "2449217"],
+    ["another payer", {}, basicAccount, { ...lock, sender: { ...lock.sender, legalId: "99999999" } }, "2449218"],
+    ["a payer without national id", {}, passportAccount, lock, "2449218"],
+    ["a payer without persona account", {}, undefined, lock, "2449218"],
+    ["a lock without sender", {}, basicAccount, { ...lock, sender: undefined }, "2449218"],
+  ] as const)("reports %s without executing", async (_, override, account, paymentLock, amount) => {
+    vi.spyOn(publicClient, "getTransactionReceipt").mockResolvedValueOnce(
+      transactionReceipt(hash, [
+        receiptLog({ receiver: settlement, owner: payer, ...override }),
+        operationLog({ sender: payer, nonce }),
+      ]),
+    );
+    vi.spyOn(manteca, "getSettlements").mockResolvedValue({ ARS: settlement });
+    vi.spyOn(manteca, "getPaymentLock").mockResolvedValueOnce(paymentLock);
+    const getAccount = vi.spyOn(persona, "getAccount").mockResolvedValueOnce(account);
+    vi.spyOn(manteca, "getSettlement").mockResolvedValueOnce(settlement);
+    const executeQrPayment = vi.spyOn(manteca, "executeQrPayment");
+
+    const response = await appClient.index.$post(withLogs([payment]));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({});
+    expect(getAccount).toHaveBeenCalledExactlyOnceWith("block-qr", "basic");
+    expect(executeQrPayment).not.toHaveBeenCalled();
+    expect(core.captureException).toHaveBeenCalledExactlyOnceWith(new Error("qr payment not executed"), {
+      level: "error",
+      contexts: { payment: { account: payer, userOpHash, amount } },
+    });
+  });
+
+  it("reports a payment without the lock in the nonce key", async () => {
+    vi.spyOn(publicClient, "getTransactionReceipt").mockResolvedValueOnce(
+      transactionReceipt(hash, [
+        receiptLog({ receiver: settlement, owner: payer }),
+        operationLog({ sender: payer, nonce: 0n }),
+      ]),
+    );
+    vi.spyOn(manteca, "getSettlements").mockResolvedValue({ ARS: settlement });
+    const getPaymentLock = vi.spyOn(manteca, "getPaymentLock");
+
+    const response = await appClient.index.$post(withLogs([payment]));
+
+    expect(response.status).toBe(200);
+    expect(getPaymentLock).not.toHaveBeenCalled();
+    expect(core.captureException).toHaveBeenCalledExactlyOnceWith(
+      new Error("usdc sent to settlement without qr lock"),
+      {
+        level: "error",
+        contexts: { payment: { account: payer, userOpHash, amount: "2449218" } },
+      },
+    );
+    expect(core.captureException).not.toHaveBeenCalledWith(new Error("qr payment not executed"), expect.anything());
+  });
+
+  it.each([
+    ["receiver", { receiver: stranger }],
+    ["owner", { owner: stranger }],
+    ["market", { address: marketWETHAddress }],
+  ] as const)("ignores a payment to the wrong %s without reporting", async (_, override) => {
+    vi.spyOn(publicClient, "getTransactionReceipt").mockResolvedValueOnce(
+      transactionReceipt(hash, [
+        receiptLog({ receiver: settlement, owner: payer, ...override }),
+        operationLog({ sender: payer, nonce }),
+      ]),
+    );
+    vi.spyOn(manteca, "getSettlements").mockResolvedValue({ ARS: settlement });
+    vi.spyOn(manteca, "getPaymentLock").mockResolvedValueOnce(lock);
+    vi.spyOn(persona, "getAccount").mockResolvedValueOnce(basicAccount);
+    vi.spyOn(manteca, "getSettlement").mockResolvedValueOnce(settlement);
+    const executeQrPayment = vi.spyOn(manteca, "executeQrPayment");
+
+    const response = await appClient.index.$post(withLogs([payment]));
+
+    expect(response.status).toBe(200);
+    expect(executeQrPayment).not.toHaveBeenCalled();
+    expect(core.captureException).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("ignores a failed user operation before reading the lock", async () => {
+    vi.spyOn(publicClient, "getTransactionReceipt").mockResolvedValueOnce(
+      transactionReceipt(hash, [
+        receiptLog({ receiver: settlement, owner: payer }),
+        operationLog({ sender: payer, nonce, success: false }),
+      ]),
+    );
+    const getSettlements = vi.spyOn(manteca, "getSettlements").mockResolvedValue({ ARS: settlement });
+    const getPaymentLock = vi.spyOn(manteca, "getPaymentLock");
+
+    const response = await appClient.index.$post(withLogs([payment]));
+
+    expect(response.status).toBe(200);
+    expect(getSettlements).toHaveBeenCalledOnce();
+    expect(getPaymentLock).not.toHaveBeenCalled();
+    expect(core.captureException).not.toHaveBeenCalled();
+  });
+
+  it("ignores a payment whose lock expired after the execute", async () => {
+    vi.spyOn(publicClient, "getTransactionReceipt").mockResolvedValueOnce(
+      transactionReceipt(hash, [
+        receiptLog({ receiver: settlement, owner: payer }),
+        operationLog({ sender: payer, nonce }),
+      ]),
+    );
+    vi.spyOn(manteca, "getSettlements").mockResolvedValue({ ARS: settlement });
+    vi.spyOn(manteca, "getPaymentLock").mockResolvedValueOnce(null);
+    const getSynthetic = vi.spyOn(manteca, "getSynthetic").mockResolvedValueOnce({ ...synthetic, status: "COMPLETED" });
+    const executeQrPayment = vi.spyOn(manteca, "executeQrPayment");
+
+    const response = await appClient.index.$post(withLogs([payment]));
+
+    expect(response.status).toBe(200);
+    expect(getSynthetic).toHaveBeenCalledExactlyOnceWith(userOpHash);
+    expect(executeQrPayment).not.toHaveBeenCalled();
+    expect(core.captureException).not.toHaveBeenCalled();
+  });
+
+  it("fails a payment when the receipt lookup fails for redelivery", async () => {
+    vi.spyOn(publicClient, "getTransactionReceipt").mockRejectedValueOnce(new Error("rpc down"));
+    vi.spyOn(manteca, "getSettlements").mockResolvedValue({ ARS: settlement });
+    const getPaymentLock = vi.spyOn(manteca, "getPaymentLock");
+
+    const response = await appClient.index.$post(withLogs([payment]));
+
+    expect(response.status).toBe(500);
+    expect(getPaymentLock).not.toHaveBeenCalled();
+    expect(core.captureException).not.toHaveBeenCalled();
+  });
+
+  it("ignores withdraws that are not payments", async () => {
+    const getTransactionReceipt = vi.spyOn(publicClient, "getTransactionReceipt");
+    const getSettlements = vi.spyOn(manteca, "getSettlements").mockResolvedValueOnce({ ARS: settlement });
+    const getPaymentLock = vi.spyOn(manteca, "getPaymentLock");
+
+    const response = await appClient.index.$post(
+      withLogs([
+        withdrawLog({ receiver: getAddress(padHex("0xca7d", { size: 20 })), owner: payer, hash }),
+        { ...withdrawLog({ receiver: settlement, owner: payer, hash }), account: { address: marketWETHAddress } },
+      ]),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({});
+    expect(setExtra).toHaveBeenCalledWith("exa.ignore", true);
+    expect(getSettlements).toHaveBeenCalledOnce();
+    expect(getTransactionReceipt).not.toHaveBeenCalled();
+    expect(getPaymentLock).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("fails withdraws when settlements fail for redelivery", async () => {
+    vi.spyOn(manteca, "getSettlements").mockRejectedValueOnce(new Error("manteca down"));
+    const getTransactionReceipt = vi.spyOn(publicClient, "getTransactionReceipt");
+
+    const response = await appClient.index.$post(withLogs([payment]));
+
+    expect(response.status).toBe(500);
+    expect(setExtra).not.toHaveBeenCalledWith("exa.ignore", true);
+    expect(getTransactionReceipt).not.toHaveBeenCalled();
+  });
+
+  it("skips payments without a transaction", async () => {
+    const other = padHex("0x7f", { size: 32 });
+    const getTransactionReceipt = vi
+      .spyOn(publicClient, "getTransactionReceipt")
+      .mockResolvedValueOnce(transactionReceipt(other, [operationLog({ sender: stranger, nonce })]));
+    vi.spyOn(manteca, "getSettlements").mockResolvedValue({ ARS: settlement });
+    const getPaymentLock = vi.spyOn(manteca, "getPaymentLock");
+
+    const response = await appClient.index.$post(
+      withLogs([
+        { ...payment, transaction: undefined },
+        withdrawLog({ receiver: settlement, owner: stranger, hash: other }),
+      ]),
+    );
+
+    expect(response.status).toBe(200);
+    expect(getTransactionReceipt).toHaveBeenCalledExactlyOnceWith({ hash: other });
+    expect(getPaymentLock).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("fails a payment for redelivery", async () => {
+    const error = new Error("lock lookup failed");
+    vi.spyOn(publicClient, "getTransactionReceipt").mockResolvedValueOnce(
+      transactionReceipt(hash, [
+        receiptLog({ receiver: settlement, owner: payer }),
+        operationLog({ sender: payer, nonce }),
+      ]),
+    );
+    vi.spyOn(manteca, "getSettlements").mockResolvedValue({ ARS: settlement });
+    vi.spyOn(manteca, "getPaymentLock").mockRejectedValueOnce(error);
+    const executeQrPayment = vi.spyOn(manteca, "executeQrPayment");
+
+    const response = await appClient.index.$post(withLogs([payment]));
+
+    expect(response.status).toBe(500);
+    expect(executeQrPayment).not.toHaveBeenCalled();
+    expect(core.captureException).toHaveBeenCalledExactlyOnceWith(new Error("qr payment not executed"), {
+      level: "error",
+      contexts: { payment: { account: payer, userOpHash, amount: "2449218" } },
+    });
+  });
+
+  it("reports a payment the lock rejects", async () => {
+    vi.spyOn(publicClient, "getTransactionReceipt").mockResolvedValueOnce(
+      transactionReceipt(hash, [
+        receiptLog({ receiver: settlement, owner: payer }),
+        operationLog({ sender: payer, nonce }),
+      ]),
+    );
+    vi.spyOn(manteca, "getSettlements").mockResolvedValue({ ARS: settlement });
+    vi.spyOn(manteca, "getPaymentLock").mockResolvedValueOnce(null);
+    vi.spyOn(manteca, "getSynthetic").mockResolvedValueOnce(null);
+    const executeQrPayment = vi.spyOn(manteca, "executeQrPayment");
+
+    const response = await appClient.index.$post(withLogs([payment]));
+
+    expect(response.status).toBe(200);
+    expect(executeQrPayment).not.toHaveBeenCalled();
+    expect(core.captureException).toHaveBeenCalledExactlyOnceWith(new Error("qr payment not executed"), {
+      level: "error",
+      contexts: { payment: { account: payer, userOpHash, amount: "2449218" } },
+    });
+  });
+});
+
 const blockPayload = {
   header: {},
   json: {
@@ -2446,6 +3359,46 @@ const withdrawProposal = {
     },
   },
 };
+
+function post(logs: { account: { address: Address }; data: Hex; topics: [Hex, ...Hex[]] }[]) {
+  return appClient.index.$post({
+    ...withdrawProposal,
+    json: {
+      ...withdrawProposal.json,
+      event: {
+        ...withdrawProposal.json.event,
+        data: { ...withdrawProposal.json.event.data, block: { ...withdrawProposal.json.event.data.block, logs } },
+      },
+    },
+  });
+}
+
+function spyZadd() {
+  return vi.spyOn<{ zadd: (key: string, score: number, member: string) => Promise<number> }, "zadd">(
+    Redis.prototype,
+    "zadd",
+  );
+}
+
+function revertError(functionName: string) {
+  return new ContractFunctionExecutionError(new ContractFunctionRevertedError({ abi: [], functionName }), {
+    abi: [],
+    functionName,
+  });
+}
+
+function waitForIndexer(block: bigint) {
+  return vi.waitFor(
+    async () => {
+      const status = (await fetch("http://localhost:42069/status").then((response) => response.json())) as Record<
+        string,
+        { block: { number: number } }
+      >;
+      expect(status[chain.name]?.block.number).toBeGreaterThanOrEqual(Number(block));
+    },
+    { timeout: 10_000 },
+  );
+}
 
 function hasExpectedTransfers(
   receipts: readonly TransactionReceipt[],
@@ -2573,22 +3526,6 @@ function proposeWithdraw(
   );
 }
 
-function postProposal({ address, data, topics }: { address: Address; data: Hex; topics: [Hex, ...Hex[]] }) {
-  return appClient.index.$post({
-    ...withdrawProposal,
-    json: {
-      ...withdrawProposal.json,
-      event: {
-        ...withdrawProposal.json.event,
-        data: {
-          ...withdrawProposal.json.event.data,
-          block: { ...withdrawProposal.json.event.data.block, logs: [{ topics, data, account: { address } }] },
-        },
-      },
-    },
-  });
-}
-
 async function getLogs(hashes: Hex[]) {
   const receipts = await Promise.all(hashes.map((hash) => anvilClient.waitForTransactionReceipt({ hash })));
   return parseEventLogs<typeof proposalManagerAbi, true, "Proposed">({
@@ -2599,9 +3536,206 @@ async function getLogs(hashes: Hex[]) {
   });
 }
 
+function withLogs(
+  logs: { account: { address: Address }; data: Hex; topics: [Hex, ...Hex[]]; transaction?: { hash: Hex } }[],
+) {
+  return {
+    ...withdrawProposal,
+    json: {
+      ...withdrawProposal.json,
+      event: {
+        ...withdrawProposal.json.event,
+        data: { ...withdrawProposal.json.event.data, block: { ...withdrawProposal.json.event.data.block, logs } },
+      },
+    },
+  };
+}
+
+function withdrawLog({
+  receiver,
+  owner,
+  hash,
+  assets = 2_449_218n,
+}: {
+  assets?: bigint;
+  hash?: Hex;
+  owner: Address;
+  receiver: Address;
+}) {
+  return {
+    topics: encodeEventTopics({ abi: marketAbi, eventName: "Withdraw", args: { caller: owner, receiver, owner } }) as [
+      Hex,
+      ...Hex[],
+    ],
+    data: encodeAbiParameters([{ type: "uint256" }, { type: "uint256" }], [assets, assets]),
+    account: { address: marketUSDCAddress },
+    ...(hash && { transaction: { hash } }),
+  };
+}
+
+function receiptLog({
+  receiver,
+  owner,
+  assets,
+  address = marketUSDCAddress,
+}: {
+  address?: Address;
+  assets?: bigint;
+  owner: Address;
+  receiver: Address;
+}) {
+  const { topics, data } = withdrawLog({ receiver, owner, assets });
+  return { address, topics, data };
+}
+
+function operationLog({
+  sender,
+  nonce,
+  address = entryPoint06Address,
+  success = true,
+}: {
+  address?: Address;
+  nonce: bigint;
+  sender: Address;
+  success?: boolean;
+}) {
+  return {
+    address,
+    topics: encodeEventTopics({
+      abi: entryPoint06Abi,
+      eventName: "UserOperationEvent",
+      args: { userOpHash: padHex("0x4337", { size: 32 }), sender, paymaster: zeroAddress },
+    }) as [Hex, ...Hex[]],
+    data: encodeAbiParameters(
+      [{ type: "uint256" }, { type: "bool" }, { type: "uint256" }, { type: "uint256" }],
+      [nonce, success, 0n, 0n],
+    ),
+  };
+}
+
+function transactionReceipt(hash: Hex, logs: ReturnType<typeof operationLog>[]): TransactionReceipt {
+  return {
+    blockHash: zeroHash,
+    blockNumber: 1n,
+    contractAddress: null,
+    cumulativeGasUsed: 0n,
+    effectiveGasPrice: 0n,
+    from: zeroAddress,
+    gasUsed: 0n,
+    logs: logs.map((log, logIndex) => ({
+      ...log,
+      blockHash: zeroHash,
+      blockNumber: 1n,
+      logIndex,
+      transactionHash: hash,
+      transactionIndex: 0,
+      removed: false,
+    })),
+    logsBloom: "0x",
+    status: "success",
+    to: entryPoint06Address,
+    transactionHash: hash,
+    transactionIndex: 0,
+    type: "eip1559",
+  };
+}
+
+async function watched() {
+  await createBlockHook(defaults).ready;
+  const options = vi.mocked(createWebhook).mock.lastCall?.[0];
+  vi.mocked(createWebhook).mockClear();
+  const created = options && "graphql_query" in options ? options.graphql_query.query : "";
+  return parse(array(validation.Address), JSON.parse(/addresses: (\[.*\])/.exec(created)?.[1] ?? "[]"));
+}
+
+const withdrawTopic = toEventSelector(getAbiItem({ abi: marketAbi, name: "Withdraw" }));
+
+const basicAccount = {
+  id: "act_qr",
+  type: "account" as const,
+  attributes: {
+    "country-code": "AR",
+    "email-address": "jane@example.com",
+    "name-first": "Jane",
+    "name-middle": null,
+    "name-last": "Doe",
+    "address-street-1": "123 Main St",
+    "address-street-2": null,
+    "address-city": "Buenos Aires",
+    "address-subdivision": "CABA", // cspell:ignore CABA
+    "address-postal-code": "1000",
+    "social-security-number": null,
+    "phone-number": "+5491123456789",
+    birthdate: "1990-01-01",
+    fields: {
+      name: { value: { first: { value: "Jane" }, middle: { value: null }, last: { value: "Doe" } } },
+      address: {
+        value: {
+          street_1: { value: "123 Main St" },
+          street_2: { value: null },
+          city: { value: "Buenos Aires" },
+          subdivision: { value: "CABA" },
+          postal_code: { value: "1000" },
+          country_code: { value: "AR" },
+        },
+      },
+      birthdate: { value: "1990-01-01" },
+      phone_number: { value: "+5491123456789" },
+      email_address: { value: "jane@example.com" },
+      selfie_photo: { value: { filename: "selfie.jpg", url: "https://example.com/selfie.jpg" } },
+      rain_e_sign_consent: { value: true },
+      exa_card_tc: { value: true },
+      privacy__policy: { value: true },
+      account_opening_disclosure: { value: null },
+      economic_activity: { value: "Developer" },
+      annual_salary: { value: "50000" },
+      expected_monthly_volume: { value: "1000" },
+      accurate_info_confirmation: { value: true },
+      non_unauthorized_solicitation: { value: true },
+      non_illegal_activities_2: { value: "No" as const },
+      documents: {
+        value: [
+          {
+            value: {
+              id_class: { value: "id" },
+              id_number: { value: "30123456" },
+              id_issuing_country: { value: "AR" },
+              id_document_id: { value: "doc_id" },
+            },
+          },
+        ],
+      },
+    },
+  },
+};
+
+const passportAccount = {
+  ...basicAccount,
+  attributes: {
+    ...basicAccount.attributes,
+    fields: {
+      ...basicAccount.attributes.fields,
+      documents: {
+        value: [
+          {
+            value: {
+              id_class: { value: "pp" },
+              id_number: { value: "AAA123456" },
+              id_issuing_country: { value: "AR" },
+              id_document_id: { value: "doc_pp" },
+            },
+          },
+        ],
+      },
+    },
+  },
+};
+
 afterEach(() => vi.restoreAllMocks());
 
+vi.mock("@sentry/core", { spy: true });
 vi.mock("@sentry/node", { spy: true });
+vi.mock("../../utils/liquidity", { spy: true });
 
 const wrappedErrorAbi = [
   {

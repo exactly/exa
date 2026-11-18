@@ -21,9 +21,11 @@ describe("hook", () => {
     ["block", () => import("../../hooks/block")],
     ["bridge", () => import("../../hooks/bridge")],
     ["chat", () => import("../../hooks/chat")],
+    ["mockfi", () => import("../../hooks/mockfi")],
     ["manteca", () => import("../../hooks/manteca")],
     ["panda", () => import("../../hooks/panda")],
     ["persona", () => import("../../hooks/persona")],
+    ["sponsor", () => import("../../hooks/sponsor")],
   ])("loads the %s factory without environment variables", async (_, load) => {
     await expect(load().then(({ default: hook }) => hook)).resolves.toBeTypeOf("function");
   });

@@ -57,19 +57,7 @@ import {
 import { base } from "viem/chains";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import chain, {
-  alchemyChains,
-  allowlists,
-  appPreviewerAbi,
-  appPreviewerCode,
-  auditorAddress,
-  exaAddress,
-  lifiURL,
-  marketWETHAddress,
-  mockSwapperAbi,
-  stocks,
-  swapperAddress,
-} from "@exactly/common/generated/chain";
+import chain, { alchemyChains, exaAddress, lifiURL, marketWETHAddress } from "@exactly/common/generated/chain";
 import { Address as AddressSchema, Hex } from "@exactly/common/validation";
 import { WAD } from "@exactly/lib";
 
@@ -83,9 +71,7 @@ export const lifiChainsOptions = queryOptions({
   queryKey: ["lifi", "chains"],
   staleTime: Infinity,
   gcTime: Infinity,
-  enabled: !!lifiURL,
   queryFn: async () => {
-    if (!lifiURL) return [];
     ensureConfig();
     return getChains({ chainTypes });
   },
@@ -96,7 +82,6 @@ export const reachOptions = queryOptions({
   staleTime: Infinity,
   gcTime: Infinity,
   queryFn: async () => {
-    if (!lifiURL) return { [chain.id]: [chain.id] };
     ensureConfig();
     const { bridges } = await getTools();
     const reach = new Map<number, Set<number>>([[chain.id, new Set([chain.id])]]);
@@ -115,27 +100,6 @@ export const lifiTokensOptions = queryOptions({
   gcTime: Infinity,
   retry: 3,
   queryFn: async () => {
-    if (!lifiURL) {
-      const markets = await publicClient.readContract({
-        abi: appPreviewerAbi,
-        functionName: "markets",
-        code: appPreviewerCode,
-        args: [auditorAddress],
-      });
-      return markets.flatMap(({ asset, decimals, market, symbol, usdPrice }): Token[] => {
-        const token = {
-          address: asset,
-          chainId: chain.id as ChainId,
-          decimals,
-          name: symbol,
-          priceUSD: formatUnits(usdPrice, 18),
-          symbol,
-        };
-        return market === marketWETHAddress
-          ? [token, { ...token, address: zeroAddress, name: "ETH", symbol: "ETH" }]
-          : [token];
-      });
-    }
     ensureConfig();
     const { tokens } = await getTokens({ chainTypes, orderBy: "volumeUSD24H" });
     const allTokens = Object.values(tokens)
@@ -162,14 +126,18 @@ export function statsOptions(chainId: number, address: string) {
           volumeUSD24H: nullish(number()),
           fdvUSD: nullish(number()),
         }),
-        lifiURL ? await getToken(chainId as ChainId, address) : {},
+        await getToken(chainId as ChainId, address),
       );
     },
   });
 }
 
-export function isStock({ address, chainId }: { address: string; chainId: number }) {
-  return chainId === base.id && stocks.has(address.toLowerCase());
+export function isStock(allowlists: Allowlists, { address, chainId }: { address: string; chainId: number }) {
+  return (
+    chainId === base.id &&
+    address.slice(0, 5).toLowerCase() === "0xb20" &&
+    !!allowlists[base.id]?.has(address.toLowerCase())
+  );
 }
 
 export const stockAbi = parseAbi(["function multiplier() view returns (uint256)"]);
@@ -189,8 +157,12 @@ export function marketOpen() {
 
 export const restrictedCountries = new Set(["AU", "CA", "GB", "SG", "US"]);
 
-export function isRestricted(country: string | undefined, token: { address: string; chainId: number }) {
-  return restrictedCountries.has(country ?? "") && isStock(token);
+export function isRestricted(
+  country: string | undefined,
+  allowlists: Allowlists,
+  token: { address: string; chainId: number },
+) {
+  return restrictedCountries.has(country ?? "") && isStock(allowlists, token);
 }
 
 export function balancesOptions(account: Address | undefined) {
@@ -198,7 +170,7 @@ export function balancesOptions(account: Address | undefined) {
     queryKey: ["lifi", "balances", account],
     staleTime: 30_000,
     gcTime: isServer ? Infinity : 60_000,
-    enabled: !!account && !!lifiURL,
+    enabled: !!account,
     queryFn: streamedQuery({
       refetchMode: "append",
       initialValue: {} as Record<number, TokenAmount[]>,
@@ -225,8 +197,6 @@ export function balancesOptions(account: Address | undefined) {
   });
 }
 
-export const trackable = !!lifiURL;
-
 export function statusOptions(
   txHash: string | undefined,
   toChain: number | undefined,
@@ -238,13 +208,12 @@ export function statusOptions(
     queryKey: ["lifi", "status", txHash, toChain, bridge, fromChain],
     retry: false,
     meta: { warnError: () => true },
-    queryFn:
-      txHash && trackable
-        ? () => {
-            ensureConfig();
-            return getStatus({ txHash, fromChain, toChain, bridge });
-          }
-        : skipToken,
+    queryFn: txHash
+      ? () => {
+          ensureConfig();
+          return getStatus({ txHash, fromChain, toChain, bridge });
+        }
+      : skipToken,
     refetchInterval: ({ state }) =>
       state.data?.status === "DONE" ||
       state.data?.status === "FAILED" ||
@@ -264,7 +233,7 @@ export function chainTypeOf(receiver: string) {
 
 let configured = false;
 function ensureConfig() {
-  if (configured || !lifiURL) return;
+  if (configured) return;
   createLifiConfig({
     integrator: "exa_app",
     apiUrl: lifiURL,
@@ -287,6 +256,7 @@ function ensureConfig() {
 }
 
 export async function getRoute(
+  chainId: number,
   fromToken: Hex,
   toToken: Hex,
   toAmount: bigint,
@@ -295,33 +265,13 @@ export async function getRoute(
   denyExchanges?: Record<string, boolean>,
 ) {
   ensureConfig();
-  if (!lifiURL) {
-    const fromAmount = await publicClient.readContract({
-      abi: mockSwapperAbi,
-      functionName: "getAmountIn",
-      address: parse(Hex, swapperAddress),
-      args: [fromToken, toAmount, toToken],
-    });
-    return {
-      tool: "mockSwapper",
-      fromAmount,
-      data: parse(
-        Hex,
-        encodeFunctionData<typeof mockSwapperAbi>({
-          abi: mockSwapperAbi,
-          functionName: "swapExactAmountOut",
-          args: [fromToken, fromAmount, toToken, toAmount, receiver],
-        }),
-      ),
-    };
-  }
   config.set({ integrator: "exa_app", userId: account });
   const { estimate, transactionRequest, tool } = await getQuote({
     fee: 0.0025,
     slippage: 0.015,
     integrator: "exa_app",
-    fromChain: chain.id,
-    toChain: chain.id,
+    fromChain: chainId,
+    toChain: chainId,
     fromToken,
     toToken,
     toAmount: String(toAmount),
@@ -335,7 +285,7 @@ export async function getRoute(
   });
   assert(QuoteEstimate, estimate);
   return {
-    ...parse(QuoteTransaction, { chainId: chain.id, value: "0", ...transactionRequest }),
+    ...parse(QuoteTransaction, { chainId, value: "0", ...transactionRequest }),
     tool,
     estimate,
     toAmount: BigInt(estimate.toAmount),
@@ -343,30 +293,44 @@ export async function getRoute(
   };
 }
 
-export function swappable(markets: readonly { asset: string }[] = []) {
-  return new Set(
-    [...(allowlists[String(chain.id)] ?? []), ...markets.map((m) => m.asset)].map((address) => address.toLowerCase()),
-  );
+export function swappable(allowlist: ReadonlySet<string> = new Set(), markets: readonly { asset: string }[] = []) {
+  return new Set([...allowlist, ...markets.map((m) => m.asset.toLowerCase())]);
 }
 
-export function isSendable(address: string) {
-  return (
-    address === zeroAddress ||
-    !!allowlists[String(chain.id)]?.some((allowed) => allowed.toLowerCase() === address.toLowerCase())
-  );
+export function isSendable(allowlist: ReadonlySet<string> | undefined, address: string) {
+  return address === zeroAddress || !!allowlist?.has(address.toLowerCase());
 }
 
-export async function getAllowTokens(markets: readonly { asset: string; symbol: string }[] = []) {
-  ensureConfig();
-  if (!lifiURL) return [];
-  const { tokens } = await getTokens({ chains: [chain.id] });
-  const allowed = swappable(markets);
-  return (
-    tokens[chain.id]
-      ?.filter((token) => allowed.has(token.address.toLowerCase()))
-      .sort((a, b) => Number(b.address === exaAddress) - Number(a.address === exaAddress)) ?? []
-  );
+export function marketTokens(
+  markets: readonly { asset: string; decimals: number; market: string; symbol: string; usdPrice: bigint }[],
+) {
+  return markets.flatMap(({ asset, decimals, market, symbol, usdPrice }): Token[] => {
+    const token = {
+      address: asset,
+      chainId: chain.id as ChainId,
+      decimals,
+      name: symbol,
+      priceUSD: formatUnits(usdPrice, 18),
+      symbol,
+    };
+    return market === marketWETHAddress
+      ? [token, { ...token, address: zeroAddress, name: "ETH", symbol: "ETH" }]
+      : [token];
+  });
 }
+
+export function allowTokens(
+  tokens: readonly Token[],
+  allowlist: ReadonlySet<string> | undefined,
+  markets: readonly { asset: string }[] = [],
+) {
+  const allowed = swappable(allowlist, markets);
+  return tokens
+    .filter((token) => token.chainId === (chain.id as Token["chainId"]) && allowed.has(token.address.toLowerCase()))
+    .sort((a, b) => Number(b.address === exaAddress) - Number(a.address === exaAddress));
+}
+
+export type Allowlists = Record<string, ReadonlySet<string> | undefined>;
 
 export type RouteFrom = {
   chainId: number;
@@ -485,37 +449,6 @@ export async function getRouteFrom({
   toTokenAddress: string;
 }): Promise<RouteFrom> {
   ensureConfig();
-  if (!lifiURL) {
-    const from = getAddress(fromTokenAddress);
-    const to = getAddress(toTokenAddress);
-    const toAmount = await publicClient.readContract({
-      abi: mockSwapperAbi,
-      functionName: "getAmountOut",
-      address: swapperAddress,
-      args: [from, fromAmount, to],
-    });
-    return {
-      chainId: chain.id,
-      spend: { amount: fromAmount, token: from },
-      to: swapperAddress,
-      value: 0n,
-      toAmount,
-      tool: "mockSwapper",
-      data: encodeFunctionData({
-        abi: mockSwapperAbi,
-        functionName: "swapExactAmountIn",
-        args: [from, fromAmount, to, toAmount, getAddress(toAddress)],
-      }),
-      estimate: {
-        tool: "mockSwapper",
-        fromAmount: String(fromAmount),
-        toAmount: String(toAmount),
-        toAmountMin: String(toAmount),
-        approvalAddress: swapperAddress,
-        executionDuration: 0,
-      },
-    };
-  }
   config.set({ integrator: "exa_app", userId: fromAddress });
   const request = {
     fee: 0.0025,

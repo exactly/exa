@@ -11,8 +11,8 @@ import CreditLine from "./CreditLine";
 import { ArrowLeft } from "../../generated/icons/ArrowLeft";
 import { CircleHelp } from "../../generated/icons/CircleHelp";
 import { presentArticle } from "../../utils/intercom";
-import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import { refreshActivity } from "../../utils/server";
 import useAsset from "../../utils/useAsset";
 import useMarkets from "../../utils/useMarkets";
 import PaymentSheet from "../pay/PaymentSheet";
@@ -28,7 +28,7 @@ export default function Loans() {
   const { t } = useTranslation();
   const { account } = useAsset(marketUSDCAddress);
   const router = useRouter();
-  const [rolloverIntroMaturity, setRolloverIntroMaturity] = useState<string>();
+  const [rolloverIntro, setRolloverIntro] = useState<{ chainId: number; maturity: string }>();
   const { refetch } = useMarkets();
   return (
     <SafeView fullScreen tab backgroundColor="backgroundSoft">
@@ -41,14 +41,7 @@ export default function Loans() {
           showsVerticalScrollIndicator={false}
           flex={1}
           refreshControl={
-            <RefreshControl
-              onRefresh={() =>
-                Promise.all([
-                  account ? refetch() : undefined,
-                  queryClient.invalidateQueries({ queryKey: ["activity"], exact: true }),
-                ])
-              }
-            />
+            <RefreshControl onRefresh={() => Promise.all([account ? refetch() : undefined, refreshActivity()])} />
           }
         >
           <>
@@ -87,7 +80,11 @@ export default function Loans() {
             </View>
             <View gap="s6" padded>
               <CreditLine />
-              <UpcomingPayments onSelect={(m) => router.setParams({ maturity: String(m) })} />
+              <UpcomingPayments
+                onSelect={(maturity, chainId) =>
+                  router.setParams({ maturity: String(maturity), chainId: String(chainId) })
+                }
+              />
             </View>
             <XStack gap="s4" alignItems="flex-start" padding="s4" flexWrap="wrap">
               <Text caption2 color="interactiveOnDisabled">
@@ -96,8 +93,8 @@ export default function Loans() {
                 )}
               </Text>
             </XStack>
-            <PaymentSheet onRolloverIntro={setRolloverIntroMaturity} />
-            <RolloverIntroSheet maturity={rolloverIntroMaturity} onClose={() => setRolloverIntroMaturity(undefined)} />
+            <PaymentSheet onRolloverIntro={setRolloverIntro} />
+            <RolloverIntroSheet payment={rolloverIntro} onClose={() => setRolloverIntro(undefined)} />
           </>
         </ScrollView>
       </View>

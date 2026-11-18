@@ -1,23 +1,29 @@
 import { queryOptions, skipToken } from "@tanstack/react-query";
 import { getAbiItem } from "viem";
+import { getLogs } from "viem/actions";
 
-import { proposalManagerAddress } from "@exactly/common/generated/chain";
 import { proposalManagerAbi } from "@exactly/common/generated/hooks";
 
-import publicClient from "./publicClient";
+import exaConfig from "./wagmi/exa";
 
 import type { Address } from "viem";
 
-export default function executionOptions(account?: Address, nonce?: bigint, since?: bigint) {
+export default function executionOptions(
+  chainId: number,
+  account?: Address,
+  proposalManager?: Address,
+  nonce?: bigint,
+  since?: bigint,
+) {
   return queryOptions({
-    queryKey: ["proposal", "execution", account, String(nonce), String(since)],
+    queryKey: ["proposal", "execution", chainId, account, proposalManager, String(nonce), String(since)],
     retry: false,
     meta: { warnError: () => true },
     queryFn:
-      account && nonce !== undefined && since !== undefined
+      account && proposalManager && nonce !== undefined && since !== undefined
         ? async () => {
-            const [log] = await publicClient.getLogs({
-              address: proposalManagerAddress,
+            const [log] = await getLogs(exaConfig.getClient({ chainId }), {
+              address: proposalManager,
               event: getAbiItem({ abi: proposalManagerAbi, name: "ProposalNonceSet" }),
               args: { account, nonce: nonce + 1n },
               fromBlock: since,

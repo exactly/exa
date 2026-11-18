@@ -11,6 +11,7 @@ import {
   check,
   integer,
   is,
+  length,
   literal,
   maxValue,
   metadata,
@@ -32,18 +33,24 @@ import {
   type InferOutput,
 } from "valibot";
 import { isAddressEqual } from "viem";
-import { base } from "viem/chains";
+import { base, optimism } from "viem/chains";
 import { createSiweMessage, parseSiweMessage, verifySiweMessage } from "viem/siwe";
 
-import chain from "@exactly/common/generated/chain";
+import chain, { isBase } from "@exactly/common/generated/chain";
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
-import { BASE_PRODUCT_ID, CLASSIC_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
+import {
+  BASE_PRODUCT_ID,
+  CLASSIC_PRODUCT_ID,
+  PHYSICAL_SIGNATURE_PRODUCT_ID,
+  PLATINUM_PRODUCT_ID,
+  SIGNATURE_PRODUCT_ID,
+} from "@exactly/common/panda";
 import { business } from "@exactly/common/tenants";
 import { Address, Base64URL, Hex } from "@exactly/common/validation";
 
 import { cards, credentials } from "../database/schema";
 import { origin } from "../utils/appOrigin";
-import { partner } from "../utils/panda";
+import { partner, Shipping } from "../utils/panda";
 import publicClient from "../utils/publicClient";
 import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
@@ -84,8 +91,22 @@ const CardResponse = object({
     ]),
   }),
   productId: pipe(
-    picklist([BASE_PRODUCT_ID, CLASSIC_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
-    metadata({ examples: [BASE_PRODUCT_ID, CLASSIC_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID] }),
+    picklist([
+      BASE_PRODUCT_ID,
+      CLASSIC_PRODUCT_ID,
+      PHYSICAL_SIGNATURE_PRODUCT_ID,
+      PLATINUM_PRODUCT_ID,
+      SIGNATURE_PRODUCT_ID,
+    ]),
+    metadata({
+      examples: [
+        BASE_PRODUCT_ID,
+        CLASSIC_PRODUCT_ID,
+        PHYSICAL_SIGNATURE_PRODUCT_ID,
+        PLATINUM_PRODUCT_ID,
+        SIGNATURE_PRODUCT_ID,
+      ],
+    }),
   ),
   challenge: optional(pipe(string(), metadata({ examples: ["1a2b3c"] }))),
   provisioning: optional(
@@ -101,28 +122,53 @@ const CreatedCardResponse = object({
   cardId: pipe(string(), uuid(), metadata({ examples: ["123e4567-e89b-12d3-a456-426655440000"] })),
   status: pipe(picklist(["ACTIVE", "FROZEN"]), metadata({ examples: ["ACTIVE", "FROZEN"] })),
   productId: pipe(
-    picklist([BASE_PRODUCT_ID, CLASSIC_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
-    metadata({ examples: [BASE_PRODUCT_ID, CLASSIC_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID] }),
+    picklist([
+      BASE_PRODUCT_ID,
+      CLASSIC_PRODUCT_ID,
+      PHYSICAL_SIGNATURE_PRODUCT_ID,
+      PLATINUM_PRODUCT_ID,
+      SIGNATURE_PRODUCT_ID,
+    ]),
+    metadata({
+      examples: [
+        BASE_PRODUCT_ID,
+        CLASSIC_PRODUCT_ID,
+        PHYSICAL_SIGNATURE_PRODUCT_ID,
+        PLATINUM_PRODUCT_ID,
+        SIGNATURE_PRODUCT_ID,
+      ],
+    }),
   ),
 });
 
+const CreateCard = optional(strictObject({ shipping: optional(Shipping) }), {});
+
 const UpdateCard = union([
   pipe(
-    strictObject({ mode: pipe(number(), integer(), minValue(0), maxValue(MAX_INSTALLMENTS)) }),
+    strictObject({
+      lastFour: optional(pipe(string(), length(4))),
+      mode: pipe(number(), integer(), minValue(0), maxValue(MAX_INSTALLMENTS)),
+    }),
     transform((patch) => ({ ...patch, type: "mode" as const })),
   ),
   pipe(
-    strictObject({ status: picklist(["ACTIVE", "DELETED", "FROZEN"]) }),
+    strictObject({ lastFour: optional(pipe(string(), length(4))), status: picklist(["ACTIVE", "DELETED", "FROZEN"]) }),
     transform((patch) => ({ ...patch, type: "status" as const })),
   ),
   pipe(
-    strictObject({ data: string(), iv: string(), sessionId: string() }),
+    strictObject({ lastFour: optional(pipe(string(), length(4))), data: string(), iv: string(), sessionId: string() }),
     transform((patch) => ({ ...patch, type: "pin" as const })),
   ),
   pipe(
     variant("method", [
-      object({ method: literal("siwe"), message: string(), signature: Hex }),
       object({
+        lastFour: optional(pipe(string(), length(4))),
+        method: literal("siwe"),
+        message: string(),
+        signature: Hex,
+      }),
+      object({
+        lastFour: optional(pipe(string(), length(4))),
         method: literal("webauthn"),
         assertion: object({
           id: Base64URL,
@@ -168,7 +214,7 @@ export default function route({
   credit: ReturnType<typeof createCredit>;
   database: NodePgDatabase<typeof schema>;
   panda: ReturnType<typeof createPanda>;
-  pax: ReturnType<typeof createPax>;
+  pax?: ReturnType<typeof createPax>;
   persona: ReturnType<typeof createPersona>;
   sardine: ReturnType<typeof createSardine>;
   segment: ReturnType<typeof createSegment>;
@@ -192,6 +238,7 @@ export default function route({
         "query",
         optional(
           object({
+            lastFour: optional(pipe(string(), length(4))),
             scope: optional(
               union([
                 Scopes,
@@ -217,6 +264,8 @@ The \`sessionid\` header and the \`scope\` query parameter are independent and m
 - Provide \`scope=siwe\` or \`scope=webauthn\` to receive a \`challenge\` to be signed and submitted via \`PATCH /\`. \`siwe\` and \`webauthn\` are mutually exclusive within a single request.
 
 Successful responses include push-provisioning credentials in the \`provisioning\` field only when the \`scope=provisioning\` query parameter is sent.
+
+Provide the \`lastFour\` query parameter to retrieve a specific card listed by \`GET /cards\`. Without it, the user's card is returned.
 
 **Retrieving encrypted card details**
 1. **Generate a session ID**: Encrypt a 32‑character hexadecimal secret (no spaces/dashes) with the provided public RSA key using RSA‑OAEP.
@@ -308,9 +357,9 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
         },
       }),
       async (c) => {
-        const { scope } = c.req.valid("query");
+        const query = c.req.valid("query");
         function include(type: InferInput<typeof Scopes>) {
-          return Array.isArray(scope) ? scope.includes(type) : scope === type;
+          return Array.isArray(query.scope) ? query.scope.includes(type) : query.scope === type;
         }
         const { credentialId } = c.req.valid("cookie");
         const credential = await database.query.credentials.findFirst({
@@ -319,7 +368,11 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
           with: {
             cards: {
               columns: { id: true, lastFour: true, status: true, mode: true, productId: true },
-              where: inArray(cards.status, ["ACTIVE", "FROZEN"]),
+              where: and(
+                inArray(cards.status, ["ACTIVE", "FROZEN"]),
+                query.lastFour ? eq(cards.lastFour, query.lastFour) : undefined,
+                eq(cards.tenant, isBase ? "BASE" : "OP"),
+              ),
             },
           },
         });
@@ -488,7 +541,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
           with: {
             cards: {
               columns: { id: true },
-              where: inArray(cards.status, ["ACTIVE", "FROZEN"]),
+              where: and(inArray(cards.status, ["ACTIVE", "FROZEN"]), eq(cards.tenant, isBase ? "BASE" : "OP")),
             },
           },
         });
@@ -523,6 +576,13 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
       auth,
       describeRoute({
         summary: "Create card",
+        description: `
+Issue a card for the authenticated user.
+
+Without a body, a virtual card is issued and can be used right away.
+
+Send a \`shipping\` object with the address, and optionally the \`displayName\` to emboss, to order a physical card instead. Physical cards ship to that address and are created \`FROZEN\`: once delivered, activate one by unfreezing it with \`PATCH /card\` and its \`lastFour\`. Addresses and names only accept latin characters, and postal codes are limited to 9 characters.
+        `,
         tags: ["Card"],
         validateResponse: true,
         security: [{ credentialAuth: [] }],
@@ -535,10 +595,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
             description: "Bad request",
             content: {
               "application/json": {
-                schema: resolver(
-                  union([object({ code: literal("bad request") }), object({ code: literal("already created") })]),
-                  { errorMode: "ignore" },
-                ),
+                schema: resolver(object({ code: literal("bad request") }), { errorMode: "ignore" }),
               },
             },
           },
@@ -567,7 +624,9 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
           },
         },
       }),
+      vValidator("json", CreateCard, validatorHook()),
       async (c) => {
+        const json = c.req.valid("json");
         const { credentialId } = c.req.valid("cookie");
         const mutex = mutexes.get(credentialId) ?? createMutex(credentialId);
         return mutex
@@ -578,7 +637,10 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
               with: {
                 cards: {
                   columns: { id: true, status: true, productId: true },
-                  where: inArray(cards.status, ["ACTIVE", "FROZEN", "DELETED"]),
+                  where: and(
+                    inArray(cards.status, ["ACTIVE", "FROZEN", "DELETED"]),
+                    eq(cards.tenant, isBase ? "BASE" : "OP"),
+                  ),
                 },
               },
             });
@@ -590,41 +652,66 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
             if (!credential.pandaId) return c.json({ code: "no panda" }, 403);
             const pandaId = credential.pandaId;
 
-            let isUpgradeFromPlatinum = credential.cards.some(
-              ({ status, productId }) => status === "DELETED" && productId === PLATINUM_PRODUCT_ID,
+            await Promise.all(
+              credential.cards
+                .filter(({ status }) => status !== "DELETED")
+                .map(async (card) => {
+                  if (is(CardUUID, card.id)) {
+                    try {
+                      const { status } = await panda.getCard(card.id);
+                      if (status !== "canceled") return;
+                    } catch (error) {
+                      if (!(error instanceof ServiceError && error.status === 404)) throw error;
+                    }
+                  }
+                  await database.update(cards).set({ status: "DELETED" }).where(eq(cards.id, card.id));
+                  card.status = "DELETED";
+                  setContext("cryptomate card deleted", { id: card.id });
+                }),
             );
 
-            const activeCards = credential.cards.filter(({ status }) => status === "ACTIVE" || status === "FROZEN");
+            const productId =
+              "shipping" in json
+                ? PHYSICAL_SIGNATURE_PRODUCT_ID
+                : chain.id === base.id && credential.source !== partner
+                  ? BASE_PRODUCT_ID
+                  : SIGNATURE_PRODUCT_ID;
 
-            let cardCount = activeCards.length;
-            for (const card of activeCards) {
-              try {
-                const { status } = await panda.getCard(parse(CardUUID, card.id));
-                if (status !== "canceled") continue;
-              } catch (error) {
-                if (
-                  !(error instanceof Error && error.message.startsWith("Invalid UUID")) &&
-                  !(error instanceof ServiceError && error.status === 404)
-                ) {
-                  throw error;
-                }
-              }
-              await database.update(cards).set({ status: "DELETED" }).where(eq(cards.id, card.id));
-              cardCount--;
-              setContext("cryptomate card deleted", { id: card.id });
-              if (card.productId === PLATINUM_PRODUCT_ID) isUpgradeFromPlatinum = true;
+            if (
+              credential.cards.filter((known) => known.status !== "DELETED" && known.productId === productId).length >=
+              ((limits[chain.id]?.[credential.source ?? "exa"] ??
+                limits[chain.id]?.exa ?? { [SIGNATURE_PRODUCT_ID]: 1 })[productId] ?? 0)
+            ) {
+              return c.json({ code: "card limit reached" }, 409);
             }
-            if (cardCount > 0) return c.json({ code: "already created" }, 400);
             try {
               const kyc = await panda.getApplicationStatus(pandaId);
               if (kyc.applicationStatus !== "approved") {
                 return c.json({ code: "kyc not approved" }, 403);
               }
-              const productId =
-                chain.id === base.id && credential.source !== partner ? BASE_PRODUCT_ID : SIGNATURE_PRODUCT_ID;
+              await Promise.all(
+                credential.cards
+                  .filter((known) => known.status !== "DELETED" && known.productId === PLATINUM_PRODUCT_ID)
+                  .map(async ({ id }) => {
+                    await panda.updateCard({ id, status: "canceled" });
+                    await database.update(cards).set({ status: "DELETED" }).where(eq(cards.id, id));
+                    segment.track({
+                      userId: account,
+                      event: "CardDeleted",
+                      properties: { cardId: id, source: credential.source },
+                    });
+                  }),
+              );
               const card = await panda
                 .getCards(pandaId)
-                .then((pandaCards) => pandaCards.find(({ status }) => status === "active"))
+                .then((pandaCards) =>
+                  pandaCards.find(
+                    ({ id, status, type }) =>
+                      status === "active" &&
+                      type === ("shipping" in json ? "physical" : "virtual") &&
+                      credential.cards.every((known) => known.id !== id),
+                  ),
+                )
                 .then(async (orphan) => {
                   if (orphan) {
                     captureException(new Error("orphan card adopted"), {
@@ -656,11 +743,21 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
                         }),
                       undefined,
                       credential.source,
+                      json.shipping,
                     );
                   }
                 });
 
-              await database.insert(cards).values([{ id: card.id, credentialId, lastFour: card.last4, productId }]);
+              await database.insert(cards).values([
+                {
+                  id: card.id,
+                  credentialId,
+                  tenant: isBase ? "BASE" : "OP",
+                  lastFour: card.last4,
+                  status: "shipping" in json ? "FROZEN" : "ACTIVE",
+                  productId,
+                },
+              ]);
               await credit.enqueue(account).catch((error: unknown) =>
                 captureException(error, {
                   level: "error",
@@ -668,13 +765,20 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
                   extra: { account },
                 }),
               );
+
+              if (
+                pax &&
+                credential.cards.some((known) => known.productId === PLATINUM_PRODUCT_ID) &&
+                credential.cards.every((known) => known.productId !== SIGNATURE_PRODUCT_ID)
+              ) {
+                handlePlatinumUpgrade(credentialId, account, pax, persona);
+              }
+
               segment.track({
                 event: "CardIssued",
                 userId: account,
-                properties: { productId, source: credential.source },
+                properties: { cardId: card.id, productId, source: credential.source },
               });
-
-              if (isUpgradeFromPlatinum) handlePlatinumUpgrade(credentialId, account, pax, persona);
 
               sardine
                 .customer({
@@ -698,7 +802,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
               return c.json(
                 {
                   lastFour: card.last4,
-                  status: "ACTIVE",
+                  status: "shipping" in json ? "FROZEN" : "ACTIVE",
                   cardId: card.id,
                   productId,
                 } satisfies InferOutput<typeof CreatedCardResponse>,
@@ -758,6 +862,8 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
         security: [{ credentialAuth: [] }],
         description: `
 Update the card status, installments mode, or PIN, or submit a signed challenge to bind the card to the authenticated user.
+
+Include the optional \`lastFour\` field in the body to update a specific card listed by \`GET /cards\`. Without it, the user's card is updated.
 
 **Updating the card status**
 
@@ -869,7 +975,11 @@ async function encryptPIN(pin: string) {
               with: {
                 cards: {
                   columns: { id: true, mode: true, status: true, lastFour: true },
-                  where: ne(cards.status, "DELETED"),
+                  where: and(
+                    ne(cards.status, "DELETED"),
+                    patch.lastFour ? eq(cards.lastFour, patch.lastFour) : undefined,
+                    eq(cards.tenant, isBase ? "BASE" : "OP"),
+                  ),
                 },
               },
             });
@@ -900,7 +1010,7 @@ async function encryptPIN(pin: string) {
                   segment.track({
                     userId: account,
                     event: ({ ACTIVE: "CardUnfrozen", DELETED: "CardDeleted", FROZEN: "CardFrozen" } as const)[status],
-                    properties: { source: credential.source },
+                    properties: { cardId: card.id, source: credential.source },
                   });
                 } else if (status !== "DELETED") {
                   return c.json({ code: "no card" }, 404);
@@ -1053,3 +1163,11 @@ function handlePlatinumUpgrade(
       });
     });
 }
+
+const limits: Record<number, Record<string, Record<string, number>>> = {
+  [base.id]: {
+    exa: { [BASE_PRODUCT_ID]: 1 },
+    "5lu2sNu0v0ZElC2m77QR3rAZBHLr8PoG": { [SIGNATURE_PRODUCT_ID]: 1, [PHYSICAL_SIGNATURE_PRODUCT_ID]: 1 }, // cspell:ignore azbh
+  },
+  [optimism.id]: { exa: { [SIGNATURE_PRODUCT_ID]: 1 } },
+};

@@ -1,3 +1,4 @@
+import Client, { APIError, NotFoundError, PermissionDeniedError } from "@rainapi/rain-sdk";
 import { Mutex, withTimeout, type MutexInterface } from "async-mutex";
 import {
   array,
@@ -27,6 +28,7 @@ import {
   picklist,
   pipe,
   regex,
+  strictObject,
   string,
   transform,
   trim,
@@ -40,16 +42,29 @@ import {
   type InferInput,
 } from "valibot";
 import { recoverTypedDataAddress, type LocalAccount } from "viem";
-import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
+import { base, baseSepolia, optimismSepolia } from "viem/chains";
 
 import chain, { issuerCheckerAddress, usdcAddress } from "@exactly/common/generated/chain";
-import { BASE_PRODUCT_ID, CLASSIC_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
+import {
+  BASE_PRODUCT_ID,
+  CLASSIC_PRODUCT_ID,
+  PHYSICAL_SIGNATURE_PRODUCT_ID,
+  PLATINUM_PRODUCT_ID,
+  SIGNATURE_PRODUCT_ID,
+} from "@exactly/common/panda";
 import { Address, Hex } from "@exactly/common/validation";
-import { proposalManager } from "@exactly/plugin/deploy.json";
+import { accounts, proposalManager } from "@exactly/plugin/deploy.json";
 
 import ServiceError from "./ServiceError";
 
 export default function panda({ key, url }: { key: string; url: string }) {
+  const client = new Client({
+    apiKey: key,
+    baseURL: `${url}/issuing`,
+    fetch: (input, init) => fetch(input, { ...init, signal: AbortSignal.timeout(10_000) }),
+    maxRetries: 0,
+    timeout: 10_000,
+  });
   return {
     createCard,
     createCompanyApplication,
@@ -82,49 +97,69 @@ export default function panda({ key, url }: { key: string; url: string }) {
     productId:
       | typeof BASE_PRODUCT_ID
       | typeof CLASSIC_PRODUCT_ID
+      | typeof PHYSICAL_SIGNATURE_PRODUCT_ID
       | typeof PLATINUM_PRODUCT_ID
       | typeof SIGNATURE_PRODUCT_ID,
     amount = 1_000_000,
     idempotencyKey?: string,
     source?: null | string,
+    shipping?: InferInput<typeof Shipping>,
   ) {
     return await request(
       CardResponse,
-      `/issuing/users/${userId}/cards`,
-      idempotencyKey === undefined ? {} : { "Idempotency-Key": `card:${idempotencyKey}` },
-      parse(CreateCardRequest, {
-        type: "virtual",
-        status: "active",
-        limit: { amount, frequency: "per7DayPeriod" },
-        configuration: {
-          productId,
-          virtualCardArt:
-            chain.id === baseSepolia.id || chain.id === optimismSepolia.id
-              ? "0c515d7eb0a140fa8f938f8242b0780a"
-              : chain.id === base.id && productId === SIGNATURE_PRODUCT_ID && source === partner
-                ? "c4c03256d6764a8390f41b60561d27af"
-                : {
-                    [BASE_PRODUCT_ID]: "79c1c868c3ae4b4dae2564295e75c357",
-                    [CLASSIC_PRODUCT_ID]: "1f3e23aaeb024388a0373c59ff3a5a7e",
-                    [PLATINUM_PRODUCT_ID]: "81e42f27affd4e328f19651d4f2b438e",
-                    [SIGNATURE_PRODUCT_ID]: "398c4919514b4ec4927e6a9114a4c816",
-                  }[productId],
-        },
-      }),
-      "POST",
-      10_000,
+      "user",
+      client.users.createCard(
+        userId,
+        parse(CreateCardRequest, {
+          type: productId === PHYSICAL_SIGNATURE_PRODUCT_ID ? "physical" : "virtual",
+          status: "active",
+          limit: { amount, frequency: "per7DayPeriod" },
+          configuration:
+            productId === PHYSICAL_SIGNATURE_PRODUCT_ID
+              ? { productId, displayName: shipping?.displayName }
+              : {
+                  productId,
+                  virtualCardArt:
+                    chain.id === baseSepolia.id || chain.id === optimismSepolia.id
+                      ? "0c515d7eb0a140fa8f938f8242b0780a"
+                      : chain.id === base.id && productId === SIGNATURE_PRODUCT_ID && source === partner
+                        ? "c4c03256d6764a8390f41b60561d27af"
+                        : {
+                            [BASE_PRODUCT_ID]: "79c1c868c3ae4b4dae2564295e75c357",
+                            [CLASSIC_PRODUCT_ID]: "1f3e23aaeb024388a0373c59ff3a5a7e",
+                            [PLATINUM_PRODUCT_ID]: "81e42f27affd4e328f19651d4f2b438e",
+                            [SIGNATURE_PRODUCT_ID]: "398c4919514b4ec4927e6a9114a4c816",
+                          }[productId],
+                },
+          ...(shipping && {
+            shipping: {
+              ...shipping,
+              country: regions.of(shipping.countryCode) ?? shipping.countryCode,
+              method: shipping.countryCode === "US" ? "standard" : "international",
+            },
+          }),
+        }),
+        idempotencyKey === undefined ? undefined : { headers: { "Idempotency-Key": `card:${idempotencyKey}` } },
+      ),
     );
   }
-  async function createUser(user: {
-    accountPurpose: string;
-    annualSalary: string;
-    expectedMonthlyVolume: string;
-    ipAddress: string;
-    isTermsOfServiceAccepted: true;
-    occupation: string;
-    personaShareToken: string;
-  }) {
-    return await request(object({ id: string() }), "/issuing/applications/user", {}, user, "POST", 10_000);
+  async function createUser(
+    user: {
+      accountPurpose: string;
+      annualSalary: string;
+      expectedMonthlyVolume: string;
+      ipAddress: string;
+      isTermsOfServiceAccepted: true;
+      occupation: string;
+      personaShareToken: string;
+    },
+    idempotencyKey: string,
+  ) {
+    return await request(
+      object({ id: string() }),
+      "application",
+      client.applications.user.create(user, { headers: { "Idempotency-Key": `user:${idempotencyKey}` } }),
+    );
   }
   async function createCompanyApplication(
     externalId: string,
@@ -146,11 +181,11 @@ export default function panda({ key, url }: { key: string; url: string }) {
   ) {
     return request(
       CompanyApplicationResponse,
-      "/issuing/applications/company",
-      { "Idempotency-Key": `business-application:${externalId}` },
-      parse(CreateCompanyApplicationRequest, { ...company, sourceKey: "EXA", externalId }),
-      "POST",
-      10_000,
+      "application",
+      client.post("/applications/company", {
+        body: parse(CreateCompanyApplicationRequest, { ...company, sourceKey: "EXA", externalId }),
+        headers: { "Idempotency-Key": `business-application:${externalId}` },
+      }),
     );
   }
   async function createCompanyUser(
@@ -160,17 +195,18 @@ export default function panda({ key, url }: { key: string; url: string }) {
   ) {
     return await request(
       CompanyUserResponse,
-      `/issuing/companies/${companyId}/users`,
-      { "Idempotency-Key": `company-user:${idempotencyKey}` },
-      parse(CreateCompanyUserRequest, user),
-      "POST",
-      10_000,
+      "company",
+      client.post(`/companies/${companyId}/users`, {
+        body: parse(CreateCompanyUserRequest, user),
+        headers: { "Idempotency-Key": `company-user:${idempotencyKey}` },
+      }),
     );
   }
   async function getCompanyApplication(externalId: string) {
     const application = await request(
       CompanyApplicationStatusResponse,
-      `/issuing/applications/company/external/${externalId}`,
+      "application",
+      client.get(`/applications/company/external/${externalId}`),
     ).catch((error: unknown) => {
       if (error instanceof ServiceError && error.status === 404) return;
       throw error;
@@ -190,53 +226,34 @@ export default function panda({ key, url }: { key: string; url: string }) {
           walletAddress: optional(string()),
         }),
       ),
-      `/issuing/users?${String(new URLSearchParams({ companyId, ...filter }))}`,
+      "user",
+      client.get("/users", { query: { companyId, ...filter } }),
     );
   }
   async function getApplicationStatus(applicationId: string) {
-    return request(
-      ApplicationStatusResponse,
-      `/issuing/applications/user/${applicationId}`,
-      {},
-      undefined,
-      "GET",
-      10_000,
-    );
+    return request(ApplicationStatusResponse, "application", client.applications.user.retrieve(applicationId));
   }
   async function getCard(cardId: string) {
-    return await request(CardResponse, `/issuing/cards/${cardId}`, {}, undefined, "GET", 10_000);
+    return await request(CardResponse, "card", client.cards.retrieve(cardId));
   }
   async function getCards(userId: string) {
-    return await request(CardsResponse, `/issuing/cards?userId=${userId}&limit=100`, {}, undefined, "GET", 10_000);
+    return await request(CardsResponse, "card", client.cards.list({ userId, limit: 100 }));
   }
   async function getContracts() {
     return await request(
       array(
         object({ chainId: number(), contractVersion: number(), controllerAddress: Address, proxyAddress: Address }),
       ),
-      "/issuing/tenants/contracts",
+      "tenant",
+      client.get("/tenants/contracts"),
     );
   }
   function getNonce(userId: string) {
-    return request(
-      object({ nonce: string() }),
-      `/issuing/users/${userId}/signatures/generate-nonce`,
-      {},
-      undefined,
-      "GET",
-      10_000,
-    );
+    return request(object({ nonce: string() }), "user", client.get(`/users/${userId}/signatures/generate-nonce`));
   }
   async function getPIN(cardId: string, sessionId: string) {
     try {
-      return await request(
-        PINResponse,
-        `/issuing/cards/${cardId}/pin`,
-        { SessionId: sessionId },
-        undefined,
-        "GET",
-        10_000,
-      );
+      return await request(PINResponse, "card", client.cards.pin.retrieve(cardId, { SessionId: sessionId }));
     } catch (error) {
       if (error instanceof ServiceError && error.message.includes("Failed to get PIN, card does not have PIN set")) {
         return parse(PINResponse, { encryptedPin: null });
@@ -247,25 +264,15 @@ export default function panda({ key, url }: { key: string; url: string }) {
   function getProcessorDetails(cardId: string) {
     return request(
       object({ processorCardId: string(), timeBasedSecret: string() }),
-      `/issuing/cards/${cardId}/processorDetails`,
-      {},
-      undefined,
-      "GET",
-      10_000,
+      "card",
+      client.get(`/cards/${cardId}/processorDetails`),
     );
   }
   async function getSecrets(cardId: string, sessionId: string) {
-    return await request(
-      PANResponse,
-      `/issuing/cards/${cardId}/secrets`,
-      { SessionId: sessionId },
-      undefined,
-      "GET",
-      10_000,
-    );
+    return await request(PANResponse, "card", client.cards.retrieveSecrets(cardId, { SessionId: sessionId }));
   }
   async function getUser(userId: string) {
-    return await request(UserResponse, `/issuing/users/${userId}`, {}, undefined, "GET", 10_000);
+    return await request(UserResponse, "user", client.users.retrieve(userId));
   }
   async function getWebhook(id: string) {
     return await request(
@@ -275,84 +282,44 @@ export default function panda({ key, url }: { key: string; url: string }) {
         requestSentAt: pipe(string(), isoTimestamp()),
         responseReceivedAt: optional(pipe(string(), isoTimestamp())),
       }),
-      `/issuing/webhooks/${id}`,
+      "webhook",
+      client.get(`/webhooks/${id}`),
     );
   }
   async function getWithdrawal(amount: number, recipient: Address, admin: Address) {
     return await request(
       Withdrawal,
-      `/issuing/tenants/signatures/withdrawals?token=${parse(Address, chain.testnet ? "0x29684075a3C86ea11D9964BcAf0F956e801396bD" : usdcAddress)}&amount=${amount}&recipientAddress=${recipient}&adminAddress=${admin}&chainId=${chain.id}`,
+      "tenant",
+      client.get("/tenants/signatures/withdrawals", {
+        query: {
+          token: parse(Address, chain.testnet ? "0x29684075a3C86ea11D9964BcAf0F956e801396bD" : usdcAddress),
+          amount,
+          recipientAddress: recipient,
+          adminAddress: admin,
+          chainId: chain.id,
+        },
+      }),
     );
-  }
-  async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
-    schema: BaseSchema<TInput, TOutput, TIssue>,
-    path: `/${string}`,
-    headers = {},
-    body?: unknown,
-    method: "GET" | "PATCH" | "POST" | "PUT" = body === undefined ? "GET" : "POST",
-    timeout = 10_000,
-  ) {
-    const response = await fetch(`${url}${path}`, {
-      method,
-      headers: {
-        ...headers,
-        "Api-Key": key,
-        accept: "application/json",
-        "content-type": "application/json",
-      },
-      body: body ? JSON.stringify(body) : undefined,
-      signal: AbortSignal.timeout(timeout),
-    });
-
-    if (!response.ok) {
-      const raw = await response.text();
-      let type: string | undefined;
-      let message = raw;
-      try {
-        const payload = JSON.parse(raw) as unknown;
-        if (typeof payload === "object" && payload !== null) {
-          const { error, message: detail } = payload as { error?: unknown; message?: unknown };
-          if (typeof error === "string") type = error;
-          if (typeof detail === "string") message = detail;
-        }
-      } catch {} // eslint-disable-line no-empty -- non-json panda errors use fallback classification
-      if (!type || (response.status === 404 && type === "Not Found")) {
-        const lower = raw.toLowerCase();
-        if (response.status === 404 && (!raw || lower.includes("not found"))) type = "NotFoundError";
-        if (response.status === 403 && (!raw || lower.includes("not approved"))) type = "ForbiddenError";
-      }
-      if (message === "Not Found") {
-        const entity = path.split("/")[2]?.replace(/s$/, "");
-        if (entity) message = entity;
-      }
-      throw new ServiceError("Panda", response.status, raw, type, message);
-    }
-    const rawBody = await response.arrayBuffer();
-    if (rawBody.byteLength === 0) return parse(schema, {});
-    return parse(schema, JSON.parse(new TextDecoder().decode(rawBody)));
   }
   async function setPIN(cardId: string, sessionId: string, pin: { data: string; iv: string }) {
     return await request(
       object({}),
-      `/issuing/cards/${cardId}/pin`,
-      { SessionId: sessionId },
-      { encryptedPin: pin },
-      "PUT",
-      10_000,
+      "card",
+      client.cards.pin.update(cardId, { SessionId: sessionId, encryptedPin: pin }),
     );
   }
   async function submitApplication(payload: InferInput<typeof SubmitApplicationRequest>) {
     return request(
       ApplicationResponse,
-      "/issuing/applications/user",
-      { ...("ciphertext" in payload && { encrypted: "true" }) },
-      payload,
-      "POST",
-      10_000,
+      "application",
+      client.post("/applications/user", {
+        body: payload,
+        headers: { ...("ciphertext" in payload && { encrypted: "true" }) },
+      }),
     );
   }
   async function updateApplication(applicationId: string, payload: InferInput<typeof UpdateApplicationRequest>) {
-    return request(object({}), `/issuing/applications/user/${applicationId}`, {}, payload, "PATCH", 10_000);
+    return request(object({}), "application", client.patch(`/applications/user/${applicationId}`, { body: payload }));
   }
   async function updateCard(card: {
     billing?: {
@@ -372,7 +339,7 @@ export default function panda({ key, url }: { key: string; url: string }) {
     };
     status?: "active" | "canceled" | "locked" | "notActivated";
   }) {
-    return await request(CardResponse, `/issuing/cards/${card.id}`, {}, card, "PATCH", 10_000);
+    return await request(CardResponse, "card", client.patch(`/cards/${card.id}`, { body: card }));
   }
   async function updateUser(user: {
     address?: {
@@ -392,7 +359,7 @@ export default function panda({ key, url }: { key: string; url: string }) {
     phoneCountryCode?: string;
     phoneNumber?: string;
   }) {
-    return await request(UserResponse, `/issuing/users/${user.id}`, {}, user, "PATCH", 10_000);
+    return await request(UserResponse, "user", client.patch(`/users/${user.id}`, { body: user }));
   }
   function verify(
     userId: string,
@@ -416,7 +383,34 @@ export default function panda({ key, url }: { key: string; url: string }) {
         }
       | { authType: "siwe"; message: string; signature: string },
   ) {
-    return request(object({}), `/issuing/users/${userId}/signatures/verify`, {}, payload, "PUT", 10_000);
+    return request(object({}), "user", client.put(`/users/${userId}/signatures/verify`, { body: payload }));
+  }
+}
+
+async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
+  schema: BaseSchema<TInput, TOutput, TIssue>,
+  entity: string,
+  response: { asResponse: () => Promise<Response> },
+) {
+  try {
+    const body = await response.asResponse().then((raw) => raw.text());
+    return parse(schema, body ? JSON.parse(body) : {});
+  } catch (error) {
+    if (!(error instanceof APIError) || typeof error.status !== "number") throw error;
+    const raw = error.error === undefined ? error.message : JSON.stringify(error.error);
+    let type: string | undefined;
+    let message = raw;
+    if (typeof error.error === "object" && error.error !== null) {
+      const { error: kind, message: detail } = error.error as { error?: unknown; message?: unknown };
+      if (typeof kind === "string") type = kind;
+      if (typeof detail === "string") message = detail;
+    }
+    if (!type || (error.status === 404 && type === "Not Found")) {
+      if (error instanceof NotFoundError) type = "NotFoundError";
+      if (error instanceof PermissionDeniedError && raw.toLowerCase().includes("not approved")) type = "ForbiddenError";
+    }
+    if (message === "Not Found") message = entity;
+    throw new ServiceError("Panda", error.status, raw, type, message);
   }
 }
 
@@ -472,7 +466,7 @@ const BaseTransaction = object({
     amount: number(),
     currency: literal("usd"),
     cardId: string(),
-    cardType: literal("virtual"),
+    cardType: picklist(["physical", "virtual"]),
     localAmount: number(),
     localCurrency: pipe(string(), length(3)),
     merchantCity: nullish(string()),
@@ -580,7 +574,7 @@ const Card = variant("action", [
       }),
       status: picklist(["notActivated", "active", "locked", "canceled"]),
       tokenWallets: optional(union([array(literal("Apple")), array(literal("Google Pay"))])),
-      type: literal("virtual"),
+      type: picklist(["physical", "virtual"]),
       userId: string(),
     }),
   }),
@@ -654,8 +648,22 @@ export const PINResponse = pipe(
   transform(({ encryptedPin }) => ({ pin: encryptedPin })),
 );
 
-const CreateCardRequest = object({
-  type: picklist(["physical", "virtual"]),
+const regions = new Intl.DisplayNames(["en"], { type: "region" });
+
+const latin = regex(/^[\d a-z.,#'/&()°-]+$/i, "only latin letters, numbers and basic punctuation");
+
+export const Shipping = strictObject({
+  displayName: optional(pipe(string(), minLength(1), maxLength(26), regex(/^[\d a-z.-]+$/i))),
+  line1: pipe(string(), minLength(1), maxLength(100), latin),
+  line2: optional(pipe(string(), minLength(1), maxLength(100), latin)),
+  city: pipe(string(), minLength(1), maxLength(50), latin),
+  region: pipe(string(), minLength(1), maxLength(50), latin),
+  postalCode: pipe(string(), minLength(1), maxLength(9), regex(/^[\d a-z-]+$/i)),
+  countryCode: pipe(string(), regex(/^[A-Z]{2}$/)),
+  phoneNumber: pipe(string(), regex(/^\+[1-9]\d{1,14}$/)),
+});
+
+const BaseCardRequest = object({
   status: picklist(["active", "canceled", "locked", "notActivated"]),
   limit: object({
     amount: number(),
@@ -668,16 +676,36 @@ const CreateCardRequest = object({
       "allTime",
     ]),
   }),
-  configuration: object({
-    productId: picklist([BASE_PRODUCT_ID, CLASSIC_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
-    virtualCardArt: string(),
-  }),
 });
+
+const CreateCardRequest = variant("type", [
+  object({
+    type: literal("virtual"),
+    ...BaseCardRequest.entries,
+    configuration: object({
+      productId: picklist([BASE_PRODUCT_ID, CLASSIC_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID]),
+      virtualCardArt: string(),
+    }),
+  }),
+  object({
+    type: literal("physical"),
+    ...BaseCardRequest.entries,
+    configuration: object({
+      productId: literal(PHYSICAL_SIGNATURE_PRODUCT_ID),
+      displayName: Shipping.entries.displayName,
+    }),
+    shipping: object({
+      ...omit(Shipping, ["displayName"]).entries,
+      country: string(),
+      method: picklist(["standard", "express", "international"]),
+    }),
+  }),
+]);
 
 const CardResponse = object({
   id: string(),
   userId: string(),
-  type: literal("virtual"),
+  type: picklist(["physical", "virtual"]),
   status: picklist(["active", "canceled", "locked", "notActivated"]),
   limit: object({
     amount: number(),
@@ -698,6 +726,7 @@ const CardResponse = object({
 const CardsResponse = array(
   object({
     id: string(),
+    type: picklist(["physical", "virtual"]),
     status: picklist(["notActivated", "active", "locked", "canceled"]),
     last4: pipe(string(), length(4)),
     expirationMonth: pipe(string(), minLength(1), maxLength(2)),
@@ -728,12 +757,9 @@ const UserResponse = object({
 
 export const partner = "5lu2sNu0v0ZElC2m77QR3rAZBHLr8PoG"; // cspell:ignore azbh
 
-export const collectors: Address[] = (
-  {
-    [optimism.id]: ["0x3a73880ff21ABf9cA9F80B293570a3cBD846eFc5"],
-    [base.id]: ["0xaFFAc76bafE73d6F4e7f73E6d43b7CccC94d1813"],
-  }[chain.id] ?? ["0xDb90CDB64CfF03f254e4015C4F705C3F3C834400"]
-).map((address) => parse(Address, address));
+export function collectors(id: number = chain.id): [Address] {
+  return [parse(Address, (accounts.collector as Partial<Record<number, string>>)[id] ?? accounts.collector.default)];
+}
 
 export function declineMessage(reason?: null | string) {
   return reason
@@ -774,9 +800,11 @@ export function declineMessage(reason?: null | string) {
 export function signIssuerOp(
   { account, amount, timestamp }: { account: Address; amount: bigint; timestamp: number },
   issuer: LocalAccount,
+  verifyingContract: Hex = issuerCheckerAddress,
+  chainId: number = chain.id,
 ) {
   return issuer.signTypedData({
-    domain: { chainId: chain.id, name: "IssuerChecker", version: "1", verifyingContract: issuerCheckerAddress },
+    domain: { chainId, name: "IssuerChecker", version: "1", verifyingContract },
     types: {
       Collection: [
         { name: "account", type: "address" },

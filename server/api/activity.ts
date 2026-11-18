@@ -2,7 +2,25 @@ import { renderToBuffer } from "@react-pdf/renderer";
 
 import { captureException, setUser } from "@sentry/node";
 import { Semaphore } from "async-mutex";
-import { arrayOverlaps, eq } from "drizzle-orm";
+import {
+  and,
+  arrayOverlaps,
+  asc,
+  desc,
+  eq,
+  exists,
+  getViewSelectedFields,
+  gt,
+  inArray,
+  lte,
+  min,
+  not,
+  notExists,
+  notInArray,
+  or,
+  sql,
+} from "drizzle-orm";
+import { alias, type AnyPgColumn, type PgSelect } from "drizzle-orm/pg-core";
 import { Hono } from "hono";
 import { accepts } from "hono/accepts";
 import { validator as vValidator } from "hono-openapi/valibot";
@@ -10,6 +28,7 @@ import {
   array,
   bigint,
   boolean,
+  check,
   digits,
   flatten,
   intersect,
@@ -17,15 +36,19 @@ import {
   length,
   literal,
   looseObject,
+  maxValue,
   minLength,
+  minValue,
   nullable,
   nullish,
   number,
   object,
+  omit,
   optional,
   parse,
   picklist,
   pipe,
+  regex,
   safeParse,
   string,
   transform,
@@ -35,29 +58,24 @@ import {
   type InferInput,
   type InferOutput,
 } from "valibot";
-import { decodeFunctionData, TransactionReceiptNotFoundError, zeroHash, type Log } from "viem";
+import { TransactionReceiptNotFoundError, zeroHash } from "viem";
 
 import fixedRate from "@exactly/common/fixedRate";
 import chain, {
   debtManagerAddress,
-  exaPluginAbi,
-  exaPreviewerAbi,
-  exaPreviewerAddress,
-  marketAbi,
+  isBase,
   marketUSDCAddress,
   marketWETHAddress,
-  proposalManagerAbi,
-  proposalManagerAddress,
-  upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
-import { decodeWithdraw } from "@exactly/common/ProposalType";
+import ProposalType, { decodeWithdraw } from "@exactly/common/ProposalType";
 import { Address, Hash, type Hex } from "@exactly/common/validation";
 import { effectiveRate, WAD } from "@exactly/lib";
 
+import * as indexer from "../database/indexer";
 import { cards, credentials, transactions } from "../database/schema";
 import { collectors as cryptomateCollectors } from "../utils/cryptomate";
 import { declineMessage, collectors as pandaCollectors } from "../utils/panda";
-import publicClient from "../utils/publicClient";
+import { clients } from "../utils/publicClient";
 import Statement from "../utils/Statement";
 import validatorHook from "../utils/validatorHook";
 
@@ -65,9 +83,23 @@ import type * as schema from "../database/schema";
 import type { Auth } from "../middleware/auth";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
-const ActivityTypes = picklist(["card", "received", "repay", "sent"]);
+const ActivityTypes = picklist([
+  "card",
+  "received",
+  "repay",
+  "sent",
+  "loan",
+  "rollover",
+  "swap",
+  "liquidation",
+  "bridge",
+]);
+const legacyTypes = new Set<InferInput<typeof ActivityTypes>>(["card", "received", "repay", "sent"]);
 
-const collectors = new Set([...cryptomateCollectors, ...pandaCollectors].map((a) => a.toLowerCase() as Hex));
+const fromToken = alias(indexer.tokens, "from_token");
+const toToken = alias(indexer.tokens, "to_token");
+
+const collectors = new Set([...cryptomateCollectors, ...pandaCollectors()].map((a) => a.toLowerCase() as Hex));
 
 export default function route({ auth, database }: { auth: Auth; database: NodePgDatabase<typeof schema> }) {
   return new Hono().get(
@@ -76,19 +108,39 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
     vValidator(
       "query",
       optional(
-        object({
-          include: optional(union([ActivityTypes, array(ActivityTypes)])),
-          maturity: optional(pipe(string(), digits(), transform(Number))),
-        }),
+        pipe(
+          object({
+            include: optional(union([ActivityTypes, array(ActivityTypes)])),
+            maturity: optional(pipe(string(), digits(), transform(Number))),
+            timezone: optional(pipe(string(), check(isTimeZone, "invalid timezone"))),
+            limit: optional(pipe(string(), digits(), transform(Number), minValue(1), maxValue(1000))),
+            before: optional(Cursor),
+            after: optional(Cursor),
+          }),
+          check(({ before, after }) => !before || !after, "bad cursor"),
+        ),
         {},
       ),
       validatorHook(),
     ),
     async (c) => {
-      const { include, maturity } = c.req.valid("query");
+      const { include, maturity, timezone, limit, before, after } = c.req.valid("query");
       if (maturity !== undefined && maturity > 864e10) return c.json({ code: "invalid maturity" }, 400);
+      const accept = accepts(c, {
+        header: "Accept",
+        supports:
+          maturity === undefined
+            ? ["application/json", "text/csv"]
+            : ["application/json", "application/pdf", "text/csv"],
+        default: "application/json",
+      });
+      const pdf = accept === "application/pdf";
+      const legacy = include === undefined && accept === "application/json";
+
       function ignore(type: InferInput<typeof ActivityTypes>) {
-        return include && (Array.isArray(include) ? !include.includes(type) : include !== type);
+        if (accept === "text/csv") return type !== "card";
+        if (!include) return !legacyTypes.has(type);
+        return Array.isArray(include) ? !include.includes(type) : include !== type;
       }
 
       const { credentialId } = c.req.valid("cookie");
@@ -98,6 +150,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
         with: {
           cards: {
             columns: { id: true, lastFour: true },
+            where: eq(cards.tenant, isBase ? "BASE" : "OP"),
             with: { transactions: { columns: { hashes: true, payload: true } } },
             limit: ignore("card") || maturity !== undefined ? 0 : undefined,
           },
@@ -107,162 +160,500 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
       const account = parse(Address, credential.account);
       setUser({ id: account });
 
-      const [markets, plugins] = await Promise.all([
-        publicClient
-          .readContract({ address: exaPreviewerAddress, functionName: "markets", abi: exaPreviewerAbi })
-          .then((p) => new Map<Hex, (typeof p)[number]>(p.map((m) => [m.market.toLowerCase() as Hex, m]))),
-        !ignore("repay") || !ignore("sent") || !ignore("received")
-          ? publicClient
-              .getContractEvents({
-                abi: upgradeableModularAccountAbi,
-                eventName: "PluginInstalled",
-                address: account,
-                toBlock: "latest",
-                fromBlock: 0n,
-                strict: true,
-              })
-              .then((logs) => new Set(logs.map(({ args }) => args.plugin.toLowerCase() as Hex)))
-          : Promise.resolve(forbid(new Set<Hex>())),
+      const owner = account.toLowerCase() as Hex;
+      const deployed = database.selectDistinct({ chainId: indexer.markets.chainId }).from(indexer.markets);
+      const [networks, installed] = await Promise.all([
+        database
+          .select({
+            chainId: indexer.markets.chainId,
+            address: indexer.markets.address,
+            symbol: indexer.markets.symbol,
+            decimals: indexer.markets.decimals,
+          })
+          .from(indexer.markets)
+          .then((rows) =>
+            rows.reduce(
+              (map, { chainId, address, ...m }) => map.set(chainId, new Map(map.get(chainId)).set(address, m)),
+              new Map<number, ReadonlyMap<Hex, { decimals: number; symbol: string }>>(),
+            ),
+          ),
+        !ignore("repay") || !ignore("sent") || !ignore("received") || !ignore("rollover")
+          ? Promise.all([
+              database
+                .select({ chainId: indexer.accounts.chainId, plugin: indexer.accounts.owner })
+                .from(indexer.accounts)
+                .where(and(inArray(indexer.accounts.chainId, deployed), eq(indexer.accounts.address, owner))),
+              database
+                .select({ chainId: indexer.plugins.chainId, plugin: indexer.plugins.address })
+                .from(indexer.plugins)
+                .innerJoin(
+                  indexer.exaPlugins,
+                  and(
+                    eq(indexer.exaPlugins.chainId, indexer.plugins.chainId),
+                    eq(indexer.exaPlugins.address, indexer.plugins.address),
+                  ),
+                )
+                .where(and(inArray(indexer.plugins.chainId, deployed), eq(indexer.plugins.account, owner))),
+            ]).then(([owners, plugins]) =>
+              [...owners, ...plugins].reduce(
+                (map, { chainId, plugin }) => (plugin ? map.set(chainId, new Set(map.get(chainId)).add(plugin)) : map),
+                new Map<number, ReadonlySet<Hex>>(),
+              ),
+            )
+          : undefined,
       ]);
+      const markets = new Map(networks.get(chain.id));
+      const plugins = installed ? new Set(installed.get(chain.id)) : forbid(new Set<Hex>());
 
-      const market = (address: Hex) => {
-        const found = markets.get(address.toLowerCase() as Hex);
+      const market = (address: Hex, usdPrice: bigint | null, chainId = chain.id) => {
+        const found = networks.get(chainId)?.get(address.toLowerCase() as Hex);
         if (!found) throw new Error("market not found");
-        return found;
+        return { ...found, usdPrice };
       };
 
-      const repayPromise =
-        !ignore("repay") || !ignore("received")
-          ? publicClient.getContractEvents({
-              abi: marketAbi,
-              eventName: "RepayAtMaturity",
-              address: [...markets.keys()],
-              args: { caller: [...plugins, debtManagerAddress], borrower: account },
-              toBlock: "latest",
-              fromBlock: 0n,
-              strict: true,
-            })
-          : Promise.resolve(forbid([]));
+      let start = before ?? after;
+      function rank(a: { id: string; timestamp: string }, b: { id: string; timestamp: string }) {
+        return after ? order(b, a) : order(a, b);
+      }
+      const boundaries: { id: string; timestamp: string }[] = [];
+      function beyond(view: Paged) {
+        if (!start) return;
+        const seconds = BigInt(Math.floor(Date.parse(start.timestamp) / 1000));
+        const position = /^(\d+):(\d+):\d+:(\d+)$/.exec(start.id);
+        if (position) {
+          const [, chainId, block, logIndex] = position;
+          const row = sql`(${view.timestamp}, ${view.chainId}, ${view.block}, ${view.logIndex})`;
+          const cursor = sql`(${seconds}, ${chainId}, ${block}, ${logIndex})`;
+          return after ? sql`${row} > ${cursor}` : sql`${row} < ${cursor}`;
+        }
+        const older = (() => {
+          const leading = Number(/^\d+/.exec(start.id)?.[0]);
+          if (!start.timestamp.endsWith(".000Z") || !(leading <= 0x7f_ff_ff_ff)) return lte(view.timestamp, seconds);
+          const tie = collator.compare(`${leading}:`, start.id) < 0 ? sql` or ${view.chainId} = ${leading}` : sql``;
+          return sql`(${view.timestamp} < ${seconds} or (${view.timestamp} = ${seconds} and (${view.chainId} < ${leading}${tie})))`;
+        })();
+        return after ? not(older) : older;
+      }
+      function paged<T extends PgSelect>(query: T, view: Paged) {
+        return limit === undefined
+          ? query
+          : query
+              .orderBy(
+                ...[view.timestamp, view.chainId, view.block, view.logIndex].map((column) =>
+                  after ? asc(column) : desc(column),
+                ),
+              )
+              .limit(limit);
+      }
+      function bound<R>(rows: R[], last: Position | undefined) {
+        if (limit !== undefined && rows.length === limit && last) {
+          const { chainId, block, transactionIndex, logIndex, timestamp } = last;
+          boundaries.push({
+            id: `${chainId}:${block}:${transactionIndex}:${logIndex}`,
+            timestamp: new Date(Number(timestamp) * 1000).toISOString(),
+          });
+        }
+        return rows;
+      }
 
-      const [deposits, repays, withdraws, borrows] = await Promise.all([
-        ignore("received")
-          ? []
-          : Promise.all([
-              publicClient
-                .getContractEvents({
-                  abi: marketAbi,
-                  eventName: "Deposit",
-                  address: [...markets.keys()],
-                  args: { caller: account, owner: account },
-                  toBlock: "latest",
-                  fromBlock: 0n,
-                  strict: true,
+      const repayHash = database
+        .select({
+          chainId: indexer.repays.chainId,
+          account: indexer.repays.account,
+          hash: indexer.repays.hash,
+          market: indexer.repays.market,
+          caller: indexer.repays.caller,
+        })
+        .from(indexer.repays)
+        .as("repay_hash");
+
+      const nextBorrow = database
+        .select({
+          chainId: indexer.borrows.chainId,
+          account: indexer.borrows.account,
+          hash: indexer.borrows.hash,
+          market: indexer.borrows.market,
+          caller: indexer.borrows.caller,
+          logIndex: indexer.borrows.logIndex,
+        })
+        .from(indexer.borrows)
+        .as("next_borrow");
+      function roller(chainId: number) {
+        return chainId === chain.id
+          ? eq(indexer.repays.caller, debtManagerAddress.toLowerCase() as Hex)
+          : and(
+              notInArray(indexer.repays.caller, [...(installed?.get(chainId) ?? []), owner]),
+              exists(
+                database
+                  .select({ logIndex: nextBorrow.logIndex })
+                  .from(nextBorrow)
+                  .where(
+                    and(
+                      eq(nextBorrow.chainId, indexer.repays.chainId),
+                      eq(nextBorrow.account, indexer.repays.account),
+                      eq(nextBorrow.hash, indexer.repays.hash),
+                      eq(nextBorrow.market, indexer.repays.market),
+                      eq(nextBorrow.caller, indexer.repays.caller),
+                      gt(nextBorrow.logIndex, indexer.repays.logIndex),
+                    ),
+                  ),
+              ),
+            );
+      }
+      async function load(first: boolean) {
+        const rolloverPromise = ignore("rollover")
+          ? Promise.resolve(forbid([]))
+          : paged(
+              database
+                .select({
+                  repay: getViewSelectedFields(indexer.repays),
+                  borrow: {
+                    maturity: indexer.borrows.maturity,
+                    assets: indexer.borrows.assets,
+                    fee: indexer.borrows.fee,
+                  },
                 })
-                .then((logs) =>
-                  logs.map((log) =>
-                    parse(DepositActivity, { ...log, market: market(log.address) } satisfies InferInput<
-                      typeof DepositActivity
-                    >),
+                .from(indexer.repays)
+                .innerJoin(
+                  indexer.borrows,
+                  and(
+                    eq(indexer.borrows.chainId, indexer.repays.chainId),
+                    eq(indexer.borrows.hash, indexer.repays.hash),
+                    eq(
+                      indexer.borrows.logIndex,
+                      database
+                        .select({ logIndex: min(nextBorrow.logIndex) })
+                        .from(nextBorrow)
+                        .where(
+                          and(
+                            eq(nextBorrow.chainId, indexer.repays.chainId),
+                            eq(nextBorrow.account, indexer.repays.account),
+                            eq(nextBorrow.hash, indexer.repays.hash),
+                            eq(nextBorrow.market, indexer.repays.market),
+                            eq(nextBorrow.caller, indexer.repays.caller),
+                            gt(nextBorrow.logIndex, indexer.repays.logIndex),
+                          ),
+                        ),
+                    ),
                   ),
+                )
+                .where(
+                  and(
+                    eq(indexer.repays.account, owner),
+                    or(
+                      sql`false`,
+                      ...[...networks].map(([chainId, assets]) =>
+                        and(
+                          eq(indexer.repays.chainId, chainId),
+                          roller(chainId),
+                          inArray(indexer.repays.market, [...assets.keys()]),
+                        ),
+                      ),
+                    ),
+                    beyond(indexer.repays),
+                  ),
+                )
+                .$dynamic(),
+              indexer.repays,
+            ).then((rows) => bound(rows, rows.at(-1)?.repay));
+
+        const swapPromise = ignore("swap")
+          ? Promise.resolve(forbid([]))
+          : paged(
+              database
+                .select({
+                  swap: getViewSelectedFields(indexer.swaps),
+                  from: { symbol: fromToken.symbol, decimals: fromToken.decimals },
+                  to: { symbol: toToken.symbol, decimals: toToken.decimals },
+                })
+                .from(indexer.swaps)
+                .innerJoin(
+                  fromToken,
+                  and(eq(fromToken.chainId, indexer.swaps.chainId), eq(fromToken.address, indexer.swaps.fromAsset)),
+                )
+                .innerJoin(
+                  toToken,
+                  and(eq(toToken.chainId, indexer.swaps.chainId), eq(toToken.address, indexer.swaps.toAsset)),
+                )
+                .where(
+                  and(eq(indexer.swaps.chainId, chain.id), eq(indexer.swaps.account, owner), beyond(indexer.swaps)),
+                )
+                .$dynamic(),
+              indexer.swaps,
+            ).then((rows) => bound(rows, rows.at(-1)?.swap));
+
+        return Promise.all([
+          ignore("received")
+            ? []
+            : paged(
+                database
+                  .select()
+                  .from(indexer.deposits)
+                  .where(
+                    and(
+                      eq(indexer.deposits.chainId, chain.id),
+                      eq(indexer.deposits.account, owner),
+                      eq(indexer.deposits.caller, owner),
+                      inArray(indexer.deposits.market, [...markets.keys()]),
+                      notExists(
+                        database
+                          .select({ hash: repayHash.hash })
+                          .from(repayHash)
+                          .where(
+                            and(
+                              eq(repayHash.chainId, indexer.deposits.chainId),
+                              eq(repayHash.account, indexer.deposits.account),
+                              eq(repayHash.hash, indexer.deposits.hash),
+                              inArray(repayHash.caller, [...plugins, debtManagerAddress.toLowerCase() as Hex]),
+                              inArray(repayHash.market, [...markets.keys()]),
+                            ),
+                          ),
+                      ),
+                      beyond(indexer.deposits),
+                    ),
+                  )
+                  .$dynamic(),
+                indexer.deposits,
+              )
+                .then((rows) => bound(rows, rows.at(-1)))
+                .then((rows) =>
+                  rows
+                    .filter(({ usdPrice }) => !legacy || usdPrice !== null)
+                    .map((row) => parse(DepositActivity, { ...row, market: market(row.market, row.usdPrice) })),
                 ),
-              repayPromise,
-            ]).then(([deposit, repay]) =>
-              deposit.filter(
-                ({ transactionHash }) => !repay.some(({ transactionHash: repayHash }) => repayHash === transactionHash),
+          ignore("repay")
+            ? []
+            : Promise.all([
+                paged(
+                  database
+                    .select()
+                    .from(indexer.repays)
+                    .where(
+                      and(
+                        eq(indexer.repays.account, owner),
+                        or(
+                          sql`false`,
+                          ...[...networks].flatMap(([chainId, assets]) =>
+                            legacy && chainId !== chain.id
+                              ? []
+                              : and(
+                                  eq(indexer.repays.chainId, chainId),
+                                  or(
+                                    inArray(indexer.repays.caller, [...(installed?.get(chainId) ?? [])]),
+                                    roller(chainId),
+                                  ),
+                                  inArray(indexer.repays.market, [...assets.keys()]),
+                                ),
+                          ),
+                        ),
+                        beyond(indexer.repays),
+                      ),
+                    )
+                    .$dynamic(),
+                  indexer.repays,
+                ).then((rows) => bound(rows, rows.at(-1))),
+                ignore("rollover") ? [] : rolloverPromise,
+              ]).then(([rows, rolled]) =>
+                rows
+                  .filter((row) => !rolled.some(({ repay }) => repay.id === row.id))
+                  .filter((row) => maturity === undefined || Number(row.maturity) === maturity)
+                  .filter(({ usdPrice }) => !legacy || usdPrice !== null)
+                  .map((row) =>
+                    parse(RepayActivity, { ...row, market: market(row.market, row.usdPrice, row.chainId) }),
+                  ),
               ),
-            ),
-        ignore("repay")
-          ? []
-          : repayPromise.then((logs) =>
-              logs
-                .filter(({ args }) => maturity === undefined || Number(args.maturity) === maturity)
-                .map((log) =>
-                  parse(RepayActivity, {
-                    ...log,
-                    market: market(log.address),
-                  } satisfies InferInput<typeof RepayActivity>),
-                ),
-            ),
-        ignore("sent")
-          ? []
-          : Promise.all([
-              publicClient.getContractEvents({
-                abi: marketAbi,
-                eventName: "Withdraw",
-                address: [...markets.keys()],
-                args: { caller: account, owner: account },
-                toBlock: "latest",
-                fromBlock: 0n,
-                strict: true,
-              }),
-              publicClient.getContractEvents({
-                abi: proposalManagerAbi,
-                eventName: "Proposed",
-                address: proposalManagerAddress,
-                args: { account, market: marketWETHAddress },
-                toBlock: "latest",
-                fromBlock: 0n,
-                strict: true,
-              }),
-            ]).then(([withdraw, proposed]) =>
-              Promise.all(
-                withdraw.map(async (log) => {
-                  const receiver = log.args.receiver.toLowerCase() as Hex;
-                  if (!collectors.has(receiver) && !plugins.has(receiver) && receiver !== account.toLowerCase()) {
-                    return log;
-                  }
-                  if (log.address.toLowerCase() === marketWETHAddress.toLowerCase() && plugins.has(receiver)) {
-                    const { input: data } = await publicClient.getTransaction({ hash: log.transactionHash });
-                    if (data === "0x3ccfd60b") return log;
-                    const { functionName, args } = decodeFunctionData({ data, abi: exaPluginAbi });
-                    if (functionName !== "executeProposal") return;
-                    const proposal = proposed.find(({ args: { nonce } }) => nonce === args[0]);
+          ignore("sent")
+            ? []
+            : Promise.all([
+                paged(
+                  database
+                    .select()
+                    .from(indexer.withdraws)
+                    .where(
+                      and(
+                        eq(indexer.withdraws.chainId, chain.id),
+                        eq(indexer.withdraws.account, owner),
+                        eq(indexer.withdraws.caller, owner),
+                        inArray(indexer.withdraws.market, [...markets.keys()]),
+                        or(
+                          notInArray(indexer.withdraws.receiver, [...collectors, ...plugins, owner]),
+                          and(
+                            inArray(indexer.withdraws.receiver, [...plugins]),
+                            eq(indexer.withdraws.market, marketWETHAddress.toLowerCase() as Hex),
+                          ),
+                        ),
+                        beyond(indexer.withdraws),
+                      ),
+                    )
+                    .$dynamic(),
+                  indexer.withdraws,
+                ).then((rows) => bound(rows, rows.at(-1))),
+                database
+                  .select()
+                  .from(indexer.proposals)
+                  .where(
+                    and(
+                      eq(indexer.proposals.chainId, chain.id),
+                      eq(indexer.proposals.account, owner),
+                      eq(indexer.proposals.market, marketWETHAddress.toLowerCase() as Hex),
+                      inArray(indexer.proposals.proposalType, [ProposalType.Withdraw, ProposalType.Redeem]),
+                    ),
+                  ),
+              ]).then(([withdraw, proposed]) =>
+                withdraw
+                  .map((row) => {
+                    if (!collectors.has(row.receiver) && !plugins.has(row.receiver) && row.receiver !== owner)
+                      return row;
+                    if (row.market !== marketWETHAddress.toLowerCase() || !plugins.has(row.receiver)) return;
+                    if (row.proposalManager === row.receiver) return row;
+                    const proposal = proposed.find(
+                      ({ proposalManager, nonce }) => proposalManager === row.proposalManager && nonce === row.nonce,
+                    );
                     if (!proposal) return;
-                    return {
-                      ...log,
-                      args: { ...log.args, receiver: decodeWithdraw(proposal.args.data) },
-                    } satisfies Log<bigint, number, false, undefined, true, typeof marketAbi, "Withdraw">;
-                  }
-                }),
-              ).then((logs) =>
-                logs
-                  .filter((log) => !!log)
-                  .map((log) =>
-                    parse(WithdrawActivity, { ...log, market: market(log.address) } satisfies InferInput<
-                      typeof WithdrawActivity
-                    >),
+                    return { ...row, receiver: decodeWithdraw(proposal.data) };
+                  })
+                  .filter((row) => !!row)
+                  .filter(({ usdPrice }) => !legacy || usdPrice !== null)
+                  .map((row) => parse(WithdrawActivity, { ...row, market: market(row.market, row.usdPrice) })),
+              ),
+          ignore("card") || !first
+            ? undefined
+            : database
+                .select({
+                  hash: indexer.borrows.hash,
+                  timestamp: indexer.borrows.timestamp,
+                  maturity: indexer.borrows.maturity,
+                  assets: indexer.borrows.assets,
+                  fee: indexer.borrows.fee,
+                })
+                .from(indexer.borrows)
+                .innerJoin(
+                  indexer.markets,
+                  and(
+                    eq(indexer.markets.chainId, indexer.borrows.chainId),
+                    eq(indexer.markets.address, indexer.borrows.market),
                   ),
+                )
+                .where(and(eq(indexer.borrows.account, owner), eq(indexer.markets.symbol, "USDC")))
+                .orderBy(indexer.borrows.chainId, indexer.borrows.block, indexer.borrows.logIndex)
+                .then((rows) =>
+                  rows.reduce((map, { hash, timestamp, maturity: m, assets, fee }) => {
+                    const data = map.get(hash);
+                    if (!data) return map.set(hash, { timestamp, events: [{ maturity: m, assets, fee }] });
+                    data.events.push({ maturity: m, assets, fee });
+                    return map;
+                  }, new Map<Hash, { events: { assets: bigint; fee: bigint; maturity: bigint }[]; timestamp: bigint }>()),
+                ),
+          ignore("loan")
+            ? []
+            : paged(
+                database
+                  .select()
+                  .from(indexer.borrows)
+                  .where(
+                    and(
+                      eq(indexer.borrows.chainId, chain.id),
+                      eq(indexer.borrows.account, owner),
+                      eq(indexer.borrows.caller, owner),
+                      inArray(indexer.borrows.market, [...markets.keys()]),
+                      notInArray(indexer.borrows.receiver, [...collectors]),
+                      notInArray(
+                        indexer.borrows.receiver,
+                        database
+                          .select({ address: indexer.collectors.address })
+                          .from(indexer.collectors)
+                          .where(eq(indexer.collectors.chainId, chain.id)),
+                      ),
+                      beyond(indexer.borrows),
+                    ),
+                  )
+                  .$dynamic(),
+                indexer.borrows,
+              ).then((rows) =>
+                bound(rows, rows.at(-1)).map((row) =>
+                  parse(LoanActivity, { ...row, market: market(row.market, row.usdPrice) }),
+                ),
               ),
-            ),
-        ignore("card")
-          ? undefined
-          : publicClient
-              .getContractEvents({
-                abi: marketAbi,
-                eventName: "BorrowAtMaturity",
-                address: marketUSDCAddress,
-                args: { borrower: account },
-                toBlock: "latest",
-                fromBlock: 0n,
-                strict: true,
-              })
-              .then((logs) =>
-                logs.reduce((map, { args, transactionHash, blockNumber }) => {
-                  const data = map.get(transactionHash);
-                  if (!data) return map.set(transactionHash, { blockNumber, events: [args] });
-                  data.events.push(args);
-                  return map;
-                }, new Map<Hash, { blockNumber: bigint; events: (typeof logs)[number]["args"][] }>()),
+          ignore("rollover")
+            ? []
+            : rolloverPromise.then((rows) =>
+                rows.map(({ repay, borrow }) =>
+                  parse(RolloverActivity, {
+                    ...repay,
+                    market: market(repay.market, repay.usdPrice, repay.chainId),
+                    borrow,
+                  }),
+                ),
               ),
-      ]);
-      const blocks = await Promise.all(
-        [
-          ...new Set(
-            [...deposits, ...repays, ...withdraws, ...(borrows?.values() ?? [])].map(({ blockNumber }) => blockNumber),
-          ),
-        ].map((blockNumber) => publicClient.getBlock({ blockNumber })),
-      );
-      const timestamps = new Map(blocks.map(({ number: block, timestamp }) => [block, timestamp]));
+          ignore("swap")
+            ? []
+            : swapPromise.then((rows) => rows.map(({ swap, from, to }) => parse(SwapActivity, { ...swap, from, to }))),
+          ignore("liquidation")
+            ? []
+            : paged(
+                database
+                  .select()
+                  .from(indexer.liquidations)
+                  .where(
+                    and(
+                      eq(indexer.liquidations.chainId, chain.id),
+                      eq(indexer.liquidations.account, owner),
+                      inArray(indexer.liquidations.market, [...markets.keys()]),
+                      inArray(indexer.liquidations.seizeMarket, [...markets.keys()]),
+                      beyond(indexer.liquidations),
+                    ),
+                  )
+                  .$dynamic(),
+                indexer.liquidations,
+              )
+                .then((rows) => bound(rows, rows.at(-1)))
+                .then((rows) =>
+                  rows.map((row) =>
+                    parse(LiquidationActivity, {
+                      ...row,
+                      market: market(row.market, row.usdPrice),
+                      seizeMarket: market(row.seizeMarket, row.seizeUsdPrice),
+                    }),
+                  ),
+                ),
+          ignore("bridge")
+            ? []
+            : paged(
+                database
+                  .select({
+                    bridge: getViewSelectedFields(indexer.bridges),
+                    token: { symbol: indexer.tokens.symbol, decimals: indexer.tokens.decimals },
+                  })
+                  .from(indexer.bridges)
+                  .innerJoin(
+                    indexer.tokens,
+                    and(
+                      eq(indexer.tokens.chainId, indexer.bridges.chainId),
+                      eq(indexer.tokens.address, indexer.bridges.asset),
+                    ),
+                  )
+                  .where(
+                    and(
+                      or(
+                        and(eq(indexer.bridges.chainId, chain.id), eq(indexer.bridges.account, owner)),
+                        and(
+                          eq(indexer.bridges.destinationChainId, BigInt(chain.id)),
+                          eq(indexer.bridges.receiver, owner),
+                        ),
+                      ),
+                      beyond(indexer.bridges),
+                    ),
+                  )
+                  .$dynamic(),
+                indexer.bridges,
+              )
+                .then((rows) => bound(rows, rows.at(-1)?.bridge))
+                .then((rows) =>
+                  rows.map(({ bridge, token }) => parse(BridgeActivity, { ...bridge, assets: bridge.amount, token })),
+                ),
+        ]);
+      }
+      const [deposits, repays, withdraws, borrows, loans, rollovers, swapped, liquidated, bridged] = await load(true);
       const purchases =
         !ignore("card") && borrows && maturity !== undefined
           ? await (() => {
@@ -273,7 +664,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                 .toArray();
               if (hashes.length === 0) return [];
               return database.query.cards.findMany({
-                where: eq(cards.credentialId, credentialId),
+                where: and(eq(cards.credentialId, credentialId), eq(cards.tenant, isBase ? "BASE" : "OP")),
                 columns: { id: true, lastFour: true },
                 with: {
                   transactions: {
@@ -291,18 +682,18 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
         maturity === undefined
           ? await Promise.all(
               [
-                ...new Set(
+                ...new Map(
                   purchases.flatMap(({ transactions: txs }) =>
                     txs.flatMap(({ hashes, payload }) => retried(hashes, payload)),
                   ),
                 ),
               ]
-                .filter((hash) => hash !== zeroHash && !borrows?.has(hash))
-                .map((hash) =>
+                .filter(([hash]) => hash !== zeroHash && !borrows?.has(hash))
+                .map(([hash, client]) =>
                   receipts.runExclusive(() =>
                     failed
                       ? undefined
-                      : publicClient.getTransactionReceipt({ hash }).then(
+                      : client.getTransactionReceipt({ hash }).then(
                           ({ status }) => (status === "success" ? hash : undefined),
                           (error: unknown) => {
                             if (error instanceof TransactionReceiptNotFoundError) return;
@@ -316,15 +707,8 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
           : [],
       );
 
-      const accept = accepts(c, {
-        header: "Accept",
-        supports: maturity === undefined ? ["application/json"] : ["application/json", "application/pdf"],
-        default: "application/json",
-      });
-      const pdf = accept === "application/pdf";
-
-      const response = [
-        ...purchases.flatMap(({ id: cardId, lastFour, transactions: txs }) =>
+      const purchased = purchases
+        .flatMap(({ id: cardId, lastFour, transactions: txs }) =>
           txs.map(({ hashes, payload }) => {
             const panda = safeParse(PandaActivity, {
               ...(payload as object),
@@ -338,7 +722,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                 if (filtered.length === 0) return null;
                 return {
                   events: maturity !== undefined && b.events.length > 1 ? b.events : filtered,
-                  timestamp: b.blockNumber && timestamps.get(b.blockNumber),
+                  timestamp: b.timestamp,
                 };
               }),
             });
@@ -405,7 +789,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                 ...(payload as object),
                 hash,
                 events,
-                blockTimestamp: borrow?.blockNumber && timestamps.get(borrow.blockNumber),
+                blockTimestamp: borrow?.timestamp,
               },
             );
             if (cryptomate.success) {
@@ -450,18 +834,33 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
               },
             });
           }),
-        ),
-        ...[...deposits, ...repays, ...withdraws].map(({ blockNumber, ...event }) => {
-          const timestamp = timestamps.get(blockNumber);
-          if (timestamp) return { ...event, timestamp: new Date(Number(timestamp) * 1000).toISOString() };
-          captureException(new Error("block not found"), {
-            level: "error",
-            contexts: { event: { ...event, timestamp } },
-          });
-        }),
-      ]
-        .filter(<T>(value: T | undefined): value is T => value !== undefined)
-        .toSorted((a, b) => b.timestamp.localeCompare(a.timestamp) || collator.compare(b.id, a.id));
+        )
+        .filter(<T>(value: T | undefined): value is T => value !== undefined);
+      const response: (
+        | (typeof bridged)[number]
+        | (typeof deposits)[number]
+        | (typeof liquidated)[number]
+        | (typeof loans)[number]
+        | (typeof purchased)[number]
+        | (typeof repays)[number]
+        | (typeof rollovers)[number]
+        | (typeof swapped)[number]
+        | (typeof withdraws)[number]
+      )[] = [];
+      for (let batch = [deposits, repays, withdraws, loans, rollovers, swapped, liquidated, bridged].flat(); ; ) {
+        const boundary = boundaries.toSorted(rank)[0];
+        response.push(
+          ...[...purchased, ...batch]
+            .filter((item) => (!start || rank(start, item) < 0) && (!boundary || rank(item, boundary) <= 0))
+            .toSorted(rank),
+        );
+        if (limit === undefined || response.length >= limit || !boundary) break;
+        start = boundary;
+        boundaries.length = 0;
+        batch = await load(false).then(([d, r, w, , l, o, s, q, b]) => [d, r, w, l, o, s, q, b].flat());
+      }
+      response.splice(limit ?? Infinity);
+      if (after) response.reverse();
 
       if (maturity !== undefined && pdf) {
         const purchasesByCard = Map.groupBy(
@@ -509,17 +908,28 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
             })),
           payments: response
             .filter((item) => item.type === "repay")
-            .filter((repay) => repay.currency === market(marketUSDCAddress).symbol)
+            .filter((repay) => repay.currency === markets.get(marketUSDCAddress.toLowerCase() as Hex)?.symbol)
             .map(({ id, timestamp, amount, positionAmount }) => ({
               id,
               timestamp,
               amount,
               positionAmount,
             })),
+          timeZone: timezone,
         };
         return c.body(new Uint8Array(await renderToBuffer(Statement(statement))), 200, {
           "content-type": "application/pdf",
         });
+      }
+      if (accept === "text/csv") {
+        return c.body(
+          toCSV(
+            response.filter((item) => item.type === "card" || item.type === "panda"),
+            timezone,
+          ),
+          200,
+          { "content-type": "text/csv; charset=utf-8", "content-disposition": 'attachment; filename="activity.csv"' },
+        );
       }
       return c.json(response, 200);
     },
@@ -528,22 +938,27 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
 
 const Borrow = object({ maturity: bigint(), assets: bigint(), fee: bigint() });
 
-const Attempts = object({ bodies: array(looseObject({ chainId: optional(number()), id: optional(string()) })) });
+const Attempts = object({
+  bodies: array(looseObject({ chainId: optional(number()), collected: optional(string()), id: optional(string()) })),
+});
 
 function retried(hashes: string[], payload: unknown) {
   const parsed = safeParse(Attempts, payload);
   if (!parsed.success) return [];
-  const keys = parsed.output.bodies.map((body) => attempt(body));
-  return hashes
-    .filter((_, index) => {
-      const key = keys[index];
-      return key !== undefined && keys.indexOf(key) !== keys.lastIndexOf(key);
-    })
-    .map((hash) => hash as Hash);
+  const { bodies } = parsed.output;
+  const keys = bodies.map((body) => attempt(body));
+  return hashes.flatMap((hash, index) => {
+    const key = keys[index];
+    const client = clients.get(bodies[index]?.chainId ?? chain.id);
+    return key !== undefined && client && keys.indexOf(key) !== keys.lastIndexOf(key)
+      ? [[hash as Hash, client] as const]
+      : [];
+  });
 }
 
-function attempt(body?: { chainId?: number; id?: string }) {
-  return body?.id === undefined ? undefined : `${body.id}:${body.chainId}`;
+function attempt(body?: { chainId?: number; collected?: string; id?: string }) {
+  if (body?.id === undefined || body.collected === undefined) return body?.id;
+  return `${body.id}:${body.chainId}`;
 }
 
 export const PandaActivity = pipe(
@@ -555,6 +970,7 @@ export const PandaActivity = pipe(
           spend: looseObject({ declinedReason: nullish(string()) }),
         }),
         chainId: optional(number()),
+        collected: optional(string()),
         id: optional(string()),
         reason: optional(string()),
         status: optional(string()),
@@ -717,6 +1133,8 @@ const PandaBase = {
   }),
   forceCapture: boolean(),
   hash: Hash,
+  chainId: optional(number()),
+  collected: optional(pipe(string(), digits())),
 };
 
 const CardActivity = pipe(
@@ -769,6 +1187,7 @@ function transformCard(activity: InferOutput<typeof CardActivity>) {
   if (activity.type === "panda") {
     const usdAmount =
       (function () {
+        if (activity.collected !== undefined) return Number(activity.collected) / 1e4;
         if (activity.action === "completed") {
           if (activity.forceCapture) return activity.body.spend.amount;
           return activity.body.spend.amount - (activity.body.spend.authorizedAmount ?? 0);
@@ -783,8 +1202,12 @@ function transformCard(activity: InferOutput<typeof CardActivity>) {
       action: activity.action,
       id: activity.body.id,
       transactionHash: activity.hash,
-      timestamp: activity.createdAt,
-      currency: activity.body.spend.localCurrency.toUpperCase(),
+      ...(activity.chainId !== undefined && { chainId: activity.chainId }),
+      timestamp: instant(activity.createdAt),
+      currency:
+        activity.body.spend.amount < 0 && activity.body.spend.localAmount === activity.body.spend.amount
+          ? "USD"
+          : activity.body.spend.localCurrency.toUpperCase(),
       exchangeRate,
       amount: usdAmount * exchangeRate,
       usdAmount,
@@ -806,7 +1229,7 @@ function transformCard(activity: InferOutput<typeof CardActivity>) {
     provider: "cryptomate" as const,
     id: activity.operation_id,
     transactionHash: activity.hash,
-    timestamp: activity.data.created_at,
+    timestamp: instant(activity.data.created_at),
     currency: activity.data.transaction_currency_code,
     amount: activity.data.transaction_amount,
     usdAmount: activity.data.bill_amount,
@@ -864,30 +1287,35 @@ export const InstallmentsActivity = pipe(
 );
 
 export const OnchainActivity = object({
-  args: object({ assets: bigint() }),
-  market: object({ decimals: number(), symbol: string(), usdPrice: bigint() }),
-  blockNumber: bigint(),
-  transactionHash: Hash,
+  chainId: optional(number()),
+  assets: bigint(),
+  market: object({ decimals: number(), symbol: string(), usdPrice: nullable(bigint()) }),
+  block: bigint(),
+  timestamp: bigint(),
+  hash: Hash,
   transactionIndex: number(),
   logIndex: number(),
 });
 
 function transformActivity({
-  args: { assets: value },
+  chainId = chain.id,
+  assets: value,
   market: { decimals, symbol, usdPrice },
-  blockNumber,
-  transactionHash,
+  block,
+  timestamp,
+  hash,
   transactionIndex,
   logIndex,
 }: InferOutput<typeof OnchainActivity>) {
   const baseUnit = 10 ** decimals;
   return {
-    id: `${chain.id}:${blockNumber}:${transactionIndex}:${logIndex}`,
+    id: `${chainId}:${block}:${transactionIndex}:${logIndex}`,
+    ...(chainId !== chain.id && { chainId }),
     currency: symbol,
     amount: Number(value) / baseUnit,
-    usdAmount: Number((value * usdPrice) / WAD) / baseUnit,
-    blockNumber,
-    transactionHash,
+    usdAmount: usdPrice === null ? undefined : Number((value * usdPrice) / WAD) / baseUnit,
+    timestamp: new Date(Number(timestamp) * 1000).toISOString(),
+    transactionHash: hash,
   };
 }
 
@@ -897,20 +1325,114 @@ export const DepositActivity = pipe(
 );
 
 export const RepayActivity = pipe(
-  object({ ...OnchainActivity.entries, args: object({ assets: bigint(), positionAssets: bigint() }) }),
+  object({ ...OnchainActivity.entries, positionAssets: bigint() }),
   transform((activity) => ({
     ...transformActivity(activity),
-    positionAmount: Number(activity.args.positionAssets) / 10 ** activity.market.decimals,
+    positionAmount: Number(activity.positionAssets) / 10 ** activity.market.decimals,
     type: "repay" as const,
   })),
 );
 
 export const WithdrawActivity = pipe(
-  object({ ...OnchainActivity.entries, args: object({ assets: bigint(), receiver: Address }) }),
+  object({ ...OnchainActivity.entries, receiver: Address }),
   transform((activity) => ({
     ...transformActivity(activity),
-    receiver: activity.args.receiver,
+    receiver: activity.receiver,
     type: "sent" as const,
+  })),
+);
+
+export const LoanActivity = pipe(
+  object({ ...OnchainActivity.entries, maturity: bigint(), fee: bigint(), receiver: Address }),
+  transform((activity) => ({
+    ...transformActivity(activity),
+    fee: Number(activity.fee) / 10 ** activity.market.decimals,
+    maturity: Number(activity.maturity),
+    rate: Number(fixedRate(activity.maturity, activity.assets, activity.fee, activity.timestamp)) / 1e18,
+    receiver: activity.receiver,
+    type: "loan" as const,
+  })),
+);
+
+export const RolloverActivity = pipe(
+  object({ ...OnchainActivity.entries, maturity: bigint(), positionAssets: bigint(), borrow: Borrow }),
+  transform((activity) => {
+    const { decimals } = activity.market;
+    return {
+      ...transformActivity(activity),
+      positionAmount: Number(activity.positionAssets) / 10 ** decimals,
+      maturity: Number(activity.maturity),
+      borrow: {
+        amount: Number(activity.borrow.assets + activity.borrow.fee) / 10 ** decimals,
+        fee: Number(activity.borrow.fee) / 10 ** decimals,
+        maturity: Number(activity.borrow.maturity),
+        rate:
+          Number(fixedRate(activity.borrow.maturity, activity.borrow.assets, activity.borrow.fee, activity.timestamp)) /
+          1e18,
+      },
+      type: "rollover" as const,
+    };
+  }),
+);
+
+export const LiquidationActivity = pipe(
+  object({ ...OnchainActivity.entries, seizeMarket: OnchainActivity.entries.market, seizedAssets: bigint() }),
+  transform(({ seizeMarket, seizedAssets, ...activity }) => {
+    const { currency, amount, usdAmount } = transformActivity({
+      ...activity,
+      assets: seizedAssets,
+      market: seizeMarket,
+    });
+    return { ...transformActivity(activity), seize: { currency, amount, usdAmount }, type: "liquidation" as const };
+  }),
+);
+
+const Token = object({ symbol: string(), decimals: number() });
+
+export const SwapActivity = pipe(
+  object({
+    ...omit(OnchainActivity, ["assets", "market"]).entries,
+    from: Token,
+    to: Token,
+    fromAmount: bigint(),
+    toAmount: bigint(),
+    fromUsdPrice: nullable(bigint()),
+    toUsdPrice: nullable(bigint()),
+  }),
+  transform(({ from, to, fromAmount, toAmount, fromUsdPrice, toUsdPrice, ...activity }) => {
+    const usd =
+      toUsdPrice === null
+        ? fromUsdPrice === null
+          ? undefined
+          : { assets: fromAmount, usdPrice: fromUsdPrice, decimals: from.decimals }
+        : { assets: toAmount, usdPrice: toUsdPrice, decimals: to.decimals };
+    return {
+      ...transformActivity({ ...activity, assets: toAmount, market: { ...to, usdPrice: toUsdPrice ?? 0n } }),
+      usdAmount: usd && Number((usd.assets * usd.usdPrice) / WAD) / 10 ** usd.decimals,
+      from: { currency: from.symbol, amount: Number(fromAmount) / 10 ** from.decimals },
+      type: "swap" as const,
+    };
+  }),
+);
+
+export const BridgeActivity = pipe(
+  object({
+    ...omit(OnchainActivity, ["market"]).entries,
+    chainId: number(),
+    token: Token,
+    usdPrice: nullable(bigint()),
+    bridge: string(),
+    receiver: Address,
+    destinationChainId: bigint(),
+  }),
+  transform(({ chainId, token, usdPrice, bridge, receiver, destinationChainId, ...activity }) => ({
+    ...transformActivity({ ...activity, market: { ...token, usdPrice } }),
+    id: `${chainId}:${activity.block}:${activity.transactionIndex}:${activity.logIndex}`,
+    bridge,
+    receiver,
+    sourceChainId: chainId,
+    destinationChainId: Number(destinationChainId),
+    type: "bridge" as const,
   })),
 );
 
@@ -929,13 +1451,91 @@ function forbid<T extends object>(value: T) {
   });
 }
 
+function instant(timestamp: string) {
+  return new Date(
+    timestamp.replace(/ ?([+-]\d\d):?(\d\d)?$/, (_, hours: string, minutes = "00") => `${hours}:${minutes}`),
+  ).toISOString();
+}
+
 const collator = new Intl.Collator(undefined, { numeric: true });
 
+function order(a: { id: string; timestamp: string }, b: { id: string; timestamp: string }) {
+  return b.timestamp.localeCompare(a.timestamp) || collator.compare(b.id, a.id);
+}
+
+const Cursor = pipe(
+  string(),
+  regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z,.+$/),
+  transform((value) => {
+    const index = value.indexOf(",");
+    return { timestamp: value.slice(0, index), id: value.slice(index + 1) };
+  }),
+  check(({ timestamp }) => new Date(timestamp).toJSON() === timestamp, "invalid cursor"),
+  check(({ id }) => {
+    const position = /^(\d+):(\d+):(\d+):(\d+)$/.exec(id);
+    if (!position) return true;
+    const [, chainId, block = "", transactionIndex, logIndex] = position;
+    return block.length <= 78 && [chainId, transactionIndex, logIndex].every((value) => Number(value) <= 0x7f_ff_ff_ff);
+  }, "invalid cursor"),
+);
+
+type Paged = { block: AnyPgColumn; chainId: AnyPgColumn; logIndex: AnyPgColumn; timestamp: AnyPgColumn };
+type Position = { block: bigint; chainId: number; logIndex: number; timestamp: bigint; transactionIndex: number };
+
+function toCSV(
+  items: {
+    amount: number;
+    currency?: null | string;
+    lastFour: string;
+    merchant: { city?: null | string; country?: null | string; name: string };
+    status?: string;
+    timestamp: string;
+    usdAmount: number;
+  }[],
+  timeZone = "UTC",
+) {
+  const date = new Intl.DateTimeFormat("sv-SE", { timeZone, dateStyle: "short", timeStyle: "medium" });
+  return [
+    ["date", "card", "merchant", "city", "country", "amount", "currency", "usd amount", "status"],
+    ...items.map(({ amount, currency, lastFour, merchant, status, timestamp, usdAmount }) => [
+      date.format(new Date(timestamp)),
+      text(lastFour),
+      text(merchant.name.trim()),
+      text(merchant.city?.trim()),
+      text(merchant.country?.trim()),
+      amount.toFixed(2),
+      text(currency),
+      usdAmount.toFixed(2),
+      status ?? "settled",
+    ]),
+  ]
+    .map((row) => row.map((cell) => (/[\n\r",]/.test(cell) ? `"${cell.replaceAll('"', '""')}"` : cell)).join(","))
+    .join("\r\n");
+}
+
+function text(value?: null | string) {
+  if (!value) return "";
+  return /^[\t\r+=@-]/.test(value) ? `'${value}` : value;
+}
+
+function isTimeZone(timeZone: string) {
+  try {
+    return new Intl.DateTimeFormat(undefined, { timeZone }).resolvedOptions().timeZone.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+export type BridgeActivity = InferOutput<typeof BridgeActivity>;
 export type CreditActivity = InferOutput<typeof CreditActivity>;
 export type DebitActivity = InferOutput<typeof DebitActivity>;
 export type DepositActivity = InferOutput<typeof DepositActivity>;
 export type InstallmentsActivity = InferOutput<typeof InstallmentsActivity>;
+export type LiquidationActivity = InferOutput<typeof LiquidationActivity>;
+export type LoanActivity = InferOutput<typeof LoanActivity>;
 export type OnchainActivity = InferOutput<typeof OnchainActivity>;
 export type PandaActivity = InferOutput<typeof PandaActivity>;
 export type RepayActivity = InferOutput<typeof RepayActivity>;
+export type RolloverActivity = InferOutput<typeof RolloverActivity>;
+export type SwapActivity = InferOutput<typeof SwapActivity>;
 export type WithdrawActivity = InferOutput<typeof WithdrawActivity>;

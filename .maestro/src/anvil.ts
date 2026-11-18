@@ -22,6 +22,7 @@ import {
   type ReadContractReturnType,
   type RpcLog,
   type RpcTransactionReceipt,
+  type RpcTransactionRequest,
   type TransactionRequest,
   type WriteContractParameters,
   type WriteContractReturnType,
@@ -66,19 +67,22 @@ export function writeContract<
 >(
   parameters: Pick<WriteContractParameters<abi, functionName, args>, "address" | "args" | "functionName"> & {
     abi: abi;
+    from?: Address;
   },
   network?: string,
 ): WriteContractReturnType {
-  const { address, functionName, abi, args } = parameters as Pick<
-    WriteContractParameters,
-    "abi" | "address" | "args" | "functionName"
-  >;
-  const from = sliceHex(keccak256(toHex(String(Math.random()))), 12);
+  const {
+    address,
+    functionName,
+    abi,
+    args,
+    from = sliceHex(keccak256(toHex(String(Math.random()))), 12),
+  } = parameters as Pick<WriteContractParameters, "abi" | "address" | "args" | "functionName"> & { from?: Address };
   anvil("anvil_impersonateAccount", [from], network);
   anvil("anvil_setBalance", [from, String(10n ** 18n)], network);
   const { status, transactionHash } = anvil(
     "eth_sendTransactionSync",
-    [{ from, to: address, data: encodeFunctionData({ functionName, abi, args }) }],
+    [{ from, to: address, data: encodeFunctionData({ functionName, abi, args }), gas: toHex(10_000_000) }],
     network,
   );
   if (status !== "0x1") throw new Error(`${functionName} reverted`);
@@ -121,7 +125,7 @@ export default function anvil(
 ): ExactPartial<RpcTransactionReceipt> | null;
 export default function anvil(
   method: "eth_sendTransactionSync",
-  params: readonly [transaction: TransactionRequest],
+  params: readonly [transaction: RpcTransactionRequest],
   network?: string,
 ): RpcTransactionReceipt;
 export default function anvil(
@@ -142,7 +146,7 @@ export default function anvil(
 export default function anvil(method: string, params: readonly unknown[], network?: string) {
   const url = network
     ? (urls[network] ??= (
-        JSON.parse(http.get("http://localhost:3000/e2e/lifi/v1/chains").body) as {
+        JSON.parse(http.get("http://localhost:3000/hooks/mockfi/v1/chains").body) as {
           chains: { metamask: { rpcUrls: string[] }; name: string }[];
         }
       ).chains.find(({ name }) => name === network)?.metamask.rpcUrls[0])

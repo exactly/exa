@@ -18,10 +18,13 @@ import type { TokenAmount } from "@lifi/sdk";
 export type ProtocolAsset = {
   asset: Hex;
   assetName: string;
+  chainId: number;
   decimals: number;
   floatingDepositAssets: bigint;
+  isFrozen: boolean;
   market: Hex;
   nonCollateral: boolean;
+  rate?: bigint;
   symbol: string;
   type: "protocol";
   usdPrice: bigint;
@@ -43,9 +46,21 @@ export type ExternalAsset = {
 
 export type PortfolioAsset = ExternalAsset | ProtocolAsset;
 
-export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValue" }) {
+export default function usePortfolio(options?: {
+  chainId?: number;
+  deposits?: ProtocolAsset[];
+  sortBy?: "usdcFirst" | "usdValue";
+}) {
   const { address: account } = useAccount();
-  const { markets, supportedAssets, rateSnapshot, timestamp, isPending: isMarketsPending } = useMarkets();
+  const deposits = options?.deposits ?? none;
+  const network = options?.chainId ?? chain.id;
+  const {
+    markets,
+    supportedAssets,
+    rateSnapshot,
+    timestamp,
+    isPending: isMarketsPending,
+  } = useMarkets(undefined, network);
 
   const { data: balances, isLoading: isBalancesPending } = useQuery(balancesOptions(account));
 
@@ -76,16 +91,28 @@ export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValu
     return floatingDepositRates(rateSnapshot, Number(timestamp)).filter(({ market }) => !reserved.has(market));
   }, [markets, rateSnapshot, timestamp]);
 
+  const collateral = useMemo(() => deposits.filter(({ nonCollateral }) => !nonCollateral), [deposits]);
+
   const averageRate = useMemo(() => {
-    const { depositMarkets, collateralUSD } = portfolio;
     const rateByMarket = new Map(rates.map(({ market, rate }) => [market, rate]));
-    const earning = depositMarkets.flatMap(({ market, usdValue }) => {
-      const rate = rateByMarket.get(market);
-      return rate === undefined ? [] : [rate * usdValue];
-    });
-    if (earning.length === 0) return;
-    return earning.reduce((sum, value) => sum + value, 0n) / collateralUSD;
-  }, [portfolio, rates]);
+
+    let weightedRate = 0n;
+    let ratedUSD = 0n;
+    if (rateSnapshot) {
+      for (const { market, usdValue } of portfolio.depositMarkets) {
+        weightedRate += (rateByMarket.get(market) ?? 0n) * usdValue;
+        ratedUSD += usdValue;
+      }
+    }
+    for (const { rate, usdValue } of collateral) {
+      if (rate === undefined) continue;
+      const value = BigInt(Math.round(usdValue * 1e18));
+      weightedRate += rate * value;
+      ratedUSD += value;
+    }
+
+    return ratedUSD === 0n ? undefined : weightedRate / ratedUSD;
+  }, [collateral, portfolio.depositMarkets, rateSnapshot, rates]);
 
   const protocolAssets = useMemo<ProtocolAsset[]>(() => {
     if (!markets) return [];
@@ -93,15 +120,16 @@ export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValu
       .filter(({ floatingDepositAssets }) => floatingDepositAssets > 0n)
       .map((market) => ({
         ...market,
+        chainId: network,
         symbol: market.symbol.slice(3) === "WETH" ? "ETH" : market.symbol.slice(3),
         usdValue:
           Number((withdrawLimit(markets, market.market) * market.usdPrice) / BigInt(10 ** market.decimals)) / 1e18,
         type: "protocol" as const,
       }));
-  }, [markets]);
+  }, [markets, network]);
 
   const externalAssets = useMemo<ExternalAsset[]>(() => {
-    const tokens = balances?.[chain.id] ?? [];
+    const tokens = balances?.[network] ?? [];
     if (!markets || tokens.length === 0) return [];
     const marketAddresses = new Set(markets.map(({ market }) => market.toLowerCase()));
     return tokens
@@ -110,11 +138,11 @@ export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValu
         const asset = toExternalAsset(token);
         return asset ? [asset] : [];
       });
-  }, [balances, markets]);
+  }, [balances, markets, network]);
 
   const isExternal = useCallback(
     (chainId: number, address: string) => {
-      if (chainId !== chain.id) return true;
+      if (chainId !== network) return true;
       if (!markets) return false;
       return !markets.some(
         (m) =>
@@ -124,19 +152,19 @@ export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValu
               !externalAssets.some((a) => a.address === address && (a.amount ?? 0n) > 0n))),
       );
     },
-    [externalAssets, markets, protocolAssets],
+    [externalAssets, markets, network, protocolAssets],
   );
 
   const crossChainAssets = useMemo<ExternalAsset[]>(() => {
     if (!balances) return [];
     return Object.entries(balances)
-      .filter(([id]) => Number(id) !== chain.id)
+      .filter(([id]) => Number(id) !== network)
       .flatMap(([, tokens]) => tokens)
       .flatMap((token) => {
         const asset = toExternalAsset(token);
         return asset ? [asset] : [];
       });
-  }, [balances]);
+  }, [balances, network]);
 
   const assets = useMemo<PortfolioAsset[]>(
     () => [...protocolAssets, ...externalAssets].sort(compareAssets(options?.sortBy)),
@@ -144,16 +172,16 @@ export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValu
   );
 
   const allAssets = useMemo<PortfolioAsset[]>(
-    () => [...protocolAssets, ...externalAssets, ...crossChainAssets].sort(compareAssets(options?.sortBy)),
-    [protocolAssets, externalAssets, crossChainAssets, options?.sortBy],
+    () => [...protocolAssets, ...externalAssets, ...crossChainAssets, ...deposits].sort(compareAssets(options?.sortBy)),
+    [protocolAssets, externalAssets, crossChainAssets, deposits, options?.sortBy],
   );
 
   const externalUSD = useMemo(() => externalAssets.reduce((sum, asset) => sum + asset.usdValue, 0), [externalAssets]);
 
   const totalBalanceUSD = useMemo(() => {
-    const crossChainUSD = crossChainAssets.reduce((sum, asset) => sum + asset.usdValue, 0);
+    const crossChainUSD = [crossChainAssets, deposits].flat().reduce((sum, asset) => sum + asset.usdValue, 0);
     return portfolio.balanceUSD + BigInt(Math.round((externalUSD + crossChainUSD) * 1e18));
-  }, [portfolio.balanceUSD, externalUSD, crossChainAssets]);
+  }, [portfolio.balanceUSD, externalUSD, crossChainAssets, deposits]);
 
   return {
     portfolio,
@@ -164,6 +192,12 @@ export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValu
     protocolAssets,
     externalAssets,
     crossChainAssets,
+    collateralUSD: useMemo(
+      () =>
+        portfolio.collateralUSD +
+        BigInt(Math.round(collateral.reduce((sum, { usdValue }) => sum + usdValue, 0) * 1e18)),
+      [collateral, portfolio.collateralUSD],
+    ),
     isExternal,
     totalBalanceUSD,
     protocolSymbols: supportedAssets,
@@ -191,3 +225,5 @@ function toExternalAsset(token: TokenAmount): ExternalAsset | undefined {
   const usdValue = Number.isFinite(rawUsd) && rawUsd > 0 ? rawUsd : 0;
   return { ...token, address: address.output, type: "external", usdValue };
 }
+
+const none: ProtocolAsset[] = [];

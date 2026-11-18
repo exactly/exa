@@ -10,9 +10,6 @@ import { useQuery } from "@tanstack/react-query";
 import { formatDistanceStrict, isAfter } from "date-fns";
 import { digits, pipe, safeParse, string } from "valibot";
 
-import accountInit from "@exactly/common/accountInit";
-import chain, { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
-import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
 import { WAD } from "@exactly/lib";
 
 import Breakdown from "./Breakdown";
@@ -23,9 +20,11 @@ import { Info } from "../../generated/icons/Info";
 import { RefreshCw } from "../../generated/icons/RefreshCw";
 import { date } from "../../i18n";
 import { presentArticle } from "../../utils/intercom";
+import { network } from "../../utils/marketsOptions";
 import reportError from "../../utils/reportError";
-import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
+import useNetwork from "../../utils/useNetwork";
+import useProposalManager from "../../utils/useProposalManager";
 import Amount from "../shared/Amount";
 import IconButton from "../shared/IconButton";
 import InfoSheet from "../shared/InfoSheet";
@@ -33,23 +32,18 @@ import ModalSheet from "../shared/ModalSheet";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 
-import type { Credential } from "@exactly/common/validation";
-
-export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (maturity: string) => void }) {
+export default function PaymentSheet({
+  onRolloverIntro,
+}: {
+  onRolloverIntro?: (payment: { chainId: number; maturity: string }) => void;
+}) {
   const parameters = useLocalSearchParams();
   const router = useRouter();
   const maturity = Array.isArray(parameters.maturity) ? parameters.maturity[0] : parameters.maturity;
-  const { address } = useAccount();
-  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
-  const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
-    address,
-    chainId: chain.id,
-    factory: credential?.factory,
-    factoryData: credential && accountInit(credential),
-    query: { refetchOnMount: true, enabled: !!address && !!credential },
-  });
-  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
-  const { market: USDCMarket, timestamp } = useAsset(marketUSDCAddress);
+  const chainId = useNetwork();
+  const [displayChain, setDisplayChain] = useState(chainId);
+  const proposalManager = useProposalManager(displayChain);
+  const { market: USDCMarket, timestamp } = useAsset(network(displayChain).marketUSDC, displayChain);
   const [infoOpen, setInfoOpen] = useState(false);
   const [open, setOpen] = useState(() => !!maturity);
   const [breakdownOpen, setBreakdownOpen] = useState(false);
@@ -60,8 +54,9 @@ export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (m
     i18n: { language },
   } = useTranslation();
   if (maturity) {
-    if (maturity !== displayMaturity) {
+    if (maturity !== displayMaturity || chainId !== displayChain) {
       setDisplayMaturity(maturity);
+      setDisplayChain(chainId);
       setBreakdownOpen(false);
       setInfoOpen(false);
     }
@@ -104,27 +99,27 @@ export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (m
     setInfoOpen(false);
     setBreakdownOpen(false);
     setOpen(false);
-    router.setParams({ ...parameters, maturity: undefined });
+    router.setParams({ ...parameters, maturity: undefined, chainId: undefined });
   }, [parameters, router]);
 
   const navigateToRepay = useCallback(() => {
     close();
-    router.navigate({ pathname: "/pay", params: { maturity: displayMaturity } });
-  }, [close, router, displayMaturity]);
+    router.navigate({ pathname: "/pay", params: { maturity: displayMaturity, chainId: String(displayChain) } });
+  }, [close, router, displayMaturity, displayChain]);
 
   const navigateToRollover = useCallback(() => {
     if (!rolloverIntroShown && onRolloverIntro && displayMaturity) {
       close();
-      onRolloverIntro(displayMaturity);
+      onRolloverIntro({ chainId: displayChain, maturity: displayMaturity });
       return;
     }
-    if (!isLatestPlugin) {
+    if (!proposalManager) {
       toast.error(t("Upgrade account to rollover"), { duration: 1000 });
       return;
     }
     close();
-    router.navigate({ pathname: "/roll-debt", params: { maturity: displayMaturity } });
-  }, [rolloverIntroShown, onRolloverIntro, displayMaturity, close, router, isLatestPlugin, t]);
+    router.navigate({ pathname: "/roll-debt", params: { maturity: displayMaturity, chainId: String(displayChain) } });
+  }, [rolloverIntroShown, onRolloverIntro, displayMaturity, displayChain, close, router, proposalManager, t]);
 
   const renderContent = () => {
     if (!displayMaturity || !USDCMarket || !borrow) return <NotAvailableView onClose={close} />;
