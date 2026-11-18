@@ -42,6 +42,7 @@ interface IExaAccount {
 }
 
 interface IProposalManager {
+  function allowlist(address target) external view returns (bool);
   function checkLiquidity(address account) external view;
   function delay() external view returns (uint256);
   function nextProposal(address account) external view returns (uint256 nonce, Proposal memory proposal);
@@ -218,6 +219,7 @@ interface IMarket is IERC4626 {
   function fixedPools(uint256 maturity) external view returns (FixedPool memory);
   function isFrozen() external view returns (bool);
   function penaltyRate() external view returns (uint256);
+  function previewFloatingAssetsAverage() external view returns (uint256);
   function repay(uint256 assets, address borrower) external;
   function repayAtMaturity(uint256 maturity, uint256 positionAssets, uint256 maxAssets, address borrower)
     external

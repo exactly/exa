@@ -67,6 +67,8 @@ import chain, {
   lifiURL,
   marketWETHAddress,
   mockSwapperAbi,
+  previewerAddress,
+  ratePreviewerAddress,
   stocks,
   swapperAddress,
 } from "@exactly/common/generated/chain";
@@ -116,12 +118,17 @@ export const lifiTokensOptions = queryOptions({
   retry: 3,
   queryFn: async () => {
     if (!lifiURL) {
-      const markets = await publicClient.readContract({
+      const { protocol } = await publicClient.readContract({
         abi: appPreviewerAbi,
-        functionName: "markets",
+        functionName: "preview",
         code: appPreviewerCode,
-        args: [auditorAddress],
+        args: [
+          zeroAddress,
+          [],
+          { auditor: auditorAddress, previewer: previewerAddress, ratePreviewer: ratePreviewerAddress },
+        ],
       });
+      const markets = protocol.markets.map(({ market }) => ({ ...market, symbol: market.symbol.slice(3) }));
       return markets.flatMap(({ asset, decimals, market, symbol, usdPrice }): Token[] => {
         const token = {
           address: asset,

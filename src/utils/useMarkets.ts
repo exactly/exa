@@ -44,11 +44,15 @@ export default function useMarkets(query?: { enabled?: boolean; gcTime?: number;
   });
   const previews = useReadContract({
     abi: appPreviewerAbi,
-    functionName: "markets",
+    functionName: "preview",
     code: appPreviewerCode,
-    args: [auditorAddress],
+    args: [
+      account ?? zeroAddress,
+      [],
+      { auditor: auditorAddress, previewer: previewerAddress, ratePreviewer: ratePreviewerAddress },
+    ],
     chainId: chain.id,
-    query: { ...query, enabled: query?.enabled ?? true, staleTime: 10_000 },
+    query: { ...query, enabled: query?.enabled ?? true, staleTime: 10_000, select: ({ protocol }) => protocol.markets },
   });
   const accountMarkets = result.data?.[0];
   const markets = useMemo(
@@ -56,7 +60,7 @@ export default function useMarkets(query?: { enabled?: boolean; gcTime?: number;
       accountMarkets &&
       previews.data &&
       accountMarkets.map((market) => {
-        const preview = previews.data.find(({ market: address }) => address === market.market);
+        const preview = previews.data.find((row) => row.market.market === market.market);
         return {
           ...market,
           isCollateral: market.isCollateral && !preview?.nonCollateral,
