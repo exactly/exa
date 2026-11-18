@@ -1,4 +1,4 @@
-import { captureException, setContext } from "@sentry/node";
+import { captureException, getActiveSpan, setContext } from "@sentry/node";
 import {
   generateRegistrationOptions,
   verifyRegistrationResponse,
@@ -406,7 +406,11 @@ export default function route({
                 supportedAlgorithmIDs: [cose.COSEALG.ES256],
               });
               if (!verified) return c.json({ code: "bad registration", legacy: "bad registration" }, 400);
-              const { credential, credentialDeviceType } = registrationInfo;
+              const { aaguid, credential, credentialDeviceType } = registrationInfo;
+              getActiveSpan()?.setAttributes({
+                "webauthn.aaguid": aaguid,
+                "webauthn.device_type": credentialDeviceType,
+              });
               if (credential.id !== attestation.id) {
                 return c.json({ code: "bad registration", legacy: "bad registration" }, 400);
               }

@@ -4,7 +4,7 @@ import sardineCustomer from "../mocks/sardine";
 import { identify } from "../mocks/segment";
 import "../mocks/sentry";
 
-import { captureException } from "@sentry/node";
+import { captureException, getActiveSpan } from "@sentry/node";
 import { verifyAuthenticationResponse, verifyRegistrationResponse } from "@simplewebauthn/server";
 import { DrizzleQueryError, eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
@@ -40,6 +40,7 @@ import validFactories from "../../utils/validFactories";
 import createWalletExtension from "../../utils/walletExtension";
 
 import type createSubscribe from "../../workers/subscribe/queue";
+import type { Span } from "@sentry/node";
 import type * as SimpleWebAuthn from "@simplewebauthn/server";
 import type * as SimpleWebAuthnHelpers from "@simplewebauthn/server/helpers";
 import type * as ViemSiwe from "viem/siwe";
@@ -1260,9 +1261,13 @@ describe("registration", () => {
   });
 
   it("consumes challenge after single-device registration to prevent replay", async () => {
+    vi.mocked(captureException).mockClear();
+    const setAttributes = vi.fn<Span["setAttributes"]>();
+    vi.mocked(getActiveSpan).mockReturnValueOnce({ setAttributes } as unknown as Span);
     vi.mocked(verifyRegistrationResponse).mockResolvedValueOnce({
       verified: true,
       registrationInfo: {
+        aaguid: "08987058-cadc-4b81-b6e1-30de50dcbe96",
         credential: {
           id: "dGVzdC1jcmVkLWlk2",
           publicKey: new Uint8Array(65),
@@ -1275,10 +1280,15 @@ describe("registration", () => {
     const firstResponse = await postRegistrationWebauthn();
     const secondResponse = await postRegistrationWebauthn();
 
+    expect(setAttributes).toHaveBeenCalledExactlyOnceWith({
+      "webauthn.aaguid": "08987058-cadc-4b81-b6e1-30de50dcbe96",
+      "webauthn.device_type": "singleDevice",
+    });
     expect(firstResponse.status).toBe(400);
     expect(await firstResponse.json()).toEqual(expect.objectContaining({ code: "backup eligibility required" }));
     expect(secondResponse.status).toBe(400);
     expect(await secondResponse.json()).toEqual(expect.objectContaining({ code: "no registration" }));
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -1575,11 +1585,25 @@ describe("registration", () => {
   it("accepts a registered origin using webauthn", async () => {
     const id = own("ZGVwbG95bWVudC1vcmlnaW4"); // cspell:ignore ZGVwbG95bWVudC1vcmlnaW4
     await redis.set("session:test-session", "test-challenge");
+    const setAttributes = vi.fn<Span["setAttributes"]>();
+    vi.mocked(getActiveSpan).mockReturnValueOnce({ setAttributes } as unknown as Span);
+    vi.mocked(verifyRegistrationResponse).mockResolvedValueOnce({
+      verified: true,
+      registrationInfo: {
+        aaguid: "fbfc3007-154e-4ecc-8c0b-6e020557d7bd",
+        credential: { id, publicKey: new Uint8Array(65), transports: ["internal"] },
+        credentialDeviceType: "multiDevice",
+      },
+    } as Awaited<ReturnType<typeof verifyRegistrationResponse>>);
     const response = await registrationAppClient.index.$post(
       { json: registrationWebauthnAssertion({ id, rawId: id }) },
       { headers: { cookie: "session_id=test-session", origin: consumer } },
     );
 
+    expect(setAttributes).toHaveBeenCalledExactlyOnceWith({
+      "webauthn.aaguid": "fbfc3007-154e-4ecc-8c0b-6e020557d7bd",
+      "webauthn.device_type": "multiDevice",
+    });
     expect(response.status).toBe(200);
     const credential = await database.query.credentials.findFirst({
       where: eq(credentials.id, id),
