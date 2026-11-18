@@ -40,6 +40,7 @@ export const Credential = pipe(
     factory: pipe(Address, title("Account factory address")),
     x: pipe(Hash, title("Credential public key x coordinate")),
     y: pipe(Hash, title("Credential public key y coordinate")),
+    rpId: optional(pipe(string(), title("Relying party identifier the passkey is bound to"))),
     salt: optional(pipe(Address, title("Credential salt"))),
   }),
   title("WebAuthn passkey metadata"),
