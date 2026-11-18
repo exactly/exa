@@ -3823,6 +3823,19 @@ describe("bridge utils", () => {
     });
   });
 
+  describe("getDepositEvents", () => {
+    it("returns the deposit's virtual account events", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(fetchResponse({ count: 1, data: [{ id: "va_event_1", type: "funds_received" }] }));
+
+      const result = await bridge.getDepositEvents("deposit_123");
+
+      expect(fetchSpy.mock.calls[0]?.[0]).toBe("https://bridge.test/virtual_accounts/history?deposit_id=deposit_123");
+      expect(result).toStrictEqual({ data: [{ type: "funds_received" }] });
+    });
+  });
+
   describe("getVirtualAccounts", () => {
     it("paginates when count exceeds first page", async () => {
       const page1 = Array.from({ length: 20 }, (_, index) => ({

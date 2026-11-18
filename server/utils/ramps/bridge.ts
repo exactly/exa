@@ -70,6 +70,7 @@ export default function bridge(key: string, url: string) {
     getCryptoOfframpDepositDetails,
     getCustomer,
     getDepositDetails,
+    getDepositEvents,
     getExternalAccount,
     getKYCLink,
     getLiquidationAddresses,
@@ -768,6 +769,9 @@ export default function bridge(key: string, url: string) {
           },
         ];
     }
+  }
+  async function getDepositEvents(depositId: string) {
+    return await request(VirtualAccountEvents, `/virtual_accounts/history?deposit_id=${encodeURIComponent(depositId)}`);
   }
   async function getExternalAccount(customerId: string, externalAccountId: string) {
     return await request(
@@ -2080,6 +2084,8 @@ const VirtualAccount = object({
   }),
 });
 const VirtualAccounts = object({ count: number(), data: array(VirtualAccount) });
+
+const VirtualAccountEvents = object({ data: array(object({ type: string() })) });
 
 const CreateLiquidationAddress = object({
   currency: picklist(["usdc", "usdt"]),
