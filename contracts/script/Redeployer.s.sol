@@ -225,7 +225,7 @@ contract Redeployer is BaseScript {
   }
 
   /// @notice Upgrades a proxy to the cached ExaAccountFactory implementation.
-  function deployExaFactory(address proxy) external {
+  function deployExaFactory(address proxy) public {
     if (address(factory).code.length == 0) revert NotPrepared();
     if (address(uint160(uint256(vm.load(proxy, ERC1967Utils.IMPLEMENTATION_SLOT)))) == address(factory)) return;
     vm.broadcast(acct("admin"));
@@ -233,7 +233,7 @@ contract Redeployer is BaseScript {
   }
 
   /// @notice Deploys ExaAccountFactory at a version-specific CREATE3 address.
-  function deployExaFactory(string calldata version) external returns (ExaAccountFactory f) {
+  function deployExaFactory(string memory version) public returns (ExaAccountFactory f) {
     bytes32 salt = keccak256(abi.encode("Exa Plugin", version));
     f = ExaAccountFactory(payable(create3Address(acct("admin"), salt)));
     if (address(f).code.length != 0) return f;
@@ -255,12 +255,12 @@ contract Redeployer is BaseScript {
 
   /// @notice Upgrades all factory proxies and deploys versioned factories via CREATE3.
   function deployExaFactories() external {
-    this.deployExaFactory(0x8D493AF799162Ac3f273e8918B2842447f702163);
-    this.deployExaFactory(0x6E1b5A67adD32E8dC034c23b8022b54821ED297b);
-    this.deployExaFactory(0x3427a595eD6E05Cc2D8115e28BAd151cB879616e);
-    this.deployExaFactory(0xcbeaAF42Cc39c17e84cBeFe85160995B515A9668);
-    this.deployExaFactory("1.0.0");
-    this.deployExaFactory("1.1.0");
+    deployExaFactory(0x8D493AF799162Ac3f273e8918B2842447f702163);
+    deployExaFactory(0x6E1b5A67adD32E8dC034c23b8022b54821ED297b);
+    deployExaFactory(0x3427a595eD6E05Cc2D8115e28BAd151cB879616e);
+    deployExaFactory(0xcbeaAF42Cc39c17e84cBeFe85160995B515A9668);
+    deployExaFactory("1.0.0");
+    deployExaFactory("1.1.0");
   }
 
   /// @notice Finds the nonce at which `account` would deploy to `target` via CREATE.
