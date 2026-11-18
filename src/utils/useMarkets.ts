@@ -45,7 +45,7 @@ export default function useMarkets(query?: { enabled?: boolean; gcTime?: number;
     ...networkOptions(account, chain.id),
     enabled: query?.enabled ?? true,
     ...(query?.refetchInterval !== undefined && { refetchInterval: query.refetchInterval }),
-    select: ({ markets: rows }) => rows,
+    select: ({ markets: rows = [] }) => rows,
   });
   const accountMarkets = result.data?.[0];
   const markets = useMemo(
@@ -55,7 +55,7 @@ export default function useMarkets(query?: { enabled?: boolean; gcTime?: number;
       accountMarkets.map((market) =>
         withFlags(
           market,
-          previews.data.find((row) => row.market.market === market.market),
+          previews.data.find(({ market: address }) => address === market.market),
         ),
       ),
     [accountMarkets, previews.data],
