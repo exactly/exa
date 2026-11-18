@@ -5,8 +5,8 @@ import "../mocks/traceClient";
 import "../mocks/wallet";
 
 import * as core from "@sentry/core";
-import { captureException, continueTrace, setExtra, withScope } from "@sentry/node";
-import { deserialize } from "@wagmi/core";
+import { captureEvent, captureException, continueTrace, setExtra, startSpan, withScope } from "@sentry/node";
+import { deserialize, serialize } from "@wagmi/core";
 import { testClient } from "hono/testing";
 import { Redis } from "ioredis";
 import { array, parse } from "valibot";
@@ -31,6 +31,7 @@ import {
   HttpRequestError,
   maxUint256,
   nonceManager,
+  numberToHex,
   padHex,
   parseAbi,
   parseEventLogs,
@@ -2895,6 +2896,7 @@ describe("qr payment", () => {
   };
   const stranger = getAddress(padHex("0x57a", { size: 20 }));
   const payment = withdrawLog({ receiver: settlement, owner: payer, hash });
+  const timestamp = 1_740_771_568;
 
   beforeAll(async () => {
     await database.insert(credentials).values({
@@ -2904,6 +2906,10 @@ describe("qr payment", () => {
       factory: exaAccountFactoryAddress,
     });
   });
+
+  beforeEach(() => vi.setSystemTime(timestamp * 1000));
+
+  afterEach(() => vi.useRealTimers());
 
   it("executes a payment made onchain", async () => {
     const owner = privateKeyToAccount(generatePrivateKey());
@@ -3026,7 +3032,7 @@ describe("qr payment", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({});
-    expect(getSettlements).toHaveBeenCalledTimes(2);
+    expect(getSettlements).toHaveBeenCalledTimes(3);
     expect(getPaymentLock).toHaveBeenCalledExactlyOnceWith(code);
     expect(getAccount).toHaveBeenCalledExactlyOnceWith("block-qr-onchain", "basic");
     expect(getSettlement).toHaveBeenCalledExactlyOnceWith("ARS");
@@ -3137,8 +3143,8 @@ describe("qr payment", () => {
     expect(getAccount).toHaveBeenCalledExactlyOnceWith("block-qr", "basic");
     expect(executeQrPayment).not.toHaveBeenCalled();
     expect(core.captureException).toHaveBeenCalledExactlyOnceWith(new Error("qr payment not executed"), {
-      level: "error",
-      contexts: { payment: { account: payer, userOpHash, amount } },
+      level: "info",
+      contexts: { payment: { account: payer, userOpHash, amount, refund: "automatic" } },
     });
   });
 
@@ -3151,11 +3157,13 @@ describe("qr payment", () => {
     );
     vi.spyOn(manteca, "getSettlements").mockResolvedValue({ ARS: settlement });
     const getPaymentLock = vi.spyOn(manteca, "getPaymentLock");
+    const zadd = spyZadd();
 
     const response = await appClient.index.$post(withLogs([payment]));
 
     expect(response.status).toBe(200);
     expect(getPaymentLock).not.toHaveBeenCalled();
+    expect(zadd).not.toHaveBeenCalled();
     expect(core.captureException).toHaveBeenCalledExactlyOnceWith(
       new Error("usdc sent to settlement without qr lock"),
       {
@@ -3200,12 +3208,14 @@ describe("qr payment", () => {
     );
     const getSettlements = vi.spyOn(manteca, "getSettlements").mockResolvedValue({ ARS: settlement });
     const getPaymentLock = vi.spyOn(manteca, "getPaymentLock");
+    const zadd = spyZadd();
 
     const response = await appClient.index.$post(withLogs([payment]));
 
     expect(response.status).toBe(200);
     expect(getSettlements).toHaveBeenCalledOnce();
     expect(getPaymentLock).not.toHaveBeenCalled();
+    expect(zadd).not.toHaveBeenCalled();
     expect(core.captureException).not.toHaveBeenCalled();
   });
 
@@ -3393,8 +3403,8 @@ describe("qr payment", () => {
     expect(response.status).toBe(200);
     expect(executeQrPayment).not.toHaveBeenCalled();
     expect(core.captureException).toHaveBeenCalledExactlyOnceWith(new Error("qr payment not executed"), {
-      level: "error",
-      contexts: { payment: { account: payer, userOpHash, amount: "2449218" } },
+      level: "info",
+      contexts: { payment: { account: payer, userOpHash, amount: "2449218", refund: "automatic" } },
     });
   });
 
@@ -3417,8 +3427,8 @@ describe("qr payment", () => {
     expect(executeQrPayment).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
     expect(core.captureException).toHaveBeenCalledExactlyOnceWith(new Error("qr payment not executed"), {
-      level: "error",
-      contexts: { payment: { account: payer, userOpHash, amount: "2449218" } },
+      level: "info",
+      contexts: { payment: { account: payer, userOpHash, amount: "2449218", refund: "automatic" } },
     });
   });
 
@@ -3450,7 +3460,413 @@ describe("qr payment", () => {
       input === `https://manteca.test/crypto/v2/payment-locks/${code}` ? Promise.resolve(response) : fetch(input, init),
     );
   }
+
+  describe("refund", () => {
+    const withdraw = {
+      id: "6af4aa45204ef0670ed07817",
+      numberId: "100069658",
+      userExternalId: "Exactly-argentina",
+      status: "PENDING" as const,
+    };
+    const check = { account: payer, code, amount: 2_449_218n, unlock: timestamp + 900, retryCount: 0 };
+    let opHash: Hash;
+    let count = 0;
+
+    beforeEach(() => {
+      count += 1;
+      opHash = padHex(numberToHex(0x44_00 + count), { size: 32 });
+      vi.setSystemTime((timestamp + 900) * 1000);
+      vi.spyOn(publicClient, "getTransactionReceipt").mockResolvedValue(
+        transactionReceipt(hash, [
+          receiptLog({ receiver: settlement, owner: payer }),
+          operationLog({ sender: payer, nonce, userOpHash: opHash }),
+        ]),
+      );
+      vi.spyOn(manteca, "getSettlements").mockResolvedValue({ ARS: settlement });
+    });
+
+    it("refunds a payment whose lock expired without a synthetic", async () => {
+      const setUser = await spyScopeSetUser();
+      const getPaymentLock = vi.spyOn(manteca, "getPaymentLock").mockResolvedValue(null);
+      const getSynthetic = vi.spyOn(manteca, "getSynthetic").mockResolvedValue(null);
+      const refundQrPayment = vi.spyOn(manteca, "refundQrPayment").mockResolvedValue(withdraw);
+      const zadd = spyZadd();
+      const removals = waitForRefunds();
+
+      const response = await appClient.index.$post(withLogs([payment]));
+      const [removed] = await removals;
+
+      expect(response.status).toBe(200);
+      expect(removed).toBe(1);
+      expect(zadd).toHaveBeenCalledExactlyOnceWith("refunds", timestamp + 900, expect.any(String));
+      expect(deserialize(zadd.mock.calls[0]?.[2] ?? "")).toStrictEqual({
+        ...check,
+        userOpHash: opHash,
+      });
+      expect(getPaymentLock.mock.calls).toStrictEqual([[code], [code]]);
+      expect(getSynthetic.mock.calls).toStrictEqual([[opHash], [opHash]]);
+      expect(refundQrPayment).toHaveBeenCalledExactlyOnceWith(opHash, payer, 2_449_218n);
+      expect(captureEvent).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          message: "QrPaymentRefund",
+          level: "warning",
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          contexts: expect.objectContaining({
+            refund: {
+              account: payer,
+              userOpHash: opHash,
+              amount: "2449218",
+              reason: "expired lock",
+              withdraw: withdraw.id,
+            },
+          }),
+        }),
+      );
+      expect(startSpan).toHaveBeenCalledWith(
+        {
+          name: "process refund",
+          op: "queue.process",
+          attributes: {
+            account: payer,
+            userOpHash: opHash,
+            amount: "2449218",
+            unlock: timestamp + 900,
+            "messaging.system": "redis",
+            "messaging.operation.type": "process",
+            "messaging.destination.name": "refunds",
+            "messaging.message.id": opHash,
+            "messaging.message.body.size": Buffer.byteLength(zadd.mock.calls[0]?.[2] ?? ""),
+            "messaging.message.retry.count": 0,
+            "messaging.message.receive.latency": 0,
+          },
+        },
+        expect.any(Function),
+      );
+      expect(setUser).toHaveBeenCalledWith({ id: payer });
+      expect(captureException).not.toHaveBeenCalled();
+      expect(core.captureException).toHaveBeenCalledExactlyOnceWith(new Error("qr payment not executed"), {
+        level: "info",
+        contexts: { payment: { account: payer, userOpHash: opHash, amount: "2449218", refund: "automatic" } },
+      });
+    });
+
+    it("refunds a payment whose lock is not found after the lock read", async () => {
+      const getPaymentLock = vi.spyOn(manteca, "getPaymentLock").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined -- unknown lock
+      const getSynthetic = vi.spyOn(manteca, "getSynthetic").mockResolvedValue(null);
+      const refundQrPayment = vi.spyOn(manteca, "refundQrPayment").mockResolvedValue(withdraw);
+      const removals = waitForRefunds();
+
+      const response = await appClient.index.$post(withLogs([payment]));
+      await removals;
+
+      expect(response.status).toBe(200);
+      expect(getPaymentLock.mock.calls).toStrictEqual([[code], [code]]);
+      expect(getSynthetic.mock.calls).toStrictEqual([[opHash], [opHash]]);
+      expect(Math.max(...getPaymentLock.mock.invocationCallOrder)).toBeLessThan(
+        Math.max(...getSynthetic.mock.invocationCallOrder),
+      );
+      expect(refundQrPayment).toHaveBeenCalledExactlyOnceWith(opHash, payer, 2_449_218n);
+      expect(captureEvent).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          message: "QrPaymentRefund",
+          level: "warning",
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          contexts: expect.objectContaining({
+            refund: {
+              account: payer,
+              userOpHash: opHash,
+              amount: "2449218",
+              reason: "unknown lock",
+              withdraw: withdraw.id,
+            },
+          }),
+        }),
+      );
+      expect(refundCaptures()).toStrictEqual([]);
+    });
+
+    it("doesn't refund an executed payment", async () => {
+      vi.spyOn(manteca, "getPaymentLock").mockResolvedValue(null);
+      vi.spyOn(manteca, "getSynthetic").mockResolvedValue({ ...synthetic, status: "COMPLETED" });
+      const refundQrPayment = vi.spyOn(manteca, "refundQrPayment");
+      const zadd = spyZadd();
+      const removals = waitForRefunds();
+
+      const response = await appClient.index.$post(withLogs([payment]));
+      const [removed] = await removals;
+
+      expect(response.status).toBe(200);
+      expect(removed).toBe(1);
+      expect(zadd).toHaveBeenCalledOnce();
+      expect(refundQrPayment).not.toHaveBeenCalled();
+      expect(captureEvent).not.toHaveBeenCalled();
+      expect(captureException).not.toHaveBeenCalled();
+      expect(core.captureException).not.toHaveBeenCalled();
+    });
+
+    it("treats an existing refund as done", async () => {
+      vi.spyOn(manteca, "getPaymentLock").mockResolvedValue(null);
+      vi.spyOn(manteca, "getSynthetic").mockResolvedValue(null);
+      const refundQrPayment = vi.spyOn(manteca, "refundQrPayment").mockResolvedValue(null);
+      const zadd = spyZadd();
+      const removals = waitForRefunds();
+
+      const response = await appClient.index.$post(withLogs([payment]));
+      const [removed] = await removals;
+
+      expect(response.status).toBe(200);
+      expect(removed).toBe(1);
+      expect(zadd).toHaveBeenCalledOnce();
+      expect(refundQrPayment).toHaveBeenCalledExactlyOnceWith(opHash, payer, 2_449_218n);
+      expect(captureEvent).not.toHaveBeenCalled();
+      expect(captureException).not.toHaveBeenCalled();
+    });
+
+    it("checks again while the lock is valid", async () => {
+      vi.spyOn(manteca, "getPaymentLock").mockResolvedValue(lock);
+      vi.spyOn(persona, "getAccount").mockResolvedValue(basicAccount);
+      vi.spyOn(manteca, "getSettlement").mockResolvedValue(settlement);
+      vi.spyOn(manteca, "executeQrPayment").mockResolvedValue(synthetic);
+      const getSynthetic = vi.spyOn(manteca, "getSynthetic");
+      const refundQrPayment = vi.spyOn(manteca, "refundQrPayment");
+      const zadd = spyZadd();
+      const removals = waitForRefunds();
+
+      const response = await appClient.index.$post(withLogs([payment]));
+      const [removed] = await removals;
+
+      expect(response.status).toBe(200);
+      expect(removed).toBe(1);
+      expect(zadd).toHaveBeenCalledTimes(2);
+      expect(zadd).toHaveBeenLastCalledWith("refunds", timestamp + 1500, expect.any(String));
+      expect(deserialize(zadd.mock.lastCall?.[2] ?? "")).toStrictEqual({
+        ...check,
+        userOpHash: opHash,
+        unlock: timestamp + 1500,
+        retryCount: 1,
+      });
+      expect(getSynthetic).not.toHaveBeenCalled();
+      expect(refundQrPayment).not.toHaveBeenCalled();
+      expect(captureEvent).not.toHaveBeenCalled();
+      expect(captureException).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["a lock error", 500, new ServiceError("Manteca", 500, "internal"), null, null],
+      ["a rate limited lock", 500, new ServiceError("Manteca", 429, "too many requests"), null, null],
+      [
+        "a rejected lock",
+        500,
+        new ServiceError("Manteca", 400, "{}", "InvalidParams", "Invalid parameters."),
+        null,
+        null,
+      ],
+      ["a network error", 500, new TypeError("fetch failed"), null, null],
+      ["a synthetic error", 500, null, new ServiceError("Manteca", 500, "internal"), null],
+      ["a refund error", 200, null, null, new ServiceError("Manteca", 400, "{}", "NoFunds", "Insufficient funds.")],
+    ])("checks again after %s without refunding", async (_, status, lockError, syntheticError, refundError) => {
+      const error = lockError ?? syntheticError ?? refundError;
+      vi.spyOn(manteca, "getPaymentLock").mockImplementation(() =>
+        lockError ? Promise.reject(lockError) : Promise.resolve(null),
+      );
+      vi.spyOn(manteca, "getSynthetic").mockImplementation(() =>
+        syntheticError ? Promise.reject(syntheticError) : Promise.resolve(null),
+      );
+      const refundQrPayment = vi
+        .spyOn(manteca, "refundQrPayment")
+        .mockImplementation(() => (refundError ? Promise.reject(refundError) : Promise.resolve(withdraw)));
+      const zadd = spyZadd();
+      const removals = waitForRefunds();
+
+      const response = await appClient.index.$post(withLogs([payment]));
+      const [removed] = await removals;
+
+      expect(response.status).toBe(status);
+      expect(removed).toBe(1);
+      expect(zadd).toHaveBeenCalledTimes(2);
+      expect(zadd).toHaveBeenLastCalledWith("refunds", timestamp + 1500, expect.any(String));
+      expect(deserialize(zadd.mock.lastCall?.[2] ?? "")).toMatchObject({
+        ...check,
+        userOpHash: opHash,
+        unlock: timestamp + 1500,
+        retryCount: 1,
+      });
+      expect(refundQrPayment).toHaveBeenCalledTimes(refundError ? 1 : 0);
+      expect(captureEvent).not.toHaveBeenCalled();
+      expect(refundCaptures()).toStrictEqual([
+        [
+          error,
+          {
+            level: "error",
+            contexts: { refund: { account: payer, userOpHash: opHash, amount: "2449218", retryCount: 0 } },
+          },
+        ],
+      ]);
+    });
+
+    it("drops the check on an unsupported network", async () => {
+      const error = new Error("not supported chain id");
+      vi.spyOn(manteca, "getPaymentLock").mockResolvedValue(null);
+      vi.spyOn(manteca, "getSynthetic").mockResolvedValue(null);
+      const refundQrPayment = vi.spyOn(manteca, "refundQrPayment").mockRejectedValue(error);
+      const zadd = spyZadd();
+      const removals = waitForRefunds();
+
+      const response = await appClient.index.$post(withLogs([payment]));
+      const [removed] = await removals;
+
+      expect(response.status).toBe(200);
+      expect(removed).toBe(1);
+      expect(zadd).toHaveBeenCalledOnce();
+      expect(refundQrPayment).toHaveBeenCalledExactlyOnceWith(opHash, payer, 2_449_218n);
+      expect(refundCaptures()).toStrictEqual([
+        [
+          error,
+          {
+            level: "error",
+            contexts: { refund: { account: payer, userOpHash: opHash, amount: "2449218", retryCount: 0 } },
+          },
+        ],
+      ]);
+      expect(captureEvent).not.toHaveBeenCalled();
+    });
+
+    it("refunds only the payment to the argentina settlement", async () => {
+      const brazil = parse(validation.Address, padHex("0xb7a", { size: 20 }));
+      vi.spyOn(manteca, "getSettlements").mockResolvedValue({ ARS: settlement, BRL: brazil });
+      vi.spyOn(publicClient, "getTransactionReceipt").mockResolvedValue(
+        transactionReceipt(hash, [
+          receiptLog({ receiver: settlement, owner: payer, assets: 1_000_000n }),
+          receiptLog({ receiver: brazil, owner: payer }),
+          operationLog({ sender: payer, nonce, userOpHash: opHash }),
+        ]),
+      );
+      vi.spyOn(manteca, "getPaymentLock").mockResolvedValue(null);
+      vi.spyOn(manteca, "getSynthetic").mockResolvedValue(null);
+      const refundQrPayment = vi.spyOn(manteca, "refundQrPayment").mockResolvedValue(withdraw);
+      const zadd = spyZadd();
+      const removals = waitForRefunds();
+
+      const response = await appClient.index.$post(withLogs([payment]));
+      await removals;
+
+      expect(response.status).toBe(200);
+      expect(zadd).toHaveBeenCalledExactlyOnceWith("refunds", timestamp + 900, expect.any(String));
+      expect(deserialize(zadd.mock.calls[0]?.[2] ?? "")).toStrictEqual({
+        ...check,
+        userOpHash: opHash,
+        amount: 1_000_000n,
+      });
+      expect(refundQrPayment).toHaveBeenCalledExactlyOnceWith(opHash, payer, 1_000_000n);
+      expect(core.captureException).toHaveBeenCalledExactlyOnceWith(new Error("qr payment not executed"), {
+        level: "info",
+        contexts: { payment: { account: payer, userOpHash: opHash, amount: "3449218", refund: "automatic" } },
+      });
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("qr refund unsupported entity"), {
+        level: "error",
+        contexts: { payment: { account: payer, userOpHash: opHash, amount: "2449218" } },
+      });
+    });
+
+    it("reports a payment to another entity without a check", async () => {
+      const brazil = parse(validation.Address, padHex("0xb7a", { size: 20 }));
+      vi.spyOn(manteca, "getSettlements").mockResolvedValue({ ARS: settlement, BRL: brazil });
+      vi.spyOn(publicClient, "getTransactionReceipt").mockResolvedValue(
+        transactionReceipt(hash, [
+          receiptLog({ receiver: brazil, owner: payer }),
+          operationLog({ sender: payer, nonce, userOpHash: opHash }),
+        ]),
+      );
+      vi.spyOn(manteca, "getPaymentLock").mockResolvedValue(null);
+      vi.spyOn(manteca, "getSynthetic").mockResolvedValue(null);
+      const refundQrPayment = vi.spyOn(manteca, "refundQrPayment");
+      const zadd = spyZadd();
+
+      const response = await appClient.index.$post(withLogs([payment]));
+
+      expect(response.status).toBe(200);
+      expect(zadd).not.toHaveBeenCalled();
+      expect(refundQrPayment).not.toHaveBeenCalled();
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("qr refund unsupported entity"), {
+        level: "error",
+        contexts: { payment: { account: payer, userOpHash: opHash, amount: "2449218" } },
+      });
+      expect(core.captureException).toHaveBeenCalledExactlyOnceWith(new Error("qr payment not executed"), {
+        level: "error",
+        contexts: { payment: { account: payer, userOpHash: opHash, amount: "2449218" } },
+      });
+    });
+
+    it("captures a failed check again", async () => {
+      const error = new ServiceError("Manteca", 500, "internal");
+      const failure = new Error("redis down");
+      vi.spyOn(manteca, "getPaymentLock").mockRejectedValue(error);
+      const add = redis.zadd.bind(redis);
+      spyZadd()
+        .mockImplementationOnce((key, score, member) => add(key, score, member))
+        .mockRejectedValueOnce(failure);
+
+      const response = await appClient.index.$post(withLogs([payment]));
+
+      expect(response.status).toBe(500);
+      await vi.waitFor(() => expect(captureException).toHaveBeenCalledWith(failure, { level: "error" }));
+      expect(refundCaptures()).toStrictEqual([
+        [
+          error,
+          {
+            level: "error",
+            contexts: { refund: { account: payer, userOpHash: opHash, amount: "2449218", retryCount: 0 } },
+          },
+        ],
+      ]);
+    });
+
+    it("captures pending checks that fail to load on startup", async () => {
+      const error = new Error("redis down");
+      vi.spyOn(Redis.prototype, "zrange").mockRejectedValue(error);
+
+      await createBlockHook(defaults).ready;
+
+      expect(vi.mocked(captureException).mock.calls.filter(([captured]) => captured === error)).toStrictEqual([
+        [error],
+        [error],
+        [error],
+      ]);
+    });
+
+    it("checks pending refunds on startup", async () => {
+      vi.setSystemTime(timestamp * 1000);
+      const message = serialize({ ...check, userOpHash: opHash, unlock: timestamp - 1 });
+      await redis.zadd("refunds", timestamp - 1, message);
+      const getPaymentLock = vi.spyOn(manteca, "getPaymentLock").mockResolvedValue(null);
+      const getSynthetic = vi.spyOn(manteca, "getSynthetic").mockResolvedValue(synthetic);
+      const removals = waitForRemovals([{ zrem: ([key, member]) => key === "refunds" && member === message }]);
+
+      await createBlockHook(defaults).ready;
+      const [removed] = await removals;
+
+      expect(removed).toBe(1);
+      expect(getPaymentLock).toHaveBeenCalledExactlyOnceWith(code);
+      expect(getSynthetic).toHaveBeenCalledExactlyOnceWith(opHash);
+    });
+  });
 });
+
+function refundCaptures() {
+  return vi
+    .mocked(captureException)
+    .mock.calls.filter(
+      ([, hint]) =>
+        typeof hint === "object" &&
+        "contexts" in hint &&
+        typeof hint.contexts === "object" &&
+        "refund" in hint.contexts,
+    );
+}
+
+function waitForRefunds() {
+  return waitForRemovals([{ zrem: ([key]) => key === "refunds" }]);
+}
 
 const blockPayload = {
   header: {},
@@ -3714,18 +4130,20 @@ function operationLog({
   nonce,
   address = entryPoint06Address,
   success = true,
+  userOpHash = padHex("0x4337", { size: 32 }),
 }: {
   address?: Address;
   nonce: bigint;
   sender: Address;
   success?: boolean;
+  userOpHash?: Hash;
 }) {
   return {
     address,
     topics: encodeEventTopics({
       abi: entryPoint06Abi,
       eventName: "UserOperationEvent",
-      args: { userOpHash: padHex("0x4337", { size: 32 }), sender, paymaster: zeroAddress },
+      args: { userOpHash, sender, paymaster: zeroAddress },
     }) as [Hex, ...Hex[]],
     data: encodeAbiParameters(
       [{ type: "uint256" }, { type: "bool" }, { type: "uint256" }, { type: "uint256" }],

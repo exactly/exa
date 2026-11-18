@@ -13,7 +13,7 @@ import {
   type InferInput,
   type InferOutput,
 } from "valibot";
-import { withRetry } from "viem";
+import { formatUnits, withRetry } from "viem";
 import { optimism, optimismSepolia } from "viem/chains";
 
 import chain from "@exactly/common/generated/chain";
@@ -39,6 +39,7 @@ export default function manteca(key: string, url: string) {
     getLimits,
     getPaymentLock,
     getProvider,
+    getQrRefund,
     getQuote,
     getSettlement,
     getSettlements,
@@ -47,6 +48,7 @@ export default function manteca(key: string, url: string) {
     initiateOnboarding,
     lockQrPayment,
     onboarding,
+    refundQrPayment,
     uploadIdentityFile,
     withdrawBalance,
     withdrawOrder,
@@ -251,6 +253,25 @@ export default function manteca(key: string, url: string) {
     }
     return { onramp: { currencies }, status: "ONBOARDING" as const };
   }
+  async function getQrRefund(userOpHash: string) {
+    return await request(
+      WithdrawResponse,
+      `/crypto/v2/withdraws/refund-${userOpHash}`,
+      {},
+      undefined,
+      "GET",
+      10_000,
+    ).catch((error: unknown) => {
+      if (
+        error instanceof ServiceError &&
+        typeof error.cause === "string" &&
+        error.cause.includes(MantecaApiErrorCodes.WITHDRAW_NOT_FOUND)
+      ) {
+        return null;
+      }
+      throw error;
+    });
+  }
   async function getQuote(coinPair: string) {
     const quote = await request(
       QuoteResponse,
@@ -437,6 +458,28 @@ export default function manteca(key: string, url: string) {
       result.status === "rejected" && captureException(result.reason, { level: "error", extra: { account } });
     }
   }
+  async function refundQrPayment(userOpHash: string, address: Address, amount: bigint) {
+    const network = Supported[chain.id];
+    if (!network) throw new Error(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
+    // TODO confirm with manteca how exa absorbs withdraw gas (withdrawLockCode?)
+    return await withdrawOrder({
+      externalId: `refund-${userOpHash}`,
+      userAnyId: "Exactly-argentina",
+      legalEntity: "WALLET_ARG",
+      asset: "USDC",
+      amount: formatUnits(amount, 6),
+      destination: { address, network },
+    }).catch((error: unknown) => {
+      if (
+        error instanceof ServiceError &&
+        typeof error.cause === "string" &&
+        error.cause.includes(MantecaApiErrorCodes.WITHDRAW_EXISTS)
+      ) {
+        return null;
+      }
+      throw error;
+    });
+  }
   async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
     schema: BaseSchema<TInput, TOutput, TIssue>,
     path: `/${string}`,
@@ -597,7 +640,9 @@ const Supported: Record<number, (typeof Network)[number] | undefined> = {
 
 export const WithdrawStatus = ["PENDING", "EXECUTED", "CANCELLED"] as const;
 export const Withdraw = object({
+  externalId: optional(string()),
   userAnyId: string(),
+  legalEntity: optional(string()),
   asset: string(),
   amount: string(),
   destination: object({ address: Address, network: picklist(Network) }),
@@ -898,6 +943,8 @@ const MantecaApiErrorCodes = {
   SYNTHETIC_EXISTS: "SYNTHETIC_EXISTS",
   SYNTHETIC_NOT_FOUND: "SYNTHETIC_NF",
   USER_NOT_FOUND: "USER_NF",
+  WITHDRAW_EXISTS: "WITHDRAW_EXISTS",
+  WITHDRAW_NOT_FOUND: "WITHDRAW_NF",
 } as const;
 
 type PersonaService = Pick<ReturnType<typeof createPersona>, "getAccount" | "getDocument" | "getDocumentForManteca">;
