@@ -82,7 +82,7 @@ const walletExtension = createWalletExtension(
   parse(pipe(string("wallet"), nonEmpty("wallet")), env.WALLET_EXTENSION_SECRET),
 );
 const hooks = {
-  activity: () => createActivityHook({ alchemy, database, onesignal, poke, redis }),
+  activity: () => createActivityHook({ alchemy, database, onesignal, poke, redis, sardine }),
   block: () => createBlockHook({ alchemy, blockKey: env.ALCHEMY_BLOCK_KEY, executor: keeper, onesignal, redis }),
   bridge: () =>
     createBridgeHook({

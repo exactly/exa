@@ -1,24 +1,43 @@
 import "../mocks/alchemy";
 import sendPushNotificationMock from "../mocks/onesignal";
+import sardineCustomer from "../mocks/sardine";
 import "../mocks/sentry";
 
 import { captureException, setUser } from "@sentry/node";
 import { testClient } from "hono/testing";
 import { Redis } from "ioredis";
 import { createHmac } from "node:crypto";
-import { hexToBytes, padHex, zeroAddress, zeroHash, type Address, type PrivateKeyAccount } from "viem";
+import {
+  formatUnits,
+  getAddress,
+  hexToBytes,
+  padHex,
+  zeroAddress,
+  zeroHash,
+  type Address,
+  type PrivateKeyAccount,
+} from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
-import { exaAccountFactoryAddress, lifiURL, marketWETHAddress, wethAddress } from "@exactly/common/generated/chain";
+import {
+  exaAccountFactoryAddress,
+  exaPreviewerAbi,
+  exaPreviewerAddress,
+  lifiURL,
+  marketWETHAddress,
+  wethAddress,
+} from "@exactly/common/generated/chain";
 
 import database, { credentials } from "../../database";
 import activity from "../../hooks/activity";
 import t, { f } from "../../i18n";
 import createAlchemy, { activityUrl, NETWORKS, type Webhook } from "../../utils/alchemy";
 import createOnesignal from "../../utils/onesignal";
+import publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
+import createSardine from "../../utils/sardine";
 
 import type createPoke from "../../workers/poke/queue";
 import type * as C from "@exactly/common/generated/chain";
@@ -70,7 +89,7 @@ describe("address activity", () => {
   });
 
   afterEach(async () => {
-    const keys = await redis.keys("lifi:tokens:*");
+    const keys = await redis.keys("lifi:*");
     if (keys.length > 0) await redis.del(...keys);
   });
 
@@ -303,6 +322,166 @@ describe("address activity", () => {
       source: null,
     });
     expect(response.status).toBe(200);
+  });
+
+  it("reports unpriced deposits to sardine without amount", async () => {
+    const transfer = activityPayload.json.event.activity[2];
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: { ...activityPayload.json.event, activity: [{ ...transfer, toAddress: account }] },
+      },
+    });
+
+    await vi.waitUntil(() => sardineCustomer.mock.calls.length > 0, 5000);
+
+    expect(response.status).toBe(200);
+    const asset = getAddress(transfer.rawContract.address);
+    const from = getAddress(transfer.fromAddress);
+    expect(sardineCustomer).toHaveBeenCalledExactlyOnceWith({
+      flow: { name: "deposit", type: "transaction" },
+      checkpoints: ["aml_crypto"],
+      customer: { id: account },
+      transaction: {
+        id: `${transfer.hash}:${asset}`,
+        actionType: "deposit",
+        amount: undefined,
+        currencyCode: undefined,
+        itemCategory: "USDT",
+        paymentMethod: {
+          type: "crypto",
+          crypto: { assetSymbol: "USDT", network: undefined, address: account, transactionHash: transfer.hash },
+        },
+      },
+      counterparty: { id: from, paymentMethod: { type: "crypto", crypto: { network: undefined, address: from } } },
+    });
+    expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
+      account,
+      assets: [asset],
+      chainId: 31_337,
+      factory: exaAccountFactoryAddress,
+      salt: zeroAddress,
+      origin: "activity",
+      publicKey: owner.address.toLowerCase(),
+      source: null,
+    });
+    await expect(response.json()).resolves.toStrictEqual({});
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("reports each transfer of a transaction to sardine in usd", async () => {
+    const transfer = { ...activityPayload.json.event.activity[2], rawContract: { address: wethAddress } };
+    const markets = await publicClient.readContract({
+      address: exaPreviewerAddress,
+      functionName: "markets",
+      abi: exaPreviewerAbi,
+    });
+    const usdPrice = markets.find(({ asset }) => getAddress(asset) === getAddress(wethAddress))?.usdPrice;
+    if (usdPrice === undefined) throw new Error("missing weth market");
+    const price = Number(formatUnits(usdPrice, 18));
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [
+            { ...transfer, toAddress: account, log: { logIndex: "0x6e" } },
+            { ...transfer, toAddress: account, value: 7, log: { logIndex: "0x70" } },
+          ],
+        },
+      },
+    });
+
+    await vi.waitUntil(() => sardineCustomer.mock.calls.length > 1, 5000);
+
+    expect(response.status).toBe(200);
+    expect(sardineCustomer).toHaveBeenCalledTimes(2);
+    expect(
+      sardineCustomer.mock.calls.map(([{ transaction }]) => [
+        transaction?.id,
+        transaction?.amount,
+        transaction?.currencyCode,
+      ]),
+    ).toStrictEqual([
+      [`${transfer.hash}:0x6e`, 5 * price, "USD"],
+      [`${transfer.hash}:0x70`, 7 * price, "USD"],
+    ]);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("reports market deposits without amount when prices fail", async () => {
+    const error = new Error("price feed down");
+    const readContract = publicClient.readContract.bind(publicClient);
+    vi.spyOn(publicClient, "readContract").mockImplementation(((parameters: Parameters<typeof readContract>[0]) =>
+      parameters.functionName === "markets" ? Promise.reject(error) : readContract(parameters)) as typeof readContract);
+    const transfer = { ...activityPayload.json.event.activity[2], rawContract: { address: wethAddress } };
+
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: { ...activityPayload.json.event, activity: [{ ...transfer, toAddress: account }] },
+      },
+    });
+
+    await vi.waitUntil(() => sardineCustomer.mock.calls.length > 0, 5000);
+
+    expect(sardineCustomer.mock.calls[0]?.[0].transaction).toMatchObject({
+      amount: undefined,
+      currencyCode: undefined,
+    });
+    expect(captureException).toHaveBeenCalledWith(error, { level: "error" });
+    expect(poke.enqueue).toHaveBeenCalledOnce();
+    expect(response.status).toBe(200);
+  });
+
+  it("skips sardine for funds sent by a market", async () => {
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [{ ...activityPayload.json.event.activity[2], fromAddress: marketWETHAddress, toAddress: account }],
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await vi.waitFor(() => expect(sendPushNotificationMock).toHaveBeenCalledOnce());
+    expect(sardineCustomer).not.toHaveBeenCalled();
+  });
+
+  it("captures sardine deposit errors", async () => {
+    sardineCustomer.mockRejectedValueOnce(new Error("sardine down"));
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [{ ...activityPayload.json.event.activity[2], toAddress: account }],
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await vi.waitFor(() =>
+      expect(captureException).toHaveBeenCalledWith(new Error("sardine down"), { level: "error" }),
+    );
+    await expect(response.json()).resolves.toStrictEqual({});
+    expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
+      account,
+      assets: [getAddress(activityPayload.json.event.activity[2].rawContract.address)],
+      chainId: 31_337,
+      factory: exaAccountFactoryAddress,
+      salt: zeroAddress,
+      origin: "activity",
+      publicKey: owner.address.toLowerCase(),
+      source: null,
+    });
   });
 
   it("ignores zero raw values when value is missing", async () => {
@@ -556,6 +735,65 @@ describe("address activity", () => {
       expect(response.status).toBe(200);
     });
 
+    it("reports lifi tokens to sardine in usd", async () => {
+      mockLifiTokens({ [optMainnet.id]: [{ address: tokenAddress, priceUSD: "1.0005" }] });
+
+      const response = await appClient.index.$post(lifiPayload(account));
+
+      await vi.waitUntil(() => sardineCustomer.mock.calls.length > 0, 5000);
+
+      expect(sardineCustomer.mock.calls[0]?.[0].transaction).toMatchObject({ amount: 5 * 1.0005, currencyCode: "USD" });
+      expect(response.status).toBe(200);
+    });
+
+    it.each([
+      { name: "fetched", cached: false },
+      { name: "cached", cached: true },
+    ])("reports lifi tokens without amount on a $name zero price", async ({ cached }) => {
+      const pricesKey = `lifi:prices:${optMainnet.id}`;
+      if (cached) {
+        await redis
+          .multi()
+          .sadd(optKey, tokenAddress) // cspell:ignore sadd
+          .expire(optKey, 120)
+          .hset(pricesKey, tokenAddress, "0") // cspell:ignore hset
+          .expire(pricesKey, 120)
+          .exec();
+      } else {
+        mockLifiTokens({ [optMainnet.id]: [{ address: tokenAddress, priceUSD: "0" }] });
+      }
+
+      const response = await appClient.index.$post(lifiPayload(account));
+
+      await vi.waitUntil(() => sardineCustomer.mock.calls.length > 0, 5000);
+
+      expect(sardineCustomer.mock.calls[0]?.[0].transaction).toMatchObject({
+        amount: undefined,
+        currencyCode: undefined,
+      });
+      expect(response.status).toBe(200);
+    });
+
+    it("uses cached lifi prices", async () => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+      const pricesKey = `lifi:prices:${optMainnet.id}`;
+      await redis
+        .multi()
+        .sadd(optKey, tokenAddress) // cspell:ignore sadd
+        .expire(optKey, 120)
+        .hset(pricesKey, tokenAddress, "0.5") // cspell:ignore hset
+        .expire(pricesKey, 120)
+        .exec();
+
+      const response = await appClient.index.$post(lifiPayload(account));
+
+      await vi.waitUntil(() => sardineCustomer.mock.calls.length > 0, 5000);
+
+      expect(fetchSpy).not.toHaveBeenCalledWith(expect.stringContaining(`${lifiURL}/tokens`), expect.anything());
+      expect(sardineCustomer.mock.calls[0]?.[0].transaction).toMatchObject({ amount: 2.5, currencyCode: "USD" });
+      expect(response.status).toBe(200);
+    });
+
     it("uses redis cache and skips fetch for known token on cache hit", async () => {
       const fetchSpy = vi.spyOn(globalThis, "fetch");
       await redis.multi().sadd(optKey, tokenAddress).expire(optKey, 120).exec(); // cspell:ignore sadd
@@ -582,6 +820,22 @@ describe("address activity", () => {
       const response = await appClient.index.$post(lifiPayload(account));
 
       expect(sendPushNotification).not.toHaveBeenCalled();
+      expect(sardineCustomer).not.toHaveBeenCalled();
+      expect(response.status).toBe(200);
+    });
+
+    it("suppresses notification for token missing from fetched lifi list", async () => {
+      mockLifiTokens({ [optMainnet.id]: [{ address: "0x2222222222222222222222222222222222222222", priceUSD: "1" }] });
+
+      const response = await appClient.index.$post(lifiPayload(account));
+
+      await vi.waitFor(async () => {
+        await expect(
+          redis.hget(`lifi:prices:${optMainnet.id}`, "0x2222222222222222222222222222222222222222"), // cspell:ignore hget
+        ).resolves.toBe("1");
+      });
+      expect(sendPushNotificationMock).not.toHaveBeenCalled();
+      expect(sardineCustomer).not.toHaveBeenCalled();
       expect(response.status).toBe(200);
     });
 
@@ -658,10 +912,10 @@ describe("address activity", () => {
       expect(response.status).toBe(200);
     });
 
-    it("notifies native coins without checking lifi", async () => {
+    it("notifies native coins and prices them on lifi", async () => {
       const mainnet = NETWORKS.get("ETH_MAINNET");
       if (!mainnet) throw new Error("missing ETH_MAINNET");
-      const fetchSpy = vi.spyOn(globalThis, "fetch");
+      mockLifiTokens({ [mainnet.id]: [{ address: zeroAddress, priceUSD: "3000" }] });
       const sendPushNotification = sendPushNotificationMock;
 
       const response = await appClient.index.$post({
@@ -677,8 +931,9 @@ describe("address activity", () => {
       });
 
       await vi.waitUntil(() => sendPushNotification.mock.calls.length > 0, 5000);
+      await vi.waitUntil(() => sardineCustomer.mock.calls.length > 0, 5000);
 
-      expect(fetchSpy).not.toHaveBeenCalledWith(expect.stringContaining("/tokens?chains="), expect.anything());
+      expect(sardineCustomer.mock.calls[0]?.[0].transaction).toMatchObject({ amount: 6000, currencyCode: "USD" });
       expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
         userId: account,
         headings: t("Funds received"),
@@ -861,7 +1116,7 @@ describe("webhook authentication", () => {
   });
 });
 
-function mockLifiTokens(response: Error | Record<string, { address: string }[]> | Response) {
+function mockLifiTokens(response: Error | Record<string, { address: string; priceUSD?: string }[]> | Response) {
   const originalFetch = globalThis.fetch;
   vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
     if ((input instanceof Request ? input.url : String(input)).includes("/tokens?chains=")) {
@@ -953,6 +1208,7 @@ function createHook(current = alchemy) {
     onesignal,
     poke,
     redis,
+    sardine: createSardine("sardine", "https://sardine.test"),
   });
 }
 

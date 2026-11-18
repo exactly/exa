@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import domain from "@exactly/common/domain";
 
-import createSardine from "../../utils/sardine";
+import createSardine, { cryptoNetwork } from "../../utils/sardine";
 
 const sardine = createSardine("key:secret", "https://sardine.test");
 
@@ -183,5 +183,16 @@ describe("sardine", () => {
     await expect(sardine.customer({ flow: { name: "signup", type: "signup" } })).rejects.toThrow(
       "Empty response body from /v1/customers",
     );
+  });
+
+  it.each([
+    ["OPT_SEPOLIA", "optimism"],
+    ["BASE_MAINNET", "base"],
+    ["ETH_MAINNET", "ethereum"],
+    ["BNB_MAINNET", "binance_smart_chain"],
+    ["INK_MAINNET", undefined],
+    ["ANVIL", undefined],
+  ])("maps %s to a sardine network", (alchemy, network) => {
+    expect(cryptoNetwork(alchemy)).toBe(network);
   });
 });
