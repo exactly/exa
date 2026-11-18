@@ -1,28 +1,41 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import chain from "@exactly/common/generated/chain";
+import { useQueries } from "@tanstack/react-query";
+
+import chain, { chains } from "@exactly/common/generated/chain";
+import { floatingDepositRates, WAD } from "@exactly/lib";
 
 import AssetSection from "./AssetSection";
 import MarketRow from "./MarketRow";
-import useMarkets from "../../utils/useMarkets";
+import networkOptions from "../../utils/networkOptions";
+import useAccount from "../../utils/useAccount";
 import Rate from "../shared/Rate";
 
-import type { ProtocolAsset } from "../../utils/usePortfolio";
-
-export default function AssetList({
-  deposits,
-  rates,
-  titled = false,
-}: {
-  deposits: ProtocolAsset[];
-  rates: { market: string; rate: bigint }[];
-  titled?: boolean;
-}) {
+export default function AssetList({ titled = false }: { titled?: boolean }) {
   const { t } = useTranslation();
-  const { markets = [] } = useMarkets();
+  const { address: account } = useAccount();
+  const previews = useQueries({ queries: ids.map((chainId) => networkOptions(account, chainId)) });
+  const rows = ids
+    .flatMap((chainId, index) => {
+      const data = previews[index]?.data;
+      if (!data?.markets) return [];
+      const rates = data.snapshot ? floatingDepositRates(data.snapshot, Number(data.timestamp)) : [];
+      return data.markets.map((market) => ({
+        ...market,
+        chainId,
+        rate: rates.find(({ market: address }) => address === market.market)?.rate,
+        symbol: market.symbol.slice(3) === "WETH" ? "ETH" : market.symbol.slice(3),
+        usdValue: Number((market.floatingDepositAssets * market.usdPrice) / BigInt(10 ** market.decimals)) / 1e18,
+      }));
+    })
+    .filter(
+      (market) =>
+        !market.nonCollateral &&
+        (market.floatingDepositAssets > 0n || (!market.isFrozen && market.reserveFactor < WAD)),
+    );
 
-  if (markets.length === 0 && deposits.length === 0) return null;
+  if (rows.length === 0) return null;
 
   return (
     <AssetSection
@@ -31,17 +44,7 @@ export default function AssetList({
         "Used for payments with your Exa Card. They serve as collateral, earn yield and increase your credit limit.",
       )}
     >
-      {[
-        ...markets.map((market) => ({
-          ...market,
-          chainId: chain.id,
-          rate: rates.find(({ market: address }) => address === market.market)?.rate,
-          symbol: market.symbol.slice(3) === "WETH" ? "ETH" : market.symbol.slice(3),
-          usdValue: Number((market.floatingDepositAssets * market.usdPrice) / BigInt(10 ** market.decimals)) / 1e18,
-        })),
-        ...deposits,
-      ]
-        .filter((market) => !market.nonCollateral && (!market.isFrozen || market.floatingDepositAssets > 0n))
+      {rows
         .sort((a, b) => b.usdValue - a.usdValue)
         .map((market) => (
           <MarketRow
@@ -60,3 +63,5 @@ export default function AssetList({
     </AssetSection>
   );
 }
+
+const ids = chains.has(chain.id) ? [chain.id, ...[...chains.keys()].filter((id) => id !== chain.id)] : [chain.id];
