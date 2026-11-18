@@ -13,6 +13,7 @@ import { selectBalance } from "../../utils/isProcessing";
 import reportError from "../../utils/reportError";
 import Amount from "../shared/Amount";
 import AssetLogo from "../shared/AssetLogo";
+import Skeleton from "../shared/Skeleton";
 import Text from "../shared/Text";
 
 import type { ActivityItem } from "../../utils/queryClient";
@@ -21,10 +22,12 @@ import type { PortfolioAsset } from "../../utils/usePortfolio";
 export default function PortfolioSummary({
   assets,
   averageRate,
+  pending,
   totalBalanceUSD,
 }: {
   assets: PortfolioAsset[];
   averageRate?: bigint;
+  pending: boolean;
   totalBalanceUSD: bigint;
 }) {
   const router = useRouter();
@@ -69,7 +72,7 @@ export default function PortfolioSummary({
       </XStack>
       <XStack justifyContent="space-between" alignItems="center" width="100%">
         <YStack>
-          <Amount amount={Number(totalBalanceUSD) / 1e18} />
+          {pending ? <Skeleton height={40} width={180} /> : <Amount amount={Number(totalBalanceUSD) / 1e18} />}
           {country === "US" && processingBalance ? (
             <XStack
               borderWidth={1}
@@ -91,7 +94,7 @@ export default function PortfolioSummary({
               </Text>
               <ChevronRight size={16} color="uiNeutralSecondary" />
             </XStack>
-          ) : averageRate === undefined ? null : (
+          ) : pending || averageRate === undefined ? null : (
             <Text emphasized subHeadline color="interactiveBaseBrandDefault">
               {t("{{rate}} APR", {
                 rate: (Number(averageRate) / 1e18).toLocaleString(language, {

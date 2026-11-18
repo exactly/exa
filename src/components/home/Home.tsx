@@ -26,6 +26,7 @@ import { borrowLimit, healthFactor, WAD, withdrawLimit } from "@exactly/lib";
 import ArrivalSheet from "./ArrivalSheet";
 import CardStatus from "./CardStatus";
 import CreditLimitSheet from "./CreditLimitSheet";
+import DepositsAlert from "./DepositsAlert";
 import GettingStarted from "./GettingStarted";
 import HomeActions from "./HomeActions";
 import HomeDisclaimer from "./HomeDisclaimer";
@@ -111,7 +112,8 @@ export default function Home() {
     chainId: chain.id,
     query: { enabled: !!account },
   });
-  const { portfolio, averageRate, allAssets, totalBalanceUSD } = usePortfolio({ deposits: useDeposits() });
+  const deposits = useDeposits();
+  const { portfolio, averageRate, allAssets, totalBalanceUSD, isPending } = usePortfolio({ deposits: deposits.data });
 
   const { refetch: refetchPendingProposals } = useReadContract({
     abi: exaPreviewerAbi,
@@ -223,8 +225,7 @@ export default function Home() {
       business ? queryClient.invalidateQueries({ queryKey: ["kyc", "panda-business"], exact: true }) : undefined,
       revalidateUnsupported(),
       account ? refetchMarkets() : undefined,
-      queryClient.refetchQueries({ queryKey: ["markets"] }),
-      queryClient.refetchQueries({ queryKey: ["rates"] }),
+      queryClient.refetchQueries({ queryKey: ["network"], type: "active" }),
       account ? refetchBytecode() : undefined,
       account && bytecode ? refetchPendingProposals() : undefined,
     ]);
@@ -312,8 +313,14 @@ export default function Home() {
                   }}
                 />
               )}
+              {deposits.failed.length > 0 && <DepositsAlert failed={deposits.failed} />}
               <AnimatedView layout={LinearTransition} gap="s5">
-                <PortfolioSummary averageRate={averageRate} assets={allAssets} totalBalanceUSD={totalBalanceUSD} />
+                <PortfolioSummary
+                  averageRate={averageRate}
+                  assets={allAssets}
+                  pending={isPending || deposits.isPending}
+                  totalBalanceUSD={totalBalanceUSD}
+                />
                 <HomeActions />
               </AnimatedView>
             </YStack>
