@@ -497,7 +497,8 @@ export default function hook({
 
       const risk = await sardine
         .customer({
-          flow: { name: "inquiry.approved", type: "account_update" },
+          flow: { name: "inquiry.approved", type: "onboarding" },
+          checkpoints: ["customer", "onboarding"],
           customer: {
             id: referenceId,
             type: "customer",

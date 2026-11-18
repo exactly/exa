@@ -13,6 +13,8 @@ import {
   parse,
   picklist,
   pipe,
+  record,
+  regex,
   string,
   toUpperCase,
   transform,
@@ -73,6 +75,8 @@ export default function sardine(key: string, url: string) {
 export const IpAddress = pipe(string(), ip(), brand("IpAddress"));
 export type IpAddress = InferOutput<typeof IpAddress>;
 
+const Checkpoint = picklist(["customer", "onboarding", "login", "aml", "aml_bank", "payment", "ach", "withdrawal"]);
+
 const CustomerRequest = object({
   flow: object({
     id: optional(string(), () => crypto.randomUUID()),
@@ -94,9 +98,11 @@ const CustomerRequest = object({
       "identity_verification",
       "2fa_update",
     ]),
-    createdAtMillis: optional(number(), () => Date.now()),
+    createdAtMillis: optional(number()),
   }),
   sessionKey: optional(string(), () => crypto.randomUUID()),
+  checkpoints: optional(array(Checkpoint)),
+  config: optional(object({ device: boolean() }), { device: false }),
   customer: optional(
     object({
       id: pipe(string(), maxLength(100)),
@@ -125,7 +131,7 @@ const CustomerRequest = object({
           "plc",
         ]),
       ),
-      createdAtMillis: optional(number(), () => Date.now()), //cspell:ignore createdAtMillis
+      createdAtMillis: optional(number()), //cspell:ignore createdAtMillis
       firstName: optional(pipe(string(), maxLength(100))),
       middleName: optional(pipe(string(), maxLength(100))),
       lastName: optional(pipe(string(), maxLength(100))),
@@ -142,12 +148,12 @@ const CustomerRequest = object({
       ),
       phone: optional(pipe(string(), maxLength(20))),
       emailAddress: optional(pipe(string(), maxLength(100))),
-      isEmailVerified: optional(boolean(), true),
-      isPhoneVerified: optional(boolean(), true),
+      isEmailVerified: optional(boolean()),
+      isPhoneVerified: optional(boolean()),
       dateOfBirth: optional(string()),
       taxId: optional(string()),
-      status: optional(picklist(["enabled", "disabled"]), "enabled"),
-      consentStatus: optional(picklist(["unknown", "optedIn", "optedOut"]), "optedIn"),
+      status: optional(picklist(["active", "inactive"])),
+      consentStatus: optional(picklist(["unknown", "optedIn", "optedOut"])),
       domain: optional(string(), domain),
       income: optional(object({ amount: number(), currencyCode: literal("USD") })),
       tags: optional(
@@ -168,7 +174,13 @@ const CustomerRequest = object({
       ),
     }),
   ),
-  device: optional(object({ ip: IpAddress, createdAtMillis: optional(number(), () => Date.now()) })),
+  device: optional(
+    object({
+      ip: optional(IpAddress),
+      userAgent: optional(string()),
+      language: optional(string()),
+    }),
+  ),
   transaction: optional(
     object({
       id: string(),
@@ -189,6 +201,7 @@ const CustomerRequest = object({
           "deposit",
           "withdraw",
           "refund",
+          "topup", //cspell:ignore topup
           "exchange",
           "transfer",
           "multiParty",
@@ -197,7 +210,6 @@ const CustomerRequest = object({
           "credit",
           "debit",
         ]),
-        "buy",
       ),
       paymentMethod: object({
         type: literal("card"),
@@ -252,23 +264,20 @@ const CustomerRequest = object({
   ),
 });
 
+const Level = picklist(["very_high", "high", "medium", "low", "unknown"]);
+
 const CustomerResponse = object({
   sessionKey: string(),
-  level: picklist(["very_high", "high", "medium", "low", "unknown"]),
+  level: Level,
   status: picklist(["Success", "Timeout"]),
   customer: optional(
     object({
       score: number(),
-      level: picklist(["very_high", "high", "medium", "low", "unknown"]),
+      level: Level,
       reasonCodes: optional(array(string())),
     }),
   ),
-  transaction: optional(
-    object({
-      level: picklist(["very_high", "high", "medium", "low", "unknown"]),
-      amlLevel: picklist(["very_high", "high", "medium", "low", "unknown"]),
-    }),
-  ),
+  transaction: optional(object({ level: Level, amlLevel: Level })),
 });
 
 const FeedbackRequest = object({
@@ -280,7 +289,7 @@ const FeedbackRequest = object({
       type: literal("authorization"),
       status: picklist(["approved", "issuer_declined", "network_declined"]),
       id: optional(string(), () => crypto.randomUUID()),
-      scope: optional(picklist(["user", "transaction"]), "user"),
+      scope: optional(picklist(["user", "session"]), "user"),
       timeMillis: optional(number(), () => Date.now()), //cspell:ignore timeMillis
       reason: optional(string()),
     }),
@@ -295,7 +304,7 @@ const FeedbackRequest = object({
         "refund",
       ]),
       id: optional(string(), () => crypto.randomUUID()),
-      scope: optional(picklist(["user", "transaction"]), "user"),
+      scope: optional(picklist(["user", "session"]), "user"),
       timeMillis: optional(number(), () => Date.now()), //cspell:ignore timeMillis
       reason: optional(string()),
     }),
@@ -304,52 +313,45 @@ const FeedbackRequest = object({
 
 const FeedbackResponse = object({ status: string() });
 
-const RiskRequest = pipe(
-  object({
-    sessionKey: pipe(string(), maxLength(100)),
-    customerId: string(),
-    transaction: object({
-      id: string(),
-      amount: number(),
-      currencyCode: pipe(string(), length(3), toUpperCase()),
-      createdAtMillis: optional(number(), () => Date.now()),
-      address: object({ countryCode: pipe(string(), length(2)) }),
-      type: optional(picklist(["purchase", "cash", "return", "balance_inquiry"])),
-      merchant: object({ mcc: string(), id: optional(string()), name: optional(string()) }),
-      status: optional(picklist(["attempt", "pending", "challenge", "success", "failure"])),
-      terminal: object({ type: optional(string(), "unspecified") }),
+const RiskRequest = object({
+  sessionKey: pipe(string(), maxLength(100)),
+  customerId: string(),
+  transaction: object({
+    id: string(),
+    amount: number(),
+    currencyCode: pipe(string(), length(3), toUpperCase()),
+    createdAtMillis: optional(number(), () => Date.now()),
+    address: object({ countryCode: pipe(string(), length(2)) }),
+    type: optional(picklist(["purchase", "cash", "return", "balance_inquiry"])),
+    merchant: object({ mcc: string(), id: optional(string()), name: optional(string()) }),
+    status: optional(picklist(["attempt", "pending", "challenge", "success", "failure"])),
+    terminal: optional(object({ type: literal("unspecified"), operator: literal("unspecified") }), {
+      type: "unspecified",
+      operator: "unspecified",
     }),
-    card: optional(
-      object({
-        id: string(),
-        network: optional(picklist(["visa", "mastercard", "american_express", "other"]), "visa"),
-        isVirtual: optional(boolean(), true),
-      }),
+    entryInfo: optional(
+      object({ pan: literal("unspecified"), card: literal("unspecified"), cardHolder: literal("unspecified") }),
+      { pan: "unspecified", card: "unspecified", cardHolder: "unspecified" },
     ),
-    checkpoints: optional(array(string())),
-    partnerId: optional(string(), "EXA"),
-    partnerName: optional(string(), "EXA"),
-    workflowName: optional(string(), "issuing_risk"),
   }),
-  transform((r) => {
-    const { type, operator } = {
-      "00": { type: "pos_terminal", operator: "card_acceptor_operated" },
-      "01": { type: "electronic_commerce", operator: "customer_operated" },
-      "02": { type: "self_service", operator: "customer_operated" },
-      "05": { type: "pos_terminal", operator: "card_acceptor_operated" },
-      "08": { type: "electronic_commerce", operator: "customer_operated" },
-      "51": { type: "authorization", operator: "card_acceptor_operated" },
-      "59": { type: "electronic_commerce", operator: "customer_operated" },
-    }[r.transaction.terminal.type] ?? { type: "unspecified", operator: "unspecified" };
-    return { ...r, transaction: { ...r.transaction, terminal: { type, operator } } };
-  }),
-);
+  card: optional(
+    object({
+      id: string(),
+      network: optional(picklist(["visa", "mastercard", "american_express", "other"]), "visa"),
+      isVirtual: optional(boolean(), true),
+    }),
+  ),
+  customString: optional(record(pipe(string(), regex(/^[a-z][\da-z-]*$/i)), string())),
+  partnerId: optional(string(), "EXA"),
+  partnerName: optional(string(), "EXA"),
+  workflowName: optional(string(), "issuing_risk"),
+});
 
 const RiskResponse = object({
   sessionKey: string(),
-  level: picklist(["very_high", "high", "medium", "low", "unknown"]),
+  level: Level,
   status: string(),
-  amlLevel: picklist(["high", "medium", "low"]),
+  amlLevel: optional(Level),
   score: optional(number()),
   reasonCodes: optional(array(string())),
 });

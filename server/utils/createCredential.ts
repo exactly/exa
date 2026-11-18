@@ -61,6 +61,16 @@ export default function createCredential({
       },
     ]);
 
+    const userAgent = c.req.header("user-agent");
+    const language = c.req.header("accept-language");
+    const device =
+      options?.ip || userAgent || language
+        ? {
+            ...(options?.ip && { ip: options.ip }),
+            ...(userAgent && { userAgent }),
+            ...(language && { language }),
+          }
+        : undefined;
     await Promise.all([
       setSignedCookie(c, "credential_id", credentialId, authSecret, {
         expires,
@@ -72,6 +82,7 @@ export default function createCredential({
       sardine
         .customer({
           flow: { name: "signup", type: "signup" },
+          checkpoints: ["customer"],
           customer: {
             id: credentialId,
             tags: [
@@ -79,7 +90,7 @@ export default function createCredential({
               { name: "auth_method", value: isAddress(credentialId) ? "siwe" : "webauthn", type: "string" },
             ],
           },
-          ...(options?.ip ? { device: { ip: options.ip } } : {}),
+          ...(device && { device }),
         })
         .catch((error: unknown) => captureException(error, { level: "error" })),
     ]);

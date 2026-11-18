@@ -226,11 +226,13 @@ export default function hook({
                     name: payload.body.spend.merchantName,
                     ...(payload.body.spend.merchantId && { id: payload.body.spend.merchantId }),
                   },
-                  terminal: { type: payload.body.spend.authorizationMethod },
                   address: { countryCode: payload.body.spend.merchantCountry },
                   status: "pending",
                 },
                 card: { id: payload.body.spend.cardId },
+                ...(payload.body.spend.authorizationMethod && {
+                  customString: { authorizationMethod: payload.body.spend.authorizationMethod },
+                }),
               });
             } catch (error) {
               captureException(error, { level: "error" });
@@ -238,6 +240,7 @@ export default function hook({
                 status: error instanceof Error && error.name === "TimeoutError" ? "timeout" : "error",
                 level: "unknown",
                 score: 0,
+                amlLevel: undefined,
               };
             }
           };
@@ -249,6 +252,7 @@ export default function hook({
                 "exa.level": assessment.level,
                 "exa.score": assessment.score,
                 "exa.status": assessment.status,
+                "exa.aml": assessment.amlLevel,
               });
               if (assessment.level === "high" || assessment.level === "very_high") {
                 captureException(new Error("high risk refund"), { level: "error" });
@@ -290,6 +294,7 @@ export default function hook({
                   "exa.level": assessment.level,
                   "exa.score": assessment.score,
                   "exa.status": assessment.status,
+                  "exa.aml": assessment.amlLevel,
                 });
                 if (assessment.level === "high" || assessment.level === "very_high") {
                   captureException(new Error("high risk verification"), { level: "error" });
@@ -304,6 +309,7 @@ export default function hook({
                 "exa.level": assessment.level,
                 "exa.score": assessment.score,
                 "exa.status": assessment.status,
+                "exa.aml": assessment.amlLevel,
               });
               if (assessment.level === "high" || assessment.level === "very_high") {
                 captureException(new Error("high risk authorization"), { level: "error" });
@@ -560,18 +566,18 @@ export default function hook({
             setContext("mutex", { locked: mutex?.isLocked() });
 
             const provider = payload.body.spend.declinedReason === "" ? undefined : payload.body.spend.declinedReason;
-            const requested =
-              provider?.toLowerCase() === "webhook declined"
-                ? await database.query.transactions
-                    .findFirst({
-                      columns: { payload: true },
-                      where: and(
-                        eq(transactions.id, payload.body.id),
-                        eq(transactions.cardId, payload.body.spend.cardId),
-                      ),
-                    })
-                    .then((transaction) => getRequestedDeclineReason(transaction?.payload))
-                : undefined;
+            const webhookDeclined = provider?.toLowerCase() === "webhook declined";
+            const requested = webhookDeclined
+              ? await database.query.transactions
+                  .findFirst({
+                    columns: { payload: true },
+                    where: and(
+                      eq(transactions.id, payload.body.id),
+                      eq(transactions.cardId, payload.body.spend.cardId),
+                    ),
+                  })
+                  .then((transaction) => getRequestedDeclineReason(transaction?.payload))
+              : undefined;
             const raw = requested ?? provider;
             const mapped = declineMessage(raw);
             const accepted = await reject(payload, jsonBody, raw ?? "transaction declined");
@@ -598,8 +604,8 @@ export default function hook({
                 transaction: { id: payload.body.id },
                 feedback: {
                   type: "authorization",
-                  status: "network_declined",
-                  reason: payload.body.spend.declinedReason ?? "unknown",
+                  status: webhookDeclined ? "issuer_declined" : "network_declined",
+                  reason: raw ?? "unknown",
                 },
               })
               .catch((error: unknown) => captureException(error, { level: "error" }));

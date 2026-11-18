@@ -126,6 +126,12 @@ describe("with reference", () => {
 
     expect(p?.pandaId).toBe("pandaId");
 
+    expect(sardine.customer.mock.calls.at(-1)?.[0]).toMatchObject({
+      flow: { name: "inquiry.approved", type: "onboarding" },
+      checkpoints: ["customer", "onboarding"],
+      customer: { id: referenceId },
+    });
+    expect(sardine.customer.mock.calls.at(-1)?.[0].customer).not.toHaveProperty("isEmailVerified");
     expect(allow.enqueue).toHaveBeenCalledExactlyOnceWith({
       account,
       chainId: chain.id,

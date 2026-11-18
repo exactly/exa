@@ -350,7 +350,7 @@ describe("card operations", () => {
         );
         await expect(span).resolves.toStrictEqual([
           "tx.risk.authorization",
-          { "exa.level": "unknown", "exa.score": 0, "exa.status": "timeout" },
+          { "exa.level": "unknown", "exa.score": 0, "exa.status": "timeout", "exa.aml": undefined },
         ]);
         expect(response.status).toBe(200);
       });
@@ -372,7 +372,7 @@ describe("card operations", () => {
         expect(captureException).toHaveBeenCalledWith(error, { level: "error" });
         await expect(span).resolves.toStrictEqual([
           "tx.risk.authorization",
-          { "exa.level": "unknown", "exa.score": 0, "exa.status": "error" },
+          { "exa.level": "unknown", "exa.score": 0, "exa.status": "error", "exa.aml": undefined },
         ]);
         expect(response.status).toBe(200);
       });
@@ -387,16 +387,28 @@ describe("card operations", () => {
           ...authorization,
           json: {
             ...authorization.json,
-            body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId: "risk-pending" } },
+            body: {
+              ...authorization.json.body,
+              spend: {
+                ...authorization.json.body.spend,
+                cardId: "risk-pending",
+                authorizationMethod: "Normal presentment",
+              },
+            },
           },
         });
         expect(response.status).toBe(200);
         await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-        expect(sardine.risk).toHaveBeenCalledWith(expect.objectContaining({ card: { id: "risk-pending" } }));
+        expect(sardine.risk).toHaveBeenCalledWith(
+          expect.objectContaining({
+            card: { id: "risk-pending" },
+            customString: { authorizationMethod: "Normal presentment" },
+          }),
+        );
         resolve({ sessionKey: "risk-pending", level: "low", status: "Success", amlLevel: "low" });
         await expect(span).resolves.toStrictEqual([
           "tx.risk.authorization",
-          { "exa.level": "low", "exa.score": undefined, "exa.status": "Success" },
+          { "exa.level": "low", "exa.score": undefined, "exa.status": "Success", "exa.aml": "low" },
         ]);
       });
 
@@ -592,7 +604,7 @@ describe("card operations", () => {
         expect(captureException).toHaveBeenCalledWith(new Error("high risk authorization"), expect.anything());
         await expect(span).resolves.toStrictEqual([
           "tx.risk.authorization",
-          { "exa.level": "high", "exa.score": 98, "exa.status": "Success" },
+          { "exa.level": "high", "exa.score": 98, "exa.status": "Success", "exa.aml": "high" },
         ]);
 
         expect(response.status).toBe(200);
@@ -626,7 +638,7 @@ describe("card operations", () => {
         expect(captureException).toHaveBeenCalledWith(new Error("high risk verification"), expect.anything());
         await expect(span).resolves.toStrictEqual([
           "tx.risk.verification",
-          { "exa.level": "high", "exa.score": 98, "exa.status": "Success" },
+          { "exa.level": "high", "exa.score": 98, "exa.status": "Success", "exa.aml": "high" },
         ]);
 
         expect(response.status).toBe(200);
@@ -660,7 +672,7 @@ describe("card operations", () => {
         expect(captureException).toHaveBeenCalledWith(new Error("high risk refund"), expect.anything());
         await expect(span).resolves.toStrictEqual([
           "tx.risk.refund",
-          { "exa.level": "high", "exa.score": 98, "exa.status": "Success" },
+          { "exa.level": "high", "exa.score": 98, "exa.status": "Success", "exa.aml": "high" },
         ]);
 
         expect(response.status).toBe(200);
@@ -3419,6 +3431,9 @@ describe("concurrency", () => {
           reason: t("insufficient funds"),
         }),
       });
+      expect(
+        sardine.feedback.mock.calls.find(([{ transaction }]) => transaction.id === txId)?.[0].feedback,
+      ).toStrictEqual({ type: "authorization", status: "issuer_declined", reason: "InsufficientAccountLiquidity" });
     });
 
     it("captures declined notification errors", async () => {
@@ -3446,6 +3461,9 @@ describe("concurrency", () => {
 
       await vi.waitFor(() => expect(captureException).toHaveBeenCalledWith(error, { level: "error" }));
       expect(response.status).toBe(200);
+      expect(
+        sardine.feedback.mock.calls.find(([{ transaction }]) => transaction.id === txId)?.[0].feedback,
+      ).toStrictEqual({ type: "authorization", status: "network_declined", reason: "merchant_blocked" });
     });
 
     it("uses a generic reason for malformed saved payloads", async () => {
@@ -4565,7 +4583,12 @@ function spyRiskSpan() {
     if (!op?.startsWith("tx.risk.")) return;
     assessed.resolve([
       op,
-      { "exa.level": data["exa.level"], "exa.score": data["exa.score"], "exa.status": data["exa.status"] },
+      {
+        "exa.level": data["exa.level"],
+        "exa.score": data["exa.score"],
+        "exa.status": data["exa.status"],
+        "exa.aml": data["exa.aml"],
+      },
     ]);
   });
   onTestFinished(() => off?.());

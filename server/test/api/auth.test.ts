@@ -669,6 +669,7 @@ describe("authentication", () => {
     expect(sardineCustomer).toHaveBeenCalledWith(
       expect.objectContaining({
         flow: { name: "signup", type: "signup" },
+        checkpoints: ["customer"],
         customer: {
           id,
           tags: [
@@ -700,6 +701,7 @@ describe("authentication", () => {
     expect(response.status).toBe(200);
     expect(sardineCustomer).toHaveBeenCalledWith({
       flow: { name: "signup", type: "signup" },
+      checkpoints: ["customer"],
       customer: {
         id,
         tags: [
@@ -752,6 +754,7 @@ describe("authentication", () => {
     expect(sardineCustomer).toHaveBeenCalledWith(
       expect.objectContaining({
         flow: { name: "signup", type: "signup" },
+        checkpoints: ["customer"],
         customer: {
           id,
           tags: [
@@ -1172,6 +1175,7 @@ describe("registration", () => {
     expect(sardineCustomer).toHaveBeenCalledWith(
       expect.objectContaining({
         flow: { name: "signup", type: "signup" },
+        checkpoints: ["customer"],
         customer: {
           id,
           tags: [
@@ -1239,9 +1243,14 @@ describe("registration", () => {
   });
 
   it.each([
-    ["203.0.113.42", "dGVzdC1jcmVkLWlk2"],
-    ["2001:db8::42", "aXB2Ni1jcmVkLWlk"],
-  ])("creates a credential using webauthn from %s", async (ip, id) => {
+    ["203.0.113.42", "dGVzdC1jcmVkLWlk2", {}, {}],
+    [
+      "2001:db8::42",
+      "aXB2Ni1jcmVkLWlk",
+      { "user-agent": "Exa/1.0", "accept-language": "es-AR" },
+      { userAgent: "Exa/1.0", language: "es-AR" },
+    ],
+  ])("creates a credential using webauthn from %s", async (ip, id, headers, signals) => {
     own(id);
     vi.spyOn(derive, "default").mockReturnValue(parse(Address, slice(keccak256(toBytes(`auth:${id}`)), 12)));
     const response = await registrationAppClient.index.$post(
@@ -1252,6 +1261,7 @@ describe("registration", () => {
           origin: consumer,
           "Client-Fid": "12345",
           "do-connecting-ip": ip,
+          ...headers,
         },
       },
     );
@@ -1260,6 +1270,7 @@ describe("registration", () => {
 
     expect(sardineCustomer).toHaveBeenCalledWith({
       flow: { name: "signup", type: "signup" },
+      checkpoints: ["customer"],
       customer: {
         id,
         tags: [
@@ -1267,7 +1278,7 @@ describe("registration", () => {
           { name: "auth_method", value: "webauthn", type: "string" },
         ],
       },
-      device: { ip },
+      device: { ip, ...signals },
     });
 
     const credential = await database.query.credentials.findFirst({
@@ -1278,17 +1289,24 @@ describe("registration", () => {
     await expect(redis.exists("session:test-session")).resolves.toBe(0);
   });
 
-  it("omits an invalid signup ip from Sardine", async () => {
-    const id = own("aW52YWxpZC1pcC1pZA");
+  it.each([
+    ["no signals", "aW52YWxpZC1pcC1pZA", {}, {}],
+    ["user agent", "dWEtb25seS1pZA", { "user-agent": "Exa/1.0" }, { device: { userAgent: "Exa/1.0" } }],
+    ["language", "bGFuZ3VhZ2U", { "accept-language": "es-AR" }, { device: { language: "es-AR" } }],
+  ])("omits an invalid signup ip from Sardine with %s", async (_, credential, headers, device) => {
+    const id = own(credential);
     vi.spyOn(derive, "default").mockReturnValue(parse(Address, slice(keccak256(toBytes(`auth:${id}`)), 12)));
     const response = await registrationAppClient.index.$post(
       { json: registrationWebauthnAssertion({ id, rawId: id }) },
-      { headers: { cookie: "session_id=test-session", origin: consumer, "do-connecting-ip": "not-an-ip" } },
+      {
+        headers: { cookie: "session_id=test-session", origin: consumer, "do-connecting-ip": "not-an-ip", ...headers },
+      },
     );
 
     expect(response.status).toBe(200);
     expect(sardineCustomer).toHaveBeenCalledWith({
       flow: { name: "signup", type: "signup" },
+      checkpoints: ["customer"],
       customer: {
         id,
         tags: [
@@ -1296,6 +1314,7 @@ describe("registration", () => {
           { name: "auth_method", value: "webauthn", type: "string" },
         ],
       },
+      ...device,
     });
   });
 
@@ -1451,6 +1470,7 @@ describe("registration", () => {
     expect(sardineCustomer).toHaveBeenCalledWith(
       expect.objectContaining({
         flow: { name: "signup", type: "signup" },
+        checkpoints: ["customer"],
         customer: {
           id,
           tags: [
