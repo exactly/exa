@@ -13,6 +13,7 @@ import { X } from "../../generated/icons/X";
 import formatTokenAmount from "../../utils/formatTokenAmount";
 import { isStock } from "../../utils/lifi";
 import useAllowlists from "../../utils/useAllowlists";
+import useDeposits from "../../utils/useDeposits";
 import useMarkets from "../../utils/useMarkets";
 import usePortfolio, { type PortfolioAsset } from "../../utils/usePortfolio";
 import AssetLogo from "../shared/AssetLogo";
@@ -126,7 +127,8 @@ export default function TokenSelectModal({
   const [searchQuery, setSearchQuery] = useState("");
   const [selection, setSelection] = useState<"stocks" | number>();
   const [picking, setPicking] = useState(false);
-  const { allAssets, isExternal } = usePortfolio();
+  const { data: deposits } = useDeposits();
+  const { allAssets, isExternal } = usePortfolio({ deposits });
   const { markets } = useMarkets();
   const allowlists = useAllowlists();
   const {
@@ -137,7 +139,7 @@ export default function TokenSelectModal({
   const holdings = useMemo(() => {
     const map = new Map<string, PortfolioAsset[]>();
     for (const asset of allAssets) {
-      const key = asset.type === "protocol" ? `${chain.id}:${asset.asset}` : `${asset.chainId}:${asset.address}`;
+      const key = `${asset.chainId}:${asset.type === "protocol" ? asset.asset : asset.address}`;
       map.set(key, asset.type === "protocol" ? [asset, ...(map.get(key) ?? [])] : [...(map.get(key) ?? []), asset]);
     }
     return map;
