@@ -38,6 +38,7 @@ import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
+import rpId from "@exactly/common/rpId";
 import tenants from "@exactly/common/tenants";
 import { Address, Base64URL, Hex } from "@exactly/common/validation";
 
@@ -234,7 +235,7 @@ export default function route({
         }
         const userName = new Date().toISOString().slice(0, 16);
         const options = await generateRegistrationOptions({
-          rpID: domain,
+          rpID: rpId,
           rpName: "exactly",
           userName,
           userDisplayName: userName,
@@ -399,7 +400,7 @@ export default function route({
                       (attestation.response.transports as AuthenticatorTransportFuture[] | undefined) ?? undefined,
                   },
                 },
-                expectedRPID: domain,
+                expectedRPID: rpId,
                 expectedOrigin: [...origins, ...androidOrigins],
                 expectedChallenge: challenge,
                 supportedAlgorithmIDs: [cose.COSEALG.ES256],
@@ -435,6 +436,7 @@ export default function route({
           return c.json(
             {
               ...result,
+              ...(webauthn && { rpId }),
               intercomToken,
               ...(headers?.["client-platform"] === "ios" ? await walletExtension.create(attestation.id) : {}),
             } satisfies InferOutput<typeof Authentication>,

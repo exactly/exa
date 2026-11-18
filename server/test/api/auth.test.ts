@@ -117,7 +117,7 @@ describe("authentication", () => {
     expect(response.headers.get("set-cookie")).not.toContain("Domain=");
     expect(verifyAuthenticationResponse).toHaveBeenCalledExactlyOnceWith({
       response: json,
-      expectedRPID: domain,
+      expectedRPID: [domain],
       expectedOrigin: [...origins, ...androidOrigins],
       expectedChallenge: "test-challenge",
       credential: { id: json.id, publicKey: Buffer.alloc(0), transports: [], counter: 0 },
@@ -458,8 +458,53 @@ describe("authentication", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual(expect.objectContaining({ salt: tenant }));
+    expect(await response.json()).toEqual(expect.objectContaining({ salt: tenant, rpId: "localhost" }));
     await expect(redis.exists("session:test-session")).resolves.toBe(0);
+  });
+
+  it("verifies base-sepolia passkeys against both relying parties", async () => {
+    onTestFinished(() => {
+      vi.doUnmock("@exactly/common/domain");
+      vi.resetModules();
+    });
+    vi.doMock("@exactly/common/domain", () => ({ default: "base-sepolia.exactly.app" }));
+    vi.resetModules();
+    const { verifyAuthenticationResponse: verify } = await import("@simplewebauthn/server");
+    const { default: create } = await import("../../api/auth/authentication");
+    const client = testClient(
+      create({ authSecret, business: true, createCredential, database, intercom, redis, walletExtension }),
+    );
+    vi.mocked(verify).mockResolvedValueOnce({
+      verified: true,
+      authenticationInfo: {
+        credentialID: "dGVzdC1jcmVkLWlk",
+        newCounter: 0,
+        userVerified: true,
+        credentialDeviceType: "multiDevice",
+        credentialBackedUp: true,
+        origin: "https://base-sepolia.exactly.app",
+        rpID: "base-sepolia.exactly.app",
+      },
+    });
+    const json = {
+      method: "webauthn" as const,
+      id: "dGVzdC1jcmVkLWlk",
+      rawId: "dGVzdC1jcmVkLWlk",
+      response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
+      clientExtensionResults: {},
+      type: "public-key" as const,
+    };
+
+    const response = await client.index.$post(
+      { json },
+      { headers: { cookie: "session_id=test-session", origin: "https://base-sepolia.exactly.app" } },
+    );
+
+    expect(response.status).toBe(200);
+    expect(verify).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ expectedRPID: ["sandbox.exactly.app", "base-sepolia.exactly.app"] }),
+    );
+    await expect(response.json()).resolves.toMatchObject({ rpId: "base-sepolia.exactly.app" });
   });
 
   it("returns 400 for missing credential with non-siwe assertion", async () => {
@@ -1096,6 +1141,7 @@ describe("registration", () => {
     );
 
     expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ rpId: domain });
     expect(response.headers.get("set-cookie")).not.toContain("Domain=");
     expect(verifyRegistrationResponse).toHaveBeenCalledExactlyOnceWith({
       response: json,

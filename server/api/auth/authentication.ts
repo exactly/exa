@@ -40,6 +40,7 @@ import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
 import chain from "@exactly/common/generated/chain";
+import rpId, { accepted } from "@exactly/common/rpId";
 import tenants from "@exactly/common/tenants";
 import { Address, Base64URL, Credential, Hex } from "@exactly/common/validation";
 
@@ -237,7 +238,7 @@ When called with an Ethereum address as \`credentialId\`, this endpoint creates 
           );
         }
         const options = await generateAuthenticationOptions({
-          rpID: domain,
+          rpID: rpId,
           allowCredentials: credentialId ? [{ id: credentialId }] : undefined,
           timeout,
           userVerification: "required",
@@ -443,6 +444,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
         if (factory && factory !== parse(Address, credential.factory)) return c.json({ code: "bad factory" }, 400);
         setUser({ id: parse(Address, credential.account) });
 
+        let rp: string | undefined;
         try {
           switch (assertion.method) {
             case "siwe": {
@@ -469,7 +471,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
             default: {
               const { verified, authenticationInfo } = await verifyAuthenticationResponse({
                 response: assertion,
-                expectedRPID: domain,
+                expectedRPID: accepted,
                 expectedOrigin: [...origins, ...androidOrigins],
                 expectedChallenge: challenge,
                 credential: {
@@ -482,6 +484,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
               if (!verified || authenticationInfo.credentialID !== assertion.id) {
                 return c.json({ code: "bad authentication", legacy: "bad authentication" }, 400);
               }
+              rp = authenticationInfo.rpID;
             }
           }
         } catch (error) {
@@ -507,6 +510,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
             factory: parse(Address, credential.factory),
             ...decodePublicKey(credential.publicKey),
             salt: parse(Address, credential.salt),
+            ...(rp && { rpId: rp }),
             auth: expires.getTime(),
             expires: expires.getTime(),
             intercomToken,

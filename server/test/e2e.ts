@@ -42,7 +42,7 @@ import lifi from "./lifi";
 import database, { cards as cardsTable, credentials } from "../database";
 import auth from "../middleware/auth";
 import createAlchemy from "../utils/alchemy";
-import appOrigin, { origins } from "../utils/appOrigin";
+import appOrigin, { origins, related } from "../utils/appOrigin";
 import authSecret from "../utils/authSecret";
 import createOnesignal from "../utils/onesignal";
 import createPanda from "../utils/panda";
@@ -278,10 +278,10 @@ describe("e2e", () => {
         }),
       ).resolves.toBeDefined();
 
-      const related = await app.request("/.well-known/webauthn");
-      expect(related.status).toBe(200);
-      expect(related.headers.get("content-type")).toBe("application/json");
-      await expect(related.json()).resolves.toStrictEqual({ origins: [...origins.slice(1), appOrigin] });
+      const webauthn = await app.request("/.well-known/webauthn");
+      expect(webauthn.status).toBe(200);
+      expect(webauthn.headers.get("content-type")).toBe("application/json");
+      await expect(webauthn.json()).resolves.toStrictEqual({ origins: [...origins.slice(1), ...related, appOrigin] });
       const missing = await app.request("/missing");
       const page = await app.request("/+not-found.html");
       expect(missing.status).toBe(404);
