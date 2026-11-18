@@ -3,4 +3,3 @@ config:
   gcp:project: eexxxaa
   exa:disabled: [chat]
   exa:pokeMinimum: 1
-  exa:subscribeTimeout: 1800s
