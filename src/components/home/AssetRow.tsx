@@ -24,7 +24,7 @@ export default function AssetRow({
   children: ReactNode;
   disabled?: boolean;
   name: string;
-  onPress?: () => void;
+  onPress: () => void;
   pending?: boolean;
   symbol: string;
   uri?: string;
@@ -38,8 +38,8 @@ export default function AssetRow({
     <XStack
       alignItems="center"
       gap="s3_5"
-      cursor={pending || !onPress ? "default" : "pointer"}
-      opacity={pending ? 0.7 : onPress ? "1 press:0.7" : 1}
+      cursor={pending ? "default" : "pointer"}
+      opacity={pending ? 0.7 : "1 press:0.7"}
       onPress={pending ? undefined : onPress}
     >
       <YStack opacity={opacity}>

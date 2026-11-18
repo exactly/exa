@@ -140,21 +140,6 @@ export default function usePortfolio(options?: {
       });
   }, [balances, markets, network]);
 
-  const isExternal = useCallback(
-    (chainId: number, address: string) => {
-      if (chainId !== network) return true;
-      if (!markets) return false;
-      return !markets.some(
-        (m) =>
-          m.asset === address &&
-          (!m.isFrozen ||
-            (protocolAssets.some((a) => a.asset === address) &&
-              !externalAssets.some((a) => a.address === address && (a.amount ?? 0n) > 0n))),
-      );
-    },
-    [externalAssets, markets, network, protocolAssets],
-  );
-
   const crossChainAssets = useMemo<ExternalAsset[]>(() => {
     if (!balances) return [];
     return Object.entries(balances)
@@ -165,6 +150,26 @@ export default function usePortfolio(options?: {
         return asset ? [asset] : [];
       });
   }, [balances, network]);
+
+  const isExternal = useCallback(
+    (chainId: number, address: string) => {
+      if (chainId !== network) {
+        return (
+          !deposits.some((a) => a.chainId === chainId && a.asset === address) ||
+          crossChainAssets.some((a) => a.chainId === chainId && a.address === address && (a.amount ?? 0n) > 0n)
+        );
+      }
+      if (!markets) return false;
+      return !markets.some(
+        (m) =>
+          m.asset === address &&
+          (!m.isFrozen ||
+            (protocolAssets.some((a) => a.asset === address) &&
+              !externalAssets.some((a) => a.address === address && (a.amount ?? 0n) > 0n))),
+      );
+    },
+    [crossChainAssets, deposits, externalAssets, markets, network, protocolAssets],
+  );
 
   const assets = useMemo<PortfolioAsset[]>(
     () => [...protocolAssets, ...externalAssets].sort(compareAssets(options?.sortBy)),
