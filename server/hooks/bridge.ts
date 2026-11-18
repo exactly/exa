@@ -67,6 +67,7 @@ export default function hook({
           }),
         }),
         object({ event_type: literal("customer.updated"), event_object: unknown() }),
+        object({ event_type: literal("kyc_link.updated"), event_object: unknown() }),
         object({ event_type: literal("liquidation_address.drain.created"), event_object: unknown() }),
         object({
           event_type: literal("liquidation_address.drain.updated"),
@@ -145,6 +146,7 @@ export default function hook({
       switch (payload.event_type) {
         case "customer.created":
         case "customer.updated":
+        case "kyc_link.updated":
         case "liquidation_address.drain.created":
         case "liquidation_address.drain.updated":
         case "virtual_account.activity.updated":

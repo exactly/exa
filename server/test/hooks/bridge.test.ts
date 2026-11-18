@@ -779,6 +779,22 @@ describe("bridge hook", () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 
+  it("returns 200 without tracking for kyc_link.updated events", async () => {
+    vi.spyOn(segment, "track").mockReturnValue();
+    const sendPushNotification = sendPushNotificationMock;
+    const payload = { event_type: "kyc_link.updated", event_object: { id: "kycLinkId", kyc_status: "rejected" } };
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(payload) },
+      json: payload as never,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(segment.track).not.toHaveBeenCalled();
+    expect(sendPushNotification).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
   it("returns 200 without tracking for liquidation_address.drain.created events", async () => {
     vi.spyOn(segment, "track").mockReturnValue();
     const sendPushNotification = sendPushNotificationMock;
