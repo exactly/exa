@@ -30,7 +30,7 @@ const stacks = await Promise.all(
         optional(
           array(
             picklist(
-              [...Object.keys({ ...modules.services, ...modules.workers }), ...modules.features],
+              [...Object.keys({ ...modules.services, ...modules.workers }), ...modules.features, "indexer"],
               `unknown module in ${name}`,
             ),
           ),
