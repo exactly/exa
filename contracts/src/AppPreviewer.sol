@@ -12,7 +12,38 @@ import { IAuditor, IExaAccount, IMarket, IProposalManager, MarketData } from "./
 contract AppPreviewer {
   using LibString for string;
 
-  function markets(IAuditor auditor) external view returns (MarketPreview[] memory markets_) {
+  function preview(
+    address account,
+    IAuditor auditor,
+    address previewer,
+    address ratePreviewer,
+    IMarket averageMarket,
+    address[] calldata targets
+  ) external view returns (NetworkPreview memory preview_) {
+    preview_.timestamp = block.timestamp;
+    if (address(auditor) != address(0)) preview_.markets = markets(auditor);
+    if (previewer != address(0)) {
+      preview_.exactly = LibCall.staticCallContract(previewer, abi.encodeWithSignature("exactly(address)", account));
+    }
+    if (ratePreviewer != address(0)) {
+      // slither-disable-next-line low-level-calls
+      (bool success, bytes memory snapshot) = ratePreviewer.staticcall(abi.encodeWithSignature("snapshot()"));
+      if (success) preview_.snapshot = snapshot;
+    }
+    if (address(averageMarket) != address(0)) {
+      preview_.floatingAssetsAverage = averageMarket.previewFloatingAssetsAverage();
+    }
+    preview_.proposalManager = proposalManager(account);
+    preview_.allowed = new bool[](targets.length);
+    if (preview_.proposalManager.proposalManager == address(0)) return preview_;
+    IProposalManager proposalManager_ = IProposalManager(preview_.proposalManager.proposalManager);
+    for (uint256 i = 0; i < targets.length; ++i) {
+      // slither-disable-next-line calls-loop
+      preview_.allowed[i] = proposalManager_.allowlist(targets[i]); // forge-lint: disable-line(calls-loop)
+    }
+  }
+
+  function markets(IAuditor auditor) public view returns (MarketPreview[] memory markets_) {
     IMarket[] memory allMarkets = auditor.allMarkets();
     markets_ = new MarketPreview[](allMarkets.length);
     for (uint256 i = 0; i < allMarkets.length; ++i) {
@@ -34,12 +65,12 @@ contract AppPreviewer {
     }
   }
 
-  function proposalManager(address account) external view returns (ProposalManagerPreview memory preview) {
-    if (account.code.length == 0) return preview;
+  function proposalManager(address account) public view returns (ProposalManagerPreview memory preview_) {
+    if (account.code.length == 0) return preview_;
     try IAccountLoupe(account).getExecutionFunctionConfig(IExaAccount.propose.selector) returns (
       IAccountLoupe.ExecutionFunctionConfig memory config
     ) {
-      if (config.plugin.code.length == 0) return preview;
+      if (config.plugin.code.length == 0) return preview_;
       try ExaPlugin(payable(config.plugin)).proposalManager() returns (IProposalManager proposalManager_) {
         return ProposalManagerPreview({
           proposalManager: address(proposalManager_),
@@ -60,6 +91,16 @@ struct MarketPreview {
   bool isFrozen;
   uint256 usdPrice;
   string symbol;
+}
+
+struct NetworkPreview {
+  MarketPreview[] markets;
+  bytes exactly;
+  bytes snapshot;
+  uint256 timestamp;
+  uint256 floatingAssetsAverage;
+  ProposalManagerPreview proposalManager;
+  bool[] allowed;
 }
 
 struct ProposalManagerPreview {
