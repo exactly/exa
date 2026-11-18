@@ -116,6 +116,31 @@ describe("api", () => {
     },
   );
 
+  it.each([
+    {
+      domain: "base-sepolia.exactly.app",
+      id: "sandbox.exactly.app",
+      accepted: ["sandbox.exactly.app", "base-sepolia.exactly.app"],
+      related: [],
+    },
+    {
+      domain: "sandbox.exactly.app",
+      id: "sandbox.exactly.app",
+      accepted: ["sandbox.exactly.app"],
+      related: ["https://base-sepolia.exactly.app", "https://business.base-sepolia.exactly.app"],
+    },
+    { domain: "web.exactly.app", id: "web.exactly.app", accepted: ["web.exactly.app"], related: [] },
+  ])("binds passkeys on $domain to $id", async ({ domain, id, accepted, related }) => {
+    vi.stubEnv("APP_ORIGINS", "");
+    vi.doMock("@exactly/common/domain", () => ({ default: domain }));
+    vi.resetModules();
+    const rp = await import("@exactly/common/rpId");
+    const appOrigin = await import("../../utils/appOrigin");
+    expect(rp.default).toBe(id);
+    expect(rp.accepted).toStrictEqual(accepted);
+    expect(appOrigin.related).toStrictEqual(related);
+  });
+
   it.each(["localhost", "sandbox.exactly.app"])(
     "keeps integrator authentication on primary domain %s",
     async (domain) => {

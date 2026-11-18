@@ -24,7 +24,7 @@ import createPersonaHook from "./hooks/persona";
 import supervise, { own } from "./supervise";
 import createAlchemy from "./utils/alchemy";
 import androidFingerprints from "./utils/android/fingerprints";
-import appOrigin, { origins } from "./utils/appOrigin";
+import appOrigin, { origins, related } from "./utils/appOrigin";
 import createIntercom from "./utils/intercom";
 import createMaturity from "./utils/maturity";
 import createOnesignal from "./utils/onesignal";
@@ -188,7 +188,7 @@ app.use(trimTrailingSlash());
 app.route("/api", api.app);
 for (const [name, hook] of enabledHooks) app.route(`/hooks/${name}`, hook.app);
 
-app.get("/.well-known/webauthn", (c) => c.json({ origins: [...origins.slice(1), appOrigin] }));
+app.get("/.well-known/webauthn", (c) => c.json({ origins: [...origins.slice(1), ...related, appOrigin] }));
 app.get("/.well-known/apple-app-site-association", (c) =>
   c.json({ webcredentials: { apps: ["665NDX7LBZ.app.exactly"] } }),
 );
