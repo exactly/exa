@@ -40,6 +40,7 @@ const persona = Object.assign(createPersona(personaConfig.key, personaConfig.url
 const sardineConfig = { key: "sardine", url: "https://api.sardine.ai" };
 const personaHook = createPersonaHook({
   allow,
+  business: true,
   database,
   panda,
   pax: createPax(paxConfig),
@@ -1234,10 +1235,18 @@ describe("business representative", () => {
     );
   });
 
-  it("ignores the representative inquiry outside base", async () => {
-    mocks.isBase.mockReturnValue(false);
-
-    const response = await appClient.index.$post({
+  it("ignores the representative inquiry without business", async () => {
+    const response = await testClient(
+      createPersonaHook({
+        allow,
+        business: false,
+        database,
+        panda,
+        persona,
+        personaWebhookSecret: "persona",
+        sardine: createSardine(sardineConfig.key, sardineConfig.url),
+      }).app,
+    ).index.$post({
       header: { "persona-signature": "t=1,v1=sha256" },
       json: representativePayload({ referenceId, status: "approved", weeklyCardLimit: 2000 }),
     });

@@ -77,6 +77,7 @@ const Session = pipe(
 
 export default function hook({
   allow,
+  business,
   database,
   panda,
   pax,
@@ -85,6 +86,7 @@ export default function hook({
   sardine,
 }: {
   allow: ReturnType<typeof createAllow>;
+  business: boolean;
   database: NodePgDatabase<typeof schema>;
   panda: ReturnType<typeof createPanda>;
   pax?: ReturnType<typeof createPax>;
@@ -373,7 +375,7 @@ export default function hook({
       }
       if (payload.template === "representative") {
         getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "persona.inquiry.representative");
-        if (!isBase || payload.data.attributes.status !== "approved") return c.json({ code: "ok" }, 200);
+        if (!business || payload.data.attributes.status !== "approved") return c.json({ code: "ok" }, 200);
         const { referenceId } = payload.data.attributes;
         const credential = await database.query.credentials.findFirst({
           columns: { account: true, factory: true, pandaId: true, publicKey: true, salt: true, source: true },

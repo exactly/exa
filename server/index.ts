@@ -117,6 +117,7 @@ const hooks = {
   persona: () =>
     createPersonaHook({
       allow,
+      business: !disabled.has("business"),
       database,
       panda,
       pax,
