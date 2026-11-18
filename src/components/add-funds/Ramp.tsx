@@ -408,23 +408,32 @@ export default function Ramp() {
                 {deposits.some((d) => d.estimatedProcessingTime) && (
                   <XStack gap="s3" alignItems="flex-start">
                     <Clock size={16} color="uiNeutralPrimary" />
-                    <Text emphasized secondary caption2 color="uiNeutralPlaceholder" flex={1}>
-                      {t("Delivery time: {{details}}", {
-                        details: deposits
-                          .filter((d) => d.estimatedProcessingTime)
-                          .map((d) => {
-                            const seconds = Number(d.estimatedProcessingTime);
-                            const time = Number.isFinite(seconds)
-                              ? t("Between {{min}} and {{max}} minutes", {
-                                  min: Math.round(seconds / 60),
-                                  max: Math.round(seconds / 60) + 5,
-                                })
-                              : d.estimatedProcessingTime;
-                            return `${d.displayName}: ${time}`;
-                          })
-                          .join(". "),
-                      })}
-                    </Text>
+                    <YStack gap="s1" flex={1}>
+                      <Text emphasized secondary caption2 color="uiNeutralPlaceholder">
+                        {t("Delivery time: {{details}}", {
+                          details: deposits
+                            .filter((d) => d.estimatedProcessingTime)
+                            .map((d) => {
+                              const seconds = Number(d.estimatedProcessingTime);
+                              const time = Number.isFinite(seconds)
+                                ? t("Between {{min}} and {{max}} minutes", {
+                                    min: Math.round(seconds / 60),
+                                    max: Math.round(seconds / 60) + 5,
+                                  })
+                                : t(d.estimatedProcessingTime);
+                              return `${d.displayName}: ${time}`;
+                            })
+                            .join(". "),
+                        })}
+                      </Text>
+                      {deposits.some(
+                        (d) => d.estimatedProcessingTime && !Number.isFinite(Number(d.estimatedProcessingTime)),
+                      ) && (
+                        <Text secondary caption2 color="uiNeutralPlaceholder">
+                          {t("Banks don’t process transfers on weekends or holidays.")}
+                        </Text>
+                      )}
+                    </YStack>
                   </XStack>
                 )}
                 {quote?.buyRate && (
