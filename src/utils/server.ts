@@ -53,7 +53,8 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
       }));
       if (queryClient.getQueryCache().find({ queryKey: ["auth"], exact: true }) !== query) return 0;
     }
-    const current = queryClient.getQueryData<Credential>(["credential"])?.credentialId;
+    const stored = queryClient.getQueryData<Credential>(["credential"]);
+    const current = stored?.credentialId;
     const owner = method === "siwe" ? getConnection(ownerConfig).address : current;
     if (method === "siwe" && (!owner || (current && owner.toLowerCase() !== current.toLowerCase()))) {
       return queryClient.getQueryData<number>(["auth"]) ?? 0;
@@ -70,6 +71,7 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
           }
         : await assert({
             ...options,
+            rpId: stored ? (stored.rpId ?? domain) : options.rpId,
             extensions: options.extensions as Record<string, unknown> | undefined,
           }).then((assertion) => {
             if (!assertion) throw new Error("bad assertion");
@@ -90,9 +92,17 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
             : undefined,
       });
     }
-    const { expires, intercomToken, credentialId, factory, x, y, salt } = await post.json();
+    const result = await post.json();
+    const { expires, intercomToken, credentialId, factory, x, y, salt } = result;
     if (queryClient.getQueryCache().find({ queryKey: ["auth"], exact: true }) !== query) return 0;
-    queryClient.setQueryData(["credential"], { credentialId, factory, x, y, salt });
+    queryClient.setQueryData(["credential"], {
+      credentialId,
+      factory,
+      x,
+      y,
+      salt,
+      rpId: "rpId" in result ? result.rpId : undefined,
+    });
     await loginIntercom(deriveAddress(factory, { x, y, salt }), intercomToken, expires);
     return parse(Auth, expires);
   },

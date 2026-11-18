@@ -124,7 +124,7 @@ import type { Credential } from "@exactly/common/validation";
 import type { Token } from "@lifi/sdk";
 import type { Config, SendCallsParameters } from "@wagmi/core";
 
-export default async function createAccountClient({ credentialId, factory, x, y, salt }: Credential) {
+export default async function createAccountClient({ credentialId, factory, x, y, salt, rpId = domain }: Credential) {
   const accountAddress = deriveAddress(factory, { x, y, salt });
   setUser({ id: accountAddress });
   login(accountAddress);
@@ -133,7 +133,7 @@ export default async function createAccountClient({ credentialId, factory, x, y,
   const signUserOperationHash = async (uoHash: Hex): Promise<Hex> => {
     if (isSiwe()) return wrapSignature(0, await signMessage(ownerConfig, { message: { raw: uoHash } }));
     const credential = await get({
-      rpId: domain,
+      rpId,
       challenge: bufferToBase64URLString(hexToBytes(hashMessage({ raw: uoHash }), { size: 32 }).buffer as ArrayBuffer),
       allowCredentials: [{ id: credentialId, type: "public-key" }],
       userVerification: "preferred",
