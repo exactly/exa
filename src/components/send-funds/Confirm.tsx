@@ -29,12 +29,12 @@ import {
 } from "viem";
 import { useReadContract, useSimulateContract } from "wagmi";
 
-import chain, { alchemyChains, marketWETHAddress } from "@exactly/common/generated/chain";
+import chain, { alchemyChains } from "@exactly/common/generated/chain";
 import { proposalManagerAbi } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
 import shortenHex from "@exactly/common/shortenHex";
 import { Address } from "@exactly/common/validation";
-import { WAD } from "@exactly/lib";
+import { WAD, withdrawLimit } from "@exactly/lib";
 
 import { ArrowLeft } from "../../generated/icons/ArrowLeft";
 import { ArrowRight } from "../../generated/icons/ArrowRight";
@@ -60,11 +60,11 @@ import {
   routeCalls,
   statusOptions,
 } from "../../utils/lifi";
+import networkOptions, { marketWETH } from "../../utils/networkOptions";
 import parseAmount from "../../utils/parseAmount";
 import queryClient from "../../utils/queryClient";
 import reportError, { classifyError } from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
-import useAsset from "../../utils/useAsset";
 import useSend from "../../utils/useSend";
 import useSimulateProposal from "../../utils/useSimulateProposal";
 import useSingleMutation from "../../utils/useSingleMutation";
@@ -119,24 +119,16 @@ export default function Confirm() {
   const { data: resolved } = useQuery(ensOptions(name, destinationChain));
   const ens = name && resolved === receiverHex ? name : "";
 
-  const {
-    market: homeMarket,
-    externalAsset: homeExternal,
-    available: homeAvailable,
-    markets,
-    queryKey: marketsQueryKey,
-  } = useAsset(pay);
   const { data: balances } = useQuery(balancesOptions(address));
-  const market = payChain === chain.id ? homeMarket : undefined;
-  const external =
-    payChain === chain.id
-      ? homeExternal
-      : (balances?.[payChain]?.find((token) => token.address.toLowerCase() === pay?.toLowerCase()) ?? null);
+  const payNetworkOptions = networkOptions(address, payChain);
+  const { data: payMarkets } = useQuery({ ...payNetworkOptions, select: ({ markets }) => markets });
+  const market = payMarkets?.find((candidate) => candidate.market === pay);
+  const external = balances?.[payChain]?.find((token) => token.address.toLowerCase() === pay?.toLowerCase()) ?? null;
   const paySymbol = market ? (market.symbol.slice(3) === "WETH" ? "ETH" : market.symbol.slice(3)) : external?.symbol;
   const payDecimals = market?.decimals ?? external?.decimals ?? 18;
   const payPrice = market ? market.usdPrice : parseAmount(external?.priceUSD, 18);
   const payUnderlying = market?.asset ?? external?.address;
-  const payDelivered = market?.market === marketWETHAddress ? zeroAddress : payUnderlying;
+  const payDelivered = market && market.market === marketWETH(payChain) ? zeroAddress : payUnderlying;
 
   const externalAddress = useMemo(() => {
     const { success, output } = safeParse(Address, external?.address);
@@ -197,7 +189,8 @@ export default function Confirm() {
     maxParameter === "true" &&
     !!market &&
     market.floatingDepositShares > 0n &&
-    homeAvailable >= market.floatingDepositAssets;
+    !!payMarkets &&
+    withdrawLimit(payMarkets, market.market) >= market.floatingDepositAssets;
   const requestedFrom = routed
     ? typeof fromAmountParameter === "string" && /^\d+$/.test(fromAmountParameter)
       ? BigInt(fromAmountParameter)
@@ -310,9 +303,9 @@ export default function Confirm() {
   const quoteExpired = !!route && now >= routeUpdatedAt + quoteValidity;
 
   const neutralAsset = useMemo(() => {
-    const { success, output } = safeParse(Address, markets?.find(({ asset }) => asset !== payUnderlying)?.asset);
+    const { success, output } = safeParse(Address, payMarkets?.find(({ asset }) => asset !== payUnderlying)?.asset);
     return success ? output : undefined;
-  }, [markets, payUnderlying]);
+  }, [payMarkets, payUnderlying]);
 
   const {
     request: bridgePropose,
@@ -412,6 +405,12 @@ export default function Confirm() {
     query: { enabled: routed && !isNativeTransfer && !!address && !!payUnderlying && !!route, staleTime: 0 },
   });
   const calls = useMemo(() => {
+    if (market) {
+      const proposal = routed ? bridgePropose : proposeSimulation;
+      if (sponsored || !proposal) return;
+      const { address: to, abi, functionName, args } = proposal;
+      return [{ to, data: encodeFunctionData({ abi, functionName, args }) }];
+    }
     if (!external || !address || fromAmount <= 0n) return;
     if (routed) {
       if (!route || !payUnderlying || (!isNativeTransfer && approved === undefined)) return;
@@ -471,19 +470,30 @@ export default function Confirm() {
   }, [
     address,
     approved,
+    bridgePropose,
     external,
     externalAddress,
     fromAmount,
     isNativeTransfer,
+    market,
     payUnderlying,
+    proposeSimulation,
     receiverHex,
     route,
     routed,
+    sponsored,
     wrap,
     zeroAddress,
   ]);
-  const spend =
-    external && fromAmount > 0n ? (routed ? route?.spend : { amount: fromAmount, token: externalAddress }) : undefined;
+  const spend = external
+    ? fromAmount > 0n
+      ? routed
+        ? route?.spend
+        : { amount: fromAmount, token: externalAddress }
+      : undefined
+    : payUnderlying
+      ? { amount: 0n, token: getAddress(payUnderlying) }
+      : undefined;
   const {
     data: transferEstimate,
     error: transferEstimateError,
@@ -595,8 +605,11 @@ export default function Confirm() {
   const sendReady = useMemo(() => {
     if (fromAmount <= 0n || !destination || insufficientGas || quoteExpired) return false;
     const estimated = !!transferEstimate && !isTransferEstimateStale && networkCost !== undefined;
-    if (routed) return !!route && (market ? !!bridgePropose : !!payUnderlying && estimated);
-    return market ? !!proposeSimulation : !!external && estimated && (isNativeTransfer || !!erc20TransferSimulation);
+    const gasReady = sponsored || estimated;
+    if (routed) return !!route && (market ? !!bridgePropose && gasReady : !!payUnderlying && estimated);
+    return market
+      ? !!proposeSimulation && gasReady
+      : !!external && estimated && (isNativeTransfer || !!erc20TransferSimulation);
   }, [
     bridgePropose,
     destination,
@@ -612,6 +625,7 @@ export default function Confirm() {
     quoteExpired,
     route,
     routed,
+    sponsored,
     erc20TransferSimulation,
     transferEstimate,
   ]);
@@ -712,8 +726,8 @@ export default function Confirm() {
   }, [routeStatus?.status]);
   useEffect(() => {
     if (!executionHash) return;
-    queryClient.invalidateQueries({ queryKey: marketsQueryKey }).catch(reportError);
-  }, [executionHash]); // eslint-disable-line @eslint-react/exhaustive-deps -- wagmi query key changes every render
+    queryClient.invalidateQueries({ queryKey: payNetworkOptions.queryKey }).catch(reportError);
+  }, [executionHash]); // eslint-disable-line @eslint-react/exhaustive-deps -- query key changes every render
   const exit = market ? "/activity" : "/";
 
   useEffect(() => {
@@ -781,10 +795,10 @@ export default function Confirm() {
     (route ? routeErroredAt < routeUpdatedAt + quoteValidity : routeErrors < 3);
   const prepareError = routed
     ? market
-      ? bridgeProposeError
+      ? (bridgeProposeError ?? transferEstimateError)
       : transferEstimateError
     : market
-      ? proposeError
+      ? (proposeError ?? transferEstimateError)
       : (erc20TransferError ?? wrapError ?? transferEstimateError);
   const tool = route?.tool;
   const { data: dust } = useReadContract({
@@ -797,19 +811,20 @@ export default function Confirm() {
   });
   const stalled = !!prepareError && !!route?.wrapped && !!dust && dust > 0n;
   const outage = !!prepareError && classifyError(prepareError).network !== undefined;
+  const estimateFailed = !!market && prepareError === transferEstimateError;
   useEffect(() => {
     if (!prepareError) return;
     reportError(prepareError, { level: "warning" });
-    if (!routed || !tool || stalled || outage) return;
+    if (!routed || !tool || stalled || outage || estimateFailed) return;
     setDenied((current) => (current.includes(tool) ? current : [...current, tool].slice(0, 3))); // eslint-disable-line @eslint-react/set-state-in-effect
-  }, [outage, prepareError, routed, stalled, tool]);
+  }, [outage, prepareError, routed, stalled, tool, estimateFailed]);
   const failure =
     routeError && !transient
       ? classify(routeError)
       : prepareError
         ? stalled
           ? undefined
-          : routed && tool && !outage
+          : routed && tool && !outage && !estimateFailed
             ? denied.length < 3 && !denied.includes(tool)
               ? undefined
               : "route"
@@ -1262,7 +1277,12 @@ export default function Confirm() {
                         case "prepare":
                         case "queued":
                           if (market) {
-                            (routed ? refetchBridgePropose() : refetchPropose()).catch(reportError);
+                            ((routed ? bridgeProposeError : proposeError)
+                              ? routed
+                                ? refetchBridgePropose()
+                                : refetchPropose()
+                              : refetchTransferEstimate()
+                            ).catch(reportError);
                           } else {
                             (wrapError
                               ? refetchWrap()

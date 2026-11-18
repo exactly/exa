@@ -10,7 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { zeroAddress } from "viem";
 import { base } from "viem/chains";
 
-import chain, { alchemyChains, marketWETHAddress } from "@exactly/common/generated/chain";
+import chain, { alchemyChains } from "@exactly/common/generated/chain";
 import { withdrawLimit } from "@exactly/lib";
 
 import NetworkSheet from "./NetworkSheet";
@@ -24,12 +24,14 @@ import { TrendingUp } from "../../generated/icons/TrendingUp";
 import { isUnsupported, requestDeployment } from "../../utils/deployedOptions";
 import { presentArticle } from "../../utils/intercom";
 import { isSendable, isStock, lifiChainsOptions, lifiTokensOptions, reachOptions } from "../../utils/lifi";
+import { marketWETH } from "../../utils/networkOptions";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAllowlists from "../../utils/useAllowlists";
 import useDeployments from "../../utils/useDeployments";
+import useDeposits, { useNetworkMarkets } from "../../utils/useDeposits";
 import useInsets from "../../utils/useInsets";
-import usePortfolio, { type ExternalAsset } from "../../utils/usePortfolio";
+import usePortfolio, { type PortfolioAsset } from "../../utils/usePortfolio";
 import AssetLogo from "../shared/AssetLogo";
 import ChainLogo from "../shared/ChainLogo";
 import Chip from "../shared/Chip";
@@ -53,11 +55,27 @@ export default function AssetSelection() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"stocks" | number>();
   const [networks, setNetworks] = useState(false);
-  const [unsupported, setUnsupported] = useState<null | { asset: ExternalAsset; chainName: string }>(null);
+  const [unsupported, setUnsupported] = useState<null | { asset: PortfolioAsset; chainName: string }>(null);
   const [reason, setReason] = useState<"network" | "token">("network");
   const [blocked, setBlocked] = useState<null | { compatible: boolean; id: number; name: string }>(null);
   const { address } = useAccount();
-  const { allAssets, markets, isPending, isBalancesPending } = usePortfolio();
+  const { data: deposits } = useDeposits();
+  const { markets: networkMarkets } = useNetworkMarkets();
+  const withdrawable = useMemo(
+    () =>
+      deposits.map((deposit) => {
+        const markets = networkMarkets.get(deposit.chainId);
+        return {
+          ...deposit,
+          usdValue: markets
+            ? Number((withdrawLimit(markets, deposit.market) * deposit.usdPrice) / BigInt(10 ** deposit.decimals)) /
+              1e18
+            : 0,
+        };
+      }),
+    [deposits, networkMarkets],
+  );
+  const { allAssets, isPending, isBalancesPending } = usePortfolio({ deposits: withdrawable });
   const { data: advanced } = useQuery<boolean>({ queryKey: ["settings", "advanced-mode"] });
   const { data: chains } = useQuery(lifiChainsOptions);
   const { data: reach, isError: reachFailed, refetch: refetchReach } = useQuery(reachOptions);
@@ -73,25 +91,19 @@ export default function AssetSelection() {
     () => [
       ...new Set(
         allAssets.flatMap((asset) =>
-          asset.type === "external" && asset.chainId !== chain.id && alchemyChains.get(asset.chainId)?.smartAccount
-            ? [asset.chainId]
-            : [],
+          asset.chainId !== chain.id && alchemyChains.get(asset.chainId)?.smartAccount ? [asset.chainId] : [],
         ),
       ),
     ],
     [allAssets],
   );
   const { deployedChains, pendingChains, deployableChains } = useDeployments(address, crossChainIds);
-  const held = useMemo(
-    () => new Set(allAssets.flatMap((asset) => (asset.type === "external" ? [asset.chainId] : []))),
-    [allAssets],
-  );
+  const held = useMemo(() => new Set(allAssets.map(({ chainId }) => chainId)), [allAssets]);
   const funded = useMemo(() => {
     const totals = new Map<number, number>();
     for (const asset of allAssets) {
       if (asset.type === "protocol" && asset.usdValue <= 0) continue;
-      const id = asset.type === "external" ? asset.chainId : chain.id;
-      totals.set(id, (totals.get(id) ?? 0) + asset.usdValue);
+      totals.set(asset.chainId, (totals.get(asset.chainId) ?? 0) + asset.usdValue);
     }
     return totals;
   }, [allAssets]);
@@ -159,7 +171,7 @@ export default function AssetSelection() {
       filter === "stocks"
         ? []
         : allAssets.filter((asset) => {
-            const chainId = asset.type === "external" ? asset.chainId : chain.id;
+            const { chainId } = asset;
             if (filter !== undefined && chainId !== filter) return false;
             if (!compatible(chainId)) return false;
             return (
@@ -175,16 +187,15 @@ export default function AssetSelection() {
     const ids = new Set(
       [...targets].filter((id) => compatible(id) && (filter === undefined || filter === "stocks" || id === filter)),
     );
-    const native = chains?.find((item) => item.id === chain.id)?.nativeToken;
     const keys = new Set(
-      owned.flatMap((asset) =>
-        asset.type === "external"
-          ? [`${asset.chainId}:${asset.address.toLowerCase()}`]
-          : [
-              `${chain.id}:${asset.asset.toLowerCase()}`,
-              ...(asset.symbol === native?.symbol ? [`${chain.id}:${native.address.toLowerCase()}`] : []),
-            ],
-      ),
+      owned.flatMap((asset) => {
+        if (asset.type === "external") return [`${asset.chainId}:${asset.address.toLowerCase()}`];
+        const native = chains?.find((item) => item.id === asset.chainId)?.nativeToken;
+        return [
+          `${asset.chainId}:${asset.asset.toLowerCase()}`,
+          ...(asset.symbol === native?.symbol ? [`${asset.chainId}:${native.address.toLowerCase()}`] : []),
+        ];
+      }),
     );
     const names = new Map<number, string>((chains ?? []).map((item) => [item.id, item.name]));
     const ranks = new Map<number, number>();
@@ -371,12 +382,13 @@ export default function AssetSelection() {
                   </Text>
                 </XStack>
                 {owned.map((asset) => {
-                  const chainId = asset.type === "external" ? asset.chainId : chain.id;
+                  const { chainId } = asset;
+                  const payMarkets = networkMarkets.get(chainId);
                   const available =
                     asset.type === "external"
                       ? (asset.amount ?? 0n)
-                      : markets
-                        ? withdrawLimit(markets, asset.market)
+                      : payMarkets
+                        ? withdrawLimit(payMarkets, asset.market)
                         : 0n;
                   const usdPrice = asset.type === "external" ? Number(asset.priceUSD) : Number(asset.usdPrice) / 1e18;
                   const balance = (Number(available) / 10 ** asset.decimals).toLocaleString(language, {
@@ -394,7 +406,7 @@ export default function AssetSelection() {
                     isSendable(allowlists[chain.id], asset.address);
                   return (
                     <Row
-                      key={asset.type === "external" ? `${asset.chainId}:${asset.address}` : asset.market}
+                      key={`${asset.chainId}:${asset.type === "external" ? asset.address : asset.market}`}
                       logo={
                         <AssetLogo
                           uri={asset.type === "external" ? asset.logoURI : undefined}
@@ -424,14 +436,14 @@ export default function AssetSelection() {
                           ? t("{{symbol}} on {{network}}", { symbol: asset.symbol, network: chainName })
                           : t("{{symbol}}, {{balance}} available", { symbol: asset.symbol, balance })
                       }
-                      disabled={!sendable || (asset.type === "external" && isUnsupported(chainId, deployedChains))}
-                      pending={asset.type === "external" && pendingChains.has(chainId)}
+                      disabled={!sendable || isUnsupported(chainId, deployedChains)}
+                      pending={pendingChains.has(chainId)}
                       onPress={() => {
-                        if (asset.type === "external" && address && deployableChains.has(chainId)) {
+                        if (address && deployableChains.has(chainId)) {
                           requestDeployment(t, address, chainId).catch(reportError);
                           return;
                         }
-                        if (asset.type === "external" && isUnsupported(chainId, deployedChains)) {
+                        if (isUnsupported(chainId, deployedChains)) {
                           setReason("network");
                           setUnsupported({ asset, chainName });
                           return;
@@ -451,7 +463,7 @@ export default function AssetSelection() {
                             toToken:
                               asset.type === "external"
                                 ? asset.address
-                                : asset.market === marketWETHAddress
+                                : asset.market === marketWETH(chainId)
                                   ? zeroAddress
                                   : asset.asset,
                             ...(advanced
