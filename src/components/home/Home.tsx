@@ -223,8 +223,7 @@ export default function Home() {
       business ? queryClient.invalidateQueries({ queryKey: ["kyc", "panda-business"], exact: true }) : undefined,
       revalidateUnsupported(),
       account ? refetchMarkets() : undefined,
-      queryClient.refetchQueries({ queryKey: ["markets"] }),
-      queryClient.refetchQueries({ queryKey: ["rates"] }),
+      queryClient.refetchQueries({ queryKey: ["network"], type: "active" }),
       account ? refetchBytecode() : undefined,
       account && bytecode ? refetchPendingProposals() : undefined,
     ]);
