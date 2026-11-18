@@ -1,14 +1,13 @@
 import { useMemo } from "react";
 
-import { multicall3Abi, zeroAddress } from "viem";
-import { useReadContract, useReadContracts } from "wagmi";
+import { useQuery } from "@tanstack/react-query";
+import { zeroAddress } from "viem";
 
-import chain, { appPreviewerAbi, appPreviewerCode, marketAbi, previewerAbi } from "@exactly/common/generated/chain";
-import { ratePreviewerAbi } from "@exactly/common/generated/hooks";
+import chain from "@exactly/common/generated/chain";
 import MIN_BORROW_INTERVAL from "@exactly/common/MIN_BORROW_INTERVAL";
 import { MATURITY_INTERVAL } from "@exactly/lib";
 
-import { network, withPreviews } from "./marketsOptions";
+import networkOptions from "./networkOptions";
 import useAccount from "./useAccount";
 
 export default function useMarkets(
@@ -16,36 +15,9 @@ export default function useMarkets(
   chainId = chain.id,
 ) {
   const { address: account } = useAccount();
-  const contracts = network(chainId);
-  const result = useReadContracts({
-    allowFailure: false,
-    contracts: [
-      {
-        address: contracts.previewer,
-        abi: previewerAbi,
-        functionName: "exactly",
-        args: [account ?? zeroAddress],
-        chainId,
-      },
-      { address: contracts.ratePreviewer, abi: ratePreviewerAbi, functionName: "snapshot", chainId },
-      { address: contracts.multicall3, abi: multicall3Abi, functionName: "getCurrentBlockTimestamp", chainId },
-      { address: contracts.marketUSDC, abi: marketAbi, functionName: "previewFloatingAssetsAverage", chainId },
-    ],
-    query: { ...query, enabled: query?.enabled ?? true, staleTime: 10_000 },
-  });
-  const previews = useReadContract({
-    abi: appPreviewerAbi,
-    functionName: "markets",
-    code: appPreviewerCode,
-    args: [contracts.auditor],
-    chainId,
-    query: { ...query, enabled: query?.enabled ?? true, staleTime: 10_000 },
-  });
-  const accountMarkets = result.data?.[0];
-  const markets = useMemo(
-    () => accountMarkets && previews.data && withPreviews(accountMarkets, previews.data),
-    [accountMarkets, previews.data],
-  );
+  const options = networkOptions(account ?? zeroAddress, chainId);
+  const result = useQuery({ ...options, ...query });
+  const markets = result.data?.markets;
   const supportedAssets = useMemo(() => {
     if (!markets) return [];
     return markets
@@ -53,23 +25,23 @@ export default function useMarkets(
       .map(({ symbol }) => (symbol === "exaWETH" ? "ETH" : symbol.slice(3)))
       .filter((symbol) => symbol !== "DAI");
   }, [markets]);
-  const timestamp = result.data?.[2] ?? BigInt(Math.floor(Date.now() / 1000)); // eslint-disable-line @eslint-react/purity -- fallback until onchain timestamp loads
+  const timestamp = result.data?.timestamp ?? BigInt(Math.floor(Date.now() / 1000)); // eslint-disable-line @eslint-react/purity -- fallback until onchain timestamp loads
   const now = Number(timestamp);
   const nextMaturity = now - (now % MATURITY_INTERVAL) + MATURITY_INTERVAL;
   return {
     markets,
     supportedAssets,
-    rateSnapshot: result.data?.[1],
-    floatingAssetsAverage: result.data?.[3],
+    rateSnapshot: result.data?.snapshot,
+    floatingAssetsAverage: result.data?.floatingAssetsAverage,
     timestamp,
     firstMaturity: nextMaturity + MATURITY_INTERVAL * Number(nextMaturity - now < MIN_BORROW_INTERVAL),
-    queryKey: result.queryKey,
-    refetch: () => Promise.all([result.refetch(), previews.refetch()]),
+    queryKey: options.queryKey,
+    refetch: result.refetch,
     get isFetching() {
-      return result.isFetching || previews.isFetching;
+      return result.isFetching;
     },
     get isPending() {
-      return result.isPending || previews.isPending;
+      return result.isPending;
     },
   };
 }
