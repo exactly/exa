@@ -4,11 +4,15 @@ import { captureException, captureMessage, continueTrace, startSpan, withScope }
 import { Queue, QueueEvents } from "bullmq";
 import { env } from "node:process";
 import { parse } from "valibot";
-import { padHex, toHex } from "viem";
+import { hexToBytes, padHex, toHex, zeroHash } from "viem";
+import { privateKeyToAddress } from "viem/accounts";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+import deriveAddress from "@exactly/common/deriveAddress";
+import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
+import database, { credentials } from "../../database";
 import { activityUrl, NETWORKS } from "../../utils/alchemy";
 import redis, { bullmq } from "../../utils/redis";
 import { name } from "../../workers/subscribe/job";
@@ -287,6 +291,45 @@ describe("subscribe worker", () => {
       expect.objectContaining({ name: "subscribe", op: "queue.process" }),
       expect.any(Function),
     );
+    expect(vi.mocked(captureException)).not.toHaveBeenCalled();
+  });
+
+  it("subscribes an account to the other backend's active webhooks", async () => {
+    const alchemy = api();
+    const owner = privateKeyToAddress(padHex("0x5ab"));
+    const current = deriveAddress(exaAccountFactoryAddress, { x: padHex(owner), y: zeroHash });
+    await database.insert(credentials).values({
+      id: "subscribe-peers",
+      publicKey: new Uint8Array(hexToBytes(owner)),
+      account: current,
+      factory: exaAccountFactoryAddress,
+    });
+    alchemy.getWebhooks.mockResolvedValue([
+      webhook("own"),
+      { ...webhook("peer"), webhook_url: "https://base.exactly.app/hooks/activity" },
+      { ...webhook("graphql"), webhook_type: "GRAPHQL", webhook_url: "https://base.exactly.app/hooks/activity" },
+      { ...webhook("unknown"), webhook_url: "https://example.com/hooks/activity" },
+      { ...webhook("inactive", "ANVIL", false), webhook_url: "https://web.exactly.app/hooks/activity" },
+      { ...webhook("network", "OPT_SEPOLIA"), webhook_url: "https://base-sepolia.exactly.app/hooks/activity" },
+    ]);
+    worker = subscribeWorker({ alchemy, bullmq, database });
+    await worker.ready;
+
+    expect(alchemy.getWebhookAddresses).toHaveBeenCalledExactlyOnceWith("own");
+    expect(alchemy.addWebhookAddresses).toHaveBeenCalledWith("own", expect.arrayContaining([current]));
+    expect(alchemy.addWebhookAddresses.mock.calls.filter(([id]) => id !== "own")).toStrictEqual([]);
+
+    alchemy.addWebhookAddresses.mockClear();
+    const result = finished(events, current);
+    await subscribe.enqueue(current);
+    await result;
+
+    expect(alchemy.addWebhookAddresses.mock.calls).toStrictEqual([
+      ["own", [current]],
+      ["peer", [current]],
+    ]);
+    expect(alchemy.createWebhook).not.toHaveBeenCalled();
+    expect(alchemy.setWebhookActive).not.toHaveBeenCalled();
     expect(vi.mocked(captureException)).not.toHaveBeenCalled();
   });
 
