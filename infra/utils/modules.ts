@@ -10,7 +10,7 @@ export default define({
     sponsor: { secrets: ["postgres-url", "token"] },
   },
   workers: {
-    allow: { secrets: ["postgres-url"], signers: ["allower"] },
+    allow: { secrets: ["postgres-url"], signers: ["allower"], timeout: "300s" },
     chat: {
       env: { WHATSAPP_PHONE_NUMBER_ID: "whatsappPhoneNumberId" },
       secrets: ["anthropic-api-key", "whatsapp-access-token"],
@@ -23,7 +23,7 @@ export default define({
       shared: ["panda-api-url", "sardine-api-url"],
       signers: ["refunder"],
     },
-    subscribe: { secrets: ["alchemy-webhooks-key", "postgres-url"] },
+    subscribe: { secrets: ["alchemy-webhooks-key", "postgres-url"], timeout: "1800s" },
   },
 });
 
@@ -69,9 +69,9 @@ function define({
 
 function modules(specs: Configs, common: readonly string[]) {
   return Object.fromEntries(
-    Object.entries(specs).map(([name, { env = {}, secrets = [], shared = [], signers = [] }]) => [
+    Object.entries(specs).map(([name, { env = {}, secrets = [], shared = [], signers = [], timeout = "60s" }]) => [
       name,
-      { env, secrets: [...secrets.map((secret) => `${name}-${secret}`), ...shared, ...common], signers },
+      { env, secrets: [...secrets.map((secret) => `${name}-${secret}`), ...shared, ...common], signers, timeout },
     ]),
   );
 }
@@ -81,6 +81,7 @@ type Config = {
   readonly secrets?: readonly string[];
   readonly shared?: readonly string[];
   readonly signers?: readonly string[];
+  readonly timeout?: string;
 };
 type Configs = Readonly<Record<string, Config>>;
 type Exact<Specs extends Configs> = Specs & {
@@ -96,6 +97,7 @@ type Module<Name extends string, Spec extends Config, Common extends readonly st
     ...Common,
   ];
   readonly signers: NonNullable<Config["signers"]>;
+  readonly timeout: NonNullable<Config["timeout"]>;
 } extends infer Result
   ? { [Key in keyof Result]: Result[Key] } & {}
   : never;
