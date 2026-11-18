@@ -23,8 +23,8 @@ export default function worker({
   database: NodePgDatabase<typeof schema>;
 }) {
   let next = 0;
-  const webhooks = request(() => alchemy.getWebhooks()).then((existing) =>
-    attempt(
+  const webhooks = request(() => alchemy.getWebhooks()).then(async (existing) => ({
+    own: await attempt(
       activityNetworks(),
       async ([network]) => {
         const matches = existing.filter(
@@ -43,7 +43,17 @@ export default function worker({
       },
       "activity webhook discovery failed",
     ),
-  );
+    peers: existing.filter(
+      (hook) =>
+        hook.webhook_type === "ADDRESS_ACTIVITY" &&
+        hook.webhook_url !== activityUrl &&
+        ["web.exactly.app", "base.exactly.app", "sandbox.exactly.app", "base-sepolia.exactly.app"].some(
+          (host) => hook.webhook_url === `https://${host}/hooks/activity`,
+        ) &&
+        hook.is_active &&
+        activityNetworks().has(hook.network),
+    ),
+  }));
   return createWorker<Job>({
     attempts,
     bullmq,
@@ -58,11 +68,11 @@ export default function worker({
       });
     },
     name,
-    ready: webhooks.then(async (hooks) => {
+    ready: webhooks.then(async ({ own }) => {
       const persisted = await database.query.credentials.findMany({ columns: { account: true } });
       const accounts = persisted.map(({ account }) => parse(Address, account));
       await attempt(
-        hooks,
+        own,
         async (hook) => {
           for (let index = 0; index < accounts.length; index += 500)
             await request(() => alchemy.addWebhookAddresses(hook.id, accounts.slice(index, index + 500)));
@@ -86,7 +96,7 @@ export default function worker({
     }),
     async process(job) {
       await attempt(
-        await webhooks,
+        await webhooks.then(({ own, peers }) => [...own, ...peers]),
         async (hook) => {
           await alchemy.addWebhookAddresses(hook.id, [job.data.account]);
           if (!hook.is_active) {
