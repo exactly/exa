@@ -90,7 +90,7 @@
   },
   "issuerChecker": { "operationExpiry": 4838400, "prevIssuerWindow": 4838400 },
   "proposalManager": {
-    "delay": { "default": 60, "31337": 1 },
+    "delay": { "default": 60, "1281": 1, "31337": 1 },
     "allowlist": {
       "1": {
         "0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c": "EURC",
