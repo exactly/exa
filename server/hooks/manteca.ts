@@ -25,12 +25,14 @@ import { Address } from "@exactly/common/validation";
 import { credentials } from "../database/schema";
 import t, { f } from "../i18n";
 import { ErrorCodes, OrderStatus, UserOnboardingTasks, UserStatus, WithdrawStatus } from "../utils/ramps/manteca";
+import { ramp } from "../utils/sardine";
 import validatorHook from "../utils/validatorHook";
 import verifySignature from "../utils/verifySignature";
 
 import type * as schema from "../database/schema";
 import type createOnesignal from "../utils/onesignal";
 import type createManteca from "../utils/ramps/manteca";
+import type createSardine from "../utils/sardine";
 import type createSegment from "../utils/segment";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
@@ -138,12 +140,14 @@ export default function hook({
   manteca,
   mantecaWebhookKey,
   onesignal,
+  sardine,
   segment,
 }: {
   database: NodePgDatabase<typeof schema>;
   manteca: ReturnType<typeof createManteca>;
   mantecaWebhookKey: string;
   onesignal: ReturnType<typeof createOnesignal>;
+  sardine: ReturnType<typeof createSardine>;
   segment: ReturnType<typeof createSegment>;
 }) {
   const app = new Hono().post(
@@ -187,7 +191,7 @@ export default function hook({
       setUser({ id: account });
 
       const credential = await database.query.credentials.findFirst({
-        columns: { account: true, source: true },
+        columns: { id: true, account: true, source: true },
         where: eq(credentials.account, account),
       });
       if (!credential) {
@@ -206,6 +210,16 @@ export default function hook({
             return c.json({ code: "ok" }, 200);
           }
           if (payload.data.status === "COMPLETED") {
+            sardine
+              .customer(
+                ramp("manteca", "onramp", {
+                  account,
+                  credentialId: credential.id,
+                  id: payload.data.id,
+                  amount: Number(payload.data.assetAmount),
+                }),
+              )
+              .catch((error: unknown) => captureException(error, { level: "error" }));
             segment.track({
               userId: account,
               event: "Onramp",

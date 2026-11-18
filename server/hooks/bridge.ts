@@ -13,12 +13,14 @@ import { Address } from "@exactly/common/validation";
 import { credentials } from "../database/schema";
 import t, { f } from "../i18n";
 import { BridgeCurrency, publicKey } from "../utils/ramps/bridge";
+import { ramp } from "../utils/sardine";
 import validatorHook from "../utils/validatorHook";
 
 import type * as schema from "../database/schema";
 import type createOnesignal from "../utils/onesignal";
 import type createPersona from "../utils/persona";
 import type createBridge from "../utils/ramps/bridge";
+import type createSardine from "../utils/sardine";
 import type createSegment from "../utils/segment";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
@@ -31,6 +33,7 @@ export default function hook({
   database,
   onesignal,
   persona,
+  sardine,
   segment,
 }: {
   bridge: ReturnType<typeof createBridge>;
@@ -38,6 +41,7 @@ export default function hook({
   database: NodePgDatabase<typeof schema>;
   onesignal: ReturnType<typeof createOnesignal>;
   persona: ReturnType<typeof createPersona>;
+  sardine: ReturnType<typeof createSardine>;
   segment: ReturnType<typeof createSegment>;
 }) {
   const app = new Hono().post(
@@ -162,7 +166,7 @@ export default function hook({
             ? payload.event_object.on_behalf_of
             : payload.event_object.customer_id;
       let credential = await database.query.credentials.findFirst({
-        columns: { account: true, source: true },
+        columns: { id: true, account: true, source: true },
         where: eq(credentials.bridgeId, bridgeId),
       });
       if (!credential && payload.event_type === "customer.updated.status_transitioned") {
@@ -195,7 +199,7 @@ export default function hook({
                       : sql`lower(${credentials.salt}) <> ${business.toLowerCase()}`,
                   ),
                 )
-                .returning({ account: credentials.account, source: credentials.source })
+                .returning({ id: credentials.id, account: credentials.account, source: credentials.source })
                 .then(([updated]) => {
                   if (!updated) return;
                   captureEvent({
@@ -264,6 +268,16 @@ export default function hook({
               .catch((error: unknown) => captureException(error, { level: "error" }));
           }
           if (payload.event_object.type === "payment_processed") {
+            sardine
+              .customer(
+                ramp("bridge", "onramp", {
+                  account,
+                  credentialId: credential.id,
+                  id: payload.event_object.id,
+                  amount: Number(payload.event_object.receipt.final_amount),
+                }),
+              )
+              .catch((error: unknown) => captureException(error, { level: "error" }));
             segment.track({
               userId: account,
               event: "Onramp",
@@ -278,6 +292,19 @@ export default function hook({
           }
           return c.json({ code: "ok" }, 200);
         case "liquidation_address.drain.updated.status_transitioned":
+          if (payload.event_object.state === "payment_processed") {
+            sardine
+              .customer(
+                ramp("bridge", "onramp", {
+                  account,
+                  credentialId: credential.id,
+                  id: payload.event_object.id,
+                  amount: Number(payload.event_object.receipt.outgoing_amount),
+                }),
+              )
+              .catch((error: unknown) => captureException(error, { level: "error" }));
+            return c.json({ code: "ok" }, 200);
+          }
           if (payload.event_object.state !== "payment_submitted") return c.json({ code: "ok" }, 200);
           onesignal
             .sendPushNotification({
@@ -324,6 +351,16 @@ export default function hook({
                     asset: payload.event_object.currency.toUpperCase(),
                   }),
                 })
+                .catch((error: unknown) => captureException(error, { level: "error" }));
+              sardine
+                .customer(
+                  ramp("bridge", "offramp", {
+                    account,
+                    credentialId: credential.id,
+                    id: payload.event_object.id,
+                    amount: Number(payload.event_object.receipt.initial_amount),
+                  }),
+                )
                 .catch((error: unknown) => captureException(error, { level: "error" }));
               segment.track({
                 userId: account,

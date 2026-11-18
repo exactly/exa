@@ -91,6 +91,26 @@ export function signals(c: Context, address?: IpAddress) {
     : undefined;
 }
 
+export function ramp(
+  provider: "bridge" | "manteca",
+  kind: "offramp" | "onramp",
+  { account, credentialId, id, amount }: { account: string; amount: number; credentialId: string; id: string },
+) {
+  return {
+    flow: { name: `${provider} ${kind}`, type: "transaction" },
+    checkpoints: ["aml"],
+    customer: { id: credentialId },
+    transaction: {
+      id,
+      actionType: kind === "onramp" ? "buy" : "sell",
+      amount,
+      currencyCode: "USD",
+      itemCategory: "USDC",
+      paymentMethod: { type: "crypto", crypto: { assetSymbol: "USDC", address: account } },
+    },
+  } satisfies InferInput<typeof CustomerRequest>;
+}
+
 const networks = {
   ARB: "arbitrum",
   BASE: "base",

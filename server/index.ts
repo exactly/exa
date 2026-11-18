@@ -91,6 +91,7 @@ const hooks = {
       database,
       onesignal,
       persona,
+      sardine,
       segment,
     }),
   manteca: () =>
@@ -99,6 +100,7 @@ const hooks = {
       manteca,
       mantecaWebhookKey: parse(pipe(string("manteca webhook"), nonEmpty("manteca webhook")), env.MANTECA_WEBHOOKS_KEY),
       onesignal,
+      sardine,
       segment,
     }),
   panda: () =>

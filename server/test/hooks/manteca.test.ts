@@ -1,5 +1,6 @@
 import "../mocks/manteca";
 import sendPushNotificationMock from "../mocks/onesignal";
+import sardineCustomer from "../mocks/sardine";
 import * as segment from "../mocks/segment";
 import "../mocks/sentry";
 
@@ -18,6 +19,7 @@ import createMantecaHook from "../../hooks/manteca";
 import t, { f } from "../../i18n";
 import createOnesignal from "../../utils/onesignal";
 import createManteca from "../../utils/ramps/manteca";
+import createSardine from "../../utils/sardine";
 import createSegment from "../../utils/segment";
 
 const provider = { key: "manteca", url: "https://manteca.test" };
@@ -27,6 +29,7 @@ const mantecaHook = createMantecaHook({
   manteca,
   mantecaWebhookKey: "manteca",
   onesignal: createOnesignal("onesignal"),
+  sardine: createSardine("sardine", "https://sardine.test"),
   segment: createSegment("segment"),
 });
 const appClient = testClient(mantecaHook.app);
@@ -406,6 +409,51 @@ describe("manteca hook", () => {
         event: "Onramp",
         properties: { currency: "ARS", amount: 100_000, provider: "manteca", source: null, usdcAmount: 100 },
       });
+      expect(manteca.withdrawBalance).toHaveBeenCalledWith("456", "USDC", account);
+      expect(sardineCustomer).toHaveBeenCalledExactlyOnceWith({
+        flow: { name: "manteca onramp", type: "transaction" },
+        checkpoints: ["aml"],
+        customer: { id: "manteca-test" },
+        transaction: {
+          id: "order123",
+          actionType: "buy",
+          amount: 100,
+          currencyCode: "USD",
+          itemCategory: "USDC",
+          paymentMethod: { type: "crypto", crypto: { assetSymbol: "USDC", address: account } },
+        },
+      });
+    });
+
+    it("captures sardine errors on completed orders", async () => {
+      vi.spyOn(manteca, "withdrawBalance").mockResolvedValue();
+      vi.spyOn(segment, "track").mockReturnValue();
+      const error = new Error("sardine failed");
+      sardineCustomer.mockRejectedValueOnce(error);
+      const payload = {
+        event: "ORDER_STATUS_UPDATE",
+        data: {
+          id: "order123",
+          against: "ARS",
+          asset: "USDC",
+          assetAmount: "100",
+          effectivePrice: "1000",
+          exchange: "ARGENTINA",
+          status: "COMPLETED",
+          userExternalId,
+          userNumberId: "456",
+        },
+      };
+      const response = await appClient.index.$post({
+        header: { "md-webhook-signature": createSignature(payload) },
+        json: payload as never,
+      });
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+      await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error));
+
+      expect(captureException).toHaveBeenCalledWith(error, { level: "error" });
       expect(manteca.withdrawBalance).toHaveBeenCalledWith("456", "USDC", account);
     });
 
