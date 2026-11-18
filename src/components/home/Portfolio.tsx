@@ -26,7 +26,6 @@ import useAccount from "../../utils/useAccount";
 import useAllowlists from "../../utils/useAllowlists";
 import useDeposits from "../../utils/useDeposits";
 import useInsets from "../../utils/useInsets";
-import useMarkets from "../../utils/useMarkets";
 import usePortfolio from "../../utils/usePortfolio";
 import Amount from "../shared/Amount";
 import IconButton from "../shared/IconButton";
@@ -52,7 +51,6 @@ export default function Portfolio() {
   const { t } = useTranslation();
   const [tab, setTab] = useState<"all" | "collateral" | "stocks">("all");
 
-  const { refetch: refetchMarkets } = useMarkets();
   const { refetch: refetchBalances, isFetching: isBalancesFetching } = useQuery(balancesOptions(address));
 
   const stocks = allAssets.flatMap<PortfolioAsset>((asset) => {
@@ -100,7 +98,6 @@ export default function Portfolio() {
             onRefresh={() =>
               address
                 ? Promise.all([
-                    refetchMarkets(),
                     refetchBalances(),
                     revalidateUnsupported(),
                     queryClient.refetchQueries({ queryKey: ["network"], type: "active" }),
