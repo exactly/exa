@@ -533,12 +533,19 @@ vi.mock("../utils/ramps/bridge", async (importOriginal: () => Promise<typeof bri
                 bankAddress: "1801 Main St, Kansas City, MO 64108",
                 beneficiaryAddress: "123 Test St, New York, NY 10001",
                 bankName: "Lead Bank",
-                estimatedProcessingTime: network === "ACH" ? "1 - 3 business days" : "300",
+                estimatedProcessingTime:
+                  network === "ACH" ? "1-3 business days" : "Same or next business day (US banking days)",
               })),
             );
           case "EUR":
             return Promise.resolve([
-              { ...details, network: "SEPA", displayName: "SEPA", iban: "DE89370400440532013000" },
+              {
+                ...details,
+                network: "SEPA",
+                displayName: "SEPA",
+                iban: "DE89370400440532013000",
+                estimatedProcessingTime: "1-2 business days",
+              },
             ]);
           case "MXN":
             return Promise.resolve([{ ...details, network: "SPEI", displayName: "SPEI", clabe: "032180000118359719" }]);

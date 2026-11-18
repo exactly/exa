@@ -705,7 +705,7 @@ export default function bridge(key: string, url: string) {
             beneficiaryAddress: virtualAccount.source_deposit_instructions.bank_beneficiary_address,
             bankName: virtualAccount.source_deposit_instructions.bank_name,
             fee: "0.0",
-            estimatedProcessingTime: "1 - 3 business days",
+            estimatedProcessingTime: "1-3 business days",
           },
           {
             network: "WIRE" as const,
@@ -717,7 +717,7 @@ export default function bridge(key: string, url: string) {
             beneficiaryAddress: virtualAccount.source_deposit_instructions.bank_beneficiary_address,
             bankName: virtualAccount.source_deposit_instructions.bank_name,
             fee: "0.0",
-            estimatedProcessingTime: "300",
+            estimatedProcessingTime: "Same or next business day (US banking days)",
           },
         ];
       case "eur":
@@ -728,7 +728,7 @@ export default function bridge(key: string, url: string) {
             beneficiaryName: virtualAccount.source_deposit_instructions.account_holder_name,
             iban: virtualAccount.source_deposit_instructions.iban,
             fee: "0.0",
-            estimatedProcessingTime: "300",
+            estimatedProcessingTime: "1-2 business days",
           },
         ];
       case "mxn":

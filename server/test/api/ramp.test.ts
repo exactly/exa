@@ -422,7 +422,7 @@ describe("ramp api", () => {
             beneficiaryAddress: "456 Beneficiary Ave",
             bankName: "Test Bank",
             fee: "0.0",
-            estimatedProcessingTime: "1 - 3 business days",
+            estimatedProcessingTime: "1-3 business days",
           },
           {
             network: "WIRE" as const,
@@ -434,7 +434,7 @@ describe("ramp api", () => {
             beneficiaryAddress: "456 Beneficiary Ave",
             bankName: "Test Bank",
             fee: "0.0",
-            estimatedProcessingTime: "300",
+            estimatedProcessingTime: "Same or next business day (US banking days)",
           },
         ]);
         vi.spyOn(bridge, "getQuote").mockResolvedValue({ buyRate: "1.00", sellRate: "1.00" });
@@ -459,7 +459,7 @@ describe("ramp api", () => {
               beneficiaryAddress: "456 Beneficiary Ave",
               bankName: "Test Bank",
               fee: "0.0",
-              estimatedProcessingTime: "1 - 3 business days",
+              estimatedProcessingTime: "1-3 business days",
             },
             {
               network: "WIRE",
@@ -471,7 +471,7 @@ describe("ramp api", () => {
               beneficiaryAddress: "456 Beneficiary Ave",
               bankName: "Test Bank",
               fee: "0.0",
-              estimatedProcessingTime: "300",
+              estimatedProcessingTime: "Same or next business day (US banking days)",
             },
           ],
         });
@@ -486,7 +486,7 @@ describe("ramp api", () => {
             beneficiaryName: "Test User",
             iban: "DE89370400440532013000", // cspell:ignore iban
             fee: "0.0",
-            estimatedProcessingTime: "300",
+            estimatedProcessingTime: "1-2 business days",
           },
         ]);
         vi.spyOn(bridge, "getQuote").mockResolvedValue({ buyRate: "0.92", sellRate: "0.93" });
@@ -506,7 +506,7 @@ describe("ramp api", () => {
               beneficiaryName: "Test User",
               iban: "DE89370400440532013000",
               fee: "0.0",
-              estimatedProcessingTime: "300",
+              estimatedProcessingTime: "1-2 business days",
             },
           ],
         });

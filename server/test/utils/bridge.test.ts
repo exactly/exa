@@ -3620,7 +3620,7 @@ describe("bridge utils", () => {
         beneficiaryAddress: "456 Beneficiary Ave",
         bankName: "Test Bank",
         fee: "0.0",
-        estimatedProcessingTime: "1 - 3 business days",
+        estimatedProcessingTime: "1-3 business days",
       });
       expect(result[1]).toStrictEqual({
         network: "WIRE",
@@ -3632,7 +3632,7 @@ describe("bridge utils", () => {
         beneficiaryAddress: "456 Beneficiary Ave",
         bankName: "Test Bank",
         fee: "0.0",
-        estimatedProcessingTime: "300",
+        estimatedProcessingTime: "Same or next business day (US banking days)",
       });
     });
 
@@ -3704,7 +3704,7 @@ describe("bridge utils", () => {
         beneficiaryName: "Test Holder",
         iban: "DE89370400440532013000",
         fee: "0.0",
-        estimatedProcessingTime: "300",
+        estimatedProcessingTime: "1-2 business days",
       });
     });
 
