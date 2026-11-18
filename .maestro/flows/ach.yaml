@@ -30,4 +30,53 @@ env:
     while: { true: "${output.deposited !== 100 && Date.now() < output.deadline}" }
     commands: [{ runScript: { file: ../dist/deposited.js, env: { account: "${output.account}", network: Anvil2 } } }]
 - assertTrue: ${output.deposited === 100}
+- tapOn: Home
+- tapOn: Manage portfolio
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: '100(\.\d+)?[\s\xa0]USDC' } }
+- tapOn: '100(\.\d+)?[\s\xa0]USDC'
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Send } }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Send } }
+- assertVisible: Send anything, anywhere
+- tapOn: Not now
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Dismiss } }
+- tapOn: Enter ENS or wallet address
+- inputText: "0x000000000000000000000000000000000000bEEF"
+- hideKeyboard
+- tapOn: Continue
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Amount } }
+- inputText: "10"
+- tapOn: Review
+- assertVisible: Review and send
+- runFlow: { file: ../subflows/confirmSend.yaml, env: { asset: USDC } }
+- assertVisible: (Processing send|Sent) to .*
+- runScript: { file: ../dist/hookProposals.js, env: { account: "${output.account}", market: USDC, network: Anvil2 } }
+- assertVisible: Sent to .*
+- runScript:
+    file: ../dist/getBalance.js
+    env: { asset: USDC, account: "0x000000000000000000000000000000000000bEEF", network: Anvil2 }
+- assertTrue: ${output.balance === 10}
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
+- tapOn: Home
+- tapOn: Manage portfolio
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: '90(\.\d+)?[\s\xa0]USDC' } }
+- tapOn: '90(\.\d+)?[\s\xa0]USDC'
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Sell } }
+- tapOn: { id: Select token, index: 1 }
+- tapOn: Anvil2
+- tapOn: WETH
+- tapOn: { text: "0", index: 0 }
+- inputText: "5"
+- tapOn: { text: Swap USDC for WETH, enabled: true }
+- runFlow: ../subflows/sign.yaml
+- assertVisible: View pending request
+- runScript: { file: ../dist/hookProposals.js, env: { account: "${output.account}", market: USDC, network: Anvil2 } }
+- runScript: { file: ../dist/getBalance.js, env: { asset: USDC, account: "${output.account}", network: Anvil2 } }
+- assertTrue: ${output.balance === 0}
+- tapOn: Close
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- tapOn: Manage portfolio
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: '85(\.\d+)?[\s\xa0]USDC' } }
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: '0\.00\d+[\s\xa0]W?ETH' } }
+- runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
 - runFlow: ../subflows/storeCoverage.yaml
