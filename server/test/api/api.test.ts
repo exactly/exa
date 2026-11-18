@@ -124,12 +124,23 @@ describe("api", () => {
       related: [],
     },
     {
+      domain: "base.exactly.app",
+      id: "web.exactly.app",
+      accepted: ["web.exactly.app", "base.exactly.app"],
+      related: [],
+    },
+    {
       domain: "sandbox.exactly.app",
       id: "sandbox.exactly.app",
       accepted: ["sandbox.exactly.app"],
       related: ["https://base-sepolia.exactly.app", "https://business.base-sepolia.exactly.app"],
     },
-    { domain: "web.exactly.app", id: "web.exactly.app", accepted: ["web.exactly.app"], related: [] },
+    {
+      domain: "web.exactly.app",
+      id: "web.exactly.app",
+      accepted: ["web.exactly.app"],
+      related: ["https://base.exactly.app", "https://business.exactly.app"],
+    },
   ])("binds passkeys on $domain to $id", async ({ domain, id, accepted, related }) => {
     vi.stubEnv("APP_ORIGINS", "");
     vi.doMock("@exactly/common/domain", () => ({ default: domain }));
