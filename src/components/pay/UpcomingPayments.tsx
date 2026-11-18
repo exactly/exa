@@ -7,13 +7,12 @@ import { Separator, XStack, YStack } from "tamagui";
 
 import { addDays, isSameDay } from "date-fns";
 
-import chain, { alchemyChains, marketUSDCAddress } from "@exactly/common/generated/chain";
+import chain, { alchemyChains } from "@exactly/common/generated/chain";
 import { WAD } from "@exactly/lib";
 
 import { ChevronRight } from "../../generated/icons/ChevronRight";
 import reportError from "../../utils/reportError";
 import useDebts from "../../utils/useDebts";
-import useMarkets from "../../utils/useMarkets";
 import usePendingOperations from "../../utils/usePendingOperations";
 import Text from "../shared/Text";
 import View from "../shared/View";
@@ -32,10 +31,7 @@ export default function UpcomingPayments({
     i18n: { language },
   } = useTranslation();
   const { isProcessing } = usePendingOperations();
-  const { markets, timestamp } = useMarkets({ refetchInterval: 30_000 });
-  const exaUSDC = markets?.find(({ market }) => market === marketUSDCAddress);
-  const blockDate = React.useMemo(() => new Date(Number(timestamp) * 1000), [timestamp]);
-  const { debts = [], complete } = useDebts({ refetchInterval: 30_000 });
+  const { debts, complete, penalty } = useDebts({ refetchInterval: 30_000 });
   const payments = debts.filter(
     ({ chainId, maturity, overdue }) => !overdue && (maturity !== exclude?.maturity || chainId !== exclude.chainId),
   );
@@ -68,16 +64,17 @@ export default function UpcomingPayments({
         </Text>
       </XStack>
       <YStack role="list" paddingHorizontal="s4" paddingBottom="s4" paddingTop="s3_5" gap="s4">
-        {payments.map(({ chainId, maturity, previewValue, position }, index) => {
+        {payments.map(({ chainId, decimals, maturity, now, previewValue, position }, index) => {
           const processing = isProcessing(maturity, chainId);
           const discount = Number(WAD - (previewValue * WAD) / position) / 1e18;
           const maturityDate = new Date(Number(maturity) * 1000);
+          const blockDate = new Date(Number(now) * 1000);
           const formattedDate = isSameDay(maturityDate, blockDate)
             ? t("Due today")
             : isSameDay(maturityDate, addDays(blockDate, 1))
               ? t("Due tomorrow")
               : maturityDate.toLocaleDateString(language, { year: "2-digit", month: "short", day: "numeric" });
-          const formattedAmount = `$${(Number(previewValue) / 10 ** (exaUSDC?.decimals ?? 6)).toLocaleString(language, {
+          const formattedAmount = `$${(Number(previewValue) / 10 ** decimals).toLocaleString(language, {
             style: "decimal",
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
@@ -134,7 +131,7 @@ export default function UpcomingPayments({
         <Text caption color="uiNeutralSecondary">
           <Text emphasized>{t("You must repay each installment manually before its due date.")} </Text>
           {t("If not, a {{rate}} penalty is added every day the payment is late.", {
-            rate: (exaUSDC ? Number(exaUSDC.penaltyRate * 86_400n) / 1e18 : 0).toLocaleString(language, {
+            rate: penalty.toLocaleString(language, {
               style: "percent",
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,

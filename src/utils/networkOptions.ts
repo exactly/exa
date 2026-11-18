@@ -47,7 +47,7 @@ export default function networkOptions(account: Address | undefined, chainId: nu
               contracts?.auditor ?? zeroAddress,
               contracts?.previewer ?? zeroAddress,
               contracts?.ratePreviewer ?? zeroAddress,
-              zeroAddress,
+              contracts?.marketUSDC ?? zeroAddress,
               targets,
             ],
             stateOverride: [{ address: previewerAddress, code: appPreviewerDeployedCode }],
@@ -71,6 +71,7 @@ export default function networkOptions(account: Address | undefined, chainId: nu
                 preview.snapshot === "0x"
                   ? undefined
                   : decodeFunctionResult({ abi: ratePreviewerAbi, functionName: "snapshot", data: preview.snapshot }),
+              floatingAssetsAverage: preview.floatingAssetsAverage,
             }),
           };
         }
@@ -88,7 +89,7 @@ const previewerAddress = getContractAddress({
   salt: zeroHash,
 });
 
-export function withPreviews<T extends { isCollateral: boolean; market: Address }>(
+function withPreviews<T extends { isCollateral: boolean; market: Address }>(
   markets: readonly T[],
   previews: readonly { isFrozen: boolean; market: Address; nonCollateral: boolean }[],
 ) {
@@ -101,4 +102,10 @@ export function withPreviews<T extends { isCollateral: boolean; market: Address 
       nonCollateral: !!preview?.nonCollateral,
     };
   });
+}
+
+export function network(chainId: number) {
+  const found = chains.get(chainId);
+  if (!found) throw new Error(`unknown network ${chainId}`);
+  return found;
 }
