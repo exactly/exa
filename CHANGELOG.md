@@ -1,5 +1,15 @@
 # @exactly/mobile
 
+## 1.2.57
+
+### Patch Changes
+
+- [#1996](https://github.com/exactly/exa/pull/1996) [`ecf1df7`](https://github.com/exactly/exa/commit/ecf1df78af0ef39c48d33d3552c0860a6157da9a) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🦖 keep passkey relying party per credential
+
+- Updated dependencies [[`511a838`](https://github.com/exactly/exa/commit/511a838ffd70185d047465f45953860657a57045), [`750e400`](https://github.com/exactly/exa/commit/750e400099a89b6e51ae4a52a300d0b00b6eecb4), [`00ea974`](https://github.com/exactly/exa/commit/00ea9744ac08f0357d29f8ff8d16e22b3e84ae12), [`77f882f`](https://github.com/exactly/exa/commit/77f882f172420f66742f26d67b4e14de8476f86c)]:
+  - @exactly/server@0.4.0
+  - @exactly/common@0.0.28
+
 ## 1.2.56
 
 ### Patch Changes

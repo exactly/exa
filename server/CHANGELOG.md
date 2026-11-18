@@ -1,5 +1,17 @@
 # @exactly/server
 
+## 0.4.0
+
+### Minor Changes
+
+- [#2007](https://github.com/exactly/exa/pull/2007) [`750e400`](https://github.com/exactly/exa/commit/750e400099a89b6e51ae4a52a300d0b00b6eecb4) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🛂 map base passkeys to production
+
+- [#1996](https://github.com/exactly/exa/pull/1996) [`00ea974`](https://github.com/exactly/exa/commit/00ea9744ac08f0357d29f8ff8d16e22b3e84ae12) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🛂 share sandbox passkeys with base-sepolia
+
+### Patch Changes
+
+- [#1931](https://github.com/exactly/exa/pull/1931) [`511a838`](https://github.com/exactly/exa/commit/511a838ffd70185d047465f45953860657a57045) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🗃️ move base panda id to bamboo id
+
 ## 0.3.15
 
 ### Patch Changes

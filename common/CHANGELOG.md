@@ -1,5 +1,13 @@
 # @exactly/common
 
+## 0.0.28
+
+### Patch Changes
+
+- [#2007](https://github.com/exactly/exa/pull/2007) [`750e400`](https://github.com/exactly/exa/commit/750e400099a89b6e51ae4a52a300d0b00b6eecb4) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🛂 map base passkeys to production
+
+- [#1996](https://github.com/exactly/exa/pull/1996) [`77f882f`](https://github.com/exactly/exa/commit/77f882f172420f66742f26d67b4e14de8476f86c) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ✨ map base-sepolia passkeys to sandbox
+
 ## 0.0.27
 
 ### Patch Changes
