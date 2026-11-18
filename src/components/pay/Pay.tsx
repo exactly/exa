@@ -9,7 +9,7 @@ import { ScrollView, XStack, YStack } from "tamagui";
 import { useQuery } from "@tanstack/react-query";
 import { formatDistanceStrict } from "date-fns";
 
-import chain, { alchemyChains, marketUSDCAddress } from "@exactly/common/generated/chain";
+import chain, { alchemyChains } from "@exactly/common/generated/chain";
 import { WAD } from "@exactly/lib";
 
 import Empty from "./Empty";
@@ -32,9 +32,7 @@ import { date } from "../../i18n";
 import { presentArticle } from "../../utils/intercom";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import useAsset from "../../utils/useAsset";
 import useDebts from "../../utils/useDebts";
-import useMarkets from "../../utils/useMarkets";
 import usePendingOperations from "../../utils/usePendingOperations";
 import useProposalManager from "../../utils/useProposalManager";
 import useStatements from "../../utils/useStatements";
@@ -55,9 +53,7 @@ export default function Pay() {
     i18n: { language },
   } = useTranslation();
   const router = useRouter();
-  const { market: exaUSDC } = useAsset(marketUSDCAddress);
-  const { refetch } = useMarkets({ refetchInterval: 30_000 });
-  const { debts = none, complete } = useDebts({ refetchInterval: 30_000 });
+  const { debts, complete } = useDebts({ refetchInterval: 30_000 });
   const first = debts[0];
   const proposalManager = useProposalManager(first?.chainId ?? chain.id);
 
@@ -67,14 +63,6 @@ export default function Pay() {
   const [historyMaturity, setHistoryMaturity] = useState<number>();
   const [infoType, setInfoType] = useState<"discount" | "fees" | "total" | null>(null);
   const scrollRef = useRef<ScrollView>(null);
-  const refresh = () =>
-    Promise.all([
-      refetch(),
-      queryClient.refetchQueries({ queryKey: ["markets"] }),
-      queryClient.refetchQueries({ queryKey: ["rates"] }),
-      queryClient.invalidateQueries({ queryKey: ["activity", "card"], exact: true }),
-      queryClient.invalidateQueries({ queryKey: ["activity", "statement"] }),
-    ]);
   useTabPress("pay-mode", () => {
     scrollRef.current?.scrollTo({ y: 0, animated: true });
     refresh().catch(reportError);
@@ -86,11 +74,10 @@ export default function Pay() {
 
   const { isProcessing } = usePendingOperations();
 
-  const totalOutstandingUSD = useMemo(() => {
-    if (!exaUSDC) return 0;
-    const total = debts.reduce((sum, { previewValue }) => sum + previewValue, 0n);
-    return Number(total) / 10 ** exaUSDC.decimals;
-  }, [debts, exaUSDC]);
+  const totalOutstandingUSD = useMemo(
+    () => debts.reduce((sum, { decimals, previewValue }) => sum + Number(previewValue) / 10 ** decimals, 0),
+    [debts],
+  );
 
   const viewStatement = useCallback(() => {
     if (first) router.navigate({ pathname: "/statement", params: { maturity: String(first.maturity) } });
@@ -151,12 +138,11 @@ export default function Pay() {
                 onInfoPress={() => setInfoType("total")}
               />
               <View padded paddingTop="s5" gap="s5">
-                {first && exaUSDC && (
+                {first && (
                   <FirstMaturityCard
                     chainId={first.chainId}
                     maturity={first.maturity}
                     summary={first}
-                    decimals={exaUSDC.decimals}
                     language={language}
                     processing={isProcessing(first.maturity, first.chainId)}
                     t={t}
@@ -338,7 +324,6 @@ function TotalOutstandingCard({
 function FirstMaturityCard({
   chainId,
   summary,
-  decimals: assetDecimals,
   language,
   maturity,
   processing,
@@ -349,7 +334,6 @@ function FirstMaturityCard({
   t,
 }: {
   chainId: number;
-  decimals: number;
   language: string;
   maturity: bigint;
   onInfoPress: () => void;
@@ -357,20 +341,19 @@ function FirstMaturityCard({
   onRollover: () => void;
   onViewStatement: () => void;
   processing: boolean;
-  summary: { overdue: boolean; position: bigint; previewValue: bigint };
+  summary: ReturnType<typeof useDebts>["debts"][number];
   t: (key: string, options?: Record<string, unknown>) => string;
 }) {
   const { previewValue, position: positionAmount, overdue: isOverdue } = summary;
-  const { timestamp } = useMarkets();
   const maturityDate = useMemo(() => new Date(Number(maturity) * 1000), [maturity]);
-  const now = useMemo(() => new Date(Number(timestamp) * 1000), [timestamp]);
+  const now = useMemo(() => new Date(Number(summary.now) * 1000), [summary.now]);
   const timeDistance = formatDistanceStrict(isOverdue ? maturityDate : now, isOverdue ? now : maturityDate, {
     locale: date(),
   });
 
   const discount = Number(WAD - (previewValue * WAD) / positionAmount) / 1e18;
   const penaltyPercent = isOverdue ? Math.abs(discount) : discount;
-  const originalAmount = Number(positionAmount) / 10 ** assetDecimals;
+  const originalAmount = Number(positionAmount) / 10 ** summary.decimals;
 
   return (
     <View
@@ -410,7 +393,7 @@ function FirstMaturityCard({
       </YStack>
       <XStack padding="s4" gap="s3_5" alignItems="center">
         <Amount
-          amount={Number(previewValue) / 10 ** assetDecimals}
+          amount={Number(previewValue) / 10 ** summary.decimals}
           status={isOverdue ? "danger" : "success"}
           flex={1}
         />
@@ -477,4 +460,10 @@ function FirstMaturityCard({
   );
 }
 
-const none: never[] = [];
+function refresh() {
+  return Promise.all([
+    queryClient.refetchQueries({ queryKey: ["network"], type: "active" }),
+    queryClient.invalidateQueries({ queryKey: ["activity", "card"], exact: true }),
+    queryClient.invalidateQueries({ queryKey: ["activity", "statement"] }),
+  ]);
+}

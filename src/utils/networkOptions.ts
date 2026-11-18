@@ -42,7 +42,9 @@ export default function networkOptions(account: Address | undefined, chainId: nu
                   ].map((target) => target.toLowerCase() as Address),
                 ),
               ],
-              protocolOf(chainId),
+              contracts
+                ? { auditor: contracts.auditor, previewer: contracts.previewer, ratePreviewer: contracts.ratePreviewer }
+                : { auditor: zeroAddress, previewer: zeroAddress, ratePreviewer: zeroAddress },
             ],
             stateOverride: [{ address: appPreviewerAddress, code: appPreviewerDeployedCode }],
           });
@@ -61,8 +63,17 @@ export default function networkOptions(account: Address | undefined, chainId: nu
             timestamp: wallet.timestamp,
             balance: wallet.balance,
             ...(contracts && {
-              markets: protocol.markets.map((row) => ({ ...withFlags(row.market, row), chainId })),
+              markets: protocol.markets.map(({ market, isFrozen, nonCollateral }) => ({
+                ...market,
+                isCollateral: market.isCollateral && !nonCollateral,
+                isFrozen,
+                nonCollateral,
+                chainId,
+              })),
               snapshot: protocol.rates.length > 0 ? protocol.rates : undefined,
+              floatingAssetsAverage:
+                protocol.markets.find(({ market }) => market.market === contracts.marketUSDC)?.floatingAssetsAverage ??
+                0n,
             }),
           };
         }
@@ -73,27 +84,15 @@ export default function networkOptions(account: Address | undefined, chainId: nu
   });
 }
 
-export function withFlags<T extends { isCollateral: boolean }>(
-  market: T,
-  flags: undefined | { isFrozen: boolean; nonCollateral: boolean },
-) {
-  return {
-    ...market,
-    isCollateral: market.isCollateral && !flags?.nonCollateral,
-    isFrozen: !!flags?.isFrozen,
-    nonCollateral: !!flags?.nonCollateral,
-  };
-}
-
-export function protocolOf(chainId: number) {
-  const contracts = chains.get(chainId);
-  if (!contracts) return { auditor: zeroAddress, previewer: zeroAddress, ratePreviewer: zeroAddress };
-  return { auditor: contracts.auditor, previewer: contracts.previewer, ratePreviewer: contracts.ratePreviewer };
-}
-
 const appPreviewerAddress = getContractAddress({
   bytecode: appPreviewerCode,
   from: zeroAddress,
   opcode: "CREATE2",
   salt: zeroHash,
 });
+
+export function network(chainId: number) {
+  const found = chains.get(chainId);
+  if (!found) throw new Error(`unknown network ${chainId}`);
+  return found;
+}

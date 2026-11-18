@@ -54,7 +54,6 @@ import useBusiness from "../../utils/useBusiness";
 import useCardLimit from "../../utils/useCardLimit";
 import useIsBusiness from "../../utils/useIsBusiness";
 import useKYC from "../../utils/useKYC";
-import useMarkets from "../../utils/useMarkets";
 import useTabPress from "../../utils/useTabPress";
 import Banner from "../business/Banner";
 import TabBarContext from "../context/TabBarContext";
@@ -127,7 +126,6 @@ export default function Card() {
     query: { enabled: !!address && !!credential },
   });
 
-  const { refetch: refetchMarkets } = useMarkets();
   const { card: step, approved: companyApproved, locked, profile, requirement } = useBusiness();
   const application = locked ? profile : step;
 
@@ -140,7 +138,6 @@ export default function Card() {
       queryClient.invalidateQueries({ queryKey: ["kyc", "status"], exact: true }),
       business ? queryClient.invalidateQueries({ queryKey: ["kyc", "panda-business"], exact: true }) : undefined,
       address ? refetchBytecode() : undefined,
-      address ? refetchMarkets() : undefined,
       address && credential ? refetchInstalledPlugins() : undefined,
       queryClient.refetchQueries({ queryKey }),
     ]);
