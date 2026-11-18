@@ -78,6 +78,7 @@ import {
   routeCalls,
   statusOptions,
 } from "../../utils/lifi";
+import networkOptions from "../../utils/networkOptions";
 import openBrowser from "../../utils/openBrowser";
 import parseAmount from "../../utils/parseAmount";
 import { useFeed } from "../../utils/prices";
@@ -86,9 +87,10 @@ import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAllowlists, { chains as allowedChains } from "../../utils/useAllowlists";
 import useBeginKYC from "../../utils/useBeginKYC";
+import useDeposits, { useNetworkMarkets } from "../../utils/useDeposits";
 import useKYC from "../../utils/useKYC";
 import useMarkets from "../../utils/useMarkets";
-import usePortfolio from "../../utils/usePortfolio";
+import usePortfolio, { type ProtocolAsset } from "../../utils/usePortfolio";
 import useSend from "../../utils/useSend";
 import useSimulateProposal from "../../utils/useSimulateProposal";
 import useSingleMutation from "../../utils/useSingleMutation";
@@ -143,7 +145,11 @@ export default function Swaps() {
     i18n: { language },
   } = useTranslation();
   const { address: account } = useAccount();
-  const { allAssets, externalAssets, crossChainAssets, protocolAssets, isExternal, isBalancesPending } = usePortfolio();
+  const { data: deposits } = useDeposits();
+  const { markets: networkMarkets } = useNetworkMarkets();
+  const { allAssets, externalAssets, crossChainAssets, isExternal, isBalancesPending } = usePortfolio({
+    deposits,
+  });
   const {
     error: balancesError,
     isFetching: isBalancesFetching,
@@ -151,7 +157,7 @@ export default function Swaps() {
   } = useQuery(balancesOptions(account));
   const [acknowledged, setAcknowledged] = useState(false);
   const [flips, setFlips] = useState(0);
-  const { markets, queryKey: marketsQueryKey, timestamp } = useMarkets();
+  const { markets } = useMarkets();
   const beginKYC = useBeginKYC();
   const {
     approved: isKYCApproved,
@@ -206,6 +212,7 @@ export default function Swaps() {
   const fromChain = (fromToken?.token.chainId as number | undefined) ?? chain.id;
   const toChain = (toToken?.token.chainId as number | undefined) ?? chain.id;
   const crossChain = fromChain !== toChain;
+  const { markets: fromMarkets, timestamp, queryKey: fromMarketsKey } = useMarkets(undefined, fromChain);
 
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { data: stocksTabSeen } = useQuery<boolean>({ queryKey: ["settings", "stocks-tab-seen"] });
@@ -239,13 +246,21 @@ export default function Swaps() {
     [deployedFactories, lifiChains],
   );
 
+  const findDeposit = useCallback(
+    ({ chainId, address }: Token) =>
+      allAssets.find(
+        (asset): asset is ProtocolAsset =>
+          asset.type === "protocol" && asset.chainId === (chainId as number) && asset.asset === address,
+      ),
+    [allAssets],
+  );
   const getSwapAddress = useCallback(
     (token: undefined | { external: boolean; token: Token }) => {
       if (!token) return;
       if (token.external) return parse(Address, token.token.address);
-      return protocolAssets.find((a) => a.asset === token.token.address)?.market;
+      return findDeposit(token.token)?.market;
     },
-    [protocolAssets],
+    [findDeposit],
   );
 
   const getBalance = useCallback(
@@ -253,15 +268,13 @@ export default function Swaps() {
       if (!token) return 0n;
       const address = parse(Address, token.token.address);
       const tokenChain = token.token.chainId as number;
+      if (!token.external) return findDeposit(token.token)?.floatingDepositAssets ?? 0n;
       if (tokenChain !== chain.id) {
         return crossChainAssets.find((a) => a.chainId === tokenChain && a.address === address)?.amount ?? 0n;
       }
-      if (token.external) {
-        return externalAssets.find((a) => a.address === address)?.amount ?? 0n;
-      }
-      return protocolAssets.find((a) => a.asset === address)?.floatingDepositAssets ?? 0n;
+      return externalAssets.find((a) => a.address === address)?.amount ?? 0n;
     },
-    [crossChainAssets, externalAssets, protocolAssets],
+    [crossChainAssets, externalAssets, findDeposit],
   );
 
   const candidates = useMemo(() => {
@@ -283,12 +296,10 @@ export default function Swaps() {
         allAssets
           .filter((asset) =>
             asset.type === "protocol"
-              ? asset.floatingDepositAssets > 0n && !isExternal(chain.id, asset.asset)
+              ? asset.floatingDepositAssets > 0n && !isExternal(asset.chainId, asset.asset)
               : (asset.amount ?? 0n) > 0n && isExternal(asset.chainId, asset.address),
           )
-          .map((asset) =>
-            asset.type === "protocol" ? `${chain.id}:${asset.asset}` : `${asset.chainId}:${asset.address}`,
-          ),
+          .map((asset) => `${asset.chainId}:${asset.type === "protocol" ? asset.asset : asset.address}`),
       ),
     [allAssets, isExternal],
   );
@@ -305,8 +316,12 @@ export default function Swaps() {
     if (stocks) queryClient.setQueryData(["settings", "stocks-tab-seen"], true);
   }, [stocks]);
   const selectableTokens = useMemo(
-    () => candidates.filter((token) => tokenSelectionType === "from" || isStock(allowlists, token) === stocks),
-    [allowlists, candidates, stocks, tokenSelectionType],
+    () =>
+      candidates.filter(
+        (token) =>
+          tokenSelectionType === "from" || (isStock(allowlists, token) === stocks && !nativeOutput(fromToken, token)),
+      ),
+    [allowlists, candidates, fromToken, stocks, tokenSelectionType],
   );
 
   useEffect(() => {
@@ -498,10 +513,10 @@ export default function Swaps() {
   const neutralAsset = useMemo(() => {
     const { success, output } = safeParse(
       Address,
-      markets?.find(({ asset }) => asset !== fromToken?.token.address)?.asset,
+      fromMarkets?.find(({ asset }) => asset !== fromToken?.token.address)?.asset,
     );
     return success ? output : undefined;
-  }, [markets, fromToken]);
+  }, [fromMarkets, fromToken]);
 
   const {
     request: swapPropose,
@@ -511,7 +526,7 @@ export default function Swaps() {
     queued,
   } = useSimulateProposal({
     account,
-    chainId: chain.id,
+    chainId: fromChain,
     amount: fromAmount,
     market: getSwapAddress(fromToken),
     proposalType: ProposalType.Swap,
@@ -625,7 +640,38 @@ export default function Swaps() {
     meta: { dropError: () => true },
   });
 
-  const prepareError = fromToken?.external ? (routed ? routedError : externalSwapError) : swapExecuteProposalError;
+  const proposalCalls = useMemo(() => {
+    if (fromToken?.external !== false || !swapPropose) return;
+    const { address, abi, functionName, args } = swapPropose;
+    return [{ to: address, data: encodeFunctionData({ abi, functionName, args }) }];
+  }, [fromToken?.external, swapPropose]);
+  const proposalSpend = useMemo(() => {
+    if (fromToken?.external !== false) return;
+    const deposit = findDeposit(fromToken.token);
+    return deposit && { amount: 0n, token: deposit.asset };
+  }, [findDeposit, fromToken]);
+  const {
+    data: proposalEstimate,
+    error: proposalEstimateError,
+    isLoading: isEstimatingProposal,
+  } = useQuery({
+    queryKey: ["estimateCalls", fromChain, proposalCalls, proposalSpend],
+    queryFn: () => {
+      if (!proposalCalls) throw new Error("no proposal calls");
+      return estimateCalls(exaConfig, fromChain, proposalCalls, proposalSpend);
+    },
+    enabled: enableSimulations && fromChain !== chain.id && !!proposalCalls,
+    refetchInterval: ({ state }) => (state.error || state.data?.shortfall ? quoteValidity / 3 : false),
+    retry: false,
+    meta: { dropError: () => true },
+  });
+  const estimate = routed ? routedSwap : fromChain === chain.id ? undefined : proposalEstimate;
+
+  const prepareError = fromToken?.external
+    ? routed
+      ? routedError
+      : externalSwapError
+    : (swapExecuteProposalError ?? proposalEstimateError);
   const undeployed =
     prepareError instanceof BaseError &&
     !!prepareError.walk((cause) => cause instanceof DeploymentError && cause.missing === "account");
@@ -649,13 +695,13 @@ export default function Swaps() {
     ? routed
       ? isSimulatingRouted
       : isSimulatingExternalSwap
-    : (isSimulatingSwap && !queued) || (overdrawn && verified !== prepareError);
+    : (isSimulatingSwap && !queued) || isEstimatingProposal || (overdrawn && verified !== prepareError);
 
   useEffect(() => {
     if (!overdrawn && !insufficientCollateral) return;
     let current = true;
     queryClient
-      .invalidateQueries({ queryKey: marketsQueryKey })
+      .invalidateQueries({ queryKey: fromMarketsKey })
       .then(() => {
         if (current) setVerified(prepareError);
       })
@@ -663,14 +709,14 @@ export default function Swaps() {
     return () => {
       current = false;
     };
-  }, [insufficientCollateral, overdrawn, prepareError]); // eslint-disable-line @eslint-react/exhaustive-deps -- wagmi query key changes every render
+  }, [insufficientCollateral, overdrawn, prepareError]); // eslint-disable-line @eslint-react/exhaustive-deps -- query key changes every render
   const expired = useEffectEvent(() => !!route && Date.now() >= routeUpdatedAt + quoteValidity);
   useEffect(() => {
     if (!prepareError || queued || insufficientCollateral) return;
     if (expired()) return;
     if (overdrawn && (verified !== prepareError || isInsufficientBalance)) return;
     reportError(prepareError, { level: "warning" });
-    if (!tool || stalled || undeployed) return;
+    if (!tool || stalled || undeployed || prepareError === proposalEstimateError) return;
     updateSwap((old) => ({
       ...old,
       denied: old.denied.includes(tool) ? old.denied : [...old.denied, tool].slice(0, 3),
@@ -680,6 +726,7 @@ export default function Swaps() {
     isInsufficientBalance,
     overdrawn,
     prepareError,
+    proposalEstimateError,
     queued,
     stalled,
     tool,
@@ -702,24 +749,26 @@ export default function Swaps() {
             ? "balance"
             : insufficientCollateral
               ? "collateral"
-              : stalled || (tool && denied.length < 3 && !denied.includes(tool))
-                ? undefined
-                : "route"
+              : prepareError === proposalEstimateError
+                ? "estimate"
+                : stalled || (tool && denied.length < 3 && !denied.includes(tool))
+                  ? undefined
+                  : "route"
         : undefined;
 
   const nativeToken = lifiChains?.find((item) => item.id === fromChain)?.nativeToken;
   const fromNetworkName = lifiChains?.find((item) => item.id === fromChain)?.name;
   const networkName = lifiChains?.find((item) => item.id === toChain)?.name;
   const sponsored = fromChain === chain.id;
-  const networkCost = sponsored ? 0n : nativeToken ? routedSwap?.cost : undefined;
+  const networkCost = sponsored ? 0n : nativeToken ? estimate?.cost : undefined;
   const networkFeeUSD = sponsored
     ? 0
     : networkCost !== undefined && nativeToken
       ? Number(formatUnits(networkCost, nativeToken.decimals)) * Number(nativeToken.priceUSD)
       : undefined;
-  const deficit = routed ? routedSwap?.shortfall : undefined;
+  const deficit = estimate?.shortfall;
   const insufficientGas = !!deficit;
-  const { sendCalls } = useSend(fromChain, { spend: routed ? routedSwap?.spend : undefined });
+  const { sendCalls } = useSend(fromChain, { spend: routed ? routedSwap?.spend : proposalSpend });
 
   const duration =
     route &&
@@ -750,9 +799,8 @@ export default function Swaps() {
       if (!route) throw new Error("no route");
       const calls = (() => {
         if (!fromToken?.external) {
-          if (!swapPropose) throw new Error("no swap proposal simulation");
-          const { address, abi, functionName, args } = swapPropose;
-          return [{ to: address, data: encodeFunctionData({ abi, functionName, args }) }];
+          if (!proposalCalls) throw new Error("no swap proposal simulation");
+          return proposalCalls;
         }
         if (!routed) {
           if (!externalSwap) throw new Error("no external swap simulation");
@@ -778,7 +826,9 @@ export default function Swaps() {
     },
     onSuccess() {
       queryClient.invalidateQueries({ queryKey: ["lifi", "balances"] }).catch(reportError);
-      queryClient.invalidateQueries({ queryKey: marketsQueryKey }).catch(reportError);
+      for (const id of new Set([fromChain, toChain])) {
+        queryClient.invalidateQueries({ queryKey: networkOptions(account, id).queryKey }).catch(reportError);
+      }
       updateSwap((old) => ({ ...old, fromAmount: 0n, toAmount: 0n }));
     },
     onSettled() {
@@ -799,7 +849,7 @@ export default function Swaps() {
       : undefined;
   }, [receipt]);
   const { data: execution } = useQuery(
-    executionOptions(chain.id, account, proposal?.proposalManager, proposal?.nonce, proposal?.since),
+    executionOptions(fromChain, account, proposal?.proposalManager, proposal?.nonce, proposal?.since),
   );
   const executionHash = execution?.executed ? execution.hash : undefined;
   const { data: routeStatus } = useQuery(
@@ -818,22 +868,24 @@ export default function Swaps() {
   useEffect(() => {
     if (!executionHash && routeStatus?.status !== "DONE") return;
     queryClient.invalidateQueries({ queryKey: ["lifi", "balances"] }).catch(reportError);
-    queryClient.invalidateQueries({ queryKey: marketsQueryKey }).catch(reportError);
-  }, [executionHash, routeStatus?.status]); // eslint-disable-line @eslint-react/exhaustive-deps -- wagmi query key changes every render
+    for (const id of new Set([fromChain, toChain])) {
+      queryClient.invalidateQueries({ queryKey: networkOptions(account, id).queryKey }).catch(reportError);
+    }
+  }, [executionHash, routeStatus?.status]); // eslint-disable-line @eslint-react/exhaustive-deps -- query key changes every render
 
   const projectedHealth = useMemo(() => {
-    if (!markets || !fromToken || fromToken.external || fromAmount === 0n) return;
+    if (!fromMarkets || !fromToken || fromToken.external || fromAmount === 0n) return;
     const fromMarket = getSwapAddress(fromToken);
     if (!fromMarket) return;
     return healthFactor(
-      markets.map((item) =>
+      fromMarkets.map((item) =>
         item.market === fromMarket
           ? { ...item, floatingDepositAssets: max(0n, item.floatingDepositAssets - fromAmount) }
           : item,
       ),
       Number(timestamp),
     );
-  }, [fromAmount, fromToken, getSwapAddress, markets, timestamp]);
+  }, [fromAmount, fromMarkets, fromToken, getSwapAddress, timestamp]);
   const caution = projectedHealth !== undefined && projectedHealth < liquidationCaution;
   const danger = projectedHealth !== undefined && projectedHealth < liquidationRisk;
 
@@ -1187,7 +1239,9 @@ export default function Swaps() {
                               address: priced.token.address,
                               market: priced.external
                                 ? undefined
-                                : markets?.find(({ asset }) => asset === priced.token.address)?.market,
+                                : networkMarkets
+                                    .get(priced.token.chainId as number)
+                                    ?.find(({ asset }) => asset === priced.token.address)?.market,
                             },
                           });
                         }}
@@ -1435,7 +1489,14 @@ function getExchangeRate(fromToken: Token, toToken: Token, fromAmount: bigint, t
 }
 
 function updateSwap(updater: (old: Swap) => Swap) {
-  queryClient.setQueryData<Swap>(["swap"], (old) => updater(old ?? defaultSwap));
+  queryClient.setQueryData<Swap>(["swap"], (old) => {
+    const next = updater(old ?? defaultSwap);
+    return next.toToken && nativeOutput(next.fromToken, next.toToken.token) ? { ...next, toToken: undefined } : next;
+  });
+}
+
+function nativeOutput(from: Swap["fromToken"], to: Token) {
+  return from?.external === false && to.chainId === from.token.chainId && to.address === zeroAddress;
 }
 
 export const swapsScrollReference: RefObject<null | ScrollView> = { current: null };
