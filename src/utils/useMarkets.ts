@@ -17,7 +17,7 @@ import { ratePreviewerAbi } from "@exactly/common/generated/hooks";
 import MIN_BORROW_INTERVAL from "@exactly/common/MIN_BORROW_INTERVAL";
 import { MATURITY_INTERVAL } from "@exactly/lib";
 
-import { withPreviews } from "./marketsOptions";
+import { withPreviews } from "./networkOptions";
 import useAccount from "./useAccount";
 
 export default function useMarkets(query?: { enabled?: boolean; gcTime?: number; refetchInterval?: number }) {
