@@ -1,0 +1,15 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- evalScript: ${output.backup = false}
+- runFlow:
+    when: { true: "${maestro.platform == 'web' && eligible !== 'true'}" }
+    commands: [{ enrollBiometrics: { backupEligibility: false } }, { evalScript: "${output.backup = true}" }]
+- runFlow:
+    when: { true: "${maestro.platform == 'web' && eligible === 'true'}" }
+    commands: [enrollBiometrics]
+- runFlow:
+    when: { platform: android }
+    commands:
+      - runFlow: { file: backupEligibility.yaml, env: { eligible: "${eligible}" } }
+      - evalScript: "${output.backup = eligible !== 'true'}"
+      - launchApp: { stopApp: false, permissions: {} }

@@ -1,0 +1,20 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- runFlow: { when: { platform: ios }, commands: [{ tapOn: Add Passkey }] }
+- runFlow: { when: { platform: android }, commands: [{ tapOn: Continue }] }
+- matchBiometrics
+- runFlow:
+    when: { platform: android }
+    commands:
+      - runFlow:
+          when: { true: "${!overwrite}" }
+          commands:
+            - tapOn: { id: com.kunzisoft.keepass.libre:id/add_button } # cspell:ignore kunzisoft keepass
+            - tapOn: { id: com.kunzisoft.keepass.libre:id/fab_add_entry }
+      - runFlow:
+          when: { true: "${!!overwrite}" }
+          commands:
+            - scrollUntilVisible: { element: "${overwrite}" }
+            - tapOn: ${overwrite}
+            - tapOn: OK
+      - tapOn: { id: com.kunzisoft.keepass.libre:id/entry_edit_validate }

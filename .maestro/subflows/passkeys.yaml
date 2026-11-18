@@ -4,7 +4,7 @@ appId: ${APP_ID ?? "app.exactly"}
 - evalScript: ${output.firstPasskey = output.passkey}
 - runFlow: { file: tapAria.yaml, env: { aria: Settings } }
 - tapOn: Logout
-- runFlow: signIn.yaml
+- runFlow: { file: signIn.yaml, env: { backup: "true" } }
 - runFlow: dismissNotifications.yaml
 - evalScript: ${output.account = output.introSheet = output.advanced = output.swapSheet = undefined}
 - runFlow: getAccount.yaml

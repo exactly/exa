@@ -2,7 +2,7 @@ appId: ${APP_ID ?? "app.exactly"}
 env:
   method: ${method ?? "webauthn"}
 ---
-- runFlow: ../subflows/launch.yaml
+- runFlow: { file: ../subflows/launch.yaml, env: { backup: "true" } }
 - runFlow: ../subflows/assertNotifications.yaml
 - runFlow:
     file: ../subflows/mint.yaml

@@ -6,16 +6,21 @@ appId: ${APP_ID ?? "app.exactly"}
       - tapOn: Create new account
       - enrollBiometrics
       - evalScript: ${output.passkey = Math.floor(Date.now() / 60000)}
+      - runFlow: { when: { true: "${!!backup}" }, file: backup.yaml }
       - tapOn: Set passkey and create account
-      - runFlow: { when: { platform: ios }, commands: [{ tapOn: Add Passkey }] }
-      - runFlow: { when: { platform: android }, commands: [{ tapOn: Continue }] }
-      - matchBiometrics
+      - runFlow: savePasskey.yaml
       - runFlow:
-          when: { platform: android }
+          when: { true: "${maestro.platform != 'web' || !!output.backup}" }
           commands:
-            - tapOn: { id: com.kunzisoft.keepass.libre:id/add_button } # cspell:ignore kunzisoft keepass
-            - tapOn: { id: com.kunzisoft.keepass.libre:id/fab_add_entry }
-            - tapOn: { id: com.kunzisoft.keepass.libre:id/entry_edit_validate }
+            - copyTextFrom: Stay updated|This passkey can’t be backed up
+            - assertTrue: ${!output.backup || maestro.copiedText.startsWith('This passkey')}
+            - runFlow:
+                when: { true: "${maestro.copiedText.startsWith('This passkey')}" }
+                commands:
+                  - evalScript: ${output.rejected = Array(Math.floor(Date.now() / 60000) - output.passkey + 1).fill(output.passkey).map((minute, index) => new Date((minute + index) * 60000).toISOString().slice(0, 16)).join("|")}
+                  - runFlow: { file: backup.yaml, env: { eligible: "true" } }
+                  - tapOn: { text: Try again, below: This passkey can’t be backed up }
+                  - runFlow: { file: savePasskey.yaml, env: { overwrite: ".*(${output.rejected}).*" } }
       - evalScript: ${output.passkey = Array(Math.floor(Date.now() / 60000) - output.passkey + 1).fill(output.passkey).map((minute, index) => new Date((minute + index) * 60000).toISOString().slice(0, 16)).join("|")}
 - runFlow:
     when: { true: "${method === 'webauthn' && !!passkey}" }

@@ -1,4 +1,4 @@
-From fda299297b623ddbd680048d22bec37a4b749f1c Mon Sep 17 00:00:00 2001
+From 93e071d3a24a475d8ff362f119344470c92b3de8 Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Sun, 18 Oct 2026 22:51:13 +0000
 Subject: [PATCH] feat: add enrollBiometrics and matchBiometrics commands
@@ -16,27 +16,27 @@ Subject: [PATCH] feat: add enrollBiometrics and matchBiometrics commands
  .../src/main/java/ios/LocalIOSDevice.kt       |  8 +++
  .../ios/devicectl/DeviceControlIOSDevice.kt   |  8 +++
  .../main/java/ios/xctest/XCTestIOSDevice.kt   |  8 +++
- .../main/java/maestro/orchestra/Commands.kt   | 24 ++++++++
+ .../main/java/maestro/orchestra/Commands.kt   | 25 ++++++++
  .../java/maestro/orchestra/MaestroCommand.kt  |  6 ++
  .../main/java/maestro/orchestra/Orchestra.kt  | 14 +++++
  .../orchestra/yaml/MaestroFlowParser.kt       |  2 +
- .../orchestra/yaml/YamlEnrollBiometrics.kt    |  6 ++
- .../orchestra/yaml/YamlFluentCommand.kt       | 22 +++++++
+ .../orchestra/yaml/YamlEnrollBiometrics.kt    |  7 +++
+ .../orchestra/yaml/YamlFluentCommand.kt       | 23 ++++++++
  .../orchestra/yaml/YamlMatchBiometrics.kt     |  6 ++
  .../kotlin/maestro/test/drivers/FakeDriver.kt | 16 ++++++
- 20 files changed, 288 insertions(+)
+ 20 files changed, 291 insertions(+)
  create mode 100644 maestro-orchestra/src/main/java/maestro/orchestra/yaml/YamlEnrollBiometrics.kt
  create mode 100644 maestro-orchestra/src/main/java/maestro/orchestra/yaml/YamlMatchBiometrics.kt
 
 diff --git a/maestro-client/src/main/java/maestro/Driver.kt b/maestro-client/src/main/java/maestro/Driver.kt
-index 9d6747b..7c6e2d1 100644
+index 9d6747b..2fc9dee 100644
 --- a/maestro-client/src/main/java/maestro/Driver.kt
 +++ b/maestro-client/src/main/java/maestro/Driver.kt
 @@ -117,6 +117,10 @@ interface Driver {
  
      fun setDarkMode(enabled: Boolean)
  
-+    fun enrollBiometrics()
++    fun enrollBiometrics(backupEligibility: Boolean)
 +
 +    fun matchBiometrics()
 +
@@ -44,17 +44,17 @@ index 9d6747b..7c6e2d1 100644
  
      fun queryOnDeviceElements(query: OnDeviceElementQuery): List<TreeNode> {
 diff --git a/maestro-client/src/main/java/maestro/Maestro.kt b/maestro-client/src/main/java/maestro/Maestro.kt
-index 29a0550..259c5e4 100644
+index 29a0550..6d784f0 100644
 --- a/maestro-client/src/main/java/maestro/Maestro.kt
 +++ b/maestro-client/src/main/java/maestro/Maestro.kt
 @@ -785,6 +785,18 @@ class Maestro(
          driver.setDarkMode(enabled)
      }
  
-+    suspend fun enrollBiometrics() = runInterruptible(Dispatchers.IO) {
++    suspend fun enrollBiometrics(backupEligibility: Boolean) = runInterruptible(Dispatchers.IO) {
 +        LOGGER.info("Enrolling biometrics")
 +
-+        driver.enrollBiometrics()
++        driver.enrollBiometrics(backupEligibility)
 +    }
 +
 +    suspend fun matchBiometrics() = runInterruptible(Dispatchers.IO) {
@@ -67,7 +67,7 @@ index 29a0550..259c5e4 100644
          driver.setAndroidChromeDevToolsEnabled(enabled)
      }
 diff --git a/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt b/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
-index 76b89ee..e5101ab 100644
+index 76b89ee..04e1110 100644
 --- a/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
 +++ b/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
 @@ -60,6 +60,7 @@ import java.util.concurrent.CompletableFuture
@@ -82,7 +82,7 @@ index 76b89ee..e5101ab 100644
          }
      }
  
-+    override fun enrollBiometrics() {
++    override fun enrollBiometrics(backupEligibility: Boolean) {
 +        LOGGER.warn("Enrolling biometrics is not available on Android, enroll a fingerprint in the emulator's settings instead")
 +    }
 +
@@ -128,7 +128,7 @@ index 76b89ee..e5101ab 100644
          private const val WINDOW_UPDATE_TIMEOUT_MS = 750
          private const val MAESTRO_IME_ID = "dev.mobile.maestro/.input.MaestroInputMethodService"
 diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-index 71205bc..7738c2f 100644
+index 71205bc..9e91b11 100644
 --- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
 +++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
 @@ -37,6 +37,7 @@ import org.openqa.selenium.chrome.ChromeDriver
@@ -151,7 +151,7 @@ index 71205bc..7738c2f 100644
          )
      }
  
-+    override fun enrollBiometrics() {
++    override fun enrollBiometrics(backupEligibility: Boolean) {
 +        val driver = ensureOpen() as HasCdp
 +
 +        driver.executeCdpCommand("WebAuthn.enable", emptyMap())
@@ -165,8 +165,8 @@ index 71205bc..7738c2f 100644
 +                    "hasResidentKey" to true,
 +                    "hasUserVerification" to true,
 +                    "isUserVerified" to true,
-+                    "defaultBackupEligibility" to true,
-+                    "defaultBackupState" to true
++                    "defaultBackupEligibility" to backupEligibility,
++                    "defaultBackupState" to backupEligibility
 +                )
 +            )
 +        )["authenticatorId"] as String
@@ -180,14 +180,14 @@ index 71205bc..7738c2f 100644
          return when (query) {
              is OnDeviceElementQuery.Css -> queryCss(query)
 diff --git a/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt b/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt
-index 8615998..a9f428d 100644
+index 8615998..643ef7e 100644
 --- a/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt
 +++ b/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt
 @@ -551,6 +551,18 @@ class IOSDriver(
          }
      }
  
-+    override fun enrollBiometrics() {
++    override fun enrollBiometrics(backupEligibility: Boolean) {
 +        metrics.measured("operation", mapOf("command" to "enrollBiometrics")) {
 +            iosDevice.enrollBiometrics()
 +        }
@@ -203,14 +203,14 @@ index 8615998..a9f428d 100644
          metrics.measured("operation", mapOf("command" to "addMediaToDevice")) {
              val namedSource = NamedSource(
 diff --git a/maestro-client/src/main/java/maestro/drivers/WebDriver.kt b/maestro-client/src/main/java/maestro/drivers/WebDriver.kt
-index 2739adb..209a212 100644
+index 2739adb..006b867 100644
 --- a/maestro-client/src/main/java/maestro/drivers/WebDriver.kt
 +++ b/maestro-client/src/main/java/maestro/drivers/WebDriver.kt
 @@ -641,6 +641,14 @@ class WebDriver(
          // Do nothing
      }
  
-+    override fun enrollBiometrics() {
++    override fun enrollBiometrics(backupEligibility: Boolean) {
 +        // Do nothing
 +    }
 +
@@ -396,14 +396,15 @@ index 8ffa233..779a018 100644
          xStart: Double,
          yStart: Double,
 diff --git a/maestro-orchestra-models/src/main/java/maestro/orchestra/Commands.kt b/maestro-orchestra-models/src/main/java/maestro/orchestra/Commands.kt
-index 5695e39..ea9aa71 100644
+index 5695e39..f27c0c3 100644
 --- a/maestro-orchestra-models/src/main/java/maestro/orchestra/Commands.kt
 +++ b/maestro-orchestra-models/src/main/java/maestro/orchestra/Commands.kt
-@@ -1224,6 +1224,30 @@ data class ToggleAirplaneModeCommand(
+@@ -1224,6 +1224,31 @@ data class ToggleAirplaneModeCommand(
      }
  }
  
 +data class EnrollBiometricsCommand(
++    val backupEligibility: Boolean,
 +    override val label: String? = null,
 +    override val optional: Boolean = false,
 +) : Command {
@@ -462,14 +463,14 @@ index 5357d4a..835e70d 100644
          else -> null
      }
 diff --git a/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt b/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
-index 3d21f70..1698783 100644
+index 3d21f70..c324c95 100644
 --- a/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
 +++ b/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
 @@ -490,6 +490,8 @@ class Orchestra(
              is ToggleDarkModeCommand -> toggleDarkMode()
              is AssertDarkModeCommand -> assertDarkMode(expected = true)
              is AssertLightModeCommand -> assertDarkMode(expected = false)
-+            is EnrollBiometricsCommand -> enrollBiometricsCommand()
++            is EnrollBiometricsCommand -> enrollBiometricsCommand(command)
 +            is MatchBiometricsCommand -> matchBiometricsCommand()
              is RetryCommand -> retryCommand(command, config)
              else -> true
@@ -478,8 +479,8 @@ index 3d21f70..1698783 100644
          return true
      }
  
-+    private suspend fun enrollBiometricsCommand(): Boolean {
-+        maestro.enrollBiometrics()
++    private suspend fun enrollBiometricsCommand(command: EnrollBiometricsCommand): Boolean {
++        maestro.enrollBiometrics(command.backupEligibility)
 +
 +        // No UI effect
 +        return false
@@ -508,18 +509,19 @@ index d09d541..22ab04a 100644
  
 diff --git a/maestro-orchestra/src/main/java/maestro/orchestra/yaml/YamlEnrollBiometrics.kt b/maestro-orchestra/src/main/java/maestro/orchestra/yaml/YamlEnrollBiometrics.kt
 new file mode 100644
-index 0000000..3f19d37
+index 0000000..c642a5a
 --- /dev/null
 +++ b/maestro-orchestra/src/main/java/maestro/orchestra/yaml/YamlEnrollBiometrics.kt
-@@ -0,0 +1,6 @@
+@@ -0,0 +1,7 @@
 +package maestro.orchestra.yaml
 +
 +data class YamlEnrollBiometrics(
++    val backupEligibility: Boolean = true,
 +    val label: String? = null,
 +    val optional: Boolean = false,
 +)
 diff --git a/maestro-orchestra/src/main/java/maestro/orchestra/yaml/YamlFluentCommand.kt b/maestro-orchestra/src/main/java/maestro/orchestra/yaml/YamlFluentCommand.kt
-index 2e48108..09df394 100644
+index 2e48108..8e06992 100644
 --- a/maestro-orchestra/src/main/java/maestro/orchestra/yaml/YamlFluentCommand.kt
 +++ b/maestro-orchestra/src/main/java/maestro/orchestra/yaml/YamlFluentCommand.kt
 @@ -39,6 +39,7 @@ import maestro.orchestra.CopyTextFromCommand
@@ -547,13 +549,14 @@ index 2e48108..09df394 100644
      val retry: YamlRetryCommand? = null,
      @JsonIgnore val _sourceInfo: SourceInfo,
  ) {
-@@ -531,6 +535,24 @@ data class YamlFluentCommand(
+@@ -531,6 +535,25 @@ data class YamlFluentCommand(
                  )
              )
  
 +            enrollBiometrics != null -> listOf(
 +                MaestroCommand(
 +                    EnrollBiometricsCommand(
++                        enrollBiometrics.backupEligibility,
 +                        enrollBiometrics.label,
 +                        enrollBiometrics.optional
 +                    )
@@ -585,14 +588,14 @@ index 0000000..4f556dd
 +    val optional: Boolean = false,
 +)
 diff --git a/maestro-test/src/main/kotlin/maestro/test/drivers/FakeDriver.kt b/maestro-test/src/main/kotlin/maestro/test/drivers/FakeDriver.kt
-index 758d1eb..4a54c93 100644
+index 758d1eb..849e036 100644
 --- a/maestro-test/src/main/kotlin/maestro/test/drivers/FakeDriver.kt
 +++ b/maestro-test/src/main/kotlin/maestro/test/drivers/FakeDriver.kt
 @@ -432,6 +432,18 @@ open class FakeDriver : Driver {
          this.darkMode = enabled
      }
  
-+    override fun enrollBiometrics() {
++    override fun enrollBiometrics(backupEligibility: Boolean) {
 +        ensureOpen()
 +
 +        events.add(Event.EnrollBiometrics)

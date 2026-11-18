@@ -1,0 +1,30 @@
+appId: com.kunzisoft.keepass.libre # cspell:ignore kunzisoft keepass
+---
+- launchApp: { stopApp: false }
+- copyTextFrom: Navigation drawer open|Navigation drawer close|Navigate up
+- repeat:
+    while: { true: "${maestro.copiedText === 'Navigate up'}" }
+    commands:
+      - back
+      - copyTextFrom: Navigation drawer open|Navigation drawer close|Navigate up
+- runFlow:
+    when: { true: "${maestro.copiedText === 'Navigation drawer open'}" }
+    commands: [{ tapOn: Navigation drawer open }]
+- tapOn: Settings
+- tapOn: Form filling
+- tapOn: Passkeys settings
+- scrollUntilVisible: { element: Backup State }
+- runFlow:
+    when:
+      true: "${eligible !== 'true'}"
+      visible: { text: Backup State, enabled: true }
+    commands: [{ tapOn: Backup Eligibility }]
+- runFlow:
+    when:
+      true: "${eligible === 'true'}"
+      visible: { text: Backup State, enabled: false }
+    commands: [{ tapOn: Backup Eligibility }]
+- back
+- back
+- back
+- swipe: { direction: LEFT }
