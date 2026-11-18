@@ -7,12 +7,13 @@ appId: ${APP_ID ?? "app.exactly"}
       - enrollBiometrics
       - evalScript: ${output.passkey = Math.floor(Date.now() / 60000)}
       - tapOn: Set passkey and create account
-      - runFlow: { when: { platform: ios }, commands: [{ tapOn: Add Passkey }] }
-      - runFlow: { when: { platform: android }, commands: [{ tapOn: Continue }] }
-      - matchBiometrics
+      - runFlow: { when: { platform: ios }, commands: [{ tapOn: Add Passkey }, matchBiometrics] }
       - runFlow:
           when: { platform: android }
           commands:
+            - tapOn: Continue
+            - extendedWaitUntil: { visible: User Verification, timeout: 20000, optional: true }
+            - runFlow: { when: { visible: User Verification }, commands: [matchBiometrics] }
             - tapOn: { id: com.kunzisoft.keepass.libre:id/add_button } # cspell:ignore kunzisoft keepass
             - tapOn: { id: com.kunzisoft.keepass.libre:id/fab_add_entry }
             - tapOn: { id: com.kunzisoft.keepass.libre:id/entry_edit_validate }
@@ -33,7 +34,12 @@ appId: ${APP_ID ?? "app.exactly"}
             - tapOn: "(?!For ).*(${passkey}).*"
             - runFlow: { when: { visible: Use Selected Passkey }, commands: [{ tapOn: Use Selected Passkey }] }
             - runFlow: { when: { visible: Continue }, commands: [{ tapOn: Continue }] }
-            - matchBiometrics
+            - runFlow: { when: { platform: ios }, commands: [matchBiometrics] }
+            - runFlow:
+                when: { platform: android }
+                commands:
+                  - extendedWaitUntil: { visible: User Verification, timeout: 20000, optional: true }
+                  - runFlow: { when: { visible: User Verification }, commands: [matchBiometrics] }
 - runFlow:
     when: { true: "${method === 'metamask'}" }
     commands:

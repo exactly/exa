@@ -9,5 +9,9 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     when: { true: "${maestro.platform != 'web' && method === 'webauthn'}" }
     commands:
-      - runFlow: { when: { platform: ios }, commands: [{ tapOn: Use Passkey }] }
-      - matchBiometrics
+      - runFlow: { when: { platform: ios }, commands: [{ tapOn: Use Passkey }, matchBiometrics] }
+      - runFlow:
+          when: { platform: android }
+          commands:
+            - extendedWaitUntil: { visible: User Verification, timeout: 20000, optional: true }
+            - runFlow: { when: { visible: User Verification }, commands: [matchBiometrics] }
