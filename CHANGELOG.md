@@ -1,5 +1,30 @@
 # @exactly/mobile
 
+## 1.2.56
+
+### Patch Changes
+
+- [#1913](https://github.com/exactly/exa/pull/1913) [`2f4a1f0`](https://github.com/exactly/exa/commit/2f4a1f07d75f62fc78f780d5ddb6abd64b369e00) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ add max to send amount
+
+- [#1649](https://github.com/exactly/exa/pull/1649) [`691f4d8`](https://github.com/exactly/exa/commit/691f4d8d89ad2e614d2f99b8febaa73dc516d5c2) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💫 smooth layout shifts below banners
+
+- [#1999](https://github.com/exactly/exa/pull/1999) [`5386887`](https://github.com/exactly/exa/commit/5386887d41ec86f2e62a4012e385b4233aa2ccc8) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 📈 count persona camera errors
+
+- [#1913](https://github.com/exactly/exa/pull/1913) [`4f6fbbc`](https://github.com/exactly/exa/commit/4f6fbbc3182e6f2826b1b8817e1d5df3a120acec) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 align usd values on send amount
+
+- [#1913](https://github.com/exactly/exa/pull/1913) [`85df23d`](https://github.com/exactly/exa/commit/85df23d40885aa8cc7845db2ca4cba8bfd5d1d96) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 reserve gas on full balance send
+
+- [#1649](https://github.com/exactly/exa/pull/1649) [`c094795`](https://github.com/exactly/exa/commit/c094795634e959b39a8da4229125ca8765d30536) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💫 animate alerts
+
+- [#1913](https://github.com/exactly/exa/pull/1913) [`dabea48`](https://github.com/exactly/exa/commit/dabea48c67b40d0bf7ee7bb782f500c6192ad725) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 show balance on simple send
+
+- [#1649](https://github.com/exactly/exa/pull/1649) [`854e586`](https://github.com/exactly/exa/commit/854e5868e8fbb309d41a2a7af05be5a9e323ca1c) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 💫 animate banners entry and exit
+
+- [#1913](https://github.com/exactly/exa/pull/1913) [`2707509`](https://github.com/exactly/exa/commit/270750957ae8e302de7c673f64e85d85acb94b14) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ redeem shares on max send
+
+- Updated dependencies [[`af7f211`](https://github.com/exactly/exa/commit/af7f211fac224ffc68dc5ac9c1b2dcf83b724df2), [`194ab6b`](https://github.com/exactly/exa/commit/194ab6bea551e389232e795a36e553d10af5ad66), [`090d58a`](https://github.com/exactly/exa/commit/090d58a3137f330d9508813a6adc32cb5798b233)]:
+  - @exactly/server@0.3.14
+
 ## 1.2.55
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @exactly/server
 
+## 0.3.14
+
+### Patch Changes
+
+- [#1990](https://github.com/exactly/exa/pull/1990) [`af7f211`](https://github.com/exactly/exa/commit/af7f211fac224ffc68dc5ac9c1b2dcf83b724df2) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 retry panda reads on upstream errors
+
+- [#1938](https://github.com/exactly/exa/pull/1938) [`194ab6b`](https://github.com/exactly/exa/commit/194ab6bea551e389232e795a36e553d10af5ad66) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 silence inquiries from other domains
+
+- [#2002](https://github.com/exactly/exa/pull/2002) [`090d58a`](https://github.com/exactly/exa/commit/090d58a3137f330d9508813a6adc32cb5798b233) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 send accurate sardine risk data
+
 ## 0.3.13
 
 ### Patch Changes
