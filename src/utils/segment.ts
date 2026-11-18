@@ -33,6 +33,10 @@ export function page() {
   analytics?.page().catch(reportError);
 }
 
+export function track(event: string, properties?: Record<string, unknown>) {
+  analytics?.track(event, properties).catch(reportError);
+}
+
 export function reset() {
   analytics?.reset().catch(reportError);
 }

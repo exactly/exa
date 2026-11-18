@@ -15,6 +15,7 @@ import tenants from "@exactly/common/tenants";
 import alchemyConnector from "./alchemyConnector";
 import queryClient, { type AuthMethod } from "./queryClient";
 import reportError, { classifyError } from "./reportError";
+import { track } from "./segment";
 import { APIError, createCredential, getCredential, isUnlinked, origin } from "./server";
 import ownerConfig, { getConnector as getOwnerConnector } from "./wagmi/owner";
 
@@ -69,6 +70,7 @@ export default function useAuth(onSuccess?: (credential: Credential) => unknown)
       },
       onRetry: () => {
         if (!mutation.variables) return;
+        if (issue === "backup") track("Passkey Backup Retried", { hybrid });
         signIn({ ...mutation.variables, hints: hybrid ? ["hybrid"] : undefined });
       },
     },
@@ -106,6 +108,7 @@ function handleError(error: unknown, onIssue: (issue: SignInIssue) => void, t: T
   }
   if (error instanceof APIError && error.text === "backup eligibility required") {
     reportError(error, { level: "warning" });
+    track("Passkey Backup Rejected");
     onIssue("backup");
     return;
   }
