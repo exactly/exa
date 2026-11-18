@@ -2,6 +2,8 @@ import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import assert from "node:assert";
 import {
   createPublicClient,
+  createWalletClient,
+  encodeFunctionData,
   erc20Abi,
   hexToBigInt,
   http,
@@ -9,11 +11,12 @@ import {
   padHex,
   parseEventLogs,
   toHex,
+  zeroAddress,
   zeroHash,
   type Hex,
   type PublicClient,
 } from "viem";
-import { generatePrivateKey, privateKeyToAddress } from "viem/accounts";
+import { generatePrivateKey, privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { anvil } from "viem/chains";
 import { describe, expect, it, vi } from "vitest";
 
@@ -33,6 +36,7 @@ import {
   swapperAddress,
   upgradeableModularAccountAbi,
   usdcAddress,
+  wethAddress,
 } from "@exactly/common/generated/chain";
 
 import { chains } from "./anvil";
@@ -405,6 +409,72 @@ describe("indexer", () => {
       },
     ]);
   });
+  it("prices native bridges with the weth market", async () => {
+    const owner = createWalletClient({
+      chain: anvil,
+      transport: http(),
+      account: privateKeyToAccount(generatePrivateKey()),
+    });
+    const sender = deriveAddress(exaAccountFactoryAddress, { x: padHex(owner.account.address), y: zeroHash });
+    await anvilClient.setBalance({ address: owner.account.address, value: 10n ** 24n });
+    await anvilClient.waitForTransactionReceipt({
+      hash: await owner.writeContract({
+        address: exaAccountFactoryAddress,
+        abi: exaAccountFactoryAbi,
+        functionName: "createAccount",
+        args: [0n, [{ x: hexToBigInt(owner.account.address), y: 0n }]],
+      }),
+    });
+    await anvilClient.setBalance({ address: sender, value: 10n ** 18n });
+    const receipt = await anvilClient.waitForTransactionReceipt({
+      hash: await owner.writeContract({
+        address: sender,
+        abi: upgradeableModularAccountAbi,
+        functionName: "execute",
+        args: [
+          swapperAddress,
+          10n ** 17n,
+          encodeFunctionData({
+            abi: mockSwapperAbi,
+            functionName: "startBridgeTokensViaMock",
+            args: [
+              {
+                transactionId: keccak256(toHex("native")),
+                bridge: "mock",
+                integrator: "exa_app",
+                referrer: zeroAddress,
+                sendingAssetId: zeroAddress,
+                receiver: sender,
+                minAmount: 10n ** 17n,
+                destinationChainId: 1281n,
+                hasSourceSwaps: false,
+                hasDestinationCall: false,
+              },
+            ],
+          }),
+        ],
+      }),
+    });
+
+    await vi.waitFor(
+      async () =>
+        expect(
+          database
+            .select({ asset: bridges.asset, amount: bridges.amount, usdPrice: bridges.usdPrice })
+            .from(bridges)
+            .where(and(eq(bridges.chainId, anvil.id), eq(bridges.account, sender.toLowerCase() as Hex))),
+        ).resolves.toStrictEqual([
+          {
+            asset: zeroAddress,
+            amount: 10n ** 17n,
+            usdPrice: await assetPrice(wethAddress, receipt.blockNumber),
+          },
+        ]),
+      { timeout: 10_000 },
+    );
+    expect(await assetPrice(wethAddress, receipt.blockNumber)).toBeGreaterThan(0n);
+  });
+
   it("indexes exa app bridges received by exa accounts from other networks", async () => {
     const chain = chains[1];
     assert.ok(chain, "expected a second chain");
