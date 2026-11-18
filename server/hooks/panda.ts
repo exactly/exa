@@ -64,6 +64,7 @@ import {
 } from "../utils/panda";
 import publicClient from "../utils/publicClient";
 import revertFingerprint from "../utils/revertFingerprint";
+import { session } from "../utils/sardine";
 import traceClient, { type CallFrame } from "../utils/traceClient";
 import validatorHook from "../utils/validatorHook";
 import verifySignature from "../utils/verifySignature";
@@ -80,6 +81,7 @@ import type createHook from "../workers/hook/queue";
 import type createRefund from "../workers/refund/queue";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { UnofficialStatusCode } from "hono/utils/http-status";
+import type { Redis } from "ioredis";
 
 const debug = createDebug("exa:panda");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
@@ -89,6 +91,7 @@ export default function hook({
   issuer,
   onesignal,
   panda,
+  redis,
   refund,
   sardine,
   segment,
@@ -100,6 +103,7 @@ export default function hook({
   issuer: LocalAccount;
   onesignal: ReturnType<typeof createOnesignal>;
   panda: ReturnType<typeof createPanda>;
+  redis: Redis;
   refund: ReturnType<typeof createRefund>;
   sardine: ReturnType<typeof createSardine>;
   segment: ReturnType<typeof createSegment>;
@@ -214,7 +218,13 @@ export default function hook({
           const assess = async () => {
             try {
               return await sardine.risk({
-                sessionKey: payload.body.id ?? payload.id,
+                sessionKey:
+                  (await redis.get(session(card.credential.id)).catch((error: unknown) => {
+                    captureException(error, { level: "error" });
+                    return null;
+                  })) ??
+                  payload.body.id ??
+                  payload.id,
                 customerId: card.credential.id,
                 transaction: {
                   id: payload.body.id ?? payload.id,
