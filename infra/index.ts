@@ -186,8 +186,8 @@ export const services = Object.fromEntries(
   }),
 );
 
-const workers = enabled(modules.workers).map(([name, w]) => module(name, w, "worker"));
-const pools = workers.map(({ dependencies, name, template }) => {
+const workers = enabled(modules.workers).map(([name, w]) => ({ ...module(name, w, "worker"), timeout: w.timeout }));
+const pools = workers.map(({ dependencies, name, template, timeout }) => {
   const check = new cloudrunv2.Job(
     `${name}-check`,
     {
@@ -203,7 +203,7 @@ const pools = workers.map(({ dependencies, name, template }) => {
             args: [...container.args, "--check"],
           })),
           maxRetries: 0,
-          timeout: config.get(`${name}Timeout`) ?? "60s",
+          timeout,
         },
       },
     },
