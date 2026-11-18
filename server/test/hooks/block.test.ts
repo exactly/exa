@@ -460,7 +460,7 @@ describe("proposal", () => {
       await vi.waitUntil(() => sendPushNotification.mock.calls.length === 1, 26_666);
 
       expect(withdraw?.args.shares).toBe(redeem.args.amount);
-      expect(withdraw?.args.assets).not.toBe(redeem.args.amount);
+      expect(withdraw?.args.assets).toBeGreaterThan(redeem.args.amount);
       expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
         userId: bobAccount,
         headings: t("Withdraw completed"),
