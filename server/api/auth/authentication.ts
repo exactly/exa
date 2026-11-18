@@ -411,7 +411,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
                 Object.hasOwn(tenants, headers.origin) && { salt: tenants[headers.origin] }),
             });
             const account = deriveAddress(result.factory, { x: result.x, y: result.y, salt: result.salt });
-            const intercomToken = await intercom(account, result.auth);
+            const intercomToken = await intercom(account, result.auth, result.salt);
             return c.json(
               {
                 ...result,
@@ -477,7 +477,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
 
         const expires = new Date(Date.now() + AUTH_EXPIRY);
         const [intercomToken] = await Promise.all([
-          intercom(parse(Address, credential.account), expires),
+          intercom(parse(Address, credential.account), expires, parse(Address, credential.salt)),
           setSignedCookie(c, "credential_id", assertion.id, authSecret, {
             expires,
             httpOnly: true,
