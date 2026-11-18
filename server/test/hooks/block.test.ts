@@ -436,7 +436,7 @@ describe("proposal", () => {
   describe("with redeem proposal", () => {
     beforeEach(async () => {
       const hash = await proposeWithdraw(
-        3_000_000n,
+        69_000_000n,
         padHex("0x69", { size: 20 }),
         marketUSDCAddress,
         ProposalType.Redeem,
