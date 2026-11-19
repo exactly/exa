@@ -2277,6 +2277,10 @@ describe("authenticated", () => {
       ]);
     });
 
+    beforeEach(() => {
+      vi.spyOn(panda, "program").mockReturnValue(panda);
+    });
+
     afterEach(async () => {
       await database
         .update(credentials)
@@ -2316,11 +2320,13 @@ describe("authenticated", () => {
 
     describe("getting kyc", () => {
       it("returns not started when the company application is missing", async () => {
+        const program = vi.spyOn(panda, "program").mockReturnValue(panda);
         const getCompanyApplication = vi.spyOn(panda, "getCompanyApplication").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
 
         const response = await getStatus("panda-business");
 
         expect(response.status).toBe(400);
+        expect(program).toHaveBeenCalledExactlyOnceWith("BASE");
         expect(getCompanyApplication).toHaveBeenCalledWith(businessId);
         await expect(response.json()).resolves.toStrictEqual({ code: "not started" });
       });
