@@ -83,6 +83,7 @@ const Payload = variant("event", [
     event: literal("WITHDRAW_STATUS_UPDATE"),
     data: object({
       id: string(),
+      externalId: optional(string()),
       asset: string(),
       amount: string(),
       userExternalId: string(),
@@ -228,6 +229,23 @@ export default function hook({
       }
 
       if (payload.data.userExternalId === undefined || payload.data.userExternalId.startsWith("Exactly-")) {
+        if (
+          payload.event === "WITHDRAW_STATUS_UPDATE" &&
+          payload.data.status === "CANCELLED" &&
+          payload.data.externalId?.startsWith("refund-")
+        ) {
+          captureEvent({
+            message: "qr refund cancelled",
+            level: "error",
+            contexts: {
+              refund: {
+                userOpHash: payload.data.externalId.slice("refund-".length),
+                withdraw: payload.data.id,
+                amount: payload.data.amount,
+              },
+            },
+          });
+        }
         // TODO link merchant withdraws to the account by externalId
         const {
           data: { sender, userLegalId, ...data },
