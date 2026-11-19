@@ -179,10 +179,10 @@ export default function Confirm() {
   const routed =
     destinationChain !== payChain ||
     (typeof toToken === "string" && toToken.toLowerCase() !== payDelivered?.toLowerCase());
-  const sponsored = protocols.has(payChain);
+  const protocol = protocols.has(payChain);
   const [gasReserve, setGasReserve] = useState(0n);
   const [fit, setFit] = useState(false);
-  const balance = external && !sponsored ? external.amount : undefined;
+  const balance = external && !protocol ? external.amount : undefined;
   const redeem =
     !routed &&
     maxParameter === "true" &&
@@ -406,7 +406,7 @@ export default function Confirm() {
   const calls = useMemo(() => {
     if (market) {
       const proposal = routed ? bridgePropose : proposeSimulation;
-      if (sponsored || !proposal) return;
+      if (protocol || !proposal) return;
       const { address: to, abi, functionName, args } = proposal;
       return [{ to, data: encodeFunctionData({ abi, functionName, args }) }];
     }
@@ -477,10 +477,10 @@ export default function Confirm() {
     market,
     payUnderlying,
     proposeSimulation,
+    protocol,
     receiverHex,
     route,
     routed,
-    sponsored,
     wrap,
     zeroAddress,
   ]);
@@ -516,6 +516,7 @@ export default function Confirm() {
   });
 
   const nativeToken = payNetwork?.nativeToken;
+  const sponsored = transferEstimate ? transferEstimate.sponsored : protocol;
   const networkCost = sponsored ? 0n : nativeToken ? transferEstimate?.cost : undefined;
   const networkFeeUSD = sponsored
     ? 0

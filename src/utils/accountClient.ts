@@ -250,45 +250,48 @@ export default async function createAccountClient({ credentialId, factory, x, y,
     }
     const value = sum([0n, ...calls.map((call) => BigInt(call.value ?? 0))]);
     const balance = getBalance(rpc, { address: accountAddress });
-    const protocol = !unsponsored && protocols.has(targetChain.id);
+    const protocol = protocols.has(targetChain.id);
     const sponsor = unsponsored
       ? undefined
       : alchemyGasManagerMiddleware(
           protocol ? [alchemyGasPolicyId, sponsorPolicy(targetChain)] : sponsorPolicy(targetChain),
         ).dummyPaymasterAndData;
     const tokens = bridgePolicyTokens[targetChain.id] ?? [];
-    const holdings = protocol
-      ? undefined
-      : queryClient.ensureQueryData(balancesOptions(accountAddress)).then(
-          (all) => all[targetChain.id],
-          () => undefined,
-        );
-    const [{ callGasLimit, maxFeePerGas, preVerificationGas, verificationGasLimit }, nativeBalance, balances, chains] =
+    function fetchBalances() {
+      return queryClient.ensureQueryData(balancesOptions(accountAddress)).then(
+        (all) => all[targetChain.id],
+        () => undefined,
+      );
+    }
+    const tokenBalances = protocol && !unsponsored ? undefined : fetchBalances();
+    const [{ callGasLimit, maxFeePerGas, preVerificationGas, verificationGasLimit }, nativeBalance, chains] =
       await Promise.all([
         estimate(sponsor).catch(async (error: unknown) => {
           if (!rejected(error)) throw error;
           const funds = await balance;
           const funded = value > funds ? funds + value : undefined;
-          const listed = spend && spend.token !== zeroAddress ? await holdings : undefined;
-          const held = listed?.find(
-            ({ address, amount }) => tokens.includes(address.toLowerCase()) && !!amount && amount > 0n,
-          );
+          const held = (
+            spend && spend.token !== zeroAddress ? await (tokenBalances ?? fetchBalances()) : undefined
+          )?.find(({ address, amount }) => tokens.includes(address.toLowerCase()) && !!amount && amount > 0n);
           const stub = held?.amount
             ? alchemyGasManagerMiddleware([bridgePolicyId, sponsorPolicy(targetChain)], {
                 address: getAddress(held.address),
                 maxTokenAmount: held.amount,
               }).dummyPaymasterAndData
             : undefined;
-          const unsponsoredEstimate = () =>
-            stub ? estimate(stub, funded).catch(() => estimate(undefined, funded)) : estimate(undefined, funded);
+          const unsponsoredEstimate = () => {
+            unsponsored = true;
+            return stub ? estimate(stub, funded).catch(() => estimate(undefined, funded)) : estimate(undefined, funded);
+          };
           return (
-            funded === undefined ? unsponsoredEstimate() : estimate(sponsor, funded).catch(unsponsoredEstimate)
+            funded === undefined || !sponsor
+              ? unsponsoredEstimate()
+              : estimate(sponsor, funded).catch(unsponsoredEstimate)
           ).catch(() => {
             throw error;
           });
         }),
         balance,
-        holdings,
         queryClient.ensureQueryData(lifiChainsOptions).catch(() => undefined),
       ]);
     const cost =
@@ -296,17 +299,13 @@ export default async function createAccountClient({ credentialId, factory, x, y,
     const nativeToken = chains?.find(({ id }) => id === targetChain.id)?.nativeToken;
     const unfunded = value > nativeBalance;
     const principal = spend?.token === zeroAddress ? spend.amount : 0n;
-    if (protocol) {
-      return {
-        cost,
-        payers: [],
-        shortfall:
-          unfunded && nativeToken && value > principal
-            ? { amount: value - principal, native: true, token: nativeToken }
-            : undefined,
-      };
-    }
-    if (!spend && !unsponsored) throw new Error("missing spend");
+    const valueShortfall =
+      unfunded && nativeToken && value > principal
+        ? { amount: value - principal, native: true, token: nativeToken }
+        : undefined;
+    if (protocol && !unsponsored) return { cost, sponsored: true, payers: [], shortfall: valueShortfall };
+    if (!spend && !protocol) throw new Error("missing spend");
+    const balances = await (tokenBalances ?? fetchBalances());
     const native = spend?.token === zeroAddress;
     const source = spend && tokens.includes(spend.token.toLowerCase()) ? spend.token : undefined;
     const gasToken = native
@@ -369,15 +368,17 @@ export default async function createAccountClient({ credentialId, factory, x, y,
             },
           ]
         : []),
-      ...(!unsponsored && (sponsored || nativeCovered || payable)
+      ...(!protocol && (sponsored || nativeCovered || payable)
         ? [{ policyId: [alchemyGasPolicyId, sponsorPolicy(targetChain)] }]
         : []),
     ];
     return {
       cost,
+      sponsored: false,
       payers,
-      shortfall:
-        unfunded || (nativeGasReserve > 0n && !nativeCovered && !payable && !sponsored)
+      shortfall: protocol
+        ? valueShortfall
+        : unfunded || (nativeGasReserve > 0n && !nativeCovered && !payable && !sponsored)
           ? !unfunded && gasToken && feeIsSource && erc20GasReserve > 0n
             ? { amount: erc20GasReserve, native: false, token: gasToken }
             : nativeToken && { amount: value + nativeGasReserve - principal, native: true, token: nativeToken }
@@ -580,8 +581,8 @@ export default async function createAccountClient({ credentialId, factory, x, y,
             };
             const targetChainId = chainId ? hexToNumber(chainId) : chain.id;
             const targetChain = targetChainId === chain.id ? chain : smartAccountChain(targetChainId);
-            const { cost, shortfall } = await prepare(targetChain, calls, capabilities?.spend);
-            return { chainId: numberToHex(targetChainId), cost, shortfall, type: "user-operation-v060" };
+            const { cost, sponsored, shortfall } = await prepare(targetChain, calls, capabilities?.spend);
+            return { chainId: numberToHex(targetChainId), cost, sponsored, shortfall, type: "user-operation-v060" };
           }
           case "wallet_getCallsStatus": {
             if (!Array.isArray(params) || params.length !== 1 || typeof params[0] !== "string") throw new Error("bad");
@@ -729,7 +730,7 @@ function webauthn({
 export async function estimateCalls(config: Config, chainId: number, calls: readonly Call[], spend?: Spend) {
   const client = await getConnectorClient(config);
   return client.request<{
-    ReturnType: { cost: bigint; shortfall?: { amount: bigint; native: boolean; token: Token } };
+    ReturnType: { cost: bigint; shortfall?: { amount: bigint; native: boolean; token: Token }; sponsored: boolean };
   }>({
     method: "wallet_prepareCalls",
     params: [

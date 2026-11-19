@@ -744,7 +744,7 @@ export default function Swaps() {
   const nativeToken = lifiChains?.find((item) => item.id === fromChain)?.nativeToken;
   const fromNetworkName = lifiChains?.find((item) => item.id === fromChain)?.name;
   const networkName = lifiChains?.find((item) => item.id === toChain)?.name;
-  const sponsored = protocols.has(fromChain);
+  const sponsored = estimate ? estimate.sponsored : protocols.has(fromChain);
   const networkCost = sponsored ? 0n : nativeToken ? estimate?.cost : undefined;
   const networkFeeUSD = sponsored
     ? 0
