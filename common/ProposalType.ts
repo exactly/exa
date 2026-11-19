@@ -1,4 +1,4 @@
-import { decodeAbiParameters } from "viem";
+import { decodeAbiParameters, hexToBigInt, size, slice } from "viem";
 
 enum ProposalType {
   None,
@@ -13,20 +13,38 @@ enum ProposalType {
 export default ProposalType;
 
 export function decodeCrossRepayAtMaturity(data: `0x${string}`) {
-  return decodeAbiParameters(
-    [
-      {
-        type: "tuple",
-        components: [
-          { name: "maturity", type: "uint256" },
-          { name: "positionAssets", type: "uint256" },
-          { name: "maxRepay", type: "uint256" },
-          { name: "route", type: "bytes" },
+  return size(data) >= 224 &&
+    hexToBigInt(slice(data, 160, 192)) === 160n &&
+    BigInt(size(data)) >= 224n + ((hexToBigInt(slice(data, 192, 224)) + 31n) / 32n) * 32n
+    ? decodeAbiParameters(
+        [
+          {
+            type: "tuple",
+            components: [
+              { name: "maturity", type: "uint256" },
+              { name: "positionAssets", type: "uint256" },
+              { name: "marketOut", type: "address" },
+              { name: "maxRepay", type: "uint256" },
+              { name: "route", type: "bytes" },
+            ],
+          },
         ],
-      },
-    ],
-    data,
-  )[0];
+        data,
+      )[0]
+    : decodeAbiParameters(
+        [
+          {
+            type: "tuple",
+            components: [
+              { name: "maturity", type: "uint256" },
+              { name: "positionAssets", type: "uint256" },
+              { name: "maxRepay", type: "uint256" },
+              { name: "route", type: "bytes" },
+            ],
+          },
+        ],
+        data,
+      )[0];
 }
 
 export function decodeRepayAtMaturity(data: `0x${string}`) {
