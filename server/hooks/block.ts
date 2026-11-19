@@ -126,12 +126,9 @@ export default function hook({
         for (const message of messages) scheduleMessage(message);
       })
       .catch((error: unknown) => captureException(error)),
-    redis
-      .zrange("refunds", 0, Infinity, "BYSCORE")
-      .then((messages) => {
-        for (const message of messages) scheduleRefund(message);
-      })
-      .catch((error: unknown) => captureException(error)),
+    redis.zrange("refunds", 0, Infinity, "BYSCORE").then((messages) => {
+      for (const message of messages) scheduleRefund(message);
+    }),
     initializeAlchemy(alchemy, database, redis, signingKeys).catch((error: unknown) => {
       if (signingKeys.size === 0) throw error;
       captureException(error, { level: "warning" });

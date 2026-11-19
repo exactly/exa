@@ -3821,17 +3821,18 @@ describe("qr payment", () => {
       ]);
     });
 
-    it("captures pending checks that fail to load on startup", async () => {
+    it("fails readiness when pending checks fail to load on startup", async () => {
       const error = new Error("redis down");
       vi.spyOn(Redis.prototype, "zrange").mockRejectedValue(error);
 
-      await createBlockHook(defaults).ready;
+      await expect(createBlockHook(defaults).ready).rejects.toBe(error);
 
-      expect(vi.mocked(captureException).mock.calls.filter(([captured]) => captured === error)).toStrictEqual([
-        [error],
-        [error],
-        [error],
-      ]);
+      await vi.waitFor(() =>
+        expect(vi.mocked(captureException).mock.calls.filter(([captured]) => captured === error)).toStrictEqual([
+          [error],
+          [error],
+        ]),
+      );
     });
 
     it("checks pending refunds on startup", async () => {
