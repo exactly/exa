@@ -216,6 +216,15 @@ jobs:
       REDISMS_SYSTEM_BINARY: /opt/homebrew/bin/redis-server
       SHARP_IGNORE_GLOBAL_LIBVIPS: "true" # cspell:ignore libvips
     steps:
+      - id: simulator
+        name: boot simulator # cspell:ignore assetsd assetsubscriptiond bootstatus callservicesd cloudd healthappd healthd intelligencetasksd knowledgeconstructiond mobileassetd modelcatalogd telephonyutilities triald udid
+        run: |
+          udid=$(xcrun simctl create e2e "iPhone 17")
+          dir="/private/var/tmp/com.apple.CoreSimulator.SimDevice.$udid"
+          mkdir -p -m 700 "$dir"
+          printf '<plist version="1.0"><dict>%s</dict></plist>' "$(printf '<key>com.apple.%s</key><true/>' PosterBoard assetsd assetsubscriptiond cloudd healthappd healthd intelligencetasksd knowledgeconstructiond mobileassetd modelcatalogd telephonyutilities.callservicesd triald)" > "$dir/disabled.plist"
+          set-output udid "$udid"
+          (xcrun simctl bootstatus "$udid" -b > "$HOME/boot.log" 2>&1; echo $? > "$HOME/boot.status") &
       - run: brew install redis
         name: redis
       - uses: eas/checkout
@@ -282,18 +291,10 @@ jobs:
       - uses: eas/repack
         id: repack
         with: { platform: ios, source_app_path: "${{ steps.download.outputs.artifact_path }}" }
-      - id: simulator
-        name: create simulator # cspell:ignore assetsd assetsubscriptiond callservicesd cloudd healthappd healthd intelligencetasksd knowledgeconstructiond mobileassetd modelcatalogd telephonyutilities triald udid
-        run: |
-          udid=$(xcrun simctl create e2e "iPhone 17")
-          dir="/private/var/tmp/com.apple.CoreSimulator.SimDevice.$udid"
-          mkdir -p -m 700 "$dir"
-          printf '<plist version="1.0"><dict>%s</dict></plist>' "$(printf '<key>com.apple.%s</key><true/>' PosterBoard assetsd assetsubscriptiond cloudd healthappd healthd intelligencetasksd knowledgeconstructiond mobileassetd modelcatalogd telephonyutilities.callservicesd triald)" > "$dir/disabled.plist"
-          set-output udid "$udid"
-      - uses: eas/start_ios_simulator
-        with: { device_identifier: "${{ steps.simulator.outputs.udid }}" }
       - name: prepare device
         run: |
+          until [ -s "$HOME/boot.status" ]; do sleep 1; done
+          [ "$(cat "$HOME/boot.status")" = 0 ] || { cat "$HOME/boot.log"; exit 1; }
           xcrun simctl spawn booted defaults write com.apple.Accessibility ReduceMotionEnabled -bool true
           xcrun simctl spawn booted log stream --predicate 'subsystem contains "app.exactly" or process == "Exa"' > simulator.log 2>&1 &
           for i in {1..420}; do
