@@ -7,7 +7,16 @@ appId: ${APP_ID ?? "app.exactly"}
       - enrollBiometrics
       - evalScript: ${output.passkey = Math.floor(Date.now() / 60000)}
       - tapOn: Set passkey and create account
-      - runFlow: { when: { platform: ios }, commands: [{ tapOn: Add Passkey }] }
+      - runFlow:
+          when: { platform: ios }
+          commands:
+            - evalScript: ${output.deadline = Date.now() + 60000; output.sheet = false}
+            - repeat:
+                while: { true: "${!output.sheet && Date.now() < output.deadline}" }
+                commands:
+                  - runFlow: { when: { visible: Add Passkey }, commands: [{ evalScript: "${output.sheet = true}" }] }
+                  - runFlow: { when: { true: "${!output.sheet}" }, commands: [{ tapOn: Set passkey and create account }] }
+            - tapOn: Add Passkey
       - runFlow: { when: { platform: android }, commands: [{ tapOn: Continue }] }
       - matchBiometrics
       - runFlow:
