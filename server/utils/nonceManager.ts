@@ -70,10 +70,10 @@ export function createNonceManager({ source }: CreateNonceManagerParameters): No
           promise = (async () => {
             try {
               const nonce = await source.get({ address, chainId, client });
-              const previousNonce = nonceMap.get(key) ?? 0;
+              const previousNonce = nonceMap.get(key);
               span.setAttribute("exa.get", nonce);
-              span.setAttribute("exa.previousNonce", nonceMap.get(key));
-              if (previousNonce > 0 && nonce <= previousNonce) {
+              span.setAttribute("exa.previousNonce", previousNonce);
+              if (previousNonce !== undefined && nonce <= previousNonce) {
                 span.setAttribute("exa.internalNonce", previousNonce + 1);
                 return previousNonce + 1;
               }
