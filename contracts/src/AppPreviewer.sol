@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import { Previewer } from "@exactly/protocol/periphery/Previewer.sol";
 import { RatePreviewer } from "@exactly/protocol/periphery/RatePreviewer.sol";
 import { IAccountLoupe } from "modular-account-libs/interfaces/IAccountLoupe.sol";
+import { IERC20 } from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import { LibBytes } from "solady/utils/LibBytes.sol";
 import { LibCall } from "solady/utils/LibCall.sol";
 
@@ -19,6 +20,7 @@ contract AppPreviewer {
     returns (AccountPreview memory preview_)
   {
     preview_.wallet.timestamp = block.timestamp;
+    preview_.wallet.balance = account.balance;
     if (account.code.length != 0) {
       try IAccountLoupe(account).getExecutionFunctionConfig(IExaAccount.propose.selector) returns (
         IAccountLoupe.ExecutionFunctionConfig memory config
@@ -68,7 +70,8 @@ contract AppPreviewer {
         market: markets[i],
         isFrozen: market.isFrozen(),
         nonCollateral: data.length > 5 * 32 && LibBytes.load(data, 5 * 32) != 0,
-        floatingAssetsAverage: market.previewFloatingAssetsAverage()
+        floatingAssetsAverage: market.previewFloatingAssetsAverage(),
+        balance: IERC20(markets[i].asset).balanceOf(account)
       });
     }
     // forge-lint: disable-end(calls-loop)
@@ -93,6 +96,7 @@ struct AccountPreview {
 
 struct WalletPreview {
   uint256 timestamp;
+  uint256 balance;
   ProposalManagerPreview proposalManager;
   address[] allowed;
 }
@@ -107,6 +111,7 @@ struct MarketPreview {
   bool isFrozen;
   bool nonCollateral;
   uint256 floatingAssetsAverage;
+  uint256 balance;
 }
 
 struct ProposalManagerPreview {

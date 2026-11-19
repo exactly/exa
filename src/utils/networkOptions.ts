@@ -56,6 +56,7 @@ export default function networkOptions(account: Address | undefined, chainId: nu
                 : wallet.allowed.map((target) => target.toLowerCase()),
             lifi: tokens !== undefined,
             timestamp: wallet.timestamp,
+            balance: wallet.balance,
             markets: protocol.markets,
             rates: protocol.rates,
           };
