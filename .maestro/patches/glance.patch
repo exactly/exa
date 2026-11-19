@@ -1,0 +1,45 @@
+From a71feca91bff9f772a006f226559a07384a46943 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Thu, 19 Nov 2026 23:53:45 +0000
+Subject: [PATCH] fix: take one iOS screenshot per screen static check
+
+isScreenStatic takes two screenshots and compares them, and waiting for the app to settle calls it in a loop, so every check after the first one takes a screenshot the previous check had just taken. Each screenshot costs about 60 ms on a simulator, and a tap that starts a screen transition runs four or five checks.
+
+The handler keeps the hash of its last screenshot and compares the new one against it when it was taken less than 100 ms before, so checks in a loop take one screenshot each. A check after anything else, such as a tap or a swipe, still takes two.
+---
+ .../Routes/Handlers/ScreenDiffHandler.swift     | 17 ++++++++++++-----
+ 1 file changed, 12 insertions(+), 5 deletions(-)
+
+diff --git a/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ScreenDiffHandler.swift b/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ScreenDiffHandler.swift
+index 75d8971..2b5ffcb 100644
+--- a/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ScreenDiffHandler.swift
++++ b/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ScreenDiffHandler.swift
+@@ -11,13 +11,20 @@ struct IsScreenStaticHandler: HTTPHandler {
+         category: String(describing: Self.self)
+     )
+     
++    private static let maxReuseInterval: TimeInterval = 0.1
++    private static var previous: (hash: SHA256.Digest, takenAt: Date)?
++
+     func handleRequest(_ request: FlyingFox.HTTPRequest) async throws -> FlyingFox.HTTPResponse {
+         do {
+-            let screenshot1 = XCUIScreen.main.screenshot()
+-            let screenshot2 = XCUIScreen.main.screenshot()
+-            let hash1 = SHA256.hash(data: screenshot1.pngRepresentation)
+-            let hash2 = SHA256.hash(data: screenshot2.pngRepresentation)
+-            
++            let hash1: SHA256.Digest
++            if let previous = Self.previous, Date().timeIntervalSince(previous.takenAt) < Self.maxReuseInterval {
++                hash1 = previous.hash
++            } else {
++                hash1 = SHA256.hash(data: XCUIScreen.main.screenshot().pngRepresentation)
++            }
++            let hash2 = SHA256.hash(data: XCUIScreen.main.screenshot().pngRepresentation)
++            Self.previous = (hash2, Date())
++
+             let isScreenStatic = hash1 == hash2
+             
+             let response = ["isScreenStatic" : isScreenStatic]
+-- 
+2.43.0
+
