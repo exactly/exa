@@ -9,6 +9,7 @@ import "../mocks/wallet";
 import { captureException, captureMessage, getClient, setTag, setUser, spanToJSON, startSpan } from "@sentry/node";
 import { serialize } from "@wagmi/core";
 import { E_TIMEOUT, Mutex, withTimeout } from "async-mutex";
+import { Queue, type Job } from "bullmq";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { v5 } from "uuid";
@@ -42,7 +43,7 @@ import {
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { anvil, moonbeamDev } from "viem/chains";
-import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import chain, {
@@ -83,10 +84,12 @@ import createSardine from "../../utils/sardine";
 import createSegment from "../../utils/segment";
 import traceClient, { type CallFrame } from "../../utils/traceClient";
 import wallet from "../../utils/wallet";
+import createHookQueue from "../../workers/hook/queue";
+import createRefund from "../../workers/refund/queue";
 import anvilClient from "../anvilClient";
 
-import type createHookQueue from "../../workers/hook/queue";
-import type createRefund from "../../workers/refund/queue";
+import type { Job as Hook } from "../../workers/hook/job";
+import type { Job as Refund } from "../../workers/refund/job";
 import type { drizzle as Drizzle } from "drizzle-orm/node-postgres";
 
 const refund = vi.hoisted(() => ({
@@ -1026,6 +1029,7 @@ describe("card operations", () => {
               chainId: chain.id,
               transactionHash: purchaseReceipt.transactionHash,
             },
+            tenant: "OP",
           },
           authorization.json.id,
         );
@@ -1927,6 +1931,7 @@ describe("card operations", () => {
           account,
           amount: amount * 10_000,
           signature: await Panda.signIssuerOp({ account, amount: BigInt(amount) * -10_000n, timestamp }, issuer),
+          tenant: "OP",
           timestamp,
         },
         "abcdef-123456",
@@ -1969,6 +1974,7 @@ describe("card operations", () => {
           account,
           amount: amount * 10_000,
           signature: await Panda.signIssuerOp({ account, amount: BigInt(amount) * -10_000n, timestamp }, issuer),
+          tenant: "OP",
           timestamp,
         },
         "abcdef-123456",
@@ -2117,6 +2123,81 @@ describe("card operations", () => {
       expect(refund.enqueue).toHaveBeenCalledOnce();
       expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(Error), { level: "error" });
       expect(response.status).toBe(200);
+    });
+
+    describe("with the shared refund queue", () => {
+      const queued = createRefund(redis);
+      const hook = createPandaHook({ ...dependencies, refund: queued });
+      const client = testClient(hook.app);
+
+      beforeAll(() => hook.ready);
+      afterAll(() => queued.close());
+
+      it("skips panda signatures of base program cards", async () => {
+        const amount = 2000;
+        const id = "abcdef-ba5e01";
+        const createdAt = new Date().toISOString();
+        await database
+          .insert(cards)
+          .values([{ id: "base-refund", credentialId: "cred", tenant: "BASE", lastFour: "7777", mode: 0 }]);
+        const verify = vi.spyOn(panda, "verifyPandaSignature");
+        const add = vi.spyOn(Queue.prototype, "add");
+        onTestFinished(() => add.mockRestore());
+
+        const response = await client.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            id,
+            action: "completed",
+            body: {
+              ...authorization.json.body,
+              id: "refund-base",
+              spend: {
+                ...authorization.json.body.spend,
+                cardId: "base-refund",
+                amount: -amount,
+                localAmount: -amount,
+                authorizedAmount: -amount,
+                authorizedAt: createdAt,
+                postedAt: new Date(new Date(createdAt).getTime() + 1000 * 30).toISOString(),
+                signature: "0x5678",
+                status: "completed",
+                timestamp: 1_700_000_100,
+              },
+            },
+          },
+        });
+
+        const timestamp =
+          Math.floor(new Date(createdAt).getTime() / 1000) -
+          Number(BigInt(`0x${id.replaceAll(/[^0-9a-f]/g, "")}`) % 3600n);
+        const jobs = await Promise.all(add.mock.results.map(({ value }) => value as Promise<Job<Refund>>));
+        const published = jobs.filter((job) => job.id === id);
+        onTestFinished(async () => {
+          await Promise.all(published.map((job) => job.remove().catch(() => undefined)));
+        });
+
+        expect(verify).not.toHaveBeenCalled();
+        expect(published.map(({ data }) => data)).toStrictEqual([
+          {
+            account,
+            amount: amount * 10_000,
+            signature: await Panda.signIssuerOp(
+              { account, amount: BigInt(amount) * -10_000n, timestamp },
+              issuer,
+              parse(Address, chains.get(moonbeamDev.id)?.issuerChecker),
+              moonbeamDev.id,
+            ),
+            tenant: "BASE",
+            timestamp,
+            sentryBaggage: expect.any(String) as string,
+            sentryTrace: expect.any(String) as string,
+          },
+        ]);
+        expect(captureException).not.toHaveBeenCalled();
+        expect(response.status).toBe(200);
+      });
     });
 
     it("enqueues partial captures", async () => {
@@ -4319,6 +4400,7 @@ describe("partial", () => {
             chainId: expect.any(Number) as number,
             transactionHash: expect.any(String) as string,
           },
+          tenant: "OP",
         },
         authorization.json.id,
       ],
@@ -5281,6 +5363,7 @@ describe("partial", () => {
             chainId: chain.id,
             transactionHash: expect.any(String) as string,
           },
+          tenant: "OP",
         },
         authorization.json.id,
       ],
@@ -5860,7 +5943,7 @@ describe("card updated", () => {
       event: "CardDeleted",
       properties: { cardId: id, source: null },
     });
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, cardUpdated.json.id);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account, tenant: "OP" }, cardUpdated.json.id);
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -5884,7 +5967,7 @@ describe("card updated", () => {
       database.query.cards.findFirst({ columns: { status: true }, where: eq(cards.id, id) }),
     ).resolves.toStrictEqual({ status: "DELETED" });
     expect(segment.track).not.toHaveBeenCalled();
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, cardUpdated.json.id);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account, tenant: "OP" }, cardUpdated.json.id);
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -5903,7 +5986,7 @@ describe("card updated", () => {
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
     await expect(database.query.cards.findFirst({ where: eq(cards.id, id) })).resolves.toBeUndefined();
     expect(segment.track).not.toHaveBeenCalled();
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, cardUpdated.json.id);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account, tenant: "OP" }, cardUpdated.json.id);
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -5925,7 +6008,7 @@ describe("card updated", () => {
       database.query.cards.findFirst({ columns: { status: true }, where: eq(cards.id, id) }),
     ).resolves.toStrictEqual({ status: "ACTIVE" });
     expect(segment.track).not.toHaveBeenCalled();
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, cardUpdated.json.id);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account, tenant: "OP" }, cardUpdated.json.id);
     expect(captureException).not.toHaveBeenCalled();
   });
 });
@@ -9475,7 +9558,7 @@ describe("webhooks", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, authorization.json.id);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account, tenant: "OP" }, authorization.json.id);
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -9494,7 +9577,7 @@ describe("webhooks", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, authorization.json.id);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account, tenant: "OP" }, authorization.json.id);
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -9507,7 +9590,7 @@ describe("webhooks", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
     expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, cardUpdated.json.id);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account, tenant: "OP" }, cardUpdated.json.id);
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -9536,7 +9619,7 @@ describe("webhooks", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
     expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, cardUpdated.json.id);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account, tenant: "OP" }, cardUpdated.json.id);
     expect(segment.track).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
   });
@@ -9558,8 +9641,54 @@ describe("webhooks", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
     expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, userUpdated.json.id);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account, tenant: "OP" }, userUpdated.json.id);
     expect(captureException).not.toHaveBeenCalled();
+  });
+
+  describe("with the shared hook queue", () => {
+    const queued = createHookQueue(redis);
+    const hook = createPandaHook({ ...dependencies, webhook: queued });
+    const client = testClient(hook.app);
+
+    beforeAll(() => hook.ready);
+    afterAll(() => queued.close());
+
+    it("enqueues user updated webhooks of base program users", async () => {
+      const id = "user-updated-base-program";
+      const baseOwner = privateKeyToAccount(generatePrivateKey()).address;
+      await database.insert(credentials).values({
+        id: "base-hook-user",
+        publicKey: new Uint8Array(),
+        account: baseOwner,
+        factory: baseOwner,
+        otherPandaId: "base-hook-user-base",
+      });
+      const add = vi.spyOn(Queue.prototype, "add");
+      onTestFinished(() => add.mockRestore());
+
+      const response = await client.index.$post({
+        ...userUpdated,
+        json: { ...userUpdated.json, id, body: { ...userUpdated.json.body, id: "base-hook-user-base" } },
+      });
+      const jobs = await Promise.all(add.mock.results.map(({ value }) => value as Promise<Job<Hook>>));
+      const published = jobs.filter((job) => job.id === id);
+      onTestFinished(async () => {
+        await Promise.all(published.map((job) => job.remove().catch(() => undefined)));
+      });
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+      expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: baseOwner });
+      expect(published.map(({ data }) => data)).toStrictEqual([
+        {
+          account: baseOwner,
+          tenant: "BASE",
+          sentryBaggage: expect.any(String) as string,
+          sentryTrace: expect.any(String) as string,
+        },
+      ]);
+      expect(captureException).not.toHaveBeenCalled();
+    });
   });
 
   it("rejects user updated webhooks of unknown users", async () => {
@@ -9600,7 +9729,7 @@ describe("webhooks", () => {
 
     expect(response.status).toBe(569);
     await expect(response.json()).resolves.toStrictEqual({ code: "queue down" });
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, cardUpdated.json.id);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account, tenant: "OP" }, cardUpdated.json.id);
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       level: "error",
       tags: { queue: "hook", job: "hook" },
@@ -9618,7 +9747,7 @@ describe("webhooks", () => {
 
     expect(response.status).toBe(569);
     await expect(response.json()).resolves.toStrictEqual({ code: "queue unavailable" });
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, cardUpdated.json.id);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account, tenant: "OP" }, cardUpdated.json.id);
     expect(captureException).toHaveBeenCalledExactlyOnceWith("queue unavailable", {
       level: "error",
       tags: { queue: "hook", job: "hook" },
@@ -9650,7 +9779,7 @@ describe("webhooks", () => {
 
     expect(response.status).toBe(569);
     await expect(response.json()).resolves.toStrictEqual({ code: "queue down" });
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, authorization.json.id);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account, tenant: "OP" }, authorization.json.id);
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       level: "error",
       tags: { queue: "hook", job: "hook" },
@@ -9681,7 +9810,7 @@ describe("webhooks", () => {
 
     expect(response.status).toBe(569);
     await expect(response.json()).resolves.toStrictEqual({ code: "queue unavailable" });
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, authorization.json.id);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account, tenant: "OP" }, authorization.json.id);
     expect(captureException).toHaveBeenCalledExactlyOnceWith("queue unavailable", {
       level: "error",
       tags: { queue: "hook", job: "hook" },
@@ -9708,7 +9837,7 @@ describe("webhooks", () => {
 
     expect(response.status).toBe(569);
     await expect(response.json()).resolves.toStrictEqual({ code: "queue down" });
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, authorization.json.id);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account, tenant: "OP" }, authorization.json.id);
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       level: "error",
       tags: { queue: "hook", job: "hook" },
@@ -9734,7 +9863,7 @@ describe("webhooks", () => {
 
     expect(response.status).toBe(569);
     await expect(response.json()).resolves.toStrictEqual({ code: "queue unavailable" });
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, authorization.json.id);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account, tenant: "OP" }, authorization.json.id);
     expect(captureException).toHaveBeenCalledExactlyOnceWith("queue unavailable", {
       level: "error",
       tags: { queue: "hook", job: "hook" },
@@ -9770,7 +9899,7 @@ describe("webhooks", () => {
 
     expect(response.status).toBe(569);
     await expect(response.json()).resolves.toStrictEqual({ code: "queue down" });
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, authorization.json.id);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account, tenant: "OP" }, authorization.json.id);
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       level: "error",
       tags: { queue: "hook", job: "hook" },
@@ -9805,7 +9934,7 @@ describe("webhooks", () => {
 
     expect(response.status).toBe(569);
     await expect(response.json()).resolves.toStrictEqual({ code: "queue unavailable" });
-    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account }, authorization.json.id);
+    expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account, tenant: "OP" }, authorization.json.id);
     expect(captureException).toHaveBeenCalledExactlyOnceWith("queue unavailable", {
       level: "error",
       tags: { queue: "hook", job: "hook" },
@@ -9841,7 +9970,7 @@ describe("webhooks", () => {
 
     expect(response.status).toBe(200);
     expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith(
-      { account, receipt: { blockNumber: 69, chainId: chain.id, transactionHash: zeroHash } },
+      { account, receipt: { blockNumber: 69, chainId: chain.id, transactionHash: zeroHash }, tenant: "OP" },
       authorization.json.id,
     );
     await vi.waitFor(() =>
