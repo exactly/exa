@@ -50,7 +50,7 @@ import { Address, Base64URL, Hex } from "@exactly/common/validation";
 
 import { cards, credentials } from "../database/schema";
 import { origin } from "../utils/appOrigin";
-import { home, pandaUser, partner, pickCard, Shipping } from "../utils/panda";
+import { home, partner, pickCard, Shipping } from "../utils/panda";
 import publicClient from "../utils/publicClient";
 import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
@@ -369,7 +369,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
         const { credentialId } = c.req.valid("cookie");
         const credential = await database.query.credentials.findFirst({
           where: eq(credentials.id, credentialId),
-          columns: { account: true, otherPandaId: true, pandaId: true, publicKey: true },
+          columns: { account: true, otherPandaId: true, pandaId: true, publicKey: true, source: true },
           with: {
             cards: {
               columns: { id: true, lastFour: true, status: true, mode: true, productId: true, tenant: true },
@@ -386,7 +386,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
         const account = parse(Address, credential.account);
         setUser({ id: account });
         const found = pickCard(credential, credential.cards);
-        if (!found && !pandaUser(credential, home())) return c.json({ code: "no panda" }, 403);
+        if (!found && !panda.applicant(credential)) return c.json({ code: "no panda" }, 403);
         const sessionid = c.req.valid("header").sessionid;
         if (found) {
           const { id, lastFour, status, mode, pandaId, productId } = found;
@@ -654,11 +654,14 @@ Send a \`shipping\` object with the address, and optionally the \`displayName\` 
           .runExclusive(async () => {
             const credential = await database.query.credentials.findFirst({
               where: eq(credentials.id, credentialId),
-              columns: { account: true, pandaId: true, salt: true, source: true },
+              columns: { account: true, otherPandaId: true, pandaId: true, salt: true, source: true },
               with: {
                 cards: {
-                  columns: { id: true, status: true, productId: true },
-                  where: and(inArray(cards.status, ["ACTIVE", "FROZEN", "DELETED"]), eq(cards.tenant, home())),
+                  columns: { id: true, status: true, productId: true, tenant: true },
+                  where: and(
+                    inArray(cards.status, ["ACTIVE", "FROZEN", "DELETED"]),
+                    inArray(cards.tenant, panda.tenants()),
+                  ),
                 },
               },
             });
@@ -667,16 +670,20 @@ Send a \`shipping\` object with the address, and optionally the \`displayName\` 
             setUser({ id: account });
 
             if (isAddressEqual(parse(Address, credential.salt), business)) return c.json({ code: "business" }, 403);
-            if (!credential.pandaId) return c.json({ code: "no panda" }, 403);
-            const pandaId = credential.pandaId;
+            const applicant = panda.applicant(credential);
+            if (!applicant) return c.json({ code: "no panda" }, 403);
+            const { tenant, pandaId } = applicant;
+            const program = panda.program(tenant);
+            const network = tenant === home() ? chain.id : base.id;
+            const owned = credential.cards.filter((card) => card.tenant === tenant);
 
             await Promise.all(
-              credential.cards
+              owned
                 .filter(({ status }) => status !== "DELETED")
                 .map(async (card) => {
                   if (is(CardUUID, card.id)) {
                     try {
-                      const { status } = await panda.getCard(card.id);
+                      const { status } = await program.getCard(card.id);
                       if (status !== "canceled") return;
                     } catch (error) {
                       if (!(error instanceof ServiceError && error.status === 404)) throw error;
@@ -691,31 +698,32 @@ Send a \`shipping\` object with the address, and optionally the \`displayName\` 
             const productId =
               "shipping" in json
                 ? PHYSICAL_SIGNATURE_PRODUCT_ID
-                : chain.id === base.id && credential.source !== partner
+                : network === base.id && credential.source !== partner
                   ? BASE_PRODUCT_ID
                   : SIGNATURE_PRODUCT_ID;
 
             if (
-              credential.cards.filter((known) => known.status !== "DELETED" && known.productId === productId).length >=
-              ((limits[chain.id]?.[credential.source ?? "exa"] ??
-                limits[chain.id]?.exa ?? { [SIGNATURE_PRODUCT_ID]: 1 })[productId] ?? 0)
+              owned.filter((known) => known.status !== "DELETED" && known.productId === productId).length >=
+              ((limits[network]?.[credential.source ?? "exa"] ?? limits[network]?.exa ?? { [SIGNATURE_PRODUCT_ID]: 1 })[
+                productId
+              ] ?? 0)
             ) {
               return c.json({ code: "card limit reached" }, 409);
             }
-            let kyc: Awaited<ReturnType<typeof panda.getApplicationStatus>> | undefined;
+            let kyc: Awaited<ReturnType<typeof program.getApplicationStatus>> | undefined;
             try {
-              kyc = await panda.getApplicationStatus(pandaId);
+              kyc = await program.getApplicationStatus(pandaId);
               if (kyc.applicationStatus !== "approved") {
                 return c.json({ code: "kyc not approved" }, 403);
               }
               await Promise.all(
-                credential.cards
+                owned
                   .filter(
                     (known) =>
                       !("shipping" in json) && known.status !== "DELETED" && known.productId === PLATINUM_PRODUCT_ID,
                   )
                   .map(async ({ id }) => {
-                    await panda.updateCard({ id, status: "canceled" });
+                    await program.updateCard({ id, status: "canceled" });
                     const [deleted] = await database
                       .update(cards)
                       .set({ status: "DELETED" })
@@ -729,14 +737,14 @@ Send a \`shipping\` object with the address, and optionally the \`displayName\` 
                     });
                   }),
               );
-              const card = await panda
+              const card = await program
                 .getCards(pandaId)
                 .then((pandaCards) =>
                   pandaCards.find(
                     ({ id, status, type }) =>
                       status === "active" &&
                       type === ("shipping" in json ? "physical" : "virtual") &&
-                      credential.cards.every((known) => known.id !== id),
+                      owned.every((known) => known.id !== id),
                   ),
                 )
                 .then(async (orphan) => {
@@ -752,7 +760,7 @@ Send a \`shipping\` object with the address, and optionally the \`displayName\` 
                     });
                     return orphan;
                   } else {
-                    return panda.createCard(
+                    return program.createCard(
                       pandaId,
                       productId,
                       await persona
@@ -779,7 +787,7 @@ Send a \`shipping\` object with the address, and optionally the \`displayName\` 
                 {
                   id: card.id,
                   credentialId,
-                  tenant: home(),
+                  tenant,
                   lastFour: card.last4,
                   status: "shipping" in json ? "FROZEN" : "ACTIVE",
                   productId,
@@ -795,8 +803,8 @@ Send a \`shipping\` object with the address, and optionally the \`displayName\` 
 
               if (
                 pax &&
-                credential.cards.some((known) => known.productId === PLATINUM_PRODUCT_ID) &&
-                credential.cards.every(
+                owned.some((known) => known.productId === PLATINUM_PRODUCT_ID) &&
+                owned.every(
                   (known) =>
                     known.productId !== SIGNATURE_PRODUCT_ID && known.productId !== PHYSICAL_SIGNATURE_PRODUCT_ID,
                 )
@@ -854,7 +862,7 @@ Send a \`shipping\` object with the address, and optionally the \`displayName\` 
               }
               const issue = noUser(error);
               if (!issue) throw error;
-              const hasCardHistory = credential.cards.length > 0;
+              const hasCardHistory = owned.length > 0;
               const shouldCapture = issue.error.status === 404 || hasCardHistory;
               if (shouldCapture) {
                 withScope((scope) => {
@@ -869,7 +877,7 @@ Send a \`shipping\` object with the address, and optionally the \`displayName\` 
                       credentialId,
                       hasCardHistory,
                       pandaId,
-                      statuses: credential.cards.map(({ status }) => status),
+                      statuses: owned.map(({ status }) => status),
                       userIssue: issue.type,
                     },
                   });
