@@ -18,7 +18,10 @@ import {
   proposalManagerAbi,
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/hooks";
-import ProposalType from "@exactly/common/ProposalType";
+import ProposalType, {
+  crossRepayAtMaturityParameters,
+  outdatedCrossRepayAtMaturityParameters,
+} from "@exactly/common/ProposalType";
 
 import useSimulateBlocks from "./wagmi/useSimulateBlocks";
 
@@ -325,35 +328,8 @@ function encodeCrossRepayAtMaturity({
 }) {
   if (maturity === undefined || positionAssets === undefined || maxRepay === undefined || route === undefined) return;
   return marketOut === undefined
-    ? encodeAbiParameters(
-        [
-          {
-            type: "tuple",
-            components: [
-              { name: "maturity", type: "uint256" },
-              { name: "positionAssets", type: "uint256" },
-              { name: "maxRepay", type: "uint256" },
-              { name: "route", type: "bytes" },
-            ],
-          },
-        ],
-        [{ maturity, positionAssets, maxRepay, route }],
-      )
-    : encodeAbiParameters(
-        [
-          {
-            type: "tuple",
-            components: [
-              { name: "maturity", type: "uint256" },
-              { name: "positionAssets", type: "uint256" },
-              { name: "marketOut", type: "address" },
-              { name: "maxRepay", type: "uint256" },
-              { name: "route", type: "bytes" },
-            ],
-          },
-        ],
-        [{ maturity, positionAssets, marketOut, maxRepay, route }],
-      );
+    ? encodeAbiParameters(outdatedCrossRepayAtMaturityParameters, [{ maturity, positionAssets, maxRepay, route }])
+    : encodeAbiParameters(crossRepayAtMaturityParameters, [{ maturity, positionAssets, marketOut, maxRepay, route }]);
 }
 
 function encodeRepayAtMaturity({
