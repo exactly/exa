@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.5.1
+
+### Patch Changes
+
+- [#2057](https://github.com/exactly/exa/pull/2057) [`f7a310c`](https://github.com/exactly/exa/commit/f7a310c60ec747ec6a89820010e49526702c70f1) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚑️ accept unknown alchemy webhook networks
+
 ## 0.5.0
 
 ### Minor Changes
