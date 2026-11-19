@@ -44,7 +44,7 @@ import {
   type InferOutput,
 } from "valibot";
 import { recoverTypedDataAddress, withRetry, type LocalAccount } from "viem";
-import { base, baseSepolia, optimismSepolia } from "viem/chains";
+import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
 import chain, { isBase, issuerCheckerAddress, usdcAddress } from "@exactly/common/generated/chain";
 import {
@@ -66,6 +66,14 @@ export type Tenant = InferOutput<typeof Tenant>;
 export const home = (): Tenant => (isBase ? "BASE" : "OP");
 
 export const other = (): Tenant => (isBase ? "OP" : "BASE");
+
+export const served = (): Tenant[] => (isBase ? [home()] : [home(), other()]);
+
+export function programChain(tenant: Tenant) {
+  if (tenant === home()) return chain.id;
+  if (tenant === "BASE") return chain.testnet ? baseSepolia.id : base.id;
+  return chain.testnet ? optimismSepolia.id : optimism.id;
+}
 
 export default function panda(config: { key: string; url: string }, baseConfig?: { key: string; url: string }) {
   const remote = baseConfig && !isBase ? connect(baseConfig, () => base.id) : undefined;

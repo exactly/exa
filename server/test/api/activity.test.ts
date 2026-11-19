@@ -38,7 +38,7 @@ import {
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { anvil, moonbeamDev } from "viem/chains";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import fixedRate from "@exactly/common/fixedRate";
@@ -2339,12 +2339,27 @@ describe.concurrent("authenticated", () => {
       }
     });
 
-    it.each([
-      { isBase: false, tenant: "BASE" },
-      { isBase: true, tenant: "OP" },
-    ] as const)("ignores card transactions from $tenant tenant", async ({ isBase, tenant }) => {
-      expect.hasAssertions();
-      mocks.isBase.mockReturnValue(isBase);
+    it("ignores op card transactions on the base stack", async () => {
+      mocks.isBase.mockReturnValue(true);
+      const { all, matured, allAfter, maturedAfter, cardId } = await tenantActivity("OP");
+
+      expect(allAfter).toHaveLength(all.length);
+      expect(maturedAfter).toHaveLength(matured.length);
+      expect(allAfter).not.toContainEqual(expect.objectContaining({ cardId }));
+      expect(maturedAfter).not.toContainEqual(expect.objectContaining({ cardId }));
+    });
+
+    it("shows base program card transactions", async () => {
+      mocks.isBase.mockReturnValue(false);
+      const { all, matured, allAfter, maturedAfter, cardId } = await tenantActivity("BASE");
+
+      expect(allAfter).toHaveLength(all.length + 1);
+      expect(maturedAfter).toHaveLength(matured.length + 1);
+      expect(allAfter).toContainEqual(expect.objectContaining({ cardId, lastFour: "4321" }));
+      expect(maturedAfter).toContainEqual(expect.objectContaining({ cardId, lastFour: "4321" }));
+    });
+
+    async function tenantActivity(tenant: "BASE" | "OP") {
       const headers = { headers: { "test-credential-id": "bob" } };
       const cardActivity = () =>
         Promise.all([
@@ -2376,23 +2391,17 @@ describe.concurrent("authenticated", () => {
       assert.ok(source, "expected source transaction");
 
       const other = { cardId: `tenant-card-${Date.now()}`, transactionId: `tenant-transaction-${Date.now()}` };
-      try {
-        await database.insert(cards).values([{ id: other.cardId, credentialId: "bob", tenant, lastFour: "4321" }]);
-        await database
-          .insert(transactions)
-          .values([{ id: other.transactionId, cardId: other.cardId, hashes: source.hashes, payload: source.payload }]);
-
-        const [allAfter, maturedAfter] = await cardActivity();
-
-        expect(allAfter).toHaveLength(all.length);
-        expect(maturedAfter).toHaveLength(matured.length);
-        expect(allAfter).not.toContainEqual(expect.objectContaining({ cardId: other.cardId }));
-        expect(maturedAfter).not.toContainEqual(expect.objectContaining({ cardId: other.cardId }));
-      } finally {
+      await database.insert(cards).values([{ id: other.cardId, credentialId: "bob", tenant, lastFour: "4321" }]);
+      onTestFinished(async () => {
         await database.delete(transactions).where(eq(transactions.id, other.transactionId));
         await database.delete(cards).where(eq(cards.id, other.cardId));
-      }
-    });
+      });
+      await database
+        .insert(transactions)
+        .values([{ id: other.transactionId, cardId: other.cardId, hashes: source.hashes, payload: source.payload }]);
+      const [allAfter, maturedAfter] = await cardActivity();
+      return { all, matured, allAfter, maturedAfter, cardId: other.cardId };
+    }
   });
 
   describe("onchain", () => {
