@@ -13,10 +13,13 @@ import {
   toFunctionSelector,
   toHex,
   zeroHash,
+  type Chain,
   type LocalAccount,
 } from "viem";
 
 import chain, {
+  alchemyChains,
+  chains,
   issuerCheckerAbi,
   marketAbi,
   refunderAbi,
@@ -32,7 +35,7 @@ import { cards, transactions } from "../../database/schema";
 import t, { f } from "../../i18n";
 import { own } from "../../supervise";
 import { refresh } from "../../utils/liquidity";
-import { home, Tenant } from "../../utils/panda";
+import { home, programChain, Tenant } from "../../utils/panda";
 import revertFingerprint from "../../utils/revertFingerprint";
 import createWallet from "../../utils/wallet";
 import { name as hookName } from "../hook/job";
@@ -64,8 +67,50 @@ export default function worker({
   sardine: ReturnType<typeof createSardine>;
   segment: ReturnType<typeof createSegment>;
 }) {
-  const wallet = createWallet(refunder);
   const hook = createHook(bullmq);
+  const prepared = new Map<number, ReturnType<typeof prepare>>();
+  function network(id: number) {
+    let found = prepared.get(id);
+    if (!found) {
+      found = prepare(id);
+      found.catch(() => prepared.delete(id));
+      prepared.set(id, found);
+    }
+    return found;
+  }
+  async function prepare(id: number) {
+    const contract = id === chain.id ? refunderContract : chains.get(id)?.refunder;
+    const target = id === chain.id ? chain : (alchemyChains.get(id) as Chain | undefined);
+    if (!contract || !target) throw new Error(`unsupported network ${id}`);
+    const wallet = createWallet(refunder, target);
+    const [delegation, keeper, asset] = await Promise.all([
+      wallet.getDelegation({ address: refunder.address }),
+      wallet.readContract({
+        address: contract,
+        functionName: "hasRole",
+        args: [keccak256(toHex("KEEPER_ROLE")), refunder.address],
+        abi: refunderAbi,
+      }),
+      id === chain.id
+        ? usdcAddress
+        : wallet.readContract({
+            address: parse(Address, chains.get(id)?.marketUSDC),
+            abi: marketAbi,
+            functionName: "asset",
+          }),
+    ]);
+    if (!keeper) throw new Error("refunder is not keeper");
+    if (delegation !== simple7702AccountAddress) {
+      const authorization = await wallet.signAuthorization({
+        account: refunder,
+        contractAddress: simple7702AccountAddress,
+        executor: "self",
+      });
+      const hash = await wallet.sendTransaction({ authorizationList: [authorization], to: refunder.address });
+      await wallet.waitForTransactionReceipt({ hash });
+    }
+    return { asset: parse(Address, asset), contract, id, wallet };
+  }
   const abi = [
     ...issuerCheckerAbi,
     ...marketAbi,
@@ -125,26 +170,7 @@ export default function worker({
           .catch((error_: unknown) => captureException(error_, { level: "error" }));
       },
       name,
-      ready: Promise.all([
-        hook.ready(),
-        wallet.getDelegation({ address: refunder.address }),
-        wallet.readContract({
-          address: refunderContract,
-          functionName: "hasRole",
-          args: [keccak256(toHex("KEEPER_ROLE")), refunder.address],
-          abi: refunderAbi,
-        }),
-      ]).then(async ([, delegation, keeper]) => {
-        if (!keeper) throw new Error("refunder is not keeper");
-        if (delegation === simple7702AccountAddress) return;
-        const authorization = await wallet.signAuthorization({
-          account: refunder,
-          contractAddress: simple7702AccountAddress,
-          executor: "self",
-        });
-        const hash = await wallet.sendTransaction({ authorizationList: [authorization], to: refunder.address });
-        await wallet.waitForTransactionReceipt({ hash });
-      }),
+      ready: Promise.all([hook.ready(), network(chain.id)]).then(() => undefined),
       async process(job, span) {
         const webhookId = parse(string(), job.id);
         span.setAttribute("panda.event", webhookId);
@@ -158,8 +184,8 @@ export default function worker({
           }),
           job.data,
         );
-        if (tenant !== home()) throw new UnrecoverableError(`unsupported ${tenant} refund`);
-        const { requestBody } = await panda.getWebhook(webhookId);
+        const program = panda.program(tenant);
+        const { requestBody } = await program.getWebhook(webhookId);
         if (requestBody.resource !== "transaction") throw new Error("unexpected resource");
         if (requestBody.action !== "completed" && requestBody.action !== "updated")
           throw new Error("unexpected action");
@@ -182,21 +208,22 @@ export default function worker({
         });
         if (!card) throw new Error("card not found");
         setUser({ id: card.credential.account });
-        const user = await panda.getUser(spend.userId);
+        const user = await program.getUser(spend.userId);
         if (!user.isActive) throw new Error("user is not active");
+        const { asset, contract, id, wallet } = await network(programChain(tenant));
+        const token = parse(Address, chain.testnet ? "0x29684075a3C86ea11D9964BcAf0F956e801396bD" : asset);
         const [{ parameters }, contracts] = await Promise.all([
-          panda.getWithdrawal(cents, parse(Address, refunderContract), parse(Address, refunder.address)),
-          panda.getContracts(),
+          program.getWithdrawal(cents, parse(Address, contract), parse(Address, refunder.address), id, token),
+          program.getContracts(),
         ]);
         const target = contracts.find(
-          ({ chainId, contractVersion }) => chainId === chain.id && contractVersion === 2,
+          ({ chainId, contractVersion }) => chainId === id && contractVersion === 2,
         )?.controllerAddress;
         if (!target) throw new UnrecoverableError("controller not found");
         if (
-          parameters[1] !==
-            parse(Address, chain.testnet ? "0x29684075a3C86ea11D9964BcAf0F956e801396bD" : usdcAddress) ||
+          parameters[1] !== token ||
           BigInt(parameters[2]) !== BigInt(amount) ||
-          parameters[3] !== parse(Address, refunderContract)
+          parameters[3] !== parse(Address, contract)
         ) {
           throw new UnrecoverableError("withdrawal mismatch");
         }
@@ -232,7 +259,7 @@ export default function worker({
                         [
                           await refunder.signTypedData({
                             domain: {
-                              chainId: chain.id,
+                              chainId: id,
                               name: "Collateral",
                               salt: zeroHash,
                               verifyingContract: parameters[0],
@@ -274,13 +301,14 @@ export default function worker({
                       args: [account, BigInt(amount), BigInt(timestamp), signature],
                       functionName: "refund",
                     }),
-                    target: parse(Address, refunderContract),
+                    target: parse(Address, contract),
                     value: 0n,
                   },
                 ],
               ],
             },
             {
+              ...(id !== chain.id && { fees: "auto" as const }),
               ignore: (reason) => reason.includes(toFunctionSelector("Replay()")),
               level: false,
               async onHash(hash) {
@@ -290,6 +318,7 @@ export default function worker({
                     requestBody.action === "completed"
                       ? requestBody.body.spend.postedAt
                       : requestBody.body.spend.authorizedAt,
+                  chainId: id,
                 };
                 const stored = await database
                   .insert(transactions)
@@ -321,12 +350,12 @@ export default function worker({
               },
               onReceipt({ blockNumber, status, transactionHash }) {
                 if (status === "reverted") return;
-                refresh(database, bullmq, account, chain.id);
+                refresh(database, bullmq, account, id);
                 return hook
                   .enqueue(
                     {
                       account: job.data.account,
-                      receipt: { blockNumber: Number(blockNumber), transactionHash },
+                      receipt: { blockNumber: Number(blockNumber), chainId: id, transactionHash },
                       tenant,
                     },
                     webhookId,
