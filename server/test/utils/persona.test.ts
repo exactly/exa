@@ -667,6 +667,25 @@ describe("evaluateAccount", () => {
       expect(result).toBeUndefined();
     });
 
+    it.each(["Prefer not to say", "Rather not say"])("returns undefined when sex is %s", async (sex) => {
+      const account = mantecaAccount.data[0];
+      const result = await persona.evaluateAccount(
+        {
+          data: [
+            {
+              ...account,
+              type: "account" as const,
+              id: "test-account-id",
+              attributes: { ...account?.attributes, fields: { ...account?.attributes.fields, sex_1: { value: sex } } },
+            },
+          ],
+        },
+        "manteca",
+      );
+
+      expect(result).toBeUndefined();
+    });
+
     it("throws when schema validation fails", async () => {
       await expect(
         persona.evaluateAccount(
