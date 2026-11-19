@@ -91,7 +91,7 @@ import {
   getCallsStatus as viemGetCallsStatus,
   sendCalls as viemSendCalls,
 } from "viem/actions";
-import { hashFn } from "wagmi/query";
+import { getBytecodeQueryOptions, hashFn } from "wagmi/query";
 
 import accountInit from "@exactly/common/accountInit";
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
@@ -129,8 +129,34 @@ export default async function createAccountClient({ credentialId, factory, x, y,
   login(accountAddress);
   identify(accountAddress);
   const transport = custom(publicClient);
-  const signUserOperationHash = async (uoHash: Hex): Promise<Hex> => {
-    if (isSiwe()) return wrapSignature(0, await signMessage(ownerConfig, { message: { raw: uoHash } }));
+  async function signUserOperationHash(uoHash: Hex, chainId = chain.id) {
+    if (isSiwe()) {
+      const { address, chainId: current, connector } = getConnection(ownerConfig);
+      const code =
+        address &&
+        current !== chainId &&
+        (await queryClient
+          .fetchQuery(getBytecodeQueryOptions(ownerConfig, { address, chainId }))
+          .catch(() => undefined));
+      const switched =
+        current !== undefined &&
+        !!code &&
+        !code.startsWith("0xef0100") &&
+        (await switchChain(ownerConfig, { chainId, connector }).then(
+          () => true,
+          (error: unknown) => {
+            if (classifyError(error).walletRejected) throw error;
+            return false;
+          },
+        ));
+      try {
+        return wrapSignature(0, await signMessage(ownerConfig, { connector, message: { raw: uoHash } }));
+      } finally {
+        if (switched && getConnection(ownerConfig).chainId === chainId) {
+          await switchChain(ownerConfig, { chainId: current, connector }).catch(() => undefined);
+        }
+      }
+    }
     const credential = await get({
       rpId,
       challenge: bufferToBase64URLString(hexToBytes(hashMessage({ raw: uoHash }), { size: 32 }).buffer as ArrayBuffer),
@@ -148,7 +174,7 @@ export default async function createAccountClient({ credentialId, factory, x, y,
     let s = bytesToBigInt(new Uint8Array(signature.s));
     s += (P256_N - 2n * s) * BigInt(s > P256_N / 2n); // pass malleability guard
     return webauthn({ authenticatorData, clientDataJSON, challengeIndex, typeIndex, r, s });
-  };
+  }
   const accountOptions = {
     accountAddress,
     source: "WebauthnAccount" as const,
@@ -185,6 +211,7 @@ export default async function createAccountClient({ credentialId, factory, x, y,
       entryPoint: getEntryPoint(targetChain),
       getAccountInitCode: () => getAccountInitCode(targetClient),
       ...accountOptions,
+      signUserOperationHash: (uoHash) => signUserOperationHash(uoHash, targetChain.id),
     })
       .then((targetAccount) => ({
         account: targetAccount,
