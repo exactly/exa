@@ -1,0 +1,133 @@
+From 3ebfa73de9e6f09c1eea5fde60890f899be17fc2 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Thu, 19 Nov 2026 03:23:23 +0000
+Subject: [PATCH] fix: settle web pages once the dom goes quiet
+
+On web, waitForAppToSettle compared view hierarchies read back to back, ten times at most with 200 ms between reads. A read that is slow enough hides how weak that check is, but two fast reads can land inside the same animation, so a tap aims at a menu that is still moving. Wait in the page instead until it has gone 50 ms without dom mutations, scrolling or running finite animations, counting from the moment each animation finishes, up to 2 s or the command's timeout, then read the hierarchy once. When the wait runs out, return a fresh hierarchy, or null while the page is still scrolling so a tap right after a scroll re-aims at a stable position. Scripts may now return promises, which evaluate awaits.
+---
+ .../main/java/maestro/drivers/CdpWebDriver.kt | 18 ++++++-
+ .../src/main/resources/maestro-web.js         | 52 +++++++++++++++++++
+ .../main/kotlin/maestro/web/cdp/CdpClient.kt  |  8 +--
+ 3 files changed, 72 insertions(+), 6 deletions(-)
+
+diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+index e3ea58e..11ec651 100644
+--- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+@@ -850,8 +850,20 @@ class CdpWebDriver(
+         return true
+     }
+ 
+-    override fun waitForAppToSettle(initialHierarchy: ViewHierarchy?, appId: String?, timeoutMs: Int?): ViewHierarchy {
+-        return ScreenshotUtils.waitForAppToSettle(initialHierarchy, this)
++    override fun waitForAppToSettle(initialHierarchy: ViewHierarchy?, appId: String?, timeoutMs: Int?): ViewHierarchy? {
++        val deadline = System.currentTimeMillis() + (timeoutMs ?: SETTLE_TIMEOUT_MS)
++        while (true) {
++            detectWindowChange()
++            val window = currentWindow
++            val remaining = deadline - System.currentTimeMillis()
++            if (remaining <= 0) return ViewHierarchy.from(this, false)
++            val state = executeJS("window.maestro.waitForQuiet($SETTLE_QUIET_MS, $remaining)") as? Map<*, *> ?: continue
++            if (state["quiet"] != true) return if (state["scrolling"] == true) null else ViewHierarchy.from(this, false)
++            detectWindowChange()
++            if (currentWindow != window) continue
++            val hierarchy = ViewHierarchy.from(this, false)
++            if (currentWindow == window) return hierarchy
++        }
+     }
+ 
+     override fun waitUntilScreenIsStatic(timeoutMs: Long): Boolean {
+@@ -1069,6 +1081,8 @@ class CdpWebDriver(
+         private const val RETRY_FETCHING_CONTENT_DESCRIPTION = 10
+         private const val JS_EXECUTION_MAX_ATTEMPTS = 5
+         private const val JS_EXECUTION_RETRY_DELAY_MS = 200L
++        private const val SETTLE_QUIET_MS = 50
++        private const val SETTLE_TIMEOUT_MS = 2_000
+         private const val SWIPE_FRAME_MS = 16L
+ 
+         private val LAUNCH_PAGE_LOAD_TIMEOUT: Duration = Duration.ofSeconds(30)
+diff --git a/maestro-client/src/main/resources/maestro-web.js b/maestro-client/src/main/resources/maestro-web.js
+index 774cd9c..64d2161 100644
+--- a/maestro-client/src/main/resources/maestro-web.js
++++ b/maestro-client/src/main/resources/maestro-web.js
+@@ -205,6 +205,58 @@
+         return traverse(document.body)
+     }
+ 
++    maestro.waitForQuiet = (quietMs, timeoutMs) => new Promise(resolve => {
++        const start = performance.now()
++        let last = start
++        let scrolled = -Infinity
++        const touch = () => { last = performance.now() }
++        const scroll = () => { last = scrolled = performance.now() }
++        const observer = new MutationObserver(touch)
++        const watched = new Set()
++        const documents = (doc, found = []) => {
++            found.push(doc)
++            for (const frame of doc.querySelectorAll('iframe')) {
++                try {
++                    if (frame.contentDocument) documents(frame.contentDocument, found)
++                } catch (e) {}
++            }
++            return found
++        }
++        const watch = docs => docs.filter(doc => !watched.has(doc)).forEach(doc => {
++            watched.add(doc)
++            observer.observe(doc, { subtree: true, childList: true, attributes: true, characterData: true })
++            doc.addEventListener('scroll', scroll, { capture: true, passive: true })
++        })
++        const finishing = new WeakSet()
++        const animating = docs => {
++            const running = docs.flatMap(doc => doc.getAnimations()).filter(animation =>
++                animation.playState === 'running' && animation.effect?.getTiming().iterations !== Infinity)
++            running.filter(animation => !finishing.has(animation)).forEach(animation => {
++                finishing.add(animation)
++                animation.finished.then(touch, touch)
++            })
++            return running.length > 0
++        }
++        const check = () => {
++            const docs = documents(document)
++            watch(docs)
++            if (animating(docs)) touch()
++            const now = performance.now()
++            const quiet = now - last >= quietMs && docs.every(doc => doc.readyState === 'complete')
++            if (quiet || now - start >= timeoutMs) {
++                observer.disconnect()
++                watched.forEach(doc => doc.removeEventListener('scroll', scroll, { capture: true }))
++                resolve({ quiet, scrolling: now - scrolled < quietMs })
++            } else {
++                setTimeout(check, Math.max(10, quietMs - (now - last)))
++            }
++        }
++        const docs = documents(document)
++        watch(docs)
++        if (animating(docs)) touch()
++        setTimeout(check, quietMs)
++    })
++
+     // Replacer for JSON.stringify of the snapshot. A live DOM node can leak in and, on some frameworks,
+     // carry back-references (node -> ... -> node), so stringify throws "Converting circular structure to
+     // JSON" and the whole capture fails. Drop DOM nodes and break cycles so serialization always completes.
+diff --git a/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt b/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt
+index ae67c15..042791b 100644
+--- a/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt
++++ b/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt
+@@ -83,10 +83,10 @@ class CdpClient(
+         // as passing objects between JS and outside world would require many round-trips to query the values
+         // from the browser.
+         val wrapped = """
+-            JSON.stringify((() => {
+-                try { return $expression }
+-                catch(e) { return { __cdpError: e.toString() } }
+-            })())
++            (async () => {
++                try { return JSON.stringify(await ($expression)) }
++                catch(e) { return JSON.stringify({ __cdpError: e.toString() }) }
++            })()
+         """.trimIndent()
+ 
+         val exprJson = Json.encodeToString(JsonPrimitive(wrapped))
+-- 
+2.43.0
+

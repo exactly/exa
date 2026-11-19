@@ -8,7 +8,7 @@ appId: ${APP_ID ?? "app.exactly"}
       - launchApp: { appId: "chrome-extension://${extension}/home.html" }
       - runFlow:
           when: { true: "${reminder === '1'}", visible: Protect your wallet }
-          commands: [{ tapOn: Remind me later }]
+          commands: [{ tapOn: Remind me later }, { assertNotVisible: Protect your wallet }]
       - tapOn: { id: account-menu-icon }
       - tapOn: Add account
       - tapOn: Account 2
