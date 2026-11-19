@@ -30,8 +30,21 @@ import path from "node:path";
 import process, { env } from "node:process";
 import { setTimeout } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
-import { getAddress, keccak256, padHex, slice, toBytes, type Address } from "viem";
+import {
+  createPublicClient,
+  getAddress,
+  keccak256,
+  padHex,
+  slice,
+  toBytes,
+  webSocket,
+  type Address,
+  type Hex,
+  type LogTopic,
+  type RpcLog,
+} from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { anvil } from "viem/chains";
 import { describe, expect, it, vi } from "vitest";
 
 import domain from "@exactly/common/domain";
@@ -136,6 +149,7 @@ describe("e2e", () => {
               Promise.allSettled(workers.map((worker) => worker.close())).then(() => bullmq.quit()),
               segment.close(),
               stop(),
+              ...[...sockets.values()].map(({ transport }) => transport.getRpcClient().then((rpc) => rpc.close())),
               ...(https ? [new Promise((closed) => https.close(closed))] : []),
             ]).then(resolve, reject);
           };
@@ -155,6 +169,14 @@ describe("e2e", () => {
           );
           baseline.catch(reject);
 
+          const sockets = new Map(
+            chains.map(({ name, rpcUrls }) => [
+              name,
+              createPublicClient({
+                transport: webSocket(`ws://localhost:${Number(new URL(rpcUrls.default.http[0]).port) + 1}`),
+              }),
+            ]),
+          );
           const expiring = new Set<string>();
           const holds = new Map<string, { held: boolean; released: PromiseWithResolvers<void> }>();
           const { fetch } = app;
@@ -206,6 +228,48 @@ describe("e2e", () => {
           });
           app.get("/e2e/session", auth(authSecret), (c) => c.json(c.req.valid("cookie")));
           app.route("/e2e/lifi", lifi(chains));
+          app.post("/e2e/logs", async (c) => {
+            const { network, timeout, ...filter } = await c.req.json<{
+              address?: Address;
+              fromBlock?: Hex;
+              network?: string;
+              timeout?: number;
+              topics?: LogTopic[];
+            }>();
+            const client = sockets.get(network ?? anvil.name);
+            if (!client) return c.json({ code: "unknown network" }, 400);
+            const fromBlock = filter.fromBlock ?? "0x0";
+            const found = Promise.withResolvers<RpcLog[]>();
+            const signal = AbortSignal.any([c.req.raw.signal, AbortSignal.timeout(timeout ?? 30_000)]);
+            signal.addEventListener("abort", () => found.reject(signal.reason), { once: true });
+            let scanning = Promise.resolve();
+            const scan = () => {
+              scanning = scanning
+                .then(async () => {
+                  const head = await client.request({ method: "eth_blockNumber" });
+                  if (BigInt(head) < BigInt(fromBlock)) return;
+                  const logs = await client.request({
+                    method: "eth_getLogs",
+                    params: [{ ...filter, fromBlock, toBlock: head }],
+                  });
+                  if (logs.length > 0) found.resolve(logs);
+                })
+                .catch(found.reject);
+            };
+            const subscription = client.transport.subscribe({
+              params: ["logs", { address: filter.address, topics: filter.topics }],
+              onData: scan,
+              onError: found.reject,
+            });
+            subscription.then(scan, found.reject);
+            try {
+              return c.json(await found.promise);
+            } catch (error) {
+              return c.json({ code: error instanceof Error ? error.message : String(error) }, 504);
+            } finally {
+              subscription.then(({ unsubscribe }) => unsubscribe()).catch(() => null);
+            }
+          });
           app.get("/e2e/credential", async (c) => {
             const credential = await database.query.credentials.findFirst({
               columns: { id: true },
