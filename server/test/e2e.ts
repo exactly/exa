@@ -543,174 +543,177 @@ vi.mock("../utils/panda", async (importOriginal: () => Promise<typeof panda>) =>
   const members = new Map<string, Awaited<ReturnType<Panda["getCompanyUsers"]>>>();
   return {
     ...original,
-    default: (...parameters: Parameters<typeof original.default>) => ({
-      ...original.default(...parameters),
-      createCard: vi.fn().mockImplementation((userId: string) => {
-        const id = crypto.randomUUID();
-        const card: Card = {
-          expirationMonth: "12",
-          expirationYear: "2030",
-          id,
-          last4: String(Math.floor(1000 + Math.random() * 9000)),
-          limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
-          status: "active",
-          type: "virtual",
-          userId,
-        };
-        cards.set(id, card);
-        return Promise.resolve(card);
-      }),
-      ...(!(pandaSandbox && sandbox) && {
-        createUser: vi.fn().mockImplementation(() => {
-          const id = `usr_${Math.random().toString(36).slice(2)}`;
-          const user: User = {
-            applicationReason: "",
-            applicationStatus: "approved",
-            email: "test@example.com",
-            firstName: "Test",
+    default: (...parameters: Parameters<typeof original.default>) => {
+      const mocked = {
+        ...original.default(...parameters),
+        createCard: vi.fn().mockImplementation((userId: string) => {
+          const id = crypto.randomUUID();
+          const card: Card = {
+            expirationMonth: "12",
+            expirationYear: "2030",
             id,
-            isActive: true,
-            lastName: "User",
-            phoneCountryCode: "+1",
-            phoneNumber: "5551234567",
+            last4: String(Math.floor(1000 + Math.random() * 9000)),
+            limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
+            status: "active",
+            type: "virtual",
+            userId,
           };
-          users.set(id, user);
-          return Promise.resolve({ id });
+          cards.set(id, card);
+          return Promise.resolve(card);
         }),
-      }),
-      getCard: vi.fn().mockImplementation((cardId: string) => Promise.resolve(cards.get(cardId))),
-      getCards: vi.fn().mockResolvedValue([]),
-      getPIN: vi.fn().mockResolvedValue({ pin: null }),
-      getProcessorDetails: vi
-        .fn()
-        .mockImplementation((cardId: string) =>
-          Promise.resolve({ processorCardId: `proc_${cardId}`, timeBasedSecret: `secret_${cardId}` }),
-        ),
-      getSecrets: vi.fn().mockImplementation((_cardId: string, sessionId: string) => {
-        const privateKey = env.PANDA_E2E_PRIVATE_KEY;
-        if (!privateKey) throw new Error("PANDA_E2E_PRIVATE_KEY not set");
-        const encryptedSecret = Buffer.from(sessionId, "base64");
-        const secretKeyBase64 = crypto.privateDecrypt(
-          { key: privateKey, padding: crypto.constants.RSA_PKCS1_OAEP_PADDING, oaepHash: "sha1" },
-          encryptedSecret,
-        );
-        const secretKey = Buffer.from(secretKeyBase64.toString("utf8"), "base64");
-        function encrypt(plaintext: string) {
-          const iv = crypto.randomBytes(16);
-          const cipher = crypto.createCipheriv("aes-128-gcm", secretKey, iv);
-          const encrypted = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
-          const authTag = cipher.getAuthTag();
-          return { data: Buffer.concat([encrypted, authTag]).toString("base64"), iv: iv.toString("base64") };
-        }
-        return Promise.resolve({
-          encryptedCvc: encrypt("123"),
-          encryptedPan: encrypt("4111111111111234"),
-        });
-      }),
-      getUser: vi
-        .fn()
-        .mockImplementation((userId: string) =>
-          pandaSandbox && !users.has(userId)
-            ? original.default(...parameters).getUser(userId)
-            : Promise.resolve(users.get(userId)),
-        ),
-      getApplicationStatus: vi.fn().mockResolvedValue({ id: "pandaId", applicationStatus: "approved" }),
-      setPIN: vi.fn().mockResolvedValue({}),
-      updateCard: vi.fn().mockImplementation((update: { id: string }) => {
-        const card = cards.get(update.id);
-        if (!card) return Promise.resolve();
-        Object.assign(card, update);
-        return Promise.resolve(card);
-      }),
-      updateUser: vi.fn().mockImplementation((update: { id: string }) => {
-        const user = users.get(update.id);
-        if (!user) return Promise.resolve();
-        Object.assign(user, update);
-        return Promise.resolve(user);
-      }),
-      ...(!pandaSandbox && {
-        createCompanyApplication: vi
+        ...(!(pandaSandbox && sandbox) && {
+          createUser: vi.fn().mockImplementation(() => {
+            const id = `usr_${Math.random().toString(36).slice(2)}`;
+            const user: User = {
+              applicationReason: "",
+              applicationStatus: "approved",
+              email: "test@example.com",
+              firstName: "Test",
+              id,
+              isActive: true,
+              lastName: "User",
+              phoneCountryCode: "+1",
+              phoneNumber: "5551234567",
+            };
+            users.set(id, user);
+            return Promise.resolve({ id });
+          }),
+        }),
+        getCard: vi.fn().mockImplementation((cardId: string) => Promise.resolve(cards.get(cardId))),
+        getCards: vi.fn().mockResolvedValue([]),
+        getPIN: vi.fn().mockResolvedValue({ pin: null }),
+        getProcessorDetails: vi
           .fn()
-          .mockImplementation(
-            (
-              externalId: string,
-              {
-                address,
-                initialUser,
-                name,
-                representatives,
-                ultimateBeneficialOwners,
-              }: Parameters<Panda["createCompanyApplication"]>[1],
-            ) => {
-              if (
-                [initialUser, ...representatives, ...ultimateBeneficialOwners].some(
-                  ({ countryOfIssue, nationalId }) => countryOfIssue === "US" && !/^\d{9}$/.test(nationalId),
-                )
-              ) {
-                return Promise.reject(
-                  new ServiceError(
-                    "Panda",
-                    400,
-                    JSON.stringify({
-                      statusCode: 400,
-                      error: "Bad Request",
-                      message: "National id should be 9-digit SSN if country of issue is US",
-                    }),
-                  ),
-                );
-              }
-              const id = crypto.randomUUID();
-              const user: User = {
-                applicationReason: "",
-                applicationStatus: "approved",
-                email: initialUser.email,
-                firstName: initialUser.firstName,
-                id: crypto.randomUUID(),
-                isActive: true,
-                lastName: initialUser.lastName,
-                phoneCountryCode: "+1",
-                phoneNumber: "5551234567",
-              };
-              users.set(user.id, user);
-              members.set(id, [
-                { companyId: id, email: initialUser.email, id: user.id, walletAddress: initialUser.walletAddress },
-              ]);
-              const company: Company = {
-                address,
-                applicationStatus:
-                  original.kycStatus.find((status) =>
-                    name.replaceAll(" ", "").toLowerCase().includes(status.toLowerCase()),
-                  ) ?? "needsVerification",
-                externalId,
-                id,
-                name,
-              };
-              companies.set(externalId, company);
-              return Promise.resolve(company);
-            },
+          .mockImplementation((cardId: string) =>
+            Promise.resolve({ processorCardId: `proc_${cardId}`, timeBasedSecret: `secret_${cardId}` }),
           ),
-        createCompanyUser: vi
+        getSecrets: vi.fn().mockImplementation((_cardId: string, sessionId: string) => {
+          const privateKey = env.PANDA_E2E_PRIVATE_KEY;
+          if (!privateKey) throw new Error("PANDA_E2E_PRIVATE_KEY not set");
+          const encryptedSecret = Buffer.from(sessionId, "base64");
+          const secretKeyBase64 = crypto.privateDecrypt(
+            { key: privateKey, padding: crypto.constants.RSA_PKCS1_OAEP_PADDING, oaepHash: "sha1" },
+            encryptedSecret,
+          );
+          const secretKey = Buffer.from(secretKeyBase64.toString("utf8"), "base64");
+          function encrypt(plaintext: string) {
+            const iv = crypto.randomBytes(16);
+            const cipher = crypto.createCipheriv("aes-128-gcm", secretKey, iv);
+            const encrypted = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+            const authTag = cipher.getAuthTag();
+            return { data: Buffer.concat([encrypted, authTag]).toString("base64"), iv: iv.toString("base64") };
+          }
+          return Promise.resolve({
+            encryptedCvc: encrypt("123"),
+            encryptedPan: encrypt("4111111111111234"),
+          });
+        }),
+        getUser: vi
           .fn()
-          .mockImplementation(
-            (companyId: string, { email, firstName, lastName }: Parameters<Panda["createCompanyUser"]>[1]) =>
-              Promise.resolve({
-                applicationStatus: "approved",
-                companyId,
-                email,
-                firstName,
-                id: crypto.randomUUID(),
-                isActive: true,
-                lastName,
-              }),
+          .mockImplementation((userId: string) =>
+            pandaSandbox && !users.has(userId)
+              ? original.default(...parameters).getUser(userId)
+              : Promise.resolve(users.get(userId)),
           ),
-        getCompanyApplication: vi
-          .fn()
-          .mockImplementation((externalId: string) => Promise.resolve(companies.get(externalId))),
-        getCompanyUsers: vi
-          .fn()
-          .mockImplementation((companyId: string) => Promise.resolve(members.get(companyId) ?? [])),
-      }),
-    }),
+        getApplicationStatus: vi.fn().mockResolvedValue({ id: "pandaId", applicationStatus: "approved" }),
+        setPIN: vi.fn().mockResolvedValue({}),
+        updateCard: vi.fn().mockImplementation((update: { id: string }) => {
+          const card = cards.get(update.id);
+          if (!card) return Promise.resolve();
+          Object.assign(card, update);
+          return Promise.resolve(card);
+        }),
+        updateUser: vi.fn().mockImplementation((update: { id: string }) => {
+          const user = users.get(update.id);
+          if (!user) return Promise.resolve();
+          Object.assign(user, update);
+          return Promise.resolve(user);
+        }),
+        ...(!pandaSandbox && {
+          createCompanyApplication: vi
+            .fn()
+            .mockImplementation(
+              (
+                externalId: string,
+                {
+                  address,
+                  initialUser,
+                  name,
+                  representatives,
+                  ultimateBeneficialOwners,
+                }: Parameters<Panda["createCompanyApplication"]>[1],
+              ) => {
+                if (
+                  [initialUser, ...representatives, ...ultimateBeneficialOwners].some(
+                    ({ countryOfIssue, nationalId }) => countryOfIssue === "US" && !/^\d{9}$/.test(nationalId),
+                  )
+                ) {
+                  return Promise.reject(
+                    new ServiceError(
+                      "Panda",
+                      400,
+                      JSON.stringify({
+                        statusCode: 400,
+                        error: "Bad Request",
+                        message: "National id should be 9-digit SSN if country of issue is US",
+                      }),
+                    ),
+                  );
+                }
+                const id = crypto.randomUUID();
+                const user: User = {
+                  applicationReason: "",
+                  applicationStatus: "approved",
+                  email: initialUser.email,
+                  firstName: initialUser.firstName,
+                  id: crypto.randomUUID(),
+                  isActive: true,
+                  lastName: initialUser.lastName,
+                  phoneCountryCode: "+1",
+                  phoneNumber: "5551234567",
+                };
+                users.set(user.id, user);
+                members.set(id, [
+                  { companyId: id, email: initialUser.email, id: user.id, walletAddress: initialUser.walletAddress },
+                ]);
+                const company: Company = {
+                  address,
+                  applicationStatus:
+                    original.kycStatus.find((status) =>
+                      name.replaceAll(" ", "").toLowerCase().includes(status.toLowerCase()),
+                    ) ?? "needsVerification",
+                  externalId,
+                  id,
+                  name,
+                };
+                companies.set(externalId, company);
+                return Promise.resolve(company);
+              },
+            ),
+          createCompanyUser: vi
+            .fn()
+            .mockImplementation(
+              (companyId: string, { email, firstName, lastName }: Parameters<Panda["createCompanyUser"]>[1]) =>
+                Promise.resolve({
+                  applicationStatus: "approved",
+                  companyId,
+                  email,
+                  firstName,
+                  id: crypto.randomUUID(),
+                  isActive: true,
+                  lastName,
+                }),
+            ),
+          getCompanyApplication: vi
+            .fn()
+            .mockImplementation((externalId: string) => Promise.resolve(companies.get(externalId))),
+          getCompanyUsers: vi
+            .fn()
+            .mockImplementation((companyId: string) => Promise.resolve(members.get(companyId) ?? [])),
+        }),
+      };
+      return Object.assign(mocked, { program: () => mocked, tenants: () => original.served() });
+    },
   };
 });
 
