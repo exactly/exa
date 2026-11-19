@@ -2,12 +2,13 @@ import { captureException, withScope } from "@sentry/node";
 import { and, eq, inArray } from "drizzle-orm";
 import { v5 } from "uuid";
 
-import { chains, isBase, marketUSDCAddress, previewerAbi, previewerAddress } from "@exactly/common/generated/chain";
+import { chains, marketUSDCAddress, previewerAbi, previewerAddress } from "@exactly/common/generated/chain";
 
 import { attempts, name, type Job } from "./job";
 import { cards, credentials } from "../../database/schema";
 import t from "../../i18n";
 import { refresh } from "../../utils/liquidity";
+import { served } from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
 import createWorker from "../worker";
 
@@ -67,7 +68,7 @@ export default function worker({
               where: and(
                 inArray(cards.status, ["ACTIVE", "FROZEN"]),
                 eq(cards.mode, 0),
-                eq(cards.tenant, isBase ? "BASE" : "OP"),
+                inArray(cards.tenant, served()),
               ),
             },
           },
