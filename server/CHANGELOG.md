@@ -1,5 +1,35 @@
 # @exactly/server
 
+## 0.5.0
+
+### Minor Changes
+
+- [#1851](https://github.com/exactly/exa/pull/1851) [`b958037`](https://github.com/exactly/exa/commit/b958037ee1d4bf6f9a3a8a6a1cc5d1e286565a1a) Thanks [@pikonha](https://github.com/pikonha)! - ✨ execute qr payments on manteca
+
+- [#1851](https://github.com/exactly/exa/pull/1851) [`a5fd33f`](https://github.com/exactly/exa/commit/a5fd33f91147bb270eebd4f641f3e434942816ca) Thanks [@pikonha](https://github.com/pikonha)! - ✨ execute qr payments seen onchain
+
+- [#1851](https://github.com/exactly/exa/pull/1851) [`18de10f`](https://github.com/exactly/exa/commit/18de10f2c63dbf55a6b258f1f0e4afc961cfefb9) Thanks [@pikonha](https://github.com/pikonha)! - ✨ accept qr payment webhooks
+
+- [#1851](https://github.com/exactly/exa/pull/1851) [`a4efeee`](https://github.com/exactly/exa/commit/a4efeee3f623041af2d4eedc585ce34e8e8f2190) Thanks [@pikonha](https://github.com/pikonha)! - ✨ add qr payment route
+
+### Patch Changes
+
+- [#2046](https://github.com/exactly/exa/pull/2046) [`5e8ac59`](https://github.com/exactly/exa/commit/5e8ac5980f244e5552f3beeb7242148bae741f3b) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 group failed queries by database cause
+
+- [#1851](https://github.com/exactly/exa/pull/1851) [`6fb4213`](https://github.com/exactly/exa/commit/6fb421361b5056ab60c0070671a1c2898441501a) Thanks [@pikonha](https://github.com/pikonha)! - 🥅 keep persona accounts out of validation context
+
+- [#1955](https://github.com/exactly/exa/pull/1955) [`2738a8c`](https://github.com/exactly/exa/commit/2738a8cbb3e392ad1390a9ae31494ada740eafb7) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 seed block webhook from factories
+
+- [#2029](https://github.com/exactly/exa/pull/2029) [`9ed3b87`](https://github.com/exactly/exa/commit/9ed3b8775ec8ef527341b7bf41c470328cd9970a) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 👔 skip proposals from unknown accounts
+
+- [#2018](https://github.com/exactly/exa/pull/2018) [`2a41838`](https://github.com/exactly/exa/commit/2a4183818e45fd9affe8633aafd691b49f7cbfcb) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 replace only related pushes
+
+- [#2000](https://github.com/exactly/exa/pull/2000) [`7d8ad9f`](https://github.com/exactly/exa/commit/7d8ad9fcf1de53e5715f35d2dc54d364f8863c9b) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 📈 trace passkey authenticator
+
+- [#1851](https://github.com/exactly/exa/pull/1851) [`1a161dd`](https://github.com/exactly/exa/commit/1a161dd42b18e004840ce066a0975210d82e1612) Thanks [@pikonha](https://github.com/pikonha)! - 🐛 accept rather not say as persona sex
+
+- [#2018](https://github.com/exactly/exa/pull/2018) [`008f915`](https://github.com/exactly/exa/commit/008f9158cff1ca010df3e048866638e881c1a91f) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 deduplicate retried pushes
+
 ## 0.4.1
 
 ### Patch Changes

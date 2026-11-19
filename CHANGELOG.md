@@ -1,5 +1,17 @@
 # @exactly/mobile
 
+## 1.2.59
+
+### Patch Changes
+
+- [#2000](https://github.com/exactly/exa/pull/2000) [`6966fc8`](https://github.com/exactly/exa/commit/6966fc8cde3b551f32e501e9fc4f8df2d3889f3d) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 📈 track passkey backup rejections
+
+- [#2000](https://github.com/exactly/exa/pull/2000) [`351a7ce`](https://github.com/exactly/exa/commit/351a7ced2b9777be2a090d96e0978b57cebdfe35) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 steer backup retry to phone
+
+- Updated dependencies [[`b958037`](https://github.com/exactly/exa/commit/b958037ee1d4bf6f9a3a8a6a1cc5d1e286565a1a), [`5e8ac59`](https://github.com/exactly/exa/commit/5e8ac5980f244e5552f3beeb7242148bae741f3b), [`a5fd33f`](https://github.com/exactly/exa/commit/a5fd33f91147bb270eebd4f641f3e434942816ca), [`6fb4213`](https://github.com/exactly/exa/commit/6fb421361b5056ab60c0070671a1c2898441501a), [`2738a8c`](https://github.com/exactly/exa/commit/2738a8cbb3e392ad1390a9ae31494ada740eafb7), [`9ed3b87`](https://github.com/exactly/exa/commit/9ed3b8775ec8ef527341b7bf41c470328cd9970a), [`18de10f`](https://github.com/exactly/exa/commit/18de10f2c63dbf55a6b258f1f0e4afc961cfefb9), [`5c70ee7`](https://github.com/exactly/exa/commit/5c70ee73fcc5d474f4abea467ea21669ad98b3d6), [`2a41838`](https://github.com/exactly/exa/commit/2a4183818e45fd9affe8633aafd691b49f7cbfcb), [`7d8ad9f`](https://github.com/exactly/exa/commit/7d8ad9fcf1de53e5715f35d2dc54d364f8863c9b), [`1a161dd`](https://github.com/exactly/exa/commit/1a161dd42b18e004840ce066a0975210d82e1612), [`008f915`](https://github.com/exactly/exa/commit/008f9158cff1ca010df3e048866638e881c1a91f), [`a4efeee`](https://github.com/exactly/exa/commit/a4efeee3f623041af2d4eedc585ce34e8e8f2190), [`0452f53`](https://github.com/exactly/exa/commit/0452f53816b0122addfa8a688ee3ea5bca937a9a)]:
+  - @exactly/server@0.5.0
+  - @exactly/common@0.0.29
+
 ## 1.2.58
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @exactly/common
 
+## 0.0.29
+
+### Patch Changes
+
+- [#2044](https://github.com/exactly/exa/pull/2044) [`5c70ee7`](https://github.com/exactly/exa/commit/5c70ee73fcc5d474f4abea467ea21669ad98b3d6) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔥 drop base-sepolia business origin
+
+- [#1851](https://github.com/exactly/exa/pull/1851) [`0452f53`](https://github.com/exactly/exa/commit/0452f53816b0122addfa8a688ee3ea5bca937a9a) Thanks [@pikonha](https://github.com/pikonha)! - ✨ encode qr lock in nonce key
+
 ## 0.0.28
 
 ### Patch Changes
