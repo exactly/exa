@@ -172,12 +172,16 @@ describe("credit worker", () => {
     await expect(
       database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-card") }),
     ).resolves.toStrictEqual({ mode: 1 });
-    expect(sendPushNotificationMock).toHaveBeenCalledExactlyOnceWith({
-      userId: account,
-      headings: t("Credit mode activated"),
-      contents: t("Your card is now in credit mode"),
-      idempotencyKey: v5(`https://exact.ly/credit/${account}/${job.timestamp}`, v5.URL),
-    });
+    expect(pushes(account)).toStrictEqual([
+      [
+        {
+          userId: account,
+          headings: t("Credit mode activated"),
+          contents: t("Your card is now in credit mode"),
+          idempotencyKey: v5(`https://exact.ly/credit/${account}/${job.timestamp}`, v5.URL),
+        },
+      ],
+    ]);
     expect(setAttribute.mock.calls.filter(([attribute]) => String(attribute).startsWith("exa."))).toStrictEqual([
       ["exa.autoCredit", true],
       ["exa.cards", ["credit-card"]],
@@ -211,12 +215,16 @@ describe("credit worker", () => {
       { id: "credit-frozen", mode: 1 },
       { id: "credit-installments", mode: 3 },
     ]);
-    expect(sendPushNotificationMock).toHaveBeenCalledExactlyOnceWith({
-      userId: holder,
-      headings: t("Credit mode activated"),
-      contents: t("Your card is now in credit mode", { count: 2 }),
-      idempotencyKey: v5(`https://exact.ly/credit/${holder}/${job.timestamp}`, v5.URL),
-    });
+    expect(pushes(holder)).toStrictEqual([
+      [
+        {
+          userId: holder,
+          headings: t("Credit mode activated"),
+          contents: t("Your card is now in credit mode", { count: 2 }),
+          idempotencyKey: v5(`https://exact.ly/credit/${holder}/${job.timestamp}`, v5.URL),
+        },
+      ],
+    ]);
     expect(setAttribute.mock.calls.filter(([attribute]) => String(attribute).startsWith("exa."))).toStrictEqual([
       ["exa.autoCredit", true],
       ["exa.cards", expect.arrayContaining(["credit-active", "credit-frozen"])],
@@ -245,7 +253,7 @@ describe("credit worker", () => {
     await expect(
       database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-empty-card") }),
     ).resolves.toStrictEqual({ mode: 0 });
-    expect(sendPushNotificationMock).not.toHaveBeenCalled();
+    expect(pushes(empty)).toStrictEqual([]);
   });
 
   it("keeps debit mode with usdc deposits", async () => {
@@ -254,7 +262,7 @@ describe("credit worker", () => {
     await expect(
       database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-debit-card") }),
     ).resolves.toStrictEqual({ mode: 0 });
-    expect(sendPushNotificationMock).not.toHaveBeenCalled();
+    expect(pushes(debit)).toStrictEqual([]);
   });
 
   it("does not change an existing credit mode", async () => {
@@ -265,7 +273,7 @@ describe("credit worker", () => {
     await expect(
       database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-card") }),
     ).resolves.toStrictEqual({ mode: 1 });
-    expect(sendPushNotificationMock).not.toHaveBeenCalled();
+    expect(pushes(account)).toStrictEqual([]);
   });
 
   it("does not change deleted cards", async () => {
@@ -276,7 +284,7 @@ describe("credit worker", () => {
     await expect(
       database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-card") }),
     ).resolves.toStrictEqual({ mode: 0 });
-    expect(sendPushNotificationMock).not.toHaveBeenCalled();
+    expect(pushes(account)).toStrictEqual([]);
   });
 
   it.each(tenants)("activates credit mode on cards of $own tenant", async ({ isBase, own }) => {
@@ -288,12 +296,16 @@ describe("credit worker", () => {
     await expect(
       database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-card") }),
     ).resolves.toStrictEqual({ mode: 1 });
-    expect(sendPushNotificationMock).toHaveBeenCalledExactlyOnceWith({
-      userId: account,
-      headings: t("Credit mode activated"),
-      contents: t("Your card is now in credit mode"),
-      idempotencyKey: v5(`https://exact.ly/credit/${account}/${job.timestamp}`, v5.URL),
-    });
+    expect(pushes(account)).toStrictEqual([
+      [
+        {
+          userId: account,
+          headings: t("Credit mode activated"),
+          contents: t("Your card is now in credit mode"),
+          idempotencyKey: v5(`https://exact.ly/credit/${account}/${job.timestamp}`, v5.URL),
+        },
+      ],
+    ]);
   });
 
   it.each(tenants)("does not change cards from $other tenant", async ({ isBase, other }) => {
@@ -305,7 +317,7 @@ describe("credit worker", () => {
     await expect(
       database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-card") }),
     ).resolves.toStrictEqual({ mode: 0 });
-    expect(sendPushNotificationMock).not.toHaveBeenCalled();
+    expect(pushes(account)).toStrictEqual([]);
   });
 
   it("does not change cards for unknown accounts", async () => {
@@ -314,13 +326,15 @@ describe("credit worker", () => {
     await expect(
       database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-card") }),
     ).resolves.toStrictEqual({ mode: 0 });
-    expect(sendPushNotificationMock).not.toHaveBeenCalled();
+    expect(pushes(unknown)).toStrictEqual([]);
   });
 
   it("captures notification errors without retrying", async () => {
     const error = new Error("push failed");
     const spy = vi.spyOn(publicClient, "readContract");
-    sendPushNotificationMock.mockRejectedValueOnce(error);
+    sendPushNotificationMock.mockImplementation(({ userId }) =>
+      userId === account ? Promise.reject(error) : Promise.resolve({}),
+    );
 
     await jobFinished(account);
 
@@ -462,6 +476,10 @@ function fail(error: Error, times = Infinity) {
     .mockImplementation((parameters) =>
       parameters.args?.[0] === account && remaining-- > 0 ? Promise.reject(error) : readContract(parameters as never),
     );
+}
+
+function pushes(user: Address) {
+  return sendPushNotificationMock.mock.calls.filter(([{ userId }]) => userId === user);
 }
 
 function reads(spy: MockInstance<typeof publicClient.readContract>) {
