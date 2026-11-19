@@ -1,0 +1,84 @@
+name: e2e:bench
+on:
+  workflow_dispatch: {}
+jobs:
+  android:
+    runs_on: linux-large-nested-virtualization
+    image: latest
+    env: { MAESTRO_CLI_NO_ANALYTICS: "true" }
+    steps:
+      - uses: eas/checkout
+      - name: start emulator # cspell:ignore avdmanager sdkmanager setsid swangle
+        run: |
+          sdkmanager --install "system-images;android-35;google_apis;x86_64" > /dev/null
+          avdmanager -s create avd -n e2e -k "system-images;android-35;google_apis;x86_64" --force
+          printf '%s\n' "hw.ramSize=8192" "vm.heapSize=1024" >> $HOME/.android/avd/e2e.avd/config.ini
+          setsid $ANDROID_HOME/emulator/emulator -avd e2e -no-snapshot -no-snapshot-save -no-window -no-audio -no-boot-anim -gpu swangle -memory 8192 -wipe-data > emulator-process.log 2>&1 &
+      - id: script
+        name: hash
+        run: set-output hash "$(git hash-object .maestro/patches/build.sh)"
+      - uses: eas/restore_cache
+        id: maestro
+        with:
+          key: "maestro-android-${{ steps.script.outputs.hash }}-${{ hashFiles('.maestro/patches/*.patch') }}"
+          path: .maestro/build
+      - uses: eas/restore_cache
+        id: gradle
+        if: ${{ steps.maestro.outputs.cache_hit != 'true' }}
+        with:
+          key: "gradle-android-${{ steps.script.outputs.hash }}"
+          restore_keys: gradle-android-
+          path: | # cspell:ignore dists
+            .maestro/.gradle/caches/modules-2
+            .maestro/.gradle/wrapper/dists
+      - name: maestro
+        run: |
+          git fetch -q --depth 1 https://github.com/exactly/exa main
+          mkdir -p "$HOME/base"
+          git archive FETCH_HEAD .maestro/patches | tar -x -C "$HOME/base"
+          (cd "$HOME/base/.maestro" && sh patches/build.sh) > base.log 2>&1 &
+          (cd .maestro && GRADLE_USER_HOME=$PWD/.gradle sh patches/build.sh)
+          wait $! || { cat base.log; exit 1; }
+      - uses: eas/save_cache
+        if: ${{ steps.maestro.outputs.cache_hit != 'true' }}
+        with:
+          key: "maestro-android-${{ steps.script.outputs.hash }}-${{ hashFiles('.maestro/patches/*.patch') }}"
+          path: .maestro/build
+      - name: bench # cspell:ignore getprop stayon
+        run: |
+          adb wait-for-device shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
+          for key in window_animation_scale transition_animation_scale animator_duration_scale; do adb shell settings put global $key 0; done
+          adb shell svc power stayon true
+          .maestro/build/bin/maestro test .maestro/bench/android.yaml --test-output-dir bench/head
+          "$HOME/base/.maestro/build/bin/maestro" test .maestro/bench/android.yaml --test-output-dir bench/base
+          node -e '
+            const { readdirSync, readFileSync } = require("fs");
+            const nest = new Set(["runFlowCommand", "repeatCommand", "retryCommand"]);
+            const runs = {};
+            for (const dir of readdirSync("bench")) {
+              const file = readdirSync(`bench/${dir}`, { recursive: true }).find((f) => f.endsWith("commands.json"));
+              if (!file) continue;
+              const run = (runs[dir] ??= {});
+              for (const { command, metadata } of JSON.parse(readFileSync(`bench/${dir}/${file}`))) {
+                const name = Object.keys(command)[0];
+                if (nest.has(name) || !metadata.duration) continue;
+                const entry = (run[name] ??= { n: 0, ms: 0 });
+                entry.n++;
+                entry.ms += metadata.duration;
+              }
+            }
+            const total = (run) => Object.values(run).reduce((sum, { ms }) => sum + ms, 0);
+            for (const [name, run] of Object.entries(runs)) console.log(name, (total(run) / 1000).toFixed(1), "s");
+            for (const name of new Set(Object.values(runs).flatMap(Object.keys))) {
+              console.log(name, Object.entries(runs).map(([run, r]) => `${run} ${r[name] ? (r[name].ms / r[name].n).toFixed(0) : "-"} ms`).join(" | "));
+            }
+          '
+      - uses: eas/upload_artifact
+        if: always()
+        with:
+          type: other
+          ignore_error: true
+          path: |
+            bench
+            base.log
+            emulator-process.log
