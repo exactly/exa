@@ -59,10 +59,18 @@ const manteca = createManteca(
   parse(pipe(string("manteca url"), nonEmpty("manteca url")), env.MANTECA_API_URL),
 );
 const onesignal = createOnesignal(parse(pipe(string("onesignal"), nonEmpty("onesignal")), env.ONESIGNAL_API_KEY));
-const panda = createPanda({
-  key: parse(pipe(string("panda key"), nonEmpty("panda key")), env.PANDA_API_KEY),
-  url: parse(pipe(string("panda url"), nonEmpty("panda url")), env.PANDA_API_URL),
-});
+const panda = createPanda(
+  {
+    key: parse(pipe(string("panda key"), nonEmpty("panda key")), env.PANDA_API_KEY),
+    url: parse(pipe(string("panda url"), nonEmpty("panda url")), env.PANDA_API_URL),
+  },
+  env.PANDA_BASE_API_KEY
+    ? {
+        key: env.PANDA_BASE_API_KEY,
+        url: parse(pipe(string("panda base url"), nonEmpty("panda base url")), env.PANDA_BASE_API_URL),
+      }
+    : undefined,
+);
 const persona = createPersona(
   parse(pipe(string("persona key"), nonEmpty("persona key")), env.PERSONA_API_KEY),
   parse(pipe(string("persona url"), nonEmpty("persona url")), env.PERSONA_URL),

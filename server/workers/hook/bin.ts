@@ -16,9 +16,12 @@ supervise(
   Promise.all([
     secret("redis-url", secrets).then((url) => connect(url)),
     secret("hook-postgres-url", secrets).then((url) => drizzle(url, { schema })),
-    Promise.all([secret("hook-panda-api-key", secrets), secret("panda-api-url", secrets)]).then(([key, url]) =>
-      createPanda({ key, url }),
-    ),
+    Promise.all([
+      secret("hook-panda-api-key", secrets),
+      secret("panda-api-url", secrets),
+      secret("hook-panda-base-api-key", secrets),
+      secret("panda-base-api-url", secrets),
+    ]).then(([key, url, baseKey, baseUrl]) => createPanda({ key, url }, { key: baseKey, url: baseUrl })),
   ]).then(([bullmq, database, panda]) =>
     own(
       worker({ bullmq, database, panda }),
