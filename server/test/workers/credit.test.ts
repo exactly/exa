@@ -51,9 +51,10 @@ const queue = new Queue<Credit, void, "credit">("credit", { connection: bullmq }
 const events = new QueueEvents("credit", { connection: bullmq, lastEventId: await tip(bullmq, queue) });
 const readContract = publicClient.readContract;
 let worker: ReturnType<typeof creditWorker>;
-const tenants = [
-  { isBase: false, own: "OP", other: "BASE" },
-  { isBase: true, own: "BASE", other: "OP" },
+const served = [
+  { isBase: false, tenant: "OP" },
+  { isBase: false, tenant: "BASE" },
+  { isBase: true, tenant: "BASE" },
 ] as const;
 const mocks = vi.hoisted(() => ({ isBase: vi.fn<(base: boolean) => boolean>() }));
 
@@ -287,9 +288,9 @@ describe("credit worker", () => {
     expect(pushes(account)).toStrictEqual([]);
   });
 
-  it.each(tenants)("activates credit mode on cards of $own tenant", async ({ isBase, own }) => {
+  it.each(served)("activates credit mode on $tenant cards when base is $isBase", async ({ isBase, tenant }) => {
     mocks.isBase.mockReturnValue(isBase);
-    await database.update(cards).set({ tenant: own }).where(eq(cards.id, "credit-card"));
+    await database.update(cards).set({ tenant }).where(eq(cards.id, "credit-card"));
 
     const job = await jobFinished(account);
 
@@ -308,9 +309,9 @@ describe("credit worker", () => {
     ]);
   });
 
-  it.each(tenants)("does not change cards from $other tenant", async ({ isBase, other }) => {
-    mocks.isBase.mockReturnValue(isBase);
-    await database.update(cards).set({ tenant: other }).where(eq(cards.id, "credit-card"));
+  it("does not change op cards on the base stack", async () => {
+    mocks.isBase.mockReturnValue(true);
+    await database.update(cards).set({ tenant: "OP" }).where(eq(cards.id, "credit-card"));
 
     await jobFinished(account);
 
