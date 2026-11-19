@@ -1145,7 +1145,7 @@ const refundedSynthetic = {
   details: {
     againstAmountOperated: "4128.09",
     assetAmountOperated: "5.92562980",
-    merchant: { category: "UNKNOWN", categoryCode: "0000", legalId: "20608344401", name: "Jorge hanne" },
+    merchant: { category: "UNKNOWN", categoryCode: "0000", legalId: "20608344401", name: "Jorge hanne" }, // cspell:ignore hanne
     nationalId: "fake-nationalId-100069655",
     paymentAgainst: "USDC",
     paymentAgainstAmount: "5.92562980",
@@ -1179,7 +1179,7 @@ const refundedSynthetic = {
       amount: "4128.09",
       asset: "ARS",
       destination: {
-        address: "ARS-.-4128.09-.-Jorge hanne-.-ARG-.-20608344401-.-qr3refund-.-PLUSBILLETERA",
+        address: "ARS-.-4128.09-.-Jorge hanne-.-ARG-.-20608344401-.-qr3refund-.-PLUSBILLETERA", // cspell:ignore PLUSBILLETERA
         network: "QR3",
       },
       legalEntity: "WALLET_ARG",
