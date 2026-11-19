@@ -2,9 +2,9 @@
 
 ## infra is code
 
-- **change it in code**: every gcp resource is declared in this package. a change that needs a new one declares it in the same pr as the code that uses it, and pulumi applies it. hand-run cloud commands are never the answer.
-- **read the preview**: every infra pr runs `infra/preview`, which shows what each stack would change. read it before asking anyone to apply anything.
-- **names come from code**: read the declarations before naming a resource. never guess one.
+- **code first**: gcp resources are declared in this package. a change that needs one declares it next to the code that uses it, so pulumi creates it the same way on every stack.
+- **preview**: the `infra/preview` check posts what each stack would change. the posted diff shows what a change really does.
+- **names**: resource names are derived in `index.ts`, `meta.ts` and `utils/modules.ts`. look them up there.
 
 ## secrets
 
