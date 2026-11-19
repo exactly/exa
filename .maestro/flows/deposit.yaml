@@ -42,18 +42,11 @@ env:
 - extendedWaitUntil: { visible: Add funds request sent, timeout: 120000 }
 - runScript: { file: ../dist/bridge.js, env: { network: Anvil2, to: "${output.deposit}", amount: "100" } }
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
-- tapOn: Home
-- runFlow: ../subflows/readPortfolio.yaml
-- runScript: { file: ../dist/deposited.js, env: { account: "${output.deposit}" } }
-- repeat:
-    times: 20
-    while: { true: "${output.portfolio - output.portfolioBefore !== 101 || output.deposited !== 100}" }
-    commands:
-      - tapOn: Home
-      - runFlow: ../subflows/readPortfolio.yaml
-      - runScript: { file: ../dist/deposited.js, env: { account: "${output.deposit}" } }
-- assertTrue: ${output.portfolio - output.portfolioBefore === 101}
-- assertTrue: ${output.deposited === 100}
+- runFlow:
+    file: ../subflows/poll.yaml
+    env:
+      deposit: ${output.deposit}
+      until: Math.round((output.portfolio - output.portfolioBefore) * 100) === 10100 && output.deposited === 100
 - runFlow:
     file: ../subflows/mint.yaml
     env: { asset: USDC, to: "${output.account}", amount: "420" }

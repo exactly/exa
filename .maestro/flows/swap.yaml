@@ -16,14 +16,9 @@ env:
 - tapOn: I already have an account
 - assertVisible: Good (morning|afternoon|evening)!
 - assertTrue: '${http.post("http://localhost:3000/e2e/hold", { body: output.credential }).ok}'
-- repeat:
-    times: 10
-    while: { true: "${!output.held}" }
-    commands:
-      - tapOn: Card
-      - tapOn: Home
-      - evalScript: ${output.held = http.get("http://localhost:3000/e2e/hold?credential=" + encodeURIComponent(output.credential)).ok}
-- assertTrue: ${output.held}
+- runFlow:
+    file: ../subflows/poll.yaml
+    env: { until: 'http.get("http://localhost:3000/e2e/hold?credential=" + encodeURIComponent(output.credential)).ok' }
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Settings } }
 - tapOn: Logout
 - runFlow: ../subflows/signIn.yaml
