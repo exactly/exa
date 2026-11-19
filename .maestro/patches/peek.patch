@@ -1,0 +1,57 @@
+From 7d34e784c7e9aa9d07baef3bd513f7e534ad4551 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Thu, 19 Nov 2026 23:41:06 +0000
+Subject: [PATCH] fix: skip tap screenshots that nothing compares
+
+A tap on a driver without a fast hierarchy, like iOS, took a screenshot before it landed, to compare with one taken after it in case the view hierarchy didn't change. The comparison only decides whether to tap again, which happens only with retryIfNoChange, so every other tap paid for a screenshot nobody looked at, about 100 ms on an iOS simulator. Take both screenshots only when the tap may be retried.
+---
+ maestro-client/src/main/java/maestro/Maestro.kt        | 10 ++++++++--
+ .../src/test/kotlin/maestro/test/IntegrationTest.kt    |  2 --
+ 2 files changed, 8 insertions(+), 4 deletions(-)
+
+diff --git a/maestro-client/src/main/java/maestro/Maestro.kt b/maestro-client/src/main/java/maestro/Maestro.kt
+index a7ab626..3434966 100644
+--- a/maestro-client/src/main/java/maestro/Maestro.kt
++++ b/maestro-client/src/main/java/maestro/Maestro.kt
+@@ -452,7 +452,11 @@ class Maestro(
+         LOGGER.info("Try tapping at ($x, $y) using hierarchy based logic for wait")
+ 
+         val hierarchyBeforeTap = initialHierarchy ?: viewHierarchy()
+-        val screenshotBeforeTap: BufferedImage? = runInterruptible(Dispatchers.IO) { ScreenshotUtils.tryTakingScreenshot(driver) }
++        val screenshotBeforeTap: BufferedImage? = if (retryIfNoChange) {
++            runInterruptible(Dispatchers.IO) { ScreenshotUtils.tryTakingScreenshot(driver) }
++        } else {
++            null
++        }
+ 
+         val retries = getNumberOfRetries(retryIfNoChange)
+         repeat(retries) {
+@@ -481,7 +485,9 @@ class Maestro(
+ 
+             LOGGER.info("Tapping at ($x, $y) using screenshot based logic for wait")
+ 
+-            val screenshotAfterTap: BufferedImage? = runInterruptible(Dispatchers.IO) { ScreenshotUtils.tryTakingScreenshot(driver) }
++            val screenshotAfterTap: BufferedImage? = screenshotBeforeTap?.let {
++                runInterruptible(Dispatchers.IO) { ScreenshotUtils.tryTakingScreenshot(driver) }
++            }
+             if (screenshotBeforeTap != null &&
+                 screenshotAfterTap != null &&
+                 screenshotBeforeTap.width == screenshotAfterTap.width &&
+diff --git a/maestro-test/src/test/kotlin/maestro/test/IntegrationTest.kt b/maestro-test/src/test/kotlin/maestro/test/IntegrationTest.kt
+index f992f98..3302367 100644
+--- a/maestro-test/src/test/kotlin/maestro/test/IntegrationTest.kt
++++ b/maestro-test/src/test/kotlin/maestro/test/IntegrationTest.kt
+@@ -3757,10 +3757,8 @@ class IntegrationTest {
+         driver.assertEvents(
+             listOf(
+                 Event.Scroll,
+-                Event.TakeScreenshot,
+                 /**----after retry----**/
+                 Event.Scroll,
+-                Event.TakeScreenshot,
+                 Event.Tap(Point(50, 50)),
+                 Event.Scroll,
+             )
+-- 
+2.43.0
+
