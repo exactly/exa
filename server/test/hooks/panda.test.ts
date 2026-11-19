@@ -56,7 +56,8 @@ import t, { f } from "../../i18n";
 import createOnesignal from "../../utils/onesignal";
 import createPanda, * as Panda from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
-import createSardine from "../../utils/sardine";
+import redis from "../../utils/redis";
+import createSardine, { session } from "../../utils/sardine";
 import createSegment from "../../utils/segment";
 import traceClient from "../../utils/traceClient";
 import wallet from "../../utils/wallet";
@@ -84,6 +85,7 @@ const dependencies = {
   issuer,
   onesignal: createOnesignal("onesignal"),
   panda,
+  redis,
   refund,
   sardine: createSardine(sardineConfig.key, sardineConfig.url),
   segment: createSegment("segment"),
@@ -623,13 +625,81 @@ describe("card operations", () => {
           },
         });
 
-        expect(captureException).toHaveBeenCalledWith(new Error("high risk authorization"), expect.anything());
         await expect(span).resolves.toStrictEqual([
           "tx.risk.authorization",
           { "exa.level": "high", "exa.score": 98, "exa.status": "Success", "exa.aml": "high" },
         ]);
+        expect(captureException).toHaveBeenCalledWith(new Error("high risk authorization"), { level: "error" });
 
         expect(response.status).toBe(200);
+      });
+
+      it("links card risk to the login session", async () => {
+        const risk = vi.spyOn(sardine, "risk").mockResolvedValueOnce({
+          status: "Success",
+          level: "high",
+          sessionKey: "login-session",
+          amlLevel: "low",
+          score: 99,
+        });
+        const span = spyRiskSpan();
+        await database
+          .insert(cards)
+          .values([{ id: "linked-risk", credentialId: "cred", tenant: "OP", lastFour: "5678", mode: 0 }]);
+        await redis.set(session("cred"), "login-session");
+        onTestFinished(async () => {
+          await redis.del(session("cred"));
+        });
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId: "linked-risk" } },
+          },
+        });
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+        await expect(span).resolves.toStrictEqual([
+          "tx.risk.authorization",
+          { "exa.level": "high", "exa.score": 99, "exa.status": "Success", "exa.aml": "low" },
+        ]);
+        expect(risk.mock.calls[0]?.[0].sessionKey).toBe("login-session");
+        expect(captureException).toHaveBeenCalledWith(new Error("high risk authorization"), { level: "error" });
+        await expect(
+          database.query.cards.findFirst({ columns: { status: true }, where: eq(cards.id, "linked-risk") }),
+        ).resolves.toStrictEqual({ status: "ACTIVE" });
+      });
+
+      it("falls back to the transaction when the login session lookup fails", async () => {
+        const risk = vi.spyOn(sardine, "risk");
+        const error = new Error("redis down");
+        const get = redis.get.bind(redis);
+        vi.spyOn(redis, "get").mockImplementation((key) =>
+          String(key).startsWith("sardine:session:") ? Promise.reject(error) : get(key),
+        );
+        const span = spyRiskSpan();
+        await database
+          .insert(cards)
+          .values([{ id: "session-lookup", credentialId: "cred", tenant: "OP", lastFour: "5678", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId: "session-lookup" } },
+          },
+        });
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+        await expect(span).resolves.toStrictEqual([
+          "tx.risk.authorization",
+          { "exa.level": "low", "exa.score": undefined, "exa.status": "Success", "exa.aml": "low" },
+        ]);
+        expect(risk.mock.calls[0]?.[0].sessionKey).toBe(authorization.json.body.id);
+        expect(captureException).toHaveBeenCalledWith(error, { level: "error" });
       });
 
       it("alarms high risk verification", async () => {
@@ -657,11 +727,11 @@ describe("card operations", () => {
           },
         });
 
-        expect(captureException).toHaveBeenCalledWith(new Error("high risk verification"), expect.anything());
         await expect(span).resolves.toStrictEqual([
           "tx.risk.verification",
           { "exa.level": "high", "exa.score": 98, "exa.status": "Success", "exa.aml": "high" },
         ]);
+        expect(captureException).toHaveBeenCalledWith(new Error("high risk verification"), expect.anything());
 
         expect(response.status).toBe(200);
       });
@@ -691,11 +761,11 @@ describe("card operations", () => {
           },
         });
 
-        expect(captureException).toHaveBeenCalledWith(new Error("high risk refund"), expect.anything());
         await expect(span).resolves.toStrictEqual([
           "tx.risk.refund",
           { "exa.level": "high", "exa.score": 98, "exa.status": "Success", "exa.aml": "high" },
         ]);
+        expect(captureException).toHaveBeenCalledWith(new Error("high risk refund"), expect.anything());
 
         expect(response.status).toBe(200);
       });

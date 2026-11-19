@@ -1,6 +1,7 @@
 import "../mocks/bridge";
 import sendPushNotificationMock from "../mocks/onesignal";
 import "../mocks/persona";
+import sardineCustomer from "../mocks/sardine";
 import * as segment from "../mocks/segment";
 import "../mocks/sentry";
 
@@ -24,6 +25,7 @@ import t, { f } from "../../i18n";
 import createOnesignal from "../../utils/onesignal";
 import createPersona from "../../utils/persona";
 import createBridge from "../../utils/ramps/bridge";
+import createSardine from "../../utils/sardine";
 import createSegment from "../../utils/segment";
 
 const bridgeConfig = { key: "bridge", url: "https://bridge.test" };
@@ -36,6 +38,7 @@ const bridgeHook = createBridgeHook({
   database,
   onesignal: createOnesignal("onesignal"),
   persona,
+  sardine: createSardine("sardine", "https://sardine.test"),
   segment: createSegment("segment"),
 });
 const app = bridgeHook.app;
@@ -256,6 +259,19 @@ describe("bridge hook", () => {
       userId: account,
       event: "Onramp",
       properties: { currency: "usd", amount: 1000, provider: "bridge", source: null, usdcAmount: 995 },
+    });
+    expect(sardineCustomer).toHaveBeenCalledExactlyOnceWith({
+      flow: { name: "bridge onramp", type: "transaction" },
+      checkpoints: ["aml"],
+      customer: { id: "bridge-test" },
+      transaction: {
+        id: "evt_123",
+        actionType: "buy",
+        amount: 995,
+        currencyCode: "USD",
+        itemCategory: "USDC",
+        paymentMethod: { type: "crypto", crypto: { assetSymbol: "USDC", address: account } },
+      },
     });
     expect(sendPushNotification).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
@@ -683,6 +699,53 @@ describe("bridge hook", () => {
       event: "Onramp",
       properties: { currency: "usdc", amount: 500, provider: "bridge", source: null, usdcAmount: 500 },
     });
+    expect(sardineCustomer).not.toHaveBeenCalled();
+  });
+
+  it("monitors drain payment_processed on sardine", async () => {
+    vi.spyOn(segment, "track").mockReturnValue();
+    const payload = { ...drain, event_object: { ...drain.event_object, state: "payment_processed" } };
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(payload) },
+      json: payload as never,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(sardineCustomer).toHaveBeenCalledExactlyOnceWith({
+      flow: { name: "bridge onramp", type: "transaction" },
+      checkpoints: ["aml"],
+      customer: { id: "bridge-test" },
+      transaction: {
+        id: "drain_123",
+        actionType: "buy",
+        amount: 500,
+        currencyCode: "USD",
+        itemCategory: "USDC",
+        paymentMethod: { type: "crypto", crypto: { assetSymbol: "USDC", address: account } },
+      },
+    });
+    expect(segment.track).not.toHaveBeenCalled();
+    expect(sendPushNotificationMock).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["virtual account", paymentProcessed],
+    ["drain", { ...drain, event_object: { ...drain.event_object, state: "payment_processed" } }],
+    ["transfer", transferProcessed],
+  ])("captures sardine errors on %s ramps", async (_, payload) => {
+    vi.spyOn(segment, "track").mockReturnValue();
+    const error = new Error("sardine failed");
+    sardineCustomer.mockRejectedValueOnce(error);
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(payload) },
+      json: payload as never,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    await vi.waitFor(() => expect(captureException).toHaveBeenCalledExactlyOnceWith(error, { level: "error" }));
   });
 
   it("sends push notification on drain payment_submitted", async () => {
@@ -824,6 +887,7 @@ describe("bridge hook", () => {
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
     expect(segment.track).not.toHaveBeenCalled();
     expect(sendPushNotification).not.toHaveBeenCalled();
+    expect(sardineCustomer).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -905,6 +969,19 @@ describe("bridge hook", () => {
       userId: account,
       event: "Offramp",
       properties: { currency: "usd", amount: 2.97, provider: "bridge", source: null, usdcAmount: 3 },
+    });
+    expect(sardineCustomer).toHaveBeenCalledExactlyOnceWith({
+      flow: { name: "bridge offramp", type: "transaction" },
+      checkpoints: ["aml"],
+      customer: { id: "bridge-test" },
+      transaction: {
+        id: "tr_123",
+        actionType: "sell",
+        amount: 3,
+        currencyCode: "USD",
+        itemCategory: "USDC",
+        paymentMethod: { type: "crypto", crypto: { assetSymbol: "USDC", address: account } },
+      },
     });
     expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
       userId: account,

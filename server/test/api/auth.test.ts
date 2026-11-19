@@ -34,7 +34,7 @@ import decodePublicKey from "../../utils/decodePublicKey";
 import createIntercom from "../../utils/intercom";
 import * as publicClient from "../../utils/publicClient";
 import redis from "../../utils/redis";
-import createSardine from "../../utils/sardine";
+import createSardine, { session } from "../../utils/sardine";
 import createSegment from "../../utils/segment";
 import validFactories from "../../utils/validFactories";
 import createWalletExtension from "../../utils/walletExtension";
@@ -57,19 +57,21 @@ const subscribe = {
   close: vi.fn<ReturnType<typeof createSubscribe>["close"]>().mockResolvedValue(),
   enqueue: vi.fn<ReturnType<typeof createSubscribe>["enqueue"]>().mockResolvedValue(),
 };
+const sardine = createSardine(
+  parse(pipe(string(), nonEmpty()), env.SARDINE_API_KEY),
+  parse(pipe(string(), nonEmpty()), env.SARDINE_API_URL),
+);
 const createCredential = createCredentialFactory({
   authSecret,
   database,
-  sardine: createSardine(
-    parse(pipe(string(), nonEmpty()), env.SARDINE_API_KEY),
-    parse(pipe(string(), nonEmpty()), env.SARDINE_API_URL),
-  ),
+  redis,
+  sardine,
   segment: createSegment(parse(pipe(string(), nonEmpty()), env.SEGMENT_WRITE_KEY)),
   subscribe,
 });
 const intercom = createIntercom(parse(pipe(string(), nonEmpty()), env.INTERCOM_IDENTITY_KEY));
 const appClient = testClient(
-  authentication({ authSecret, business: true, createCredential, database, intercom, redis, walletExtension }),
+  authentication({ authSecret, business: true, createCredential, database, intercom, redis, sardine, walletExtension }),
 );
 const registrationAppClient = testClient(
   registration({ business: true, createCredential, intercom, redis, walletExtension }),
@@ -196,7 +198,7 @@ describe("authentication", () => {
       await expect(redis.exists(`session:${sessionId}`)).resolves.toBe(0);
     }
     expect(verify).toHaveBeenCalledTimes(3);
-    expect(sardineCustomer).toHaveBeenCalledTimes(2);
+    expect(sardineCustomer).toHaveBeenCalledTimes(3);
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -216,6 +218,35 @@ describe("authentication", () => {
     await expect(redis.get(`session:${sessionId}`)).resolves.toBe(
       body.method === "siwe" ? body.message : body.challenge,
     );
+  });
+
+  it.each([
+    ["cross-platform", { "client-platform": "ios" }, [{ name: "passkey_attachment", value: "cross-platform" }], "ios"],
+    ["unknown", {}, [], "web"],
+  ])("tags a %s authenticator attachment on login", async (attachment, headers, extra, platform) => {
+    const response = await appClient.index.$post(
+      {
+        json: {
+          method: "webauthn",
+          id: "dGVzdC1jcmVkLWlk",
+          rawId: "dGVzdC1jcmVkLWlk",
+          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
+          authenticatorAttachment: attachment as "cross-platform",
+          clientExtensionResults: {},
+          type: "public-key",
+        },
+      },
+      { headers: { cookie: "session_id=test-session", origin: consumer, ...headers } },
+    );
+
+    expect(response.status).toBe(200);
+    expect(sardineCustomer.mock.calls[0]?.[0].customer?.tags).toStrictEqual([
+      { name: "auth_method", value: "webauthn", type: "string" },
+      ...passkeyTags.slice(0, 3),
+      ...extra.map((tag) => ({ ...tag, type: "string" })),
+      { name: "app_platform", value: platform, type: "string" },
+      ...passkeyTags.slice(4),
+    ]);
   });
 
   it("returns intercom token on successful login", async () => {
@@ -246,8 +277,69 @@ describe("authentication", () => {
     expect(payload.sub).toBe(zeroAddress);
     expect(payload.exp).toBeGreaterThan(nowInSeconds + 86_000);
     expect(payload.exp).toBeLessThan(nowInSeconds + 86_500);
-    expect(sardineCustomer).not.toHaveBeenCalled();
+    const sessionKey = sardineCustomer.mock.calls[0]?.[0].sessionKey;
+    expect(sardineCustomer).toHaveBeenCalledExactlyOnceWith({
+      flow: { name: "login", type: "login" },
+      sessionKey,
+      checkpoints: ["login"],
+      customer: {
+        id: "dGVzdC1jcmVkLWlk",
+        tags: [{ name: "auth_method", value: "webauthn", type: "string" }, ...passkeyTags],
+      },
+      device: { ip: "203.0.113.42" },
+    });
+    await vi.waitFor(() => expect(redis.get(session("dGVzdC1jcmVkLWlk"))).resolves.toBe(sessionKey));
     await expect(redis.exists("session:test-session")).resolves.toBe(0);
+  });
+
+  it.each([
+    {
+      name: "sardine",
+      error: new Error("sardine down"),
+      stored: true,
+      fail: (error: Error) => {
+        sardineCustomer.mockRejectedValueOnce(error);
+      },
+    },
+    {
+      name: "redis",
+      error: new Error("redis down"),
+      stored: false,
+      fail: (error: Error) => {
+        vi.spyOn(redis, "set").mockRejectedValueOnce(error);
+      },
+    },
+  ])("captures $name failures on login monitoring", async ({ error, fail, stored }) => {
+    fail(error);
+    const response = await appClient.index.$post(
+      {
+        json: {
+          method: "webauthn",
+          id: "dGVzdC1jcmVkLWlk",
+          rawId: "dGVzdC1jcmVkLWlk",
+          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
+          clientExtensionResults: {},
+          type: "public-key",
+        },
+      },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("set-cookie")).toContain("credential_id=");
+    assert.ok(parse(Authentication, await response.json()).intercomToken);
+    await vi.waitFor(() => expect(captureException).toHaveBeenCalledExactlyOnceWith(error, { level: "error" }));
+    const sessionKey = sardineCustomer.mock.calls[0]?.[0].sessionKey;
+    expect(sardineCustomer).toHaveBeenCalledExactlyOnceWith({
+      flow: { name: "login", type: "login" },
+      sessionKey,
+      checkpoints: ["login"],
+      customer: {
+        id: "dGVzdC1jcmVkLWlk",
+        tags: [{ name: "auth_method", value: "webauthn", type: "string" }, ...passkeyTags],
+      },
+    });
+    await expect(redis.get(session("dGVzdC1jcmVkLWlk")).then((key) => key === sessionKey)).resolves.toBe(stored);
   });
 
   it("returns wallet extension token on ios login", async () => {
@@ -472,7 +564,7 @@ describe("authentication", () => {
     const { verifyAuthenticationResponse: verify } = await import("@simplewebauthn/server");
     const { default: create } = await import("../../api/auth/authentication");
     const client = testClient(
-      create({ authSecret, business: true, createCredential, database, intercom, redis, walletExtension }),
+      create({ authSecret, business: true, createCredential, database, intercom, redis, sardine, walletExtension }),
     );
     vi.mocked(verify).mockResolvedValueOnce({
       verified: true,
@@ -748,6 +840,7 @@ describe("authentication", () => {
     expect(response.status).toBe(200);
     expect(sardineCustomer).toHaveBeenCalledWith({
       flow: { name: "signup", type: "signup" },
+      sessionKey: await redis.get(session(id)),
       checkpoints: ["customer"],
       customer: {
         id,
@@ -873,7 +966,16 @@ describe("authentication", () => {
     const id = own(parse(Address, slice(keccak256(toBytes("auth:siwe-business-disabled")), 12)));
 
     const response = await testClient(
-      authentication({ authSecret, business: false, createCredential, database, intercom, redis, walletExtension }),
+      authentication({
+        authSecret,
+        business: false,
+        createCredential,
+        database,
+        intercom,
+        redis,
+        sardine,
+        walletExtension,
+      }),
     ).index.$post(
       { json: { method: "siwe", id, signature: "0xdeadbeef" } },
       { headers: { cookie: "session_id=test-session", origin: business } },
@@ -1018,7 +1120,7 @@ describe("authentication", () => {
         columns: { account: true, factory: true },
       }),
     ).resolves.toStrictEqual([{ account, factory }]);
-    expect(sardineCustomer).not.toHaveBeenCalled();
+    expect(sardineCustomer.mock.calls.map(([{ flow }]) => flow.name)).toStrictEqual(["login"]);
     expect(subscribe.enqueue).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
     await expect(redis.exists("session:test-session")).resolves.toBe(0);
@@ -1420,12 +1522,14 @@ describe("registration", () => {
 
     expect(sardineCustomer).toHaveBeenCalledWith({
       flow: { name: "signup", type: "signup" },
+      sessionKey: await redis.get(session(id)),
       checkpoints: ["customer"],
       customer: {
         id,
         tags: [
           { name: "source", value: "12345", type: "string" },
           { name: "auth_method", value: "webauthn", type: "string" },
+          ...signupTags,
         ],
       },
       device: { ip, ...signals },
@@ -1456,12 +1560,14 @@ describe("registration", () => {
     expect(response.status).toBe(200);
     expect(sardineCustomer).toHaveBeenCalledWith({
       flow: { name: "signup", type: "signup" },
+      sessionKey: await redis.get(session(id)),
       checkpoints: ["customer"],
       customer: {
         id,
         tags: [
           { name: "source", value: "EXA", type: "string" },
           { name: "auth_method", value: "webauthn", type: "string" },
+          ...signupTags,
         ],
       },
       ...device,
@@ -1626,6 +1732,7 @@ describe("registration", () => {
           tags: [
             { name: "source", value: "EXA", type: "string" },
             { name: "auth_method", value: "webauthn", type: "string" },
+            ...signupTags,
           ],
         },
       }),
@@ -1705,22 +1812,48 @@ describe("registration", () => {
   });
 });
 
+const passkeyTags = [
+  { name: "passkey_backed_up", value: "true", type: "string" },
+  { name: "passkey_device_type", value: "multiDevice", type: "string" },
+  { name: "passkey_user_verified", value: "true", type: "string" },
+  { name: "app_platform", value: "web", type: "string" },
+  { name: "rp_id", value: "localhost", type: "string" },
+];
+
+const signupTags = [
+  ...passkeyTags.slice(0, 3),
+  { name: "passkey_aaguid", value: "ea9b8d66-4d01-1d21-3ce4-b6b48cb575d4", type: "string" },
+  { name: "passkey_transports", value: "hybrid,internal", type: "string" },
+  ...passkeyTags.slice(3),
+];
+
 vi.mock("@simplewebauthn/server", async (importOriginal) => {
   const actual = await importOriginal<typeof SimpleWebAuthn>();
   return {
     ...actual,
-    verifyAuthenticationResponse: vi
-      .fn<() => Promise<{ authenticationInfo: { credentialID: string }; verified: boolean }>>()
-      .mockResolvedValue({
-        verified: true,
-        authenticationInfo: { credentialID: "dGVzdC1jcmVkLWlk" },
-      }),
+    verifyAuthenticationResponse: vi.fn<typeof actual.verifyAuthenticationResponse>().mockResolvedValue({
+      verified: true,
+      authenticationInfo: {
+        credentialID: "dGVzdC1jcmVkLWlk",
+        newCounter: 0,
+        userVerified: true,
+        credentialDeviceType: "multiDevice",
+        credentialBackedUp: true,
+        origin: "http://localhost",
+        rpID: "localhost",
+      },
+    }),
     verifyRegistrationResponse: vi
       .fn<
         (options: { response: { id: string } }) => Promise<{
           registrationInfo: {
+            aaguid: string;
             credential: { id: string; publicKey: Uint8Array; transports: string[] };
+            credentialBackedUp: boolean;
             credentialDeviceType: string;
+            origin: string;
+            rpID: string;
+            userVerified: boolean;
           };
           verified: boolean;
         }>
@@ -1729,12 +1862,17 @@ vi.mock("@simplewebauthn/server", async (importOriginal) => {
         Promise.resolve({
           verified: true,
           registrationInfo: {
+            aaguid: "ea9b8d66-4d01-1d21-3ce4-b6b48cb575d4",
             credential: {
               id: options.response.id,
               publicKey: new Uint8Array(65),
-              transports: ["internal"],
+              transports: ["internal", "hybrid"],
             },
+            credentialBackedUp: true,
             credentialDeviceType: "multiDevice",
+            origin: "http://localhost",
+            rpID: "localhost",
+            userVerified: true,
           },
         }),
       ),

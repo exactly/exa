@@ -22,6 +22,7 @@ import {
   parse,
   picklist,
   pipe,
+  safeParse,
   strictObject,
   string,
   transform,
@@ -45,6 +46,7 @@ import { cards, credentials } from "../database/schema";
 import { origin } from "../utils/appOrigin";
 import { partner } from "../utils/panda";
 import publicClient from "../utils/publicClient";
+import { IpAddress, session, signals } from "../utils/sardine";
 import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
 import { name as creditName } from "../workers/credit/job";
@@ -59,6 +61,8 @@ import type createSegment from "../utils/segment";
 import type createWalletExtension from "../utils/walletExtension";
 import type createCredit from "../workers/credit/queue";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Context } from "hono";
+import type { Redis } from "ioredis";
 
 const CardResponse = object({
   cardId: pipe(string(), uuid(), metadata({ examples: ["123e4567-e89b-12d3-a456-426655440000"] })),
@@ -160,6 +164,7 @@ export default function route({
   panda,
   pax,
   persona,
+  redis,
   sardine,
   segment,
   walletExtension,
@@ -170,10 +175,37 @@ export default function route({
   panda: ReturnType<typeof createPanda>;
   pax?: ReturnType<typeof createPax>;
   persona: ReturnType<typeof createPersona>;
+  redis: Redis;
   sardine: ReturnType<typeof createSardine>;
   segment: ReturnType<typeof createSegment>;
   walletExtension: ReturnType<typeof createWalletExtension>;
 }) {
+  function report(
+    c: Context,
+    credentialId: string,
+    flow: { name: string; type: "account_update" | "other" | "payment_method_link" },
+    transaction?: Parameters<typeof sardine.customer>[0]["transaction"],
+  ) {
+    const address = safeParse(IpAddress, c.req.header("do-connecting-ip"));
+    const device = signals(c, address.success ? address.output : undefined);
+    redis
+      .get(session(credentialId))
+      .catch((error: unknown) => {
+        captureException(error, { level: "error" });
+        return null;
+      })
+      .then((sessionKey) =>
+        sardine.customer({
+          flow,
+          ...(sessionKey && { sessionKey }),
+          customer: { id: credentialId, type: "customer" },
+          ...(device && { device }),
+          ...(transaction && { transaction }),
+        }),
+      )
+      .catch((error: unknown) => captureException(error, { level: "error" }));
+  }
+
   const mutexes = new Map<string, Mutex>();
   function createMutex(credentialId: string) {
     const mutex = new Mutex();
@@ -396,6 +428,8 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
           }
           if (!user) return c.json({ code: "no panda" }, 403);
           if (include("siwe") || include("webauthn") || include("provisioning")) c.header("Cache-Control", "no-store");
+          if (sessionid) report(c, credentialId, { name: "card.details", type: "other" });
+          if (provisioning) report(c, credentialId, { name: "card.provisioning", type: "payment_method_link" });
 
           return c.json(
             {
@@ -504,6 +538,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
         if (provider.status !== "active" && provider.status !== "locked") return c.json({ code: "no card" }, 404);
         try {
           const { processorCardId, timeBasedSecret } = await panda.getProcessorDetails(card.id);
+          report(c, c.get("walletExtension").credentialId, { name: "card.provisioning", type: "payment_method_link" });
           return c.json(
             {
               id: processorCardId,
@@ -683,24 +718,23 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
 
               if (pax && isUpgradeFromPlatinum) handlePlatinumUpgrade(credentialId, account, pax, persona);
 
-              sardine
-                .customer({
-                  flow: { name: "card.issued", type: "payment_method_link" },
-                  customer: { id: credentialId, type: "customer" },
-                  transaction: {
-                    id: card.id,
-                    paymentMethod: {
-                      type: "card",
-                      card: {
-                        hash: card.id,
-                        last4: card.last4,
-                        expiryMonth: card.expirationMonth,
-                        expiryYear: card.expirationYear,
-                      },
+              report(
+                c,
+                credentialId,
+                { name: "card.issued", type: "payment_method_link" },
+                {
+                  id: card.id,
+                  paymentMethod: {
+                    type: "card",
+                    card: {
+                      hash: card.id,
+                      last4: card.last4,
+                      expiryMonth: card.expirationMonth,
+                      expiryYear: card.expirationYear,
                     },
                   },
-                })
-                .catch((error: unknown) => captureException(error, { level: "error" }));
+                },
+              );
 
               return c.json(
                 {
@@ -909,6 +943,12 @@ async function encryptPIN(pin: string) {
                     event: ({ ACTIVE: "CardUnfrozen", DELETED: "CardDeleted", FROZEN: "CardFrozen" } as const)[status],
                     properties: { source: credential.source },
                   });
+                  report(c, credentialId, {
+                    name: ({ ACTIVE: "card.unfrozen", DELETED: "card.deleted", FROZEN: "card.frozen" } as const)[
+                      status
+                    ],
+                    type: "account_update",
+                  });
                 } else if (status !== "DELETED") {
                   return c.json({ code: "no card" }, 404);
                 }
@@ -924,6 +964,7 @@ async function encryptPIN(pin: string) {
                   }
                   throw error;
                 }
+                report(c, credentialId, { name: "card.pin", type: "account_update" });
                 return c.json({ data, iv } satisfies InferOutput<typeof UpdatedCardResponse>, 200);
               }
               case "signature": {

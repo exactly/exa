@@ -171,6 +171,10 @@ services:
       - key: SARDINE_API_URL
         scope: RUN_TIME
         value: ${{ env.SARDINE_API_URL }}
+      - key: SARDINE_WEBHOOK_SECRET
+        scope: RUN_TIME
+        type: SECRET
+        value: ${{ env.ENCRYPTED_SARDINE_WEBHOOK_SECRET || env.SARDINE_WEBHOOK_SECRET }}
       - key: SEGMENT_WRITE_KEY
         scope: RUN_TIME
         type: SECRET

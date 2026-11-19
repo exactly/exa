@@ -10,6 +10,7 @@ import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 
 import database, { credentials } from "../../database";
 import createCredentialFactory from "../../utils/createCredential";
+import redis from "../../utils/redis";
 import createSardine from "../../utils/sardine";
 
 import type createSubscribe from "../../workers/subscribe/queue";
@@ -71,6 +72,19 @@ describe("createCredential", () => {
     expect(segment.identify).toHaveBeenCalledExactlyOnceWith({ userId: row.account });
     expect(vi.mocked(captureException)).not.toHaveBeenCalled();
   });
+
+  it("keeps the credential when the sardine session write fails", async () => {
+    const error = new Error("redis down");
+    vi.spyOn(redis, "set").mockRejectedValueOnce(error);
+
+    const response = await request();
+
+    expect(response.status).toBe(200);
+    await expect(
+      database.query.credentials.findFirst({ where: eq(credentials.id, credentialId), columns: { id: true } }),
+    ).resolves.toStrictEqual({ id: credentialId });
+    expect(vi.mocked(captureException)).toHaveBeenCalledExactlyOnceWith(error, { level: "error" });
+  });
 });
 
 function request() {
@@ -79,6 +93,7 @@ function request() {
       await createCredentialFactory({
         authSecret: "secret",
         database,
+        redis,
         sardine: createSardine("sardine", "https://api.sardine.ai"),
         segment,
         subscribe: { close: vi.fn<() => Promise<void>>().mockResolvedValue(), enqueue },

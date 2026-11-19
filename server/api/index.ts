@@ -68,7 +68,7 @@ export default function api({
   const betterAuth = createBetterAuth(database, authSecret);
   const auth = createAuth(authSecret);
   const org = createOrg(betterAuth);
-  const credential = createCredential({ authSecret, database, sardine, segment, subscribe });
+  const credential = createCredential({ authSecret, database, redis, sardine, segment, subscribe });
   const app = new Hono()
     .use(
       cors({
@@ -95,11 +95,12 @@ export default function api({
         database,
         intercom,
         redis,
+        sardine,
         walletExtension,
       }),
     )
     .route("/activity", activity({ auth, database }))
-    .route("/card", card({ auth, credit, database, panda, pax, persona, sardine, segment, walletExtension }))
+    .route("/card", card({ auth, credit, database, panda, pax, persona, redis, sardine, segment, walletExtension }))
     .route("/kyc", kyc({ auth, business, database, panda, persona, redis }))
     .route("/passkey", passkey({ auth, database })) // eslint-disable-line @typescript-eslint/no-deprecated -- // TODO remove
     .route("/pax", paxRoute({ auth, database, pax }))

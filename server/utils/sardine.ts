@@ -29,6 +29,8 @@ import domain from "@exactly/common/domain";
 
 import ServiceError from "./ServiceError";
 
+import type { Context } from "hono";
+
 export default function sardine(key: string, url: string) {
   return { customer, feedback, risk };
 
@@ -75,7 +77,116 @@ export default function sardine(key: string, url: string) {
 export const IpAddress = pipe(string(), ip(), brand("IpAddress"));
 export type IpAddress = InferOutput<typeof IpAddress>;
 
-const Checkpoint = picklist(["customer", "onboarding", "login", "aml", "aml_bank", "payment", "ach", "withdrawal"]);
+export const SESSION_TTL = 1800;
+
+export function session(credentialId: string) {
+  return `sardine:session:${credentialId}`;
+}
+
+export function signals(c: Context, address?: IpAddress) {
+  const userAgent = c.req.header("user-agent");
+  const language = c.req.header("accept-language");
+  return address || userAgent || language
+    ? { ...(address && { ip: address }), ...(userAgent && { userAgent }), ...(language && { language }) }
+    : undefined;
+}
+
+export function passkey({
+  aaguid,
+  attachment,
+  credentialBackedUp,
+  credentialDeviceType,
+  origin,
+  platform,
+  rpID,
+  transports,
+  userVerified,
+}: {
+  aaguid?: string;
+  attachment?: string;
+  credentialBackedUp: boolean;
+  credentialDeviceType: string;
+  origin: string;
+  platform?: string;
+  rpID?: string;
+  transports?: string[];
+  userVerified: boolean;
+}) {
+  return [
+    { name: "passkey_backed_up", value: String(credentialBackedUp), type: "string" },
+    { name: "passkey_device_type", value: credentialDeviceType, type: "string" },
+    { name: "passkey_user_verified", value: String(userVerified), type: "string" },
+    ...(attachment ? [{ name: "passkey_attachment", value: attachment, type: "string" } as const] : []),
+    ...(aaguid ? [{ name: "passkey_aaguid", value: aaguid, type: "string" } as const] : []),
+    ...(transports?.length
+      ? [{ name: "passkey_transports", value: transports.toSorted().join(","), type: "string" } as const]
+      : []),
+    {
+      name: "app_platform",
+      value: platform === "ios" ? "ios" : origin.startsWith("android:") ? "android" : "web",
+      type: "string",
+    },
+    ...(rpID ? [{ name: "rp_id", value: rpID, type: "string" } as const] : []),
+  ] satisfies Tag[];
+}
+
+export function ramp(
+  provider: "bridge" | "manteca",
+  kind: "offramp" | "onramp",
+  { account, credentialId, id, amount }: { account: string; amount: number; credentialId: string; id: string },
+) {
+  return {
+    flow: { name: `${provider} ${kind}`, type: "transaction" },
+    checkpoints: ["aml"],
+    customer: { id: credentialId },
+    transaction: {
+      id,
+      actionType: kind === "onramp" ? "buy" : "sell",
+      amount,
+      currencyCode: "USD",
+      itemCategory: "USDC",
+      paymentMethod: { type: "crypto", crypto: { assetSymbol: "USDC", address: account } },
+    },
+  } satisfies InferInput<typeof CustomerRequest>;
+}
+
+const networks = {
+  ARB: "arbitrum",
+  BASE: "base",
+  BNB: "binance_smart_chain",
+  ETH: "ethereum",
+  MATIC: "polygon",
+  OPT: "optimism",
+} as const satisfies Record<string, InferOutput<typeof Network>>;
+
+export function cryptoNetwork(alchemyNetwork: string) {
+  const prefix = alchemyNetwork.split("_")[0];
+  return prefix && Object.hasOwn(networks, prefix) ? networks[prefix as keyof typeof networks] : undefined;
+}
+
+const Checkpoint = picklist([
+  "customer",
+  "onboarding",
+  "login",
+  "aml",
+  "aml_bank",
+  "aml_crypto",
+  "payment",
+  "ach",
+  "withdrawal",
+]);
+
+const Network = picklist(["arbitrum", "base", "binance_smart_chain", "ethereum", "optimism", "polygon"]);
+
+const Crypto = object({
+  type: literal("crypto"),
+  crypto: object({
+    assetSymbol: optional(string()),
+    network: optional(Network),
+    address: string(),
+    transactionHash: optional(string()),
+  }),
+});
 
 const CustomerRequest = object({
   flow: object({
@@ -211,58 +322,70 @@ const CustomerRequest = object({
           "debit",
         ]),
       ),
-      paymentMethod: object({
-        type: literal("card"),
-        card: object({
-          last4: pipe(string(), length(4)),
-          hash: string(),
-          isVerified: optional(boolean(), false),
-          brand: optional(string(), "visa"),
-          issuerCountry: optional(pipe(string(), length(2)), "US"),
-          binCountry: optional(pipe(string(), length(2)), "US"),
-          expiryMonth: optional(pipe(string(), transform(Number), number())),
-          expiryYear: optional(pipe(string(), transform(Number), number())),
-          network: optional(picklist(["visa", "mastercard", "american_express", "other"]), "visa"),
-          type: optional(picklist(["debit", "credit", "prepaid", "virtual", "physical"]), "virtual"),
-          creditCardAuthorization: optional(
+      paymentMethod: variant("type", [
+        Crypto,
+        object({
+          type: literal("card"),
+          card: object({
+            last4: pipe(string(), length(4)),
+            hash: string(),
+            isVerified: optional(boolean(), false),
+            brand: optional(string(), "visa"),
+            issuerCountry: optional(pipe(string(), length(2)), "US"),
+            binCountry: optional(pipe(string(), length(2)), "US"),
+            expiryMonth: optional(pipe(string(), transform(Number), number())),
+            expiryYear: optional(pipe(string(), transform(Number), number())),
+            network: optional(picklist(["visa", "mastercard", "american_express", "other"]), "visa"),
+            type: optional(picklist(["debit", "credit", "prepaid", "virtual", "physical"]), "virtual"),
+            creditCardAuthorization: optional(
+              object({
+                avs: picklist(["match", "nomatch", "not_verified", "error", "nodata"]),
+                avsZip: picklist(["match", "nomatch", "not_verified", "error", "nodata"]),
+                avsStreet: picklist(["match", "nomatch", "not_verified", "error", "nodata"]),
+                cvv: picklist(["match", "nomatch", "not_verified", "not_supported", "error"]),
+                threeDs: picklist([
+                  "success",
+                  "issuer_not_supported",
+                  "signature_verification_failed",
+                  "rejected",
+                  "frictionless_failed",
+                  "error",
+                  "bypassed",
+                ]),
+                status: string(),
+                statusCode: string(),
+                processor: string(),
+              }),
+            ),
+          }),
+          firstName: optional(string()),
+          middleName: optional(string()),
+          lastName: optional(string()),
+          billingAddress: optional(
             object({
-              avs: picklist(["match", "nomatch", "not_verified", "error", "nodata"]),
-              avsZip: picklist(["match", "nomatch", "not_verified", "error", "nodata"]),
-              avsStreet: picklist(["match", "nomatch", "not_verified", "error", "nodata"]),
-              cvv: picklist(["match", "nomatch", "not_verified", "not_supported", "error"]),
-              threeDs: picklist([
-                "success",
-                "issuer_not_supported",
-                "signature_verification_failed",
-                "rejected",
-                "frictionless_failed",
-                "error",
-                "bypassed",
-              ]),
-              status: string(),
-              statusCode: string(),
-              processor: string(),
+              street1: pipe(string(), maxLength(100)),
+              street2: optional(pipe(string(), maxLength(100))),
+              city: pipe(string(), maxLength(100)),
+              regionCode: optional(pipe(string(), maxLength(50))),
+              postalCode: pipe(string(), maxLength(20)),
+              countryCode: pipe(string(), length(2)),
+              company: optional(pipe(string(), maxLength(100))),
             }),
           ),
         }),
-        firstName: optional(string()),
-        middleName: optional(string()),
-        lastName: optional(string()),
-        billingAddress: optional(
-          object({
-            street1: pipe(string(), maxLength(100)),
-            street2: optional(pipe(string(), maxLength(100))),
-            city: pipe(string(), maxLength(100)),
-            regionCode: optional(pipe(string(), maxLength(50))),
-            postalCode: pipe(string(), maxLength(20)),
-            countryCode: pipe(string(), length(2)),
-            company: optional(pipe(string(), maxLength(100))),
-          }),
-        ),
-      }),
+      ]),
+    }),
+  ),
+  counterparty: optional(
+    object({
+      id: string(),
+      type: optional(picklist(["customer", "vendor", "business"]), "customer"),
+      paymentMethod: Crypto,
     }),
   ),
 });
+
+type Tag = NonNullable<NonNullable<InferInput<typeof CustomerRequest>["customer"]>["tags"]>[number];
 
 const Level = picklist(["very_high", "high", "medium", "low", "unknown"]);
 

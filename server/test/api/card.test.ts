@@ -44,7 +44,8 @@ import authSecret from "../../utils/authSecret";
 import createPanda from "../../utils/panda";
 import createPax from "../../utils/pax";
 import createPersona from "../../utils/persona";
-import createSardine from "../../utils/sardine";
+import redis from "../../utils/redis";
+import createSardine, { session as loginSession } from "../../utils/sardine";
 import createSegment from "../../utils/segment";
 import ServiceError from "../../utils/ServiceError";
 import wallet, { signer } from "../../utils/wallet";
@@ -86,6 +87,7 @@ const app = route({
     url: parse(pipe(string(), nonEmpty()), env.PAX_API_URL),
   }),
   persona,
+  redis,
   sardine: createSardine(
     parse(pipe(string(), nonEmpty()), env.SARDINE_API_KEY),
     parse(pipe(string(), nonEmpty()), env.SARDINE_API_URL),
@@ -230,7 +232,11 @@ describe("authenticated", () => {
     );
   });
 
-  afterEach(() => vi.resetAllMocks());
+  afterEach(async () => {
+    await redis.ping();
+    await new Promise((resolve) => setImmediate(resolve));
+    vi.resetAllMocks();
+  });
   beforeEach(() => {
     vi.mocked(credit.enqueue).mockResolvedValue();
     vi.spyOn(persona, "getAccount").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
@@ -1231,17 +1237,19 @@ describe("authenticated", () => {
       userId: padHex("0x404b", { size: 20 }),
       properties: { productId: SIGNATURE_PRODUCT_ID, source: null },
     });
-    expect(sardine.customer).toHaveBeenCalledExactlyOnceWith({
-      flow: { name: "card.issued", type: "payment_method_link" },
-      customer: { id: credentialId, type: "customer" },
-      transaction: {
-        id,
-        paymentMethod: {
-          type: "card",
-          card: { hash: id, last4: "7394", expiryMonth: "9", expiryYear: "2029" },
+    await vi.waitFor(() =>
+      expect(sardine.customer).toHaveBeenCalledExactlyOnceWith({
+        flow: { name: "card.issued", type: "payment_method_link" },
+        customer: { id: credentialId, type: "customer" },
+        transaction: {
+          id,
+          paymentMethod: {
+            type: "card",
+            card: { hash: id, last4: "7394", expiryMonth: "9", expiryYear: "2029" },
+          },
         },
-      },
-    });
+      }),
+    );
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -1299,17 +1307,19 @@ describe("authenticated", () => {
       userId: padHex("0x404c", { size: 20 }),
       properties: { productId: SIGNATURE_PRODUCT_ID, source: null },
     });
-    expect(sardine.customer).toHaveBeenCalledExactlyOnceWith({
-      flow: { name: "card.issued", type: "payment_method_link" },
-      customer: { id: credentialId, type: "customer" },
-      transaction: {
-        id,
-        paymentMethod: {
-          type: "card",
-          card: { hash: id, last4: "7394", expiryMonth: "9", expiryYear: "2029" },
+    await vi.waitFor(() =>
+      expect(sardine.customer).toHaveBeenCalledExactlyOnceWith({
+        flow: { name: "card.issued", type: "payment_method_link" },
+        customer: { id: credentialId, type: "customer" },
+        transaction: {
+          id,
+          paymentMethod: {
+            type: "card",
+            card: { hash: id, last4: "7394", expiryMonth: "9", expiryYear: "2029" },
+          },
         },
-      },
-    });
+      }),
+    );
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -1793,6 +1803,7 @@ describe("authenticated", () => {
         database,
         panda,
         persona,
+        redis,
         sardine: createSardine(
           parse(pipe(string(), nonEmpty()), env.SARDINE_API_KEY),
           parse(pipe(string(), nonEmpty()), env.SARDINE_API_URL),
@@ -1828,17 +1839,19 @@ describe("authenticated", () => {
       userId: padHex("0x555", { size: 20 }),
       properties: { productId: SIGNATURE_PRODUCT_ID, source: null },
     });
-    expect(sardine.customer).toHaveBeenCalledExactlyOnceWith({
-      flow: { name: "card.issued", type: "payment_method_link" },
-      customer: { id: testCredentialId, type: "customer" },
-      transaction: {
-        id: cardId,
-        paymentMethod: {
-          type: "card",
-          card: { hash: cardId, last4: "5555", expiryMonth: "9", expiryYear: "2029" },
+    await vi.waitFor(() =>
+      expect(sardine.customer).toHaveBeenCalledExactlyOnceWith({
+        flow: { name: "card.issued", type: "payment_method_link" },
+        customer: { id: testCredentialId, type: "customer" },
+        transaction: {
+          id: cardId,
+          paymentMethod: {
+            type: "card",
+            card: { hash: cardId, last4: "5555", expiryMonth: "9", expiryYear: "2029" },
+          },
         },
-      },
-    });
+      }),
+    );
     expect(pax.addCapita).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
   });
@@ -2918,6 +2931,132 @@ describe("authenticated", () => {
     expect(setPIN).toHaveBeenCalledOnce();
   });
 
+  describe("sardine card events", () => {
+    const CARD = "543c1771-beae-4f26-b662-44ea48b4e7e0";
+
+    beforeEach(async () => {
+      await database
+        .insert(credentials)
+        .values({
+          id: "card-events",
+          publicKey: new Uint8Array(),
+          account: padHex("0x4e7e", { size: 20 }),
+          factory: exaAccountFactoryAddress,
+          pandaId: "card-events",
+        })
+        .onConflictDoNothing();
+      await database
+        .insert(cards)
+        .values({ id: CARD, credentialId: "card-events", tenant: "OP", lastFour: "4444" })
+        .onConflictDoUpdate({ target: cards.id, set: { status: "ACTIVE" } });
+      await redis.set(loginSession("card-events"), "login-session");
+    });
+
+    afterEach(() => redis.del(loginSession("card-events")));
+
+    it("reports card details and wallet provisioning with the login session", async () => {
+      vi.spyOn(panda, "getSecrets").mockResolvedValueOnce(panTemplate);
+      vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
+      vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
+      vi.spyOn(panda, "getUser").mockResolvedValueOnce(userTemplate);
+      vi.spyOn(panda, "getProcessorDetails").mockResolvedValueOnce({ processorCardId: "proc", timeBasedSecret: "s" });
+
+      const response = await appClient.index.$get(
+        { header: { sessionid: "fakeSession" }, query: { scope: "provisioning" } },
+        {
+          headers: { "test-credential-id": "card-events", "do-connecting-ip": "203.0.113.7", "user-agent": "Exa/1.0" },
+        },
+      );
+
+      expect(response.status).toBe(200);
+      await vi.waitFor(() => expect(sardine.customer).toHaveBeenCalledTimes(2));
+      expect(sardine.customer.mock.calls.map(([call]) => call)).toStrictEqual([
+        {
+          flow: { name: "card.details", type: "other" },
+          sessionKey: "login-session",
+          customer: { id: "card-events", type: "customer" },
+          device: { ip: "203.0.113.7", userAgent: "Exa/1.0" },
+        },
+        {
+          flow: { name: "card.provisioning", type: "payment_method_link" },
+          sessionKey: "login-session",
+          customer: { id: "card-events", type: "customer" },
+          device: { ip: "203.0.113.7", userAgent: "Exa/1.0" },
+        },
+      ]);
+    });
+
+    it.each([
+      ["FROZEN", "card.frozen"],
+      ["ACTIVE", "card.unfrozen"],
+      ["DELETED", "card.deleted"],
+    ] as const)("reports a %s status change", async (status, name) => {
+      if (status === "ACTIVE") {
+        await database.update(cards).set({ status: "FROZEN" }).where(eq(cards.id, CARD));
+      }
+      vi.spyOn(panda, "updateCard").mockResolvedValueOnce({ ...cardTemplate, id: CARD, status: "canceled" });
+
+      const response = await appClient.index.$patch(
+        // @ts-expect-error - bad hono patch type
+        { header: { "test-credential-id": "card-events" }, json: { status } },
+        { headers: { "do-connecting-ip": "not-an-ip" } },
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual({ status });
+      await expect(
+        database.query.cards.findFirst({ columns: { status: true }, where: eq(cards.id, CARD) }),
+      ).resolves.toStrictEqual({ status });
+      await vi.waitFor(() =>
+        expect(sardine.customer).toHaveBeenCalledExactlyOnceWith({
+          flow: { name, type: "account_update" },
+          sessionKey: "login-session",
+          customer: { id: "card-events", type: "customer" },
+        }),
+      );
+    });
+
+    it("reports a pin change without a session when the session lookup fails", async () => {
+      const error = new Error("redis down");
+      const setPIN = vi.spyOn(panda, "setPIN").mockResolvedValueOnce({});
+      vi.spyOn(redis, "get").mockRejectedValueOnce(error);
+
+      const response = await appClient.index.$patch({
+        // @ts-expect-error - bad hono patch type
+        header: { "test-credential-id": "card-events" },
+        json: { sessionId: "sessionId", data: "data", iv: "iv" },
+      });
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual({ data: "data", iv: "iv" });
+      expect(setPIN).toHaveBeenCalledExactlyOnceWith(CARD, "sessionId", { data: "data", iv: "iv" });
+      await vi.waitFor(() =>
+        expect(sardine.customer).toHaveBeenCalledExactlyOnceWith({
+          flow: { name: "card.pin", type: "account_update" },
+          customer: { id: "card-events", type: "customer" },
+        }),
+      );
+      expect(captureException).toHaveBeenCalledWith(error, { level: "error" });
+    });
+
+    it("captures sardine failures on card events", async () => {
+      const error = new Error("sardine down");
+      const setPIN = vi.spyOn(panda, "setPIN").mockResolvedValueOnce({});
+      sardine.customer.mockRejectedValueOnce(error);
+
+      const response = await appClient.index.$patch({
+        // @ts-expect-error - bad hono patch type
+        header: { "test-credential-id": "card-events" },
+        json: { sessionId: "sessionId", data: "data", iv: "iv" },
+      });
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual({ data: "data", iv: "iv" });
+      expect(setPIN).toHaveBeenCalledExactlyOnceWith(CARD, "sessionId", { data: "data", iv: "iv" });
+      await vi.waitFor(() => expect(captureException).toHaveBeenCalledWith(error, { level: "error" }));
+    });
+  });
+
   describe("migration", () => {
     it("creates a panda card having a cm card with upgraded plugin", async () => {
       const cardId = "cm-not-uuid";
@@ -3183,6 +3322,12 @@ describe("wallet extension", () => {
     expect(panda.getProcessorDetails).toHaveBeenCalledExactlyOnceWith("wallet-extension-card");
     expect(panda.getPIN).not.toHaveBeenCalled();
     expect(panda.getSecrets).not.toHaveBeenCalled();
+    await vi.waitFor(() =>
+      expect(sardine.customer).toHaveBeenCalledWith({
+        flow: { name: "card.provisioning", type: "payment_method_link" },
+        customer: { id: "wallet-extension", type: "customer" },
+      }),
+    );
   });
 
   it("returns bearer card secret when local card is frozen", async () => {
