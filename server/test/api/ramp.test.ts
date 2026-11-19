@@ -1894,6 +1894,7 @@ describe("ramp api", () => {
         expect(getSynthetic).toHaveBeenCalledExactlyOnceWith(userOpHash);
         expect(getQrRefund).toHaveBeenCalledExactlyOnceWith(userOpHash);
         expect(captureException).not.toHaveBeenCalled();
+        expect(captureEvent).not.toHaveBeenCalled();
       });
 
       it("returns failed for a reverted user operation", async () => {
@@ -1933,6 +1934,7 @@ describe("ramp api", () => {
         await expect(response.json()).resolves.toStrictEqual({ status });
         expect(getQrRefund).toHaveBeenCalledExactlyOnceWith(userOpHash);
         expect(captureException).not.toHaveBeenCalled();
+        expect(captureEvent).not.toHaveBeenCalled();
       });
 
       it("returns expired and reports a cancelled refund", async () => {
@@ -1982,6 +1984,7 @@ describe("ramp api", () => {
         expect(getSynthetic).toHaveBeenCalledExactlyOnceWith(userOpHash);
         expect(getQrRefund).toHaveBeenCalledExactlyOnceWith(userOpHash);
         expect(captureException).not.toHaveBeenCalled();
+        expect(captureEvent).not.toHaveBeenCalled();
       });
 
       it("fails when the lock lookup fails", async () => {

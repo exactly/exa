@@ -3491,7 +3491,7 @@ describe("qr payment", () => {
       const getSynthetic = vi.spyOn(manteca, "getSynthetic").mockResolvedValue(null);
       const refundQrPayment = vi.spyOn(manteca, "refundQrPayment").mockResolvedValue(withdraw);
       const zadd = spyZadd();
-      const removals = waitForRefunds();
+      const removals = waitForRefunds(opHash);
 
       const response = await appClient.index.$post(withLogs([payment]));
       const [removed] = await removals;
@@ -3554,7 +3554,7 @@ describe("qr payment", () => {
       const getPaymentLock = vi.spyOn(manteca, "getPaymentLock").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined -- unknown lock
       const getSynthetic = vi.spyOn(manteca, "getSynthetic").mockResolvedValue(null);
       const refundQrPayment = vi.spyOn(manteca, "refundQrPayment").mockResolvedValue(withdraw);
-      const removals = waitForRefunds();
+      const removals = waitForRefunds(opHash);
 
       const response = await appClient.index.$post(withLogs([payment]));
       await removals;
@@ -3590,7 +3590,7 @@ describe("qr payment", () => {
       vi.spyOn(manteca, "getSynthetic").mockResolvedValue({ ...synthetic, status: "COMPLETED" });
       const refundQrPayment = vi.spyOn(manteca, "refundQrPayment");
       const zadd = spyZadd();
-      const removals = waitForRefunds();
+      const removals = waitForRefunds(opHash);
 
       const response = await appClient.index.$post(withLogs([payment]));
       const [removed] = await removals;
@@ -3609,7 +3609,7 @@ describe("qr payment", () => {
       vi.spyOn(manteca, "getSynthetic").mockResolvedValue(null);
       const refundQrPayment = vi.spyOn(manteca, "refundQrPayment").mockResolvedValue(null);
       const zadd = spyZadd();
-      const removals = waitForRefunds();
+      const removals = waitForRefunds(opHash);
 
       const response = await appClient.index.$post(withLogs([payment]));
       const [removed] = await removals;
@@ -3630,7 +3630,7 @@ describe("qr payment", () => {
       const getSynthetic = vi.spyOn(manteca, "getSynthetic");
       const refundQrPayment = vi.spyOn(manteca, "refundQrPayment");
       const zadd = spyZadd();
-      const removals = waitForRefunds();
+      const removals = waitForRefunds(opHash);
 
       const response = await appClient.index.$post(withLogs([payment]));
       const [removed] = await removals;
@@ -3676,7 +3676,7 @@ describe("qr payment", () => {
         .spyOn(manteca, "refundQrPayment")
         .mockImplementation(() => (refundError ? Promise.reject(refundError) : Promise.resolve(withdraw)));
       const zadd = spyZadd();
-      const removals = waitForRefunds();
+      const removals = waitForRefunds(opHash);
 
       const response = await appClient.index.$post(withLogs([payment]));
       const [removed] = await removals;
@@ -3710,7 +3710,7 @@ describe("qr payment", () => {
       vi.spyOn(manteca, "getSynthetic").mockResolvedValue(null);
       const refundQrPayment = vi.spyOn(manteca, "refundQrPayment").mockRejectedValue(error);
       const zadd = spyZadd();
-      const removals = waitForRefunds();
+      const removals = waitForRefunds(opHash);
 
       const response = await appClient.index.$post(withLogs([payment]));
       const [removed] = await removals;
@@ -3745,7 +3745,7 @@ describe("qr payment", () => {
       vi.spyOn(manteca, "getSynthetic").mockResolvedValue(null);
       const refundQrPayment = vi.spyOn(manteca, "refundQrPayment").mockResolvedValue(withdraw);
       const zadd = spyZadd();
-      const removals = waitForRefunds();
+      const removals = waitForRefunds(opHash);
 
       const response = await appClient.index.$post(withLogs([payment]));
       await removals;
@@ -3864,8 +3864,15 @@ function refundCaptures() {
     );
 }
 
-function waitForRefunds() {
-  return waitForRemovals([{ zrem: ([key]) => key === "refunds" }]);
+function waitForRefunds(userOpHash: Hash) {
+  return waitForRemovals([
+    {
+      zrem: ([key, member]) =>
+        key === "refunds" &&
+        typeof member === "string" &&
+        deserialize<{ userOpHash: Hash }>(member).userOpHash === userOpHash,
+    },
+  ]);
 }
 
 const blockPayload = {
