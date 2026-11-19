@@ -74,6 +74,7 @@ import {
   home,
   other,
   Payload,
+  programChain,
   signIssuerOp,
   TransactionPayload,
   type Tenant,
@@ -700,7 +701,11 @@ export default function hook({
                   account,
                   amount: refundAmount,
                   tenant: card.tenant,
-                  signature: await signIssuerOp({ account, amount: -BigInt(refundAmount), timestamp }, issuer), // TODO replace with payload signature
+                  signature: await signIssuerOp(
+                    { account, amount: -BigInt(refundAmount), timestamp },
+                    issuer,
+                    ...refundChecker(card.tenant),
+                  ), // TODO replace with payload signature
                   timestamp,
                 },
                 payload.id,
@@ -1992,4 +1997,11 @@ function cardEntry(spend: {
     }),
     ...(spend.threeDSecure && { authentication: { method: "3ds" } }),
   };
+}
+
+function refundChecker(tenant: Tenant) {
+  const chainId = programChain(tenant);
+  const address = chains.get(chainId)?.issuerChecker;
+  if (!address) throw new Error(`no issuer checker on ${chainId}`);
+  return [address, chainId] as const;
 }
