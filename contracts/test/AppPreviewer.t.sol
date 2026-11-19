@@ -210,6 +210,21 @@ contract AppPreviewerPreviewTest is ForkTest {
     assertEq(preview.allowed.length, 0);
   }
 
+  function test_preview_returnsWalletBalances() external {
+    p.usdc().mint(account, 420e6);
+    p.weth().mint(account, 2e18);
+    vm.deal(account, 3 ether);
+    NetworkPreview memory preview = _preview(new address[](0));
+    assertEq(preview.balance, 3 ether);
+    assertEq(preview.balances.length, preview.markets.length);
+    for (uint256 i = 0; i < preview.markets.length; ++i) {
+      uint256 expected = preview.markets[i].asset == address(p.usdc())
+        ? 420e6
+        : preview.markets[i].asset == address(p.weth()) ? 2e18 : 0;
+      assertEq(preview.balances[i], expected);
+    }
+  }
+
   function test_preview_returnsMarkets_whenRateSnapshotReverts() external {
     vm.mockCallRevert(address(p.ratePreviewer()), abi.encodeWithSignature("snapshot()"), "");
     NetworkPreview memory preview = _preview(new address[](0));
@@ -257,6 +272,7 @@ contract AppPreviewerPreviewTest is ForkTest {
     NetworkPreview memory preview =
       previewer.preview(account, IAuditor(address(0)), address(0), address(0), IMarket(address(0)), targets);
     assertEq(preview.markets.length, 0);
+    assertEq(preview.balances.length, 0);
     assertEq(preview.exactly.length, 0);
     assertEq(preview.snapshot.length, 0);
     assertEq(preview.floatingAssetsAverage, 0);
