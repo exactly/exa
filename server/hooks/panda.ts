@@ -70,6 +70,7 @@ import {
   home,
   other,
   Payload,
+  programChain,
   signIssuerOp,
   TransactionPayload,
   type Tenant,
@@ -645,7 +646,11 @@ export default function hook({
                   account,
                   amount: refundAmount,
                   tenant: card.tenant,
-                  signature: await signIssuerOp({ account, amount: -BigInt(refundAmount), timestamp }, issuer), // TODO replace with payload signature
+                  signature: await signIssuerOp(
+                    { account, amount: -BigInt(refundAmount), timestamp },
+                    issuer,
+                    ...refundChecker(card.tenant),
+                  ), // TODO replace with payload signature
                   timestamp,
                 },
                 payload.id,
@@ -1783,4 +1788,11 @@ async function sendDeclinedNotification(
     }),
     idempotencyKey: v5(`https://exact.ly/card-declined/${id}`, v5.URL),
   });
+}
+
+function refundChecker(tenant: Tenant) {
+  const chainId = programChain(tenant);
+  const address = chains.get(chainId)?.issuerChecker;
+  if (!address) throw new Error(`no issuer checker on ${chainId}`);
+  return [address, chainId] as const;
 }
