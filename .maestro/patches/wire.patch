@@ -1,0 +1,60 @@
+From a8f54dbb5fd12132f6cf7b6ff2b6111e9e1eafe0 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Thu, 19 Nov 2026 03:23:23 +0000
+Subject: [PATCH] fix: evaluate web scripts in one round trip
+
+Every script the web driver ran evaluated maestro's script and each launch argument on its own, slept 100 ms, and only then evaluated the expression. A hierarchy read runs three scripts (the viewport width, its height and the page content), so it paid that three times, about 350 ms per read, and a tap reads the hierarchy several times. Evaluate the script, the arguments and the expression in one call with no sleep, and read the viewport size in one script. A page with no body yet still gets 100 ms between hierarchy retries, as before.
+---
+ .../main/java/maestro/drivers/CdpWebDriver.kt | 21 ++++++++++---------
+ 1 file changed, 11 insertions(+), 10 deletions(-)
+
+diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+index 6d3d13d..e3ea58e 100644
+--- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+@@ -239,15 +239,16 @@ class CdpWebDriver(
+                 try {
+                     val target = currentTarget().also { targetId = it.id }
+ 
+-                    cdpClient.evaluate("$maestroWebScript", target)
+-
+-                    injectedArguments.forEach { (key, value) ->
+-                        cdpClient.evaluate("$key = '$value'", target)
++                    val expression = buildString {
++                        append("(() => {\n")
++                        append(maestroWebScript)
++                        append(";\n")
++                        injectedArguments.forEach { (key, value) -> append("$key = '$value';\n") }
++                        append("return (")
++                        append(js)
++                        append(");\n})()")
+                     }
+-
+-                    Thread.sleep(100)
+-
+-                    val resultStr = cdpClient.evaluate(js, target)
++                    val resultStr = cdpClient.evaluate(expression, target)
+ 
+                     // CDP returns an empty value for expressions that evaluate to undefined (e.g.
+                     // window.scroll(...)). There is nothing to deserialize in that case.
+@@ -325,8 +326,7 @@ class CdpWebDriver(
+     }
+ 
+     override fun deviceInfo(): DeviceInfo {
+-        val width = executeJS("window.innerWidth") as Int
+-        val height = executeJS("window.innerHeight") as Int
++        val (width, height) = (executeJS("[window.innerWidth, window.innerHeight]") as List<*>).map { it as Int }
+ 
+         return DeviceInfo(
+             platform = Platform.WEB,
+@@ -407,6 +407,7 @@ class CdpWebDriver(
+             contentDesc = executeJS("window.maestro.getContentDescription()")
+             if (contentDesc == null) {
+                 retry++
++                sleep(100L)
+             }
+             if (retry == RETRY_FETCHING_CONTENT_DESCRIPTION) {
+                 throw IllegalStateException("Could not retrieve hierarchy through maestro.getContentDescription() (tried $retry times")
+-- 
+2.43.0
+
