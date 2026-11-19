@@ -1,0 +1,54 @@
+From 4a9fc8575683bf36a68d7578d8dfbff09a6ec697 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Thu, 19 Nov 2026 20:45:59 +0000
+Subject: [PATCH] fix: leave a web page before clearing its origin
+
+`clearState` on web cleared the origin's storage while its page kept
+running, since the web driver has no `stopApp`. a write in that window,
+like a persister flushing its cache, put the old session back.
+
+the web driver now sends every window on that origin to about:blank
+before clearing it. as on mobile, where clearing the state stops the
+app, a standalone `clearState` now leaves the tab on about:blank.
+---
+ .../main/java/maestro/drivers/CdpWebDriver.kt | 24 +++++++++++++++++++
+ 1 file changed, 24 insertions(+)
+
+diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+index 02c3b13..1baa497 100644
+--- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+@@ -523,6 +523,30 @@ class CdpWebDriver(
+             return
+         }
+ 
++        try {
++            val driver = ensureOpen()
++            val focused = try {
++                driver.windowHandle
++            } catch (e: Exception) {
++                null
++            }
++            val expected = URI(origin).let { uri ->
++                val port = if (uri.port == -1 || uri.port == mapOf("http" to 80, "https" to 443)[uri.scheme.lowercase()]) "" else ":${uri.port}"
++                "${uri.scheme.lowercase()}://${uri.host.lowercase()}$port"
++            }
++            for (handle in driver.windowHandles) {
++                try {
++                    driver.switchTo().window(handle)
++                    if ((driver as JavascriptExecutor).executeScript("return location.origin") == expected) driver.get("about:blank")
++                } catch (e: Exception) {
++                    LOGGER.warn("Failed to leave $origin in window $handle", e)
++                }
++            }
++            (currentWindow ?: focused)?.takeIf { it in driver.windowHandles }?.let { driver.switchTo().window(it) }
++        } catch (e: Exception) {
++            LOGGER.warn("Failed to leave $origin before clearing its data", e)
++        }
++
+         try {
+             runBlocking {
+                 cdpClient.clearDataForOrigin(origin, "all", currentTarget())
+-- 
+2.43.0
+
