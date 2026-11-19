@@ -35,7 +35,15 @@ import {
   type InferInput,
   type InferOutput,
 } from "valibot";
-import { decodeFunctionData, TransactionReceiptNotFoundError, zeroHash, type Log } from "viem";
+import {
+  getAbiItem,
+  hexToBigInt,
+  slice,
+  toFunctionSelector,
+  TransactionReceiptNotFoundError,
+  zeroHash,
+  type Log,
+} from "viem";
 
 import fixedRate from "@exactly/common/fixedRate";
 import chain, {
@@ -51,7 +59,7 @@ import chain, {
   proposalManagerAddress,
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
-import { decodeWithdraw } from "@exactly/common/ProposalType";
+import ProposalType, { decodeWithdraw } from "@exactly/common/ProposalType";
 import { Address, Hash, type Hex } from "@exactly/common/validation";
 import { effectiveRate, WAD } from "@exactly/lib";
 
@@ -187,53 +195,81 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
             ),
         ignore("sent")
           ? []
-          : Promise.all([
-              publicClient.getContractEvents({
-                abi: marketAbi,
-                eventName: "Withdraw",
-                address: [...markets.keys()],
-                args: { caller: account, owner: account },
-                toBlock: "latest",
-                fromBlock: 0n,
-                strict: true,
-              }),
-              publicClient.getContractEvents({
-                abi: proposalManagerAbi,
-                eventName: "Proposed",
-                address: proposalManagerAddress,
-                args: { account, market: marketWETHAddress },
-                toBlock: "latest",
-                fromBlock: 0n,
-                strict: true,
-              }),
-            ]).then(([withdraw, proposed]) =>
-              Promise.all(
-                withdraw.map(async (log) => {
-                  const receiver = log.args.receiver.toLowerCase() as Hex;
-                  if (!collectors.has(receiver) && !plugins.has(receiver) && receiver !== account.toLowerCase()) {
-                    return log;
-                  }
-                  if (log.address.toLowerCase() === marketWETHAddress.toLowerCase() && plugins.has(receiver)) {
-                    const { input: data } = await publicClient.getTransaction({ hash: log.transactionHash });
-                    if (data === "0x3ccfd60b") return log;
-                    const { functionName, args } = decodeFunctionData({ data, abi: exaPluginAbi });
-                    if (functionName !== "executeProposal") return;
-                    const proposal = proposed.find(({ args: { nonce } }) => nonce === args[0]);
-                    if (!proposal) return;
-                    return {
-                      ...log,
-                      args: { ...log.args, receiver: decodeWithdraw(proposal.args.data) },
-                    } satisfies Log<bigint, number, false, undefined, true, typeof marketAbi, "Withdraw">;
-                  }
+          : publicClient.getBlockNumber({ cacheTime: 0 }).then((toBlock) =>
+              Promise.all([
+                publicClient.getContractEvents({
+                  abi: marketAbi,
+                  eventName: "Withdraw",
+                  address: [...markets.keys()],
+                  args: { caller: account, owner: account },
+                  toBlock,
+                  fromBlock: 0n,
+                  strict: true,
                 }),
-              ).then((logs) =>
-                logs
-                  .filter((log) => !!log)
-                  .map((log) =>
-                    parse(WithdrawActivity, { ...log, market: market(log.address) } satisfies InferInput<
-                      typeof WithdrawActivity
-                    >),
-                  ),
+                publicClient.getContractEvents({
+                  abi: proposalManagerAbi,
+                  eventName: "Proposed",
+                  address: proposalManagerAddress,
+                  args: { account, market: marketWETHAddress },
+                  toBlock,
+                  fromBlock: 0n,
+                  strict: true,
+                }),
+                publicClient.getContractEvents({
+                  abi: proposalManagerAbi,
+                  eventName: "ProposalNonceSet",
+                  address: proposalManagerAddress,
+                  args: { account, executed: true },
+                  toBlock,
+                  fromBlock: 0n,
+                  strict: true,
+                }),
+              ]).then(([withdraw, proposed, executed]) =>
+                Promise.all(
+                  withdraw.map(async (log) => {
+                    const receiver = log.args.receiver.toLowerCase() as Hex;
+                    if (!collectors.has(receiver) && !plugins.has(receiver) && receiver !== account.toLowerCase()) {
+                      return log;
+                    }
+                    if (log.address.toLowerCase() === marketWETHAddress.toLowerCase() && plugins.has(receiver)) {
+                      let nonce = executed.findLast(
+                        ({ transactionHash, logIndex }) =>
+                          transactionHash === log.transactionHash && logIndex < log.logIndex,
+                      )?.args.nonce;
+                      if (nonce === undefined) {
+                        const { input } = await publicClient.getTransaction({ hash: log.transactionHash });
+                        if (input.startsWith("0x3ccfd60b")) return log;
+                        if (
+                          !input.startsWith(
+                            toFunctionSelector(getAbiItem({ abi: exaPluginAbi, name: "executeProposal" })),
+                          )
+                        ) {
+                          return;
+                        }
+                        nonce = hexToBigInt(slice(input, 4, 36)) + 1n;
+                      }
+                      const proposal = proposed.find(
+                        ({ args }) =>
+                          args.nonce + 1n === nonce &&
+                          (args.proposalType === (ProposalType.Withdraw as number) ||
+                            args.proposalType === (ProposalType.Redeem as number)),
+                      );
+                      if (!proposal) return;
+                      return {
+                        ...log,
+                        args: { ...log.args, receiver: decodeWithdraw(proposal.args.data) },
+                      } satisfies Log<bigint, number, false, undefined, true, typeof marketAbi, "Withdraw">;
+                    }
+                  }),
+                ).then((logs) =>
+                  logs
+                    .filter((log) => !!log)
+                    .map((log) =>
+                      parse(WithdrawActivity, { ...log, market: market(log.address) } satisfies InferInput<
+                        typeof WithdrawActivity
+                      >),
+                    ),
+                ),
               ),
             ),
         ignore("card")
