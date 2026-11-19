@@ -364,15 +364,24 @@ export default function hook({
                       });
                     }
                     if (amount > 0n) {
-                      await queueRefund({
+                      refund = await queueRefund({
                         account: sender,
                         userOpHash: args.userOpHash,
                         code,
                         amount,
                         unlock: timestamp + 900,
                         retryCount: 0,
-                      });
-                      refund = true;
+                      }).then(
+                        () => true,
+                        (error: unknown) => {
+                          failures.push(error);
+                          captureException(error, {
+                            level: "error",
+                            contexts: { payment: { account: sender, userOpHash: args.userOpHash } },
+                          });
+                          return false;
+                        },
+                      );
                     }
                   }
                   await pay(manteca, persona, credential.id, { ...args, sender, logs: events, refund }).catch(

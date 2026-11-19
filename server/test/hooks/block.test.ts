@@ -3835,6 +3835,27 @@ describe("qr payment", () => {
       );
     });
 
+    it("executes a payment whose check fails to schedule", async () => {
+      const failure = new Error("redis down");
+      vi.spyOn(manteca, "getPaymentLock").mockResolvedValue(lock);
+      vi.spyOn(persona, "getAccount").mockResolvedValue(basicAccount);
+      vi.spyOn(manteca, "getSettlement").mockResolvedValue(settlement);
+      const executeQrPayment = vi.spyOn(manteca, "executeQrPayment").mockResolvedValue(synthetic);
+      const zadd = spyZadd().mockRejectedValueOnce(failure);
+
+      const response = await appClient.index.$post(withLogs([payment]));
+
+      expect(response.status).toBe(500);
+      expect(zadd).toHaveBeenCalledExactlyOnceWith("refunds", timestamp + 900, expect.any(String));
+      expect(executeQrPayment).toHaveBeenCalledExactlyOnceWith(code, opHash);
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(failure, {
+        level: "error",
+        contexts: { payment: { account: payer, userOpHash: opHash } },
+      });
+      expect(core.captureException).not.toHaveBeenCalled();
+      expect(captureEvent).not.toHaveBeenCalled();
+    });
+
     it("checks pending refunds on startup", async () => {
       vi.setSystemTime(timestamp * 1000);
       const message = serialize({ ...check, userOpHash: opHash, unlock: timestamp - 1 });
