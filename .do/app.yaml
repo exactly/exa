@@ -141,6 +141,13 @@ services:
       - key: PANDA_API_URL
         scope: RUN_TIME
         value: ${{ env.PANDA_API_URL }}
+      - key: PANDA_BASE_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: ${{ env.ENCRYPTED_PANDA_BASE_API_KEY || env.PANDA_BASE_API_KEY }}
+      - key: PANDA_BASE_API_URL
+        scope: RUN_TIME
+        value: ${{ env.PANDA_BASE_API_URL }}
       - key: PANDA_WEBHOOKS_KEY
         scope: RUN_TIME
         type: SECRET

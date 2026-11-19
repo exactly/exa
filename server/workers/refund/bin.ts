@@ -23,9 +23,12 @@ supervise(
     secret("redis-url", secrets).then((url) => connect(url)),
     secret("refund-postgres-url", secrets).then((url) => drizzle(url, { schema })),
     secret("refund-onesignal-api-key", secrets).then((key) => createOnesignal(key)),
-    Promise.all([secret("refund-panda-api-key", secrets), secret("panda-api-url", secrets)]).then(([key, url]) =>
-      createPanda({ key, url }),
-    ),
+    Promise.all([
+      secret("refund-panda-api-key", secrets),
+      secret("panda-api-url", secrets),
+      secret("refund-panda-base-api-key", secrets),
+      secret("panda-base-api-url", secrets),
+    ]).then(([key, url, baseKey, baseUrl]) => createPanda({ key, url }, { key: baseKey, url: baseUrl })),
     signer("refunder", kms),
     Promise.all([secret("refund-sardine-api-key", secrets), secret("sardine-api-url", secrets)]).then(([key, url]) =>
       createSardine(key, url),
