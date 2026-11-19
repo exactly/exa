@@ -28,7 +28,12 @@ const json = `${JSON.stringify(
         ? [
             [
               networkChainId,
-              isTestNet ? { network: id, slug: kebabCaseId, testnet: true } : { network: id, slug: kebabCaseId },
+              {
+                network: id,
+                slug: kebabCaseId,
+                ...(isTestNet && { testnet: true }),
+                ...(supportedProducts.includes("webhooks") && { webhooks: true }),
+              },
             ] as const,
           ]
         : [],
