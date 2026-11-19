@@ -176,12 +176,25 @@ export default defineConfig([
             versions: deploy.factory.versions.map((v) => factory(v)),
             legacy: chain ? perChain(deploy.factory.legacy).map((address) => getAddress(address)) : [factory("legacy")],
           };
+          function mockfi(id: number | string) {
+            if (!chain || !testnet || !networkConfig[id]?.testnet) return;
+            const broadcast = loadBroadcast("Swapper", Number(id), undefined, false);
+            const create = broadcast?.transactions.find(({ contractName }) => contractName === "MockSwapper");
+            const receipt = broadcast?.receipts.find(({ transactionHash }) => transactionHash === create?.hash);
+            if (!create?.contractAddress || !receipt) return;
+            return { startBlock: Number(receipt.blockNumber), swapper: getAddress(create.contractAddress) };
+          }
           function chainFields(id: number | string) {
+            const deployed = mockfi(id);
+            const swapper =
+              id in deploy.accounts.swapper || id in factoryChainBlocks
+                ? getAddress(perChain(deploy.accounts.swapper, Number(id)))
+                : deployed?.swapper;
+            if (deployed && deployed.swapper !== swapper) throw new Error(`stale swapper ${id}`);
             return {
               ...(networkConfig[id]?.testnet && { testnet: true }),
-              ...((id in deploy.accounts.swapper || id in factoryChainBlocks) && {
-                swapper: getAddress(perChain(deploy.accounts.swapper, Number(id))),
-              }),
+              ...(swapper && { swapper }),
+              ...(deployed && { mockfi: { startBlock: deployed.startBlock } }),
             };
           }
           function fieldSource(id: number | string) {
@@ -260,7 +273,8 @@ export default defineConfig([
                   Boolean(networkConfig[id].testnet) === testnet &&
                   (!testnet ||
                     sameSide.some(([current]) => current.id === id) ||
-                    factoryChains.some((current) => current.id === id))
+                    factoryChains.some((current) => current.id === id) ||
+                    mockfi(id))
                 : id === anvil.id || id === moonbeamDev.id
             )
               ? [[id, {}] as const]
@@ -329,7 +343,7 @@ export default defineConfig([
               `export const factories: Readonly<Record<"legacy" | "versions", readonly \`0x\${string}\`[]>> = ${JSON.stringify(factories)}`,
               `export const issuerCheckerPreviewerCode: \`0x\${string}\` = "${IssuerCheckerPreviewer.deployedBytecode.object}"`,
               `export const pricePreviewerCode: \`0x\${string}\` = "${PricePreviewer.bytecode.object}"`,
-              'type AlchemyChain = ((Chain & { smartAccount: true }) | (Omit<Chain, "nativeCurrency"> & { nativeCurrency?: Chain["nativeCurrency"]; smartAccount?: never })) & { alchemyNetwork: string; rpcUrls: { alchemy: { http: readonly [string] } }; swapper?: `0x${string}` }',
+              'type AlchemyChain = ((Chain & { smartAccount: true }) | (Omit<Chain, "nativeCurrency"> & { nativeCurrency?: Chain["nativeCurrency"]; smartAccount?: never })) & { alchemyNetwork: string; mockfi?: Readonly<{ startBlock: number }>; rpcUrls: { alchemy: { http: readonly [string] } }; swapper?: `0x${string}` }',
               ...(chain
                 ? [`const chain: AlchemyChain & { smartAccount: true; swapper: \`0x\${string}\` } = ${source}`]
                 : [
@@ -422,7 +436,8 @@ function perChain<T>(values: Record<string, T> & { default: T }, id = chainId) {
 }
 
 type Broadcast = {
-  transactions: { contractAddress: string }[];
+  receipts: { blockNumber: string; transactionHash: string }[];
+  transactions: { contractAddress: string; contractName: null | string; hash: string }[];
 };
 
 type Deployment = {
