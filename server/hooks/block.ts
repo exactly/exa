@@ -14,8 +14,8 @@ import {
 import { deserialize, serialize } from "@wagmi/core";
 import { Mutex } from "async-mutex";
 import createDebug from "debug";
-import { Kind, parse, visit, type StringValueNode } from "graphql";
 import { Hono } from "hono";
+import { createHash } from "node:crypto";
 import { setTimeout } from "node:timers/promises";
 import { v5 } from "uuid";
 import * as v from "valibot";
@@ -23,6 +23,7 @@ import {
   BaseError,
   CallExecutionError,
   ContractFunctionExecutionError,
+  ContractFunctionZeroDataError,
   decodeEventLog,
   encodeErrorResult,
   ExecutionRevertedError,
@@ -31,10 +32,11 @@ import {
   parseEventLogs,
   type LocalAccount,
 } from "viem";
-import { optimismSepolia } from "viem/chains";
+import { optimism, optimismSepolia } from "viem/chains";
 
 import chain, {
   auditorAbi,
+  exaAccountFactoryAbi,
   exaPluginAbi,
   exaPluginAddress,
   exaPreviewerAbi,
@@ -58,6 +60,7 @@ import publicClient from "../utils/publicClient";
 import revertFingerprint from "../utils/revertFingerprint";
 import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
+import validFactories from "../utils/validFactories";
 import createWallet from "../utils/wallet";
 
 import type createAlchemy from "../utils/alchemy";
@@ -70,12 +73,14 @@ Object.assign(debug, { inspectOpts: { depth: undefined } });
 export default function hook({
   alchemy,
   blockKey,
+  chainId = chain.id,
   executor,
   onesignal,
   redis,
 }: {
   alchemy: ReturnType<typeof createAlchemy>;
   blockKey?: string;
+  chainId?: number;
   executor: LocalAccount;
   onesignal: ReturnType<typeof createOnesignal>;
   redis: Redis;
@@ -86,6 +91,15 @@ export default function hook({
     const mutex = new Mutex();
     mutexes.set(address, mutex);
     return mutex;
+  }
+
+  let emitters: Promise<Set<Address>> | undefined;
+  function proposalEmitters() {
+    emitters ??= discoverEmitters(chainId).catch((error: unknown) => {
+      emitters = undefined;
+      throw error;
+    });
+    return emitters;
   }
 
   if (!blockKey) debug("missing alchemy block key");
@@ -103,7 +117,7 @@ export default function hook({
         for (const message of messages) scheduleMessage(message);
       })
       .catch((error: unknown) => captureException(error)),
-    initializeAlchemy(alchemy, signingKeys).catch((error: unknown) => {
+    initializeAlchemy(alchemy, signingKeys, proposalEmitters).catch((error: unknown) => {
       if (signingKeys.size === 0) throw error;
       captureException(error, { level: "warning" });
     }),
@@ -144,7 +158,12 @@ export default function hook({
       }
       setContext("alchemy", await c.req.json());
 
+      const trusted = await proposalEmitters();
       const proposalsBySignature = logs.reduce((accumulator, event) => {
+        if (!trusted.has(event.account.address)) {
+          debug("ignored log from %s", event.account.address);
+          return accumulator;
+        }
         const signature = event.topics[0];
         if (!accumulator.has(signature)) {
           accumulator.set(signature, []);
@@ -651,65 +670,79 @@ const isTerminalWithdrawReason = (reason: string) =>
   (reason.startsWith("PreExecHookReverted(") &&
     reason.endsWith(`,${encodeErrorResult({ errorName: "NoProposal", abi: proposalManagerAbi })})`));
 
-const url = `${appOrigin}/hooks/block`;
-async function initializeAlchemy(alchemy: ReturnType<typeof createAlchemy>, signingKeys: Set<string>) {
-  const currentHook = await alchemy.findWebhook(
-    ({ webhook_type, webhook_url }) => webhook_type === "GRAPHQL" && webhook_url === url,
-  );
-  let shouldUpdate = !currentHook;
-  let currentAddresses: string[] = [];
-  if (currentHook) {
-    signingKeys.add(currentHook.signing_key);
-
-    const queryResponse = await fetch(
-      `https://dashboard.alchemy.com/api/dashboard-webhook-graphql-query?webhook_id=${currentHook.id}`,
-      { headers: alchemy.headers },
-    );
-    if (!queryResponse.ok) throw new ServiceError("Alchemy", queryResponse.status, await queryResponse.text());
-    const { data: query } = (await queryResponse.json()) as { data: { graphql_query: string } };
-    visit(parse(query.graphql_query), {
-      Field(node) {
-        if (node.name.value === "block") {
-          shouldUpdate ||= !node.selectionSet?.selections.find(
-            (selection) => selection.kind === Kind.FIELD && selection.name.value === "number",
-          );
-        } else if (node.name.value === "logs") {
-          const filterArguments = node.arguments?.find(({ name }) => name.value === "filter");
-          if (filterArguments?.value.kind === Kind.OBJECT) {
-            const addressesField = filterArguments.value.fields.find(({ name }) => name.value === "addresses");
-            if (addressesField?.value.kind === Kind.LIST) {
-              currentAddresses = addressesField.value.values
-                .filter((value): value is StringValueNode => value.kind === Kind.STRING)
-                .map(({ value }) => v.parse(Address, value));
-              shouldUpdate ||=
-                !currentAddresses.includes(exaPluginAddress) || !currentAddresses.includes(proposalManagerAddress);
-            }
-            const topicsField = filterArguments.value.fields.find(({ name }) => name.value === "topics");
-            if (topicsField?.value.kind === Kind.LIST) {
-              shouldUpdate ||= topicsField.value.values[0]?.kind !== Kind.LIST;
-            }
-          }
-        }
-      },
-    });
+function unlessReverted(error: unknown) {
+  if (
+    !(error instanceof BaseError) ||
+    error.walk((cause) => cause instanceof ContractFunctionZeroDataError || cause instanceof ExecutionRevertedError) ===
+      null
+  ) {
+    throw error;
   }
-  if (!shouldUpdate) return;
+}
 
-  const newHook = await alchemy.createWebhook({
-    webhook_type: "GRAPHQL",
-    webhook_url: url,
-    graphql_query: {
-      skip_empty_messages: true,
-      query: `#graphql
+const legacyEmitters: Partial<Record<number, { factories: Address[]; plugins: Address[] }>> = {
+  [optimism.id]: {
+    factories: [
+      "0x8D493AF799162Ac3f273e8918B2842447f702163",
+      "0x6E1b5A67adD32E8dC034c23b8022b54821ED297b",
+      "0x3427a595eD6E05Cc2D8115e28BAd151cB879616e",
+      "0xcbeaAF42Cc39c17e84cBeFe85160995B515A9668",
+    ].map((address) => v.parse(Address, address)),
+    plugins: ["0x87aF7e4892e47a7De34dF689bA5f3bCccED3e5DE", "0x2Bbaf52f13513CE325066D387c1dA1F260c26887"].map(
+      (address) => v.parse(Address, address),
+    ),
+  },
+};
+
+function discoverEmitters(chainId: number) {
+  const legacy = legacyEmitters[chainId] ?? { factories: [], plugins: [] };
+  return Promise.all(
+    [...validFactories, ...legacy.factories].map((factory) =>
+      publicClient
+        .readContract({ address: factory, abi: exaAccountFactoryAbi, functionName: "EXA_PLUGIN" })
+        .catch(unlessReverted),
+    ),
+  )
+    .then((plugins) =>
+      Promise.all(
+        [...new Set([...plugins.filter((plugin) => plugin !== undefined), ...legacy.plugins])].map(async (plugin) => [
+          plugin,
+          await publicClient
+            .readContract({ address: plugin, abi: exaPluginAbi, functionName: "proposalManager" })
+            .catch(unlessReverted),
+        ]),
+      ),
+    )
+    .then(
+      (addresses) =>
+        new Set(
+          [exaPluginAddress, proposalManagerAddress, ...addresses.flat()]
+            .filter((address) => address !== undefined)
+            .map((address) => v.parse(Address, address))
+            .toSorted(),
+        ),
+    );
+}
+
+const url = `${appOrigin}/hooks/block`;
+async function initializeAlchemy(
+  alchemy: ReturnType<typeof createAlchemy>,
+  signingKeys: Set<string>,
+  proposalEmitters: () => Promise<Set<Address>>,
+) {
+  const currentHook = await alchemy.findWebhook(
+    ({ webhook_type, webhook_url }) =>
+      webhook_type === "GRAPHQL" && (webhook_url === url || webhook_url.startsWith(`${url}?`)),
+  );
+  if (currentHook) signingKeys.add(currentHook.signing_key);
+  const query = `#graphql
 {
   block {
     number
     timestamp
     logs(
       filter: {
-        addresses: ${JSON.stringify(
-          [...new Set([...currentAddresses, exaPluginAddress, proposalManagerAddress])].toSorted(),
-        )}
+        addresses: ${JSON.stringify([...(await proposalEmitters())])}
         topics: [
           [
             "0x4cf7794d9c19185f7d95767c53e511e2e67ae50f68ece9c9079c6ae83403a3e7" # Proposed
@@ -725,8 +758,14 @@ async function initializeAlchemy(alchemy: ReturnType<typeof createAlchemy>, sign
       }
     }
   }
-}`,
-    },
+}`;
+  const webhookUrl = `${url}?query=${createHash("sha256").update(query).digest("hex")}`;
+  if (currentHook?.webhook_url === webhookUrl) return;
+
+  const newHook = await alchemy.createWebhook({
+    webhook_type: "GRAPHQL",
+    webhook_url: webhookUrl,
+    graphql_query: { skip_empty_messages: true, query },
   });
   signingKeys.add(newHook.signing_key);
   if (currentHook) {
