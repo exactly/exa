@@ -224,8 +224,9 @@ export default function worker({
             });
           }
         }
-        if (poked && job.data.pandaId) {
-          await remember(bullmq, job.data.pandaId, job.data.account, chain.id).catch((error: unknown) =>
+        const users = [job.data.pandaId, job.data.otherPandaId].flatMap((user) => (user ? [user] : []));
+        if (poked && users.length > 0) {
+          await remember(bullmq, users, job.data.account, chain.id).catch((error: unknown) =>
             captureException(error, { level: "warning", tags: { chainId: chain.id } }),
           );
         }
