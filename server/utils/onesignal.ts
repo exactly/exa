@@ -18,7 +18,7 @@ export default function onesignal(key: string) {
   }: {
     contents: NonNullable<Notification["contents"]>;
     headings: NonNullable<Notification["headings"]>;
-    idempotencyKey?: string;
+    idempotencyKey: string;
     topic?: string;
     ttl?: number;
     userId: string;
@@ -30,7 +30,7 @@ export default function onesignal(key: string) {
     notification.include_aliases = { external_id: [userId] };
     notification.headings = headings;
     notification.contents = contents;
-    if (idempotencyKey !== undefined) notification.idempotency_key = idempotencyKey;
+    notification.idempotency_key = idempotencyKey;
     if (ttl !== undefined) notification.ttl = ttl;
     if (topic === undefined) {
       notification.web_push_topic = randomUUID();

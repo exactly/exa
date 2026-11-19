@@ -249,6 +249,7 @@ export default function hook({
               userId: account,
               headings: t("Fiat onramp activated"),
               contents: t("Your fiat onramp account has been activated"),
+              idempotencyKey: v5(`https://exact.ly/bridge-customer/${payload.event_object.id}/active`, v5.URL),
             })
             .catch((error: unknown) => captureException(error, { level: "error" }));
           return c.json({ code: "ok" }, 200);
@@ -262,6 +263,7 @@ export default function hook({
                   amount: f(payload.event_object.receipt.initial_amount),
                   asset: payload.event_object.currency.toUpperCase(),
                 }),
+                idempotencyKey: v5(`https://exact.ly/bridge-virtual-account/${payload.event_object.id}`, v5.URL),
                 topic: payload.event_object.deposit_id && `bridge-deposit/${payload.event_object.deposit_id}`,
               })
               .catch((error: unknown) => captureException(error, { level: "error" }));
@@ -290,6 +292,7 @@ export default function hook({
                 amount: f(payload.event_object.receipt.initial_amount),
                 asset: payload.event_object.currency.toUpperCase(),
               }),
+              idempotencyKey: v5(`https://exact.ly/bridge-drain/${payload.event_object.id}/payment_submitted`, v5.URL),
             })
             .catch((error: unknown) => captureException(error, { level: "error" }));
           segment.track({

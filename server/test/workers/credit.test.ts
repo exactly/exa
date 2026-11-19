@@ -5,6 +5,7 @@ import "../mocks/wallet";
 import { captureException, continueTrace, startSpan, withScope } from "@sentry/node";
 import { Queue, QueueEvents } from "bullmq";
 import { eq, inArray } from "drizzle-orm";
+import { v5 } from "uuid";
 import { hexToBigInt, padHex, parseEther, zeroHash, type Hex } from "viem";
 import { privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
@@ -153,7 +154,7 @@ describe("credit worker", () => {
   it("automatically activates credit mode", async () => {
     const setAttribute = await spySpanSetAttribute(account);
 
-    await jobFinished(account);
+    const job = await jobFinished(account);
 
     await expect(
       database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-card") }),
@@ -162,6 +163,7 @@ describe("credit worker", () => {
       userId: account,
       headings: t("Credit mode activated"),
       contents: t("Your card is now in credit mode"),
+      idempotencyKey: v5(`https://exact.ly/credit/${account}/${job.timestamp}`, v5.URL),
     });
     expect(setAttribute.mock.calls.filter(([attribute]) => String(attribute).startsWith("exa."))).toStrictEqual([
       ["exa.autoCredit", true],
@@ -223,7 +225,7 @@ describe("credit worker", () => {
     mocks.isBase.mockReturnValue(isBase);
     await database.update(cards).set({ tenant: own }).where(eq(cards.id, "credit-card"));
 
-    await jobFinished(account);
+    const job = await jobFinished(account);
 
     await expect(
       database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, "credit-card") }),
@@ -232,6 +234,7 @@ describe("credit worker", () => {
       userId: account,
       headings: t("Credit mode activated"),
       contents: t("Your card is now in credit mode"),
+      idempotencyKey: v5(`https://exact.ly/credit/${account}/${job.timestamp}`, v5.URL),
     });
   });
 
@@ -355,7 +358,7 @@ async function jobFinished(
   trace?: Pick<Credit, "sentryBaggage" | "sentryTrace">,
 ) {
   const result = finished(events, current);
-  await queue.add(
+  const job = await queue.add(
     "credit",
     { account: current, ...trace },
     { attempts: 1, jobId: current, removeOnComplete: true, removeOnFail: true, ...options },
@@ -364,6 +367,7 @@ async function jobFinished(
     await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0);
     throw error;
   });
+  return job;
 }
 
 async function collateralize(owner: Hex, ...deposits: (readonly [Hex, Hex, bigint])[]) {

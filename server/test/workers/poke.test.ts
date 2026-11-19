@@ -4,6 +4,7 @@ import "../mocks/wallet";
 
 import { captureException, continueTrace, startSpan, withScope } from "@sentry/node";
 import { Queue, QueueEvents, Job as QueueJob } from "bullmq";
+import { v5 } from "uuid";
 import { parse } from "valibot";
 import {
   BaseError,
@@ -278,6 +279,7 @@ describe("poke worker", () => {
       userId: account,
       headings: t("Account assets updated"),
       contents: t("Your funds are ready to use"),
+      idempotencyKey: v5(`https://exact.ly/poke/${job.id}/${job.timestamp}`, v5.URL),
       topic: "assets",
     });
     expect(setAttribute.mock.calls.filter(([attribute]) => attribute === "exa.new")).toStrictEqual([["exa.new", true]]);

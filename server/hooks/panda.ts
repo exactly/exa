@@ -14,6 +14,7 @@ import { E_TIMEOUT } from "async-mutex";
 import createDebug from "debug";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { Hono } from "hono";
+import { v5 } from "uuid";
 import * as v from "valibot";
 import {
   BaseError,
@@ -590,6 +591,7 @@ export default function hook({
               }
               sendDeclinedNotification(
                 account,
+                payload.id,
                 payload.body.spend,
                 mapped ?? (requested === undefined ? raw : undefined) ?? "transaction declined",
                 onesignal,
@@ -784,6 +786,7 @@ export default function hook({
                       amount: f(payload.body.spend.localAmount / 100, payload.body.spend.localCurrency),
                       merchantName: payload.body.spend.merchantName.trim(),
                     }),
+                    idempotencyKey: v5(`https://exact.ly/card-purchase/${payload.id}`, v5.URL),
                     topic: `card-purchase/${payload.body.id}`,
                   })
                   .catch((error: unknown) => captureException(error, { level: "error" }));
@@ -1286,6 +1289,7 @@ function getRequestedDeclineReason(transactionPayload: unknown) {
 
 async function sendDeclinedNotification(
   account: Address,
+  id: string,
   spend: v.InferOutput<typeof Transaction>["body"]["spend"],
   reason: string,
   onesignal: ReturnType<typeof createOnesignal>,
@@ -1298,5 +1302,6 @@ async function sendDeclinedNotification(
       merchantName: spend.merchantName.trim(),
       reason: t(reason),
     }),
+    idempotencyKey: v5(`https://exact.ly/card-declined/${id}`, v5.URL),
   });
 }

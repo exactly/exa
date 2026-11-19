@@ -17,6 +17,7 @@ import createDebug from "debug";
 import { Kind, parse, visit, type StringValueNode } from "graphql";
 import { Hono } from "hono";
 import { setTimeout } from "node:timers/promises";
+import { v5 } from "uuid";
 import * as v from "valibot";
 import {
   BaseError,
@@ -411,6 +412,10 @@ export default function hook({
                                 symbol: symbol.slice(3),
                                 recipient: ensName ?? shortenHex(receiver),
                               }),
+                        idempotencyKey: v5(
+                          `https://exact.ly/proposal/${chain.id}/${proposalManagerAddress}/${account}/${nonce}`,
+                          v5.URL,
+                        ),
                       }),
                     ),
                 ).catch((error: unknown) => captureException(error));
@@ -587,6 +592,10 @@ export default function hook({
                         symbol: symbol.slice(3),
                         recipient: ensName ?? shortenHex(receiver),
                       }),
+                      idempotencyKey: v5(
+                        `https://exact.ly/withdraw/${chain.id}/${account}/${market}/${receiver}/${amount}/${unlock}`,
+                        v5.URL,
+                      ),
                     }),
                   ),
               ).catch((error: unknown) => captureException(error));

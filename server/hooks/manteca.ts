@@ -4,6 +4,7 @@ import createDebug from "debug";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { validator } from "hono/validator";
+import { v5 } from "uuid";
 import {
   array,
   boolean,
@@ -243,6 +244,7 @@ export default function hook({
                 userId: credential.account,
                 headings: t("Fiat onramp activated"),
                 contents: t("Your fiat onramp account has been activated"),
+                idempotencyKey: v5(`https://exact.ly/manteca-user/${payload.data.user.id}/active`, v5.URL),
               })
               .catch((error: unknown) => captureException(error, { level: "error" }));
           }
@@ -273,6 +275,7 @@ async function handleDepositDetected(
               userId: account,
               headings: t("Deposited funds"),
               contents: t("{{amount}} {{asset}} deposited", { amount: f(data.amount), asset: data.asset }),
+              idempotencyKey: v5(`https://exact.ly/manteca-deposit/${data.id}`, v5.URL),
             })
             .catch((error: unknown) => captureException(error, { level: "error" }));
         })

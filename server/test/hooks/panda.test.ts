@@ -8,6 +8,7 @@ import "../mocks/wallet";
 import { captureException, captureMessage, getClient, setUser, spanToJSON } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
+import { v5 } from "uuid";
 import { parse } from "valibot";
 import {
   BaseError,
@@ -1017,6 +1018,7 @@ describe("card operations", () => {
             amount: f(localAmount / 100, "ARS"),
             merchantName: authorization.json.body.spend.merchantName,
           }),
+          idempotencyKey: v5(`https://exact.ly/card-purchase/${authorization.json.id}`, v5.URL),
           topic: `card-purchase/${cardId}`,
         });
       });
@@ -1152,6 +1154,7 @@ describe("card operations", () => {
               amount: f(authorization.json.body.spend.localAmount / 100, authorization.json.body.spend.localCurrency),
               merchantName: authorization.json.body.spend.merchantName,
             }),
+            idempotencyKey: expect.any(String) as string,
             topic: `card-purchase/${cardId}`,
           });
           expect(feedback).toHaveBeenNthCalledWith(call, {
@@ -1161,6 +1164,9 @@ describe("card operations", () => {
             feedback: { type: "authorization", status: "approved" },
           });
         }
+        expect(
+          sendPushNotificationMock.mock.calls.map(([{ idempotencyKey }]) => idempotencyKey).toSorted(),
+        ).toStrictEqual(attempts.map(({ id }) => v5(`https://exact.ly/card-purchase/${id}`, v5.URL)).toSorted());
         expect(transaction?.hashes[0]).toBe(amountHash(700_000n));
         expect(transaction?.hashes.toSorted()).toStrictEqual([...bodies.keys()].toSorted());
         expect(transaction).toStrictEqual({
@@ -3511,8 +3517,7 @@ describe("concurrency", () => {
       });
 
       await vi.waitFor(() => expect(sendPushNotificationSpy).toHaveBeenCalled());
-      const call = sendPushNotificationSpy.mock.calls[0]?.[0];
-      expect(call).toMatchObject({
+      expect(sendPushNotificationSpy).toHaveBeenCalledExactlyOnceWith({
         userId: account,
         headings: t("Exa Card purchase rejected"),
         contents: t("Transaction at {{merchantName}} for {{amount}} rejected: {{reason}}", {
@@ -3520,6 +3525,7 @@ describe("concurrency", () => {
           merchantName: authorization.json.body.spend.merchantName,
           reason: t("insufficient funds"),
         }),
+        idempotencyKey: v5("https://exact.ly/card-declined/created-insufficient-liquidity-notification-test", v5.URL),
       });
       expect(
         sardine.feedback.mock.calls.find(([{ transaction }]) => transaction.id === txId)?.[0].feedback,

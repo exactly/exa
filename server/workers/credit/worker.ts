@@ -1,5 +1,6 @@
 import { captureException, withScope } from "@sentry/node";
 import { and, eq, inArray } from "drizzle-orm";
+import { v5 } from "uuid";
 
 import { isBase, marketUSDCAddress, previewerAbi, previewerAddress } from "@exactly/common/generated/chain";
 
@@ -75,6 +76,7 @@ export default function worker({
               userId: job.data.account,
               headings: t("Credit mode activated"),
               contents: t("Your card is now in credit mode"),
+              idempotencyKey: v5(`https://exact.ly/credit/${job.id}/${job.timestamp}`, v5.URL),
             })
             .catch((error: unknown) => captureException(error));
         }

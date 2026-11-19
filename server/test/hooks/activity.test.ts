@@ -6,6 +6,7 @@ import { captureException, setUser } from "@sentry/node";
 import { testClient } from "hono/testing";
 import { Redis } from "ioredis";
 import { createHmac } from "node:crypto";
+import { v5 } from "uuid";
 import { hexToBytes, padHex, zeroAddress, zeroHash, type Address, type PrivateKeyAccount } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -148,6 +149,10 @@ describe("address activity", () => {
       userId: account,
       headings: t("Funds received"),
       contents: t("{{amount}} received", { amount: "WETH" }),
+      idempotencyKey: v5(
+        `https://exact.ly/activity/${chain.id}/${activityPayload.json.event.activity[1].hash}/token/${account}`,
+        v5.URL,
+      ),
     });
     expect(response.status).toBe(200);
   });
@@ -245,6 +250,7 @@ describe("address activity", () => {
               toAddress: account,
               asset: "BNB",
               category: "internal",
+              typeTraceAddress: "call_0",
               value: 2,
             },
           ],
@@ -268,6 +274,10 @@ describe("address activity", () => {
       userId: account,
       headings: t("Funds received"),
       contents: t("{{amount}} received", { amount: { en: "2 BNB", es: "2 BNB", pt: "2 BNB" } }),
+      idempotencyKey: v5(
+        `https://exact.ly/activity/${bsc.id}/${activityPayload.json.event.activity[0].hash}/call_0/${account}`,
+        v5.URL,
+      ),
     });
     expect(captureException).not.toHaveBeenCalled();
     expect(response.status).toBe(200);
@@ -430,6 +440,10 @@ describe("address activity", () => {
       userId: account,
       headings: t("Funds received"),
       contents: t("{{amount}} received and instantly started earning yield", { amount: f("99.973") }),
+      idempotencyKey: v5(
+        `https://exact.ly/activity/31337/${activityPayload.json.event.activity[1].hash}/token/${account}`,
+        v5.URL,
+      ),
     });
     expect(response.status).toBe(200);
   });
@@ -531,6 +545,7 @@ describe("address activity", () => {
         userId: account,
         headings: t("Funds received"),
         contents: t("{{amount}} received", { amount: { en: "5 USDT", es: "5 USDT", pt: "5 USDT" } }),
+        idempotencyKey: key(account),
       });
       expect(response.status).toBe(200);
     });
@@ -552,6 +567,7 @@ describe("address activity", () => {
         userId: account,
         headings: t("Funds received"),
         contents: t("{{amount}} received", { amount: { en: "5 USDT", es: "5 USDT", pt: "5 USDT" } }),
+        idempotencyKey: key(account),
       });
       expect(response.status).toBe(200);
     });
@@ -570,6 +586,7 @@ describe("address activity", () => {
         userId: account,
         headings: t("Funds received"),
         contents: t("{{amount}} received", { amount: { en: "5 USDT", es: "5 USDT", pt: "5 USDT" } }),
+        idempotencyKey: key(account),
       });
       expect(response.status).toBe(200);
     });
@@ -599,6 +616,7 @@ describe("address activity", () => {
         userId: account,
         headings: t("Funds received"),
         contents: t("{{amount}} received", { amount: { en: "5 USDT", es: "5 USDT", pt: "5 USDT" } }),
+        idempotencyKey: key(account),
       });
       expect(response.status).toBe(200);
     });
@@ -618,6 +636,7 @@ describe("address activity", () => {
         userId: account,
         headings: t("Funds received"),
         contents: t("{{amount}} received", { amount: { en: "5 USDT", es: "5 USDT", pt: "5 USDT" } }),
+        idempotencyKey: key(account),
       });
       expect(response.status).toBe(200);
     });
@@ -638,6 +657,7 @@ describe("address activity", () => {
         userId: account,
         headings: t("Funds received"),
         contents: t("{{amount}} received", { amount: { en: "5 USDT", es: "5 USDT", pt: "5 USDT" } }),
+        idempotencyKey: key(account),
       });
       expect(response.status).toBe(200);
     });
@@ -654,6 +674,7 @@ describe("address activity", () => {
         userId: account,
         headings: t("Funds received"),
         contents: t("{{amount}} received", { amount: { en: "5 USDT", es: "5 USDT", pt: "5 USDT" } }),
+        idempotencyKey: key(account),
       });
       expect(response.status).toBe(200);
     });
@@ -683,6 +704,10 @@ describe("address activity", () => {
         userId: account,
         headings: t("Funds received"),
         contents: t("{{amount}} received", { amount: { en: "2 ETH", es: "2 ETH", pt: "2 ETH" } }),
+        idempotencyKey: v5(
+          `https://exact.ly/activity/${mainnet.id}/${activityPayload.json.event.activity[0].hash}/external/${account}`,
+          v5.URL,
+        ),
       });
       expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
         account,
@@ -719,6 +744,7 @@ describe("address activity", () => {
         userId: account,
         headings: t("Funds received"),
         contents: t("{{amount}} received", { amount: { en: "5 USDT", es: "5 USDT", pt: "5 USDT" } }),
+        idempotencyKey: key(account),
       });
       expect(response.status).toBe(200);
     });
@@ -911,6 +937,7 @@ const activityPayload = {
           toAddress: "0xad0e941d2693286581520d320fd37377387cd868",
           blockNum: "0x88e6e99",
           hash: "0xd297a8fbd58223c82ea80ff6a730d210cde78a5774e263fa33f589ce249e39e9",
+          log: { logIndex: "0x3" },
           value: 5,
           asset: "USDT",
           category: "token",
@@ -945,6 +972,10 @@ afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
+
+function key(toAddress: Address) {
+  return v5(`https://exact.ly/activity/10/${activityPayload.json.event.activity[2].hash}/0x3/${toAddress}`, v5.URL);
+}
 
 function createHook(current = alchemy) {
   return activity({

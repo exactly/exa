@@ -6,6 +6,7 @@ import "../mocks/sentry";
 import { captureException } from "@sentry/core";
 import { testClient } from "hono/testing";
 import { createHmac } from "node:crypto";
+import { v5 } from "uuid";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -223,6 +224,7 @@ describe("manteca hook", () => {
         userId: account,
         headings: t("Deposited funds"),
         contents: t("{{amount}} {{asset}} deposited", { amount: f("1000"), asset: "ARS" }),
+        idempotencyKey: v5("https://exact.ly/manteca-deposit/deposit123", v5.URL),
       });
     });
 
@@ -538,6 +540,7 @@ describe("manteca hook", () => {
         userId: account,
         headings: t("Fiat onramp activated"),
         contents: t("Your fiat onramp account has been activated"),
+        idempotencyKey: v5("https://exact.ly/manteca-user/user123/active", v5.URL),
       });
     });
 

@@ -224,6 +224,7 @@ describe("bridge hook", () => {
       userId: account,
       headings: t("Deposited funds"),
       contents: t("{{amount}} {{asset}} deposited", { amount: f("1000"), asset: "USD" }),
+      idempotencyKey: v5("https://exact.ly/bridge-virtual-account/evt_123", v5.URL),
       topic: "bridge-deposit/deposit_123",
     });
   });
@@ -239,8 +240,13 @@ describe("bridge hook", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-    expect(sendPushNotificationMock).toHaveBeenCalledOnce();
-    expect(sendPushNotificationMock.mock.lastCall?.[0].topic).toBeUndefined();
+    expect(sendPushNotificationMock).toHaveBeenCalledExactlyOnceWith({
+      userId: account,
+      headings: t("Deposited funds"),
+      contents: t("{{amount}} {{asset}} deposited", { amount: f("1000"), asset: "USD" }),
+      idempotencyKey: v5("https://exact.ly/bridge-virtual-account/evt_123", v5.URL),
+      topic: undefined,
+    });
     expect(segment.track).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
   });
@@ -361,6 +367,7 @@ describe("bridge hook", () => {
       userId: fallbackAccount,
       headings: t("Fiat onramp activated"),
       contents: t("Your fiat onramp account has been activated"),
+      idempotencyKey: v5("https://exact.ly/bridge-customer/fallback-bridge-id/active", v5.URL),
     });
   });
 
@@ -617,6 +624,7 @@ describe("bridge hook", () => {
       userId: account,
       headings: t("Fiat onramp activated"),
       contents: t("Your fiat onramp account has been activated"),
+      idempotencyKey: v5("https://exact.ly/bridge-customer/bridgeCustomerId/active", v5.URL),
     });
   });
 
@@ -718,6 +726,7 @@ describe("bridge hook", () => {
       userId: account,
       headings: t("Deposited funds"),
       contents: t("{{amount}} {{asset}} deposited", { amount: f("500"), asset: "USDC" }),
+      idempotencyKey: v5("https://exact.ly/bridge-drain/drain_123/payment_submitted", v5.URL),
     });
   });
 

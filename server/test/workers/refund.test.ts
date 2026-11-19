@@ -7,6 +7,7 @@ import { captureException, continueTrace, setUser, startSpan, withScope } from "
 import { Queue, QueueEvents } from "bullmq";
 import { eq } from "drizzle-orm";
 import { env } from "node:process";
+import { v5 } from "uuid";
 import { nonEmpty, parse, pipe, string } from "valibot";
 import {
   concat,
@@ -362,6 +363,7 @@ describe("refund worker", () => {
         refundAmount: f(10),
         merchantName: "merchant",
       }),
+      idempotencyKey: v5("https://exact.ly/refund/wh-authorized", v5.URL),
     });
     expect(track).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
@@ -441,6 +443,7 @@ describe("refund worker", () => {
           refundAmount: f(10),
           merchantName: "merchant",
         }),
+        idempotencyKey: expect.any(String) as string,
       });
       expect(track).toHaveBeenNthCalledWith(
         call,
@@ -463,6 +466,9 @@ describe("refund worker", () => {
         feedback: { type: "settlement", status: "settled" },
       });
     }
+    expect(sendPushNotification.mock.calls.map(([{ idempotencyKey }]) => idempotencyKey).toSorted()).toStrictEqual(
+      ["wh-overlap-0", "wh-overlap-1"].map((id) => v5(`https://exact.ly/refund/${id}`, v5.URL)).toSorted(),
+    );
     expect(track).toHaveBeenCalledTimes(2);
     expect(feedback).toHaveBeenCalledTimes(2);
     expect(transaction?.hashes).toHaveLength(5);

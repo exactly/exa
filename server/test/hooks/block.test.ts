@@ -8,6 +8,7 @@ import { captureException, continueTrace, withScope } from "@sentry/node";
 import { deserialize } from "@wagmi/core";
 import { testClient } from "hono/testing";
 import { Redis } from "ioredis";
+import { v5 } from "uuid";
 import {
   ContractFunctionExecutionError,
   ContractFunctionRevertedError,
@@ -251,6 +252,10 @@ describe("proposal", () => {
           symbol: "USDC",
           recipient: "alice.eth",
         }),
+        idempotencyKey: v5(
+          `https://exact.ly/proposal/${chain.id}/${proposalManagerAddress}/${withdraw.args.account}/${withdraw.args.nonce}`,
+          v5.URL,
+        ),
       });
       expect(sendPushNotification).toHaveBeenCalledWith({
         userId: bobAccount,
@@ -260,6 +265,10 @@ describe("proposal", () => {
           symbol: "USDC",
           recipient: shortenHex(receiver),
         }),
+        idempotencyKey: v5(
+          `https://exact.ly/proposal/${chain.id}/${proposalManagerAddress}/${anotherWithdraw.args.account}/${anotherWithdraw.args.nonce}`,
+          v5.URL,
+        ),
       });
       expect(hasExpectedTransfers(receipts, expected)).toBe(true);
       expect(removals).toStrictEqual([1, 1]);
@@ -302,7 +311,7 @@ describe("proposal", () => {
         expect(captureException).toHaveBeenCalledExactlyOnceWith(error);
       }, 26_666);
 
-      for (const amount of ["3", "4"]) {
+      for (const [index, amount] of ["3", "4"].entries()) {
         expect(sendPushNotification).toHaveBeenCalledWith({
           userId: bobAccount,
           headings: t("Withdraw completed"),
@@ -311,6 +320,10 @@ describe("proposal", () => {
             symbol: "USDC",
             recipient: "alice.eth",
           }),
+          idempotencyKey: v5(
+            `https://exact.ly/proposal/${chain.id}/${proposalManagerAddress}/${proposals[index]?.args.account}/${proposals[index]?.args.nonce}`,
+            v5.URL,
+          ),
         });
       }
       expect(
@@ -383,6 +396,10 @@ describe("proposal", () => {
               symbol: "WETH",
               recipient: shortenHex(padHex("0x69", { size: 20 })),
             }),
+            idempotencyKey: v5(
+              `https://exact.ly/proposal/${chain.id}/${proposalManagerAddress}/${withdraw.args.account}/${withdraw.args.nonce}`,
+              v5.URL,
+            ),
           }),
         26_666,
       );
@@ -419,6 +436,10 @@ describe("proposal", () => {
           symbol: "WETH",
           recipient: shortenHex(padHex("0x69", { size: 20 })),
         }),
+        idempotencyKey: v5(
+          `https://exact.ly/proposal/${chain.id}/${proposalManagerAddress}/${redeem.args.account}/${redeem.args.nonce}`,
+          v5.URL,
+        ),
       });
       expect(removed).toStrictEqual([1]);
       await expect(
@@ -469,6 +490,10 @@ describe("proposal", () => {
           symbol: "USDC",
           recipient: shortenHex(padHex("0x69", { size: 20 })),
         }),
+        idempotencyKey: v5(
+          `https://exact.ly/proposal/${chain.id}/${proposalManagerAddress}/${redeem.args.account}/${redeem.args.nonce}`,
+          v5.URL,
+        ),
       });
       expect(removed).toStrictEqual([1]);
     });
@@ -521,6 +546,10 @@ describe("proposal", () => {
           symbol: "USDC",
           recipient: ensName ?? shortenHex(padHex("0x69", { size: 20 })),
         }),
+        idempotencyKey: v5(
+          `https://exact.ly/proposal/${chain.id}/${proposalManagerAddress}/${redeem.args.account}/${redeem.args.nonce}`,
+          v5.URL,
+        ),
       });
       expect(captureException).toHaveBeenCalledWith(new Error("missing withdraw event"), {
         level: "error",
@@ -1602,6 +1631,10 @@ describe("legacy withdraw", () => {
         symbol: "USDC",
         recipient: "alice.eth",
       }),
+      idempotencyKey: v5(
+        `https://exact.ly/withdraw/${chain.id}/${withdrawAccount}/${withdrawMarket}/${withdrawReceiver}/${amount}/${withdrawUnlock}`,
+        v5.URL,
+      ),
     });
     expect(vi.mocked(captureException).mock.calls.filter((call) => match.capture(call))).toEqual([]);
     expect(setUser).toHaveBeenCalledWith({ id: withdrawAccount });
@@ -1637,6 +1670,10 @@ describe("legacy withdraw", () => {
         symbol: "USDC",
         recipient: shortenHex(withdrawReceiver),
       }),
+      idempotencyKey: v5(
+        `https://exact.ly/withdraw/${chain.id}/${withdrawAccount}/${withdrawMarket}/${withdrawReceiver}/${amount}/${withdrawUnlock}`,
+        v5.URL,
+      ),
     });
     expect(vi.mocked(captureException).mock.calls.filter((call) => match.capture(call))).toEqual([]);
   });
@@ -1671,6 +1708,10 @@ describe("legacy withdraw", () => {
         symbol: "USDC",
         recipient: shortenHex(withdrawReceiver),
       }),
+      idempotencyKey: v5(
+        `https://exact.ly/withdraw/${chain.id}/${withdrawAccount}/${withdrawMarket}/${withdrawReceiver}/${amount}/${withdrawUnlock}`,
+        v5.URL,
+      ),
     });
     expect(vi.mocked(captureException).mock.calls.filter((call) => match.capture(call))).toEqual([]);
   });

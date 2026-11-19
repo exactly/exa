@@ -1,6 +1,7 @@
 import { captureException, setUser, withScope } from "@sentry/node";
 import { UnrecoverableError } from "bullmq";
 import { eq, sql } from "drizzle-orm";
+import { v5 } from "uuid";
 import { number, object, parse, string } from "valibot";
 import {
   BaseError,
@@ -348,6 +349,7 @@ export default function worker({
               refundAmount: f(refundAmountUsd),
               merchantName: spend.merchantName.trim(),
             }),
+            idempotencyKey: v5(`https://exact.ly/refund/${webhookId}`, v5.URL),
           })
           .catch((error: unknown) => captureException(error));
         segment.track({

@@ -11,6 +11,7 @@ import createDebug from "debug";
 import { inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { validator } from "hono/validator";
+import { v5 } from "uuid";
 import * as v from "valibot";
 import { bytesToHex, hexToBigInt } from "viem";
 import { anvil } from "viem/chains";
@@ -86,7 +87,13 @@ export default function hook({
           ),
           activity: v.array(
             v.intersect([
-              v.object({ hash: Hash, fromAddress: Address, toAddress: Address }),
+              v.object({
+                hash: Hash,
+                fromAddress: Address,
+                toAddress: Address,
+                log: v.nullish(v.object({ logIndex: Hex })),
+                typeTraceAddress: v.nullish(v.string()),
+              }),
               v.variant("category", [
                 v.object({
                   category: v.picklist(["external", "internal"]),
@@ -157,7 +164,16 @@ export default function hook({
           source: null | string;
         }
       >();
-      for (const { toAddress: account, rawContract, value, asset: assetSymbol } of transfers) {
+      for (const {
+        toAddress: account,
+        rawContract,
+        value,
+        asset: assetSymbol,
+        hash,
+        log,
+        typeTraceAddress,
+        category,
+      } of transfers) {
         if (!accounts[account]) continue;
         if (chain.id === exaChain.id && rawContract?.address && markets.has(rawContract.address)) continue;
         const asset = rawContract?.address ?? ETH;
@@ -179,6 +195,10 @@ export default function hook({
                   )
                 : assetSymbol,
             },
+          ),
+          idempotencyKey: v5(
+            `https://exact.ly/activity/${chain.id}/${hash}/${log?.logIndex ?? typeTraceAddress ?? category}/${account}`,
+            v5.URL,
           ),
         };
         const known =

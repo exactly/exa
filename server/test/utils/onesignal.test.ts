@@ -51,24 +51,35 @@ describe("onesignal", () => {
     );
   });
 
-  it("omits optional delivery options", async () => {
+  it("omits ttl when not set", async () => {
     const onesignal = createOnesignal("secret");
 
     await onesignal.sendPushNotification({
       userId: "user",
       headings: { en: "heading" },
       contents: { en: "content" },
+      idempotencyKey: "idempotency",
     });
 
-    expect(mocks.createNotification.mock.lastCall?.[0]).not.toHaveProperty("idempotency_key");
+    expect(mocks.createNotification.mock.lastCall?.[0].idempotency_key).toBe("idempotency");
     expect(mocks.createNotification.mock.lastCall?.[0]).not.toHaveProperty("ttl");
   });
 
   it("stacks notifications without a topic", async () => {
     const onesignal = createOnesignal("secret");
 
-    await onesignal.sendPushNotification({ userId: "user", headings: { en: "a" }, contents: { en: "a" } });
-    await onesignal.sendPushNotification({ userId: "user", headings: { en: "b" }, contents: { en: "b" } });
+    await onesignal.sendPushNotification({
+      userId: "user",
+      headings: { en: "a" },
+      contents: { en: "a" },
+      idempotencyKey: "a",
+    });
+    await onesignal.sendPushNotification({
+      userId: "user",
+      headings: { en: "b" },
+      contents: { en: "b" },
+      idempotencyKey: "b",
+    });
 
     const [first, second] = mocks.createNotification.mock.calls.slice(-2).map(([notification]) => notification);
     expect(first?.web_push_topic).toMatch(uuid);
@@ -85,18 +96,21 @@ describe("onesignal", () => {
       userId: "user",
       headings: { en: "a" },
       contents: { en: "a" },
+      idempotencyKey: "a",
       topic: "t/1",
     });
     await onesignal.sendPushNotification({
       userId: "user",
       headings: { en: "b" },
       contents: { en: "b" },
+      idempotencyKey: "b",
       topic: "t/1",
     });
     await onesignal.sendPushNotification({
       userId: "user",
       headings: { en: "c" },
       contents: { en: "c" },
+      idempotencyKey: "c",
       topic: "t/2",
     });
 

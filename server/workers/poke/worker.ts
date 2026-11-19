@@ -1,4 +1,5 @@
 import { captureException, withScope } from "@sentry/node";
+import { v5 } from "uuid";
 import { parse } from "valibot";
 import { bytesToBigInt, erc20Abi, hexToBytes, type LocalAccount } from "viem";
 
@@ -161,6 +162,7 @@ export default function worker({
                 userId: job.data.account,
                 headings: t("Account assets updated"),
                 contents: t("Your funds are ready to use"),
+                idempotencyKey: v5(`https://exact.ly/poke/${job.id}/${job.timestamp}`, v5.URL),
                 topic: "assets",
               })
               .catch((error: unknown) => captureException(error, { level: "error" }));
