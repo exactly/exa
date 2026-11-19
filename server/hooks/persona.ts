@@ -36,6 +36,7 @@ import { CLASSIC_PRODUCT_ID } from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
 
 import { cards, credentials } from "../database/schema";
+import { home, pandaUser } from "../utils/panda";
 import {
   ADDRESS_TEMPLATE,
   BUSINESS_PANDA_REPRESENTATIVE_TEMPLATE,
@@ -384,10 +385,19 @@ export default function hook({
       }
       if (payload.template === "representative") {
         getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "persona.inquiry.representative");
-        if (!isBase || payload.data.attributes.status !== "approved") return c.json({ code: "ok" }, 200);
+        if (payload.data.attributes.status !== "approved") return c.json({ code: "ok" }, 200);
         const { referenceId, note } = payload.data.attributes;
+        const company = panda.program("BASE");
         const credential = await database.query.credentials.findFirst({
-          columns: { account: true, factory: true, pandaId: true, publicKey: true, salt: true, source: true },
+          columns: {
+            account: true,
+            factory: true,
+            otherPandaId: true,
+            pandaId: true,
+            publicKey: true,
+            salt: true,
+            source: true,
+          },
           where: eq(credentials.id, referenceId),
           with: {
             cards: {
@@ -404,11 +414,11 @@ export default function hook({
         const account = parse(Address, credential.account);
         setUser({ id: account });
         if (credential.cards.length > 0) return c.json({ code: "already created" }, 200);
-        const application = await panda.getCompanyApplication(referenceId);
+        const application = await company.getCompanyApplication(referenceId);
         if (application?.applicationStatus !== "approved") return c.json({ code: "not approved" }, 200);
         const pandaId: string =
-          credential.pandaId ??
-          (await panda
+          pandaUser(credential, "BASE") ??
+          (await company
             .getCompanyUsers(application.id)
             .then((users) =>
               users.find(({ walletAddress }) => walletAddress && parse(Address, walletAddress) === account),
@@ -417,7 +427,7 @@ export default function hook({
               if (!user) throw new Error("company user not found");
               return database
                 .update(credentials)
-                .set({ pandaId: user.id })
+                .set(home() === "BASE" ? { pandaId: user.id } : { otherPandaId: user.id })
                 .where(eq(credentials.id, referenceId))
                 .then(() => user.id);
             }));
@@ -435,12 +445,12 @@ export default function hook({
         );
         const { value: mail } = payload.data.attributes.fields.authUserEmail;
         try {
-          const card = await panda
+          const card = await company
             .getCompanyUsers(application.id, { email: mail })
             .then(
               async (users) =>
                 users.find((user) => user.email?.toLowerCase() === mail.toLowerCase()) ??
-                (await panda.createCompanyUser(
+                (await company.createCompanyUser(
                   application.id,
                   {
                     email: mail,
@@ -451,7 +461,7 @@ export default function hook({
                 )),
             )
             .then(({ id }) =>
-              panda.createCard(
+              company.createCard(
                 id,
                 CLASSIC_PRODUCT_ID,
                 payload.data.attributes.fields.weeklyCardLimit?.value == null
