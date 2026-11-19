@@ -1097,6 +1097,78 @@ describe("manteca hook", () => {
       expect(segment.track).not.toHaveBeenCalled();
       expect(sendPushNotificationMock).not.toHaveBeenCalled();
     });
+
+    it("reports a cancelled qr refund once without looking up the operation", async () => {
+      const request = vi.spyOn(publicClient, "request");
+      const payload = {
+        event: "WITHDRAW_STATUS_UPDATE",
+        data: {
+          amount: "1.0",
+          asset: "USDC",
+          creationTime: "2026-11-24T10:04:20.034-03:00",
+          destination: account,
+          externalId: `refund-${userOpHash}`,
+          filledAmount: "0.0",
+          id: "6b058b534f2bf5256e10c47f",
+          legalEntity: "WALLET_ARG",
+          network: "BASE",
+          numberId: "100071577",
+          status: "CANCELLED",
+          updatedAt: "2026-11-24T10:04:36.172-03:00",
+          userExternalId: "Exactly-argentina",
+          userId: "6adff39f0ee31861fc20cdaf",
+          userNumberId: "100114168",
+        },
+      };
+      const response = await appClient.index.$post({
+        header: { "md-webhook-signature": createSignature(payload) },
+        json: payload as never,
+      });
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+      expect(captureEvent).toHaveBeenCalledTimes(2);
+      expect(captureEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: "qr refund cancelled",
+          level: "error",
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          contexts: expect.objectContaining({
+            refund: { userOpHash, withdraw: "6b058b534f2bf5256e10c47f", amount: "1.0" },
+          }),
+        }),
+      );
+      expect(captureEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "MantecaCompanyEvent", level: "info" }),
+      );
+      expect(request).not.toHaveBeenCalled();
+      expect(captureException).not.toHaveBeenCalled();
+    });
+
+    it.each(["PENDING", "EXECUTED"] as const)("doesn't report a %s qr refund", async (status) => {
+      const payload = {
+        event: "WITHDRAW_STATUS_UPDATE",
+        data: {
+          amount: "1.0",
+          asset: "USDC",
+          destination: account,
+          externalId: `refund-${userOpHash}`,
+          id: "6b058b534f2bf5256e10c47f",
+          status,
+          userExternalId: "Exactly-argentina",
+          userNumberId: "100114168",
+        },
+      };
+      const response = await appClient.index.$post({
+        header: { "md-webhook-signature": createSignature(payload) },
+        json: payload as never,
+      });
+
+      expect(response.status).toBe(200);
+      expect(captureEvent).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ message: "MantecaCompanyEvent", level: "info" }),
+      );
+    });
   });
 
   describe("when a user onboarding is updated", () => {

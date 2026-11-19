@@ -180,6 +180,7 @@ describe("api", () => {
           panda: undefined as never,
           pax: undefined as never,
           persona: undefined as never,
+          qr: undefined as never,
           redis: undefined as never,
           sardine: undefined as never,
           segment: undefined as never,

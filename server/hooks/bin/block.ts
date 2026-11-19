@@ -12,6 +12,9 @@ import createPersona from "../../utils/persona";
 import createManteca from "../../utils/ramps/manteca";
 import secret from "../../utils/secret";
 import { signer } from "../../utils/wallet";
+import createQR from "../../workers/qr/queue";
+import createQRWorker from "../../workers/qr/worker";
+import { connect } from "../../workers/worker";
 import block from "../block";
 
 const kms = new KeyManagementServiceClient();
@@ -31,14 +34,19 @@ supervise(
     Promise.all([secret("block-persona-api-key", secrets), secret("persona-api-url", secrets)]).then(([key, url]) =>
       createPersona(key, url),
     ),
-    secret("redis-url", secrets).then((url) => new Redis(url)),
-  ]).then(([alchemy, blockKey, database, executor, manteca, onesignal, persona, redis]) =>
-    own(
-      block({ alchemy, blockKey, database, executor, manteca, onesignal, persona, redis }),
+    secret("redis-url", secrets).then((url) => [new Redis(url), connect(url)] as const),
+  ]).then(([alchemy, blockKey, database, executor, manteca, onesignal, persona, [redis, bullmq]]) => {
+    const qr = createQR(redis);
+    const worker = createQRWorker({ bullmq, manteca, redis });
+    const hook = block({ alchemy, blockKey, database, executor, manteca, onesignal, persona, qr, redis });
+    return own(
+      { ...hook, ready: Promise.all([hook.ready, qr.ready(), worker.ready]) },
+      () => worker.close(),
       () => database.$client.end(),
       () => kms.close(),
-      () => redis.quit(),
+      () => qr.close().finally(() => redis.quit()),
+      () => bullmq.quit(),
       () => secrets.close(),
-    ),
-  ),
+    );
+  }),
 );

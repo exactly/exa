@@ -12,6 +12,7 @@ import {
   parse,
   picklist,
   pipe,
+  safeParse,
   string,
   union,
   url,
@@ -47,7 +48,9 @@ import type { Auth } from "../middleware/auth";
 import type createPersona from "../utils/persona";
 import type createBridge from "../utils/ramps/bridge";
 import type createManteca from "../utils/ramps/manteca";
+import type createQR from "../workers/qr/queue";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Redis } from "ioredis";
 
 const ErrorCodes = {
   EXTERNAL_ACCOUNT_ALREADY_EXISTS: "external account already exists",
@@ -73,12 +76,16 @@ export default function route({
   database,
   manteca,
   persona,
+  qr,
+  redis,
 }: {
   auth: Auth;
   bridge: ReturnType<typeof createBridge>;
   database: NodePgDatabase<typeof schema>;
   manteca: ReturnType<typeof createManteca>;
   persona: ReturnType<typeof createPersona>;
+  qr: ReturnType<typeof createQR>;
+  redis: Redis;
 }) {
   return new Hono()
     .get(
@@ -540,7 +547,8 @@ Pay the lock with a user operation that withdraws at least \`amount\` USDC to \`
           columns: { account: true },
         });
         if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
-        setUser({ id: parse(Address, credential.account) });
+        const account = parse(Address, credential.account);
+        setUser({ id: account });
 
         const personaAccount = await persona.getAccount(credentialId, "basic").catch((error: unknown) => {
           if (error instanceof ValiError && error.issues.every((issue: BaseIssue<unknown>) => isMissingOrNull(issue))) {
@@ -567,6 +575,17 @@ Pay the lock with a user operation that withdraws at least \`amount\` USDC to \`
           });
           if (!lock.code) return c.json({ recipient: lock.paymentRecipientName, asset: lock.paymentAsset }, 206);
           if (!lock.sender) throw new Error("lock without sender");
+          await redis.set(
+            `qr:${lock.code}`,
+            JSON.stringify({
+              account,
+              amount: lock.paymentAgainstAmount,
+              asset: lock.paymentAsset,
+              expireAt: lock.expireAt,
+            }),
+            "EX",
+            8 * 24 * 60 * 60,
+          );
           return c.json(
             {
               code: lock.code,
@@ -600,7 +619,7 @@ Pay the lock with a user operation that withdraws at least \`amount\` USDC to \`
         description: `
 Retrieve the status of the QR payment made by the user operation \`userOpHash\` of the authenticated user.
 
-Returns the synthetic of the payment once the server executed it, \`FAILED\` when the user operation reverted, or \`EXPIRED\` when the lock expired before the execution.
+Returns the synthetic of the payment once the server executed it, or \`FAILED\` when the user operation reverted. When the lock expired before the execution, the server refunds the payment to the account, and returns \`REFUNDING\` until the refund is sent, \`REFUNDED\` once it is, or \`EXPIRED\` without a refund.
         `,
         tags: ["QR"],
         security: [{ credentialAuth: [] }],
@@ -657,7 +676,15 @@ Returns the synthetic of the payment once the server executed it, \`FAILED\` whe
         if (synthetic) {
           return c.json({ id: synthetic.id, status: synthetic.status } satisfies InferOutput<typeof QRPayment>, 200);
         }
-        if (lock === null) return c.json({ status: "EXPIRED" } satisfies InferOutput<typeof QRPayment>, 200);
+        if (!lock) {
+          const refund = await manteca.getQRRefund(userOpHash);
+          if (refund) {
+            return c.json({ status: RefundStatus[refund.status] } satisfies InferOutput<typeof QRPayment>, 200);
+          }
+          const record = safeParse(Manteca.QRRecord, await redis.get(`qr:${code}`));
+          const pending = (await qr.getJob(userOpHash)) && record.success && record.output.account === account;
+          return c.json({ status: pending ? "REFUNDING" : "EXPIRED" } satisfies InferOutput<typeof QRPayment>, 200);
+        }
         return c.json({ code: ErrorCodes.PAYMENT_NOT_EXECUTED }, 404);
       },
     )
@@ -816,8 +843,10 @@ const QRLock = object({
 
 const QRPayment = union([
   object({ id: string(), status: picklist(Manteca.SyntheticStatus) }),
-  object({ status: picklist(["EXPIRED", "FAILED"]) }),
+  object({ status: picklist(["EXPIRED", "FAILED", "REFUNDING", "REFUNDED"]) }),
 ]);
+
+const RefundStatus = { PENDING: "REFUNDING", EXECUTED: "REFUNDED", CANCELLED: "EXPIRED" } as const;
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const RampResponse = object({

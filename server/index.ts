@@ -44,6 +44,8 @@ import createCredit from "./workers/credit/queue";
 import createHook from "./workers/hook/queue";
 import createHookWorker from "./workers/hook/worker";
 import createPoke from "./workers/poke/queue";
+import createQR from "./workers/qr/queue";
+import createQRWorker from "./workers/qr/worker";
 import createRefund from "./workers/refund/queue";
 import createSubscribe from "./workers/subscribe/queue";
 
@@ -79,6 +81,7 @@ const persona = createPersona(
 const allow = createAllow(redis);
 const credit = createCredit(redis);
 const poke = createPoke(redis);
+const qr = createQR(redis);
 const refund = createRefund(redis);
 const webhook = createHook(redis);
 const sardine = createSardine(
@@ -104,6 +107,7 @@ const hooks = {
       manteca,
       onesignal,
       persona,
+      qr,
       redis,
       source,
     }),
@@ -152,6 +156,7 @@ const hooks = {
 const workers = {
   hook: () => createHookWorker({ bullmq, database, panda }),
   maturity: () => createMaturity(onesignal),
+  qr: () => createQRWorker({ bullmq, manteca, redis }),
 };
 const disabled = new Set<string>(
   parse(
@@ -181,6 +186,7 @@ const api = createApi({
   panda,
   pax,
   persona,
+  qr,
   redis,
   sardine,
   segment,
@@ -521,6 +527,7 @@ export const close = supervise(
             allow.ready(),
             credit.ready(),
             poke.ready(),
+            qr.ready(),
             refund.ready(),
             subscribe.ready(),
             webhook.ready(),
@@ -534,6 +541,7 @@ export const close = supervise(
         ...enabledHooks.flatMap(([, hook]) => ("close" in hook ? [hook.close] : [])),
         ...enabledWorkers.map((worker) => () => worker.close()),
         () => poke.close(),
+        () => qr.close(),
         () => refund.close(),
         () => segment.close(),
         () => subscribe.close(),

@@ -71,7 +71,7 @@ import { emit } from "../utils/events";
 import { refresh } from "../utils/liquidity";
 import listen from "../utils/listen";
 import publicClient, { alchemyClient } from "../utils/publicClient";
-import { pay } from "../utils/ramps/manteca";
+import { decodeNonceKey, pay } from "../utils/ramps/manteca";
 import revertFingerprint from "../utils/revertFingerprint";
 import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
@@ -82,6 +82,7 @@ import type createAlchemy from "../utils/alchemy";
 import type createOnesignal from "../utils/onesignal";
 import type createPersona from "../utils/persona";
 import type createManteca from "../utils/ramps/manteca";
+import type createQR from "../workers/qr/queue";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Redis } from "ioredis";
 import type { Pool } from "pg";
@@ -98,6 +99,7 @@ export default function hook({
   manteca,
   onesignal,
   persona,
+  qr,
   redis,
   source = "alchemy",
 }: {
@@ -109,6 +111,7 @@ export default function hook({
   manteca: ReturnType<typeof createManteca>;
   onesignal: ReturnType<typeof createOnesignal>;
   persona: ReturnType<typeof createPersona>;
+  qr: ReturnType<typeof createQR>;
   redis: Redis;
   source?: "alchemy" | "indexer";
 }) {
@@ -226,14 +229,17 @@ export default function hook({
           transaction,
           ...decodeEventLog({ abi: marketAbi, eventName: "Withdraw", topics, data }),
         }));
-      async function settle() {
-        const settlements: Record<string, Address> = outflows.length > 0 ? await manteca.getSettlements() : {};
-        return {
-          settlements,
-          settled: outflows.filter(({ args }) =>
-            Object.values(settlements).some((settlement) => isAddressEqual(settlement, args.receiver)),
-          ),
-        };
+      function settle() {
+        return (outflows.length > 0 ? manteca.getSettlements() : Promise.resolve({})).then(
+          (settlements: Record<string, Address>) => ({
+            failure: undefined,
+            settlements,
+            settled: outflows.filter(({ args }) =>
+              Object.values(settlements).some((settlement) => isAddressEqual(settlement, args.receiver)),
+            ),
+          }),
+          (error: unknown) => ({ failure: error, settlements: undefined, settled: outflows }),
+        );
       }
       const payments = logs.every(({ topics }) => topics[0] === withdrawTopic) ? await settle() : undefined;
       if (payments?.settled.length === 0) {
@@ -400,8 +406,12 @@ export default function hook({
             },
           );
         }),
-        Promise.resolve(payments ?? settle()).then(({ settlements, settled }) =>
-          Promise.all(
+        Promise.resolve(payments ?? settle()).then(({ failure, settlements, settled }) => {
+          if (failure) {
+            failures.push(failure);
+            captureException(failure, { level: "error" });
+          }
+          return Promise.all(
             new Set(settled.map(({ transaction }) => transaction?.hash)).values().map(async (hash) => {
               const payers = new Set<string>();
               if (hash) {
@@ -423,11 +433,52 @@ export default function hook({
                   if (!credential) continue;
                   payers.add(args.sender);
                   const start = operations[index - 1]?.logIndex ?? -1;
+                  const events = receipt.logs.filter((log) => log.logIndex > start && log.logIndex < logIndex);
+                  const code = decodeNonceKey(args.nonce);
+                  const sent = parseEventLogs({ abi: marketAbi, eventName: "Withdraw", logs: events })
+                    .filter(
+                      ({ address, args: { owner } }) =>
+                        isAddressEqual(address, marketUSDCAddress) && isAddressEqual(owner, sender),
+                    )
+                    .map(({ args: { receiver, assets } }) => ({
+                      receiver: v.parse(Address, receiver),
+                      assets: String(assets),
+                    }));
+                  let queued = false;
+                  if (args.success && code) {
+                    await redis
+                      .set(`qr:${code}:op`, args.userOpHash, "EX", 8 * 24 * 60 * 60, "NX")
+                      .catch((error: unknown) => {
+                        captureException(error, {
+                          level: "error",
+                          contexts: { payment: { account: sender, userOpHash: args.userOpHash } },
+                        });
+                      });
+                    queued = await qr
+                      .enqueue(
+                        { account: sender, code, timestamp, withdraws: sent },
+                        args.userOpHash,
+                        Math.max(0, (timestamp + 900) * 1000 - Date.now()),
+                      )
+                      .then(
+                        () => true,
+                        (error: unknown) => {
+                          failures.push(error);
+                          captureException(error, {
+                            level: "error",
+                            contexts: { payment: { account: sender, userOpHash: args.userOpHash } },
+                          });
+                          return false;
+                        },
+                      );
+                  }
+                  if (!settlements) continue;
                   await pay(manteca, persona, credential.id, {
                     ...args,
                     sender,
                     settlements,
-                    logs: receipt.logs.filter((log) => log.logIndex > start && log.logIndex < logIndex),
+                    logs: events,
+                    refund: queued && sent.some(({ receiver }) => receiver === settlements.ARS),
                   }).catch((error: unknown) => {
                     failures.push(error);
                     captureException(error, {
@@ -437,6 +488,7 @@ export default function hook({
                   });
                 }
               }
+              if (!settlements) return;
               for (const { transaction, args } of settled) {
                 if (transaction?.hash !== hash || payers.has(args.owner)) continue;
                 captureException(new Error("usdc sent to settlement without qr lock"), {
@@ -445,8 +497,8 @@ export default function hook({
                 });
               }
             }),
-          ),
-        ),
+          );
+        }),
       ]);
       return c.json({}, failures.length > 0 ? 500 : 200);
     },

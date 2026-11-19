@@ -129,6 +129,7 @@ describe("api bin", () => {
       panda,
       pax,
       persona,
+      qr: queue,
       redis: expect.any(Redis) as Redis,
       sardine,
       segment,

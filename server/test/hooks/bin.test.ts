@@ -25,6 +25,7 @@ const queue = expect.objectContaining({
   close: expect.any(Function) as unknown,
   enqueue: expect.any(Function) as unknown,
 }) as object;
+const worker = { bullmq: expect.any(Redis) as Redis, manteca, redis: expect.any(Redis) as Redis };
 const mocks = {
   alchemy: vi.fn<(key: string) => object>(),
   bridge: vi.fn<(key: string, url: string) => object>(),
@@ -41,6 +42,7 @@ const mocks = {
   segment: vi.fn<(key: string) => typeof segment>(),
   signer: vi.fn<(name: string, kms: object) => Promise<typeof account>>(),
   supervise: vi.fn<(name: string, created: Promise<Handle>) => void>(),
+  worker: vi.fn<(config: Record<string, unknown>) => { close: () => Promise<void>; ready: Promise<void> }>(),
 };
 
 afterEach(() => {
@@ -70,6 +72,9 @@ beforeEach(() => {
   mocks.segment.mockReset().mockReturnValue(segment);
   mocks.signer.mockReset().mockImplementation((name) => Promise.resolve(name === "issuer" ? issuer : account));
   mocks.supervise.mockReset();
+  mocks.worker
+    .mockReset()
+    .mockReturnValue({ close: vi.fn<() => Promise<void>>().mockResolvedValue(), ready: Promise.resolve() });
   vi.doMock("@google-cloud/secret-manager", () => ({
     SecretManagerServiceClient: class {
       close = mocks.closeSecrets;
@@ -100,6 +105,7 @@ beforeEach(() => {
   vi.doMock("../../utils/secret", () => ({ default: mocks.secret }));
   vi.doMock("../../utils/segment", () => ({ default: mocks.segment }));
   vi.doMock("../../utils/wallet", () => ({ signer: mocks.signer }));
+  vi.doMock("../../workers/qr/worker", () => ({ default: mocks.worker }));
 });
 
 describe("hook bin", () => {
@@ -127,6 +133,7 @@ describe("hook bin", () => {
         manteca,
         onesignal,
         persona,
+        qr: queue,
         redis: expect.any(Redis) as Redis,
       },
       load: () => import("../../hooks/bin/block"),
@@ -271,6 +278,7 @@ describe("hook bin", () => {
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toStrictEqual({ status: "ok" });
       expect(mocks.hook).toHaveBeenCalledExactlyOnceWith(config);
+      expect(mocks.worker.mock.calls).toStrictEqual(name === "block" ? [[worker]] : []);
       expect(mocks.supervise).toHaveBeenCalledExactlyOnceWith(name, created);
 
       await handle.close();

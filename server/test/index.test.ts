@@ -16,11 +16,12 @@ const hooks = {
   panda: vi.fn<() => Hook>(),
   persona: vi.fn<() => Hook>(),
 };
-const workers = { hook: vi.fn<() => Worker>(), maturity: vi.fn<() => Worker>() };
+const workers = { hook: vi.fn<() => Worker>(), maturity: vi.fn<() => Worker>(), qr: vi.fn<() => Worker>() };
 const closers = {
   block: vi.fn<() => Promise<void>>(),
   hook: vi.fn<() => Promise<void>>(),
   maturity: vi.fn<() => Promise<void>>(),
+  qr: vi.fn<() => Promise<void>>(),
 };
 const mocks = {
   api: vi.fn<() => Hook>(),
@@ -45,7 +46,7 @@ beforeEach(() => {
     vi.doMock(`../hooks/${name}`, () => ({ default: create }));
   }
   closers.block.mockReset().mockResolvedValue();
-  for (const name of ["hook", "maturity"] as const) {
+  for (const name of ["hook", "maturity", "qr"] as const) {
     closers[name].mockReset().mockResolvedValue();
     workers[name].mockReset().mockReturnValue({ close: closers[name], ready: Promise.resolve() });
   }
@@ -56,16 +57,20 @@ beforeEach(() => {
   }));
   vi.doMock("../utils/maturity", () => ({ default: workers.maturity }));
   vi.doMock("../workers/hook/worker", () => ({ default: workers.hook }));
+  vi.doMock("../workers/qr/worker", () => ({ default: workers.qr }));
 });
 
 describe("server", () => {
   it.each([
     {
       disabled: undefined,
-      enabled: ["activity", "block", "bridge", "manteca", "panda", "persona", "hook", "maturity"],
+      enabled: ["activity", "block", "bridge", "manteca", "panda", "persona", "hook", "maturity", "qr"],
     },
-    { disabled: "", enabled: ["activity", "block", "bridge", "manteca", "panda", "persona", "hook", "maturity"] },
-    { disabled: "activity,maturity,hook", enabled: ["block", "bridge", "manteca", "panda", "persona"] },
+    {
+      disabled: "",
+      enabled: ["activity", "block", "bridge", "manteca", "panda", "persona", "hook", "maturity", "qr"],
+    },
+    { disabled: "activity,maturity,hook,qr", enabled: ["block", "bridge", "manteca", "panda", "persona"] },
   ])("starts only enabled modules when disabling $disabled", async ({ disabled, enabled }) => {
     if (disabled !== undefined) vi.stubEnv("DISABLED_MODULES", disabled);
 
@@ -74,7 +79,7 @@ describe("server", () => {
     if (!created) throw new Error("missing server");
     const handle = await created;
 
-    await expect(handle.ready).resolves.toHaveLength(8 + enabled.length);
+    await expect(handle.ready).resolves.toHaveLength(9 + enabled.length);
     expect(mocks.api).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ business: true }));
     for (const [name, create] of Object.entries({ ...hooks, ...workers })) {
       expect(create).toHaveBeenCalledTimes(enabled.includes(name) ? 1 : 0);

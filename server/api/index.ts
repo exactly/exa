@@ -30,6 +30,7 @@ import type createSardine from "../utils/sardine";
 import type createSegment from "../utils/segment";
 import type createWalletExtension from "../utils/walletExtension";
 import type createCredit from "../workers/credit/queue";
+import type createQR from "../workers/qr/queue";
 import type createSubscribe from "../workers/subscribe/queue";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Redis } from "ioredis";
@@ -45,6 +46,7 @@ export default function api({
   panda,
   pax,
   persona,
+  qr,
   redis,
   sardine,
   segment,
@@ -61,6 +63,7 @@ export default function api({
   panda: ReturnType<typeof createPanda>;
   pax?: ReturnType<typeof createPax>;
   persona: ReturnType<typeof createPersona>;
+  qr: ReturnType<typeof createQR>;
   redis: Redis;
   sardine: ReturnType<typeof createSardine>;
   segment: ReturnType<typeof createSegment>;
@@ -107,7 +110,7 @@ export default function api({
     .route("/kyc", kyc({ auth, business, database, panda, persona, redis }))
     .route("/passkey", passkey({ auth, database })) // eslint-disable-line @typescript-eslint/no-deprecated -- // TODO remove
     .route("/pax", paxRoute({ auth, database, pax }))
-    .route("/ramp", ramp({ auth, bridge, database, manteca, persona }))
+    .route("/ramp", ramp({ auth, bridge, database, manteca, persona, qr, redis }))
     .route("/webhook", webhook({ betterAuth, database, org }))
     .on(["POST", "GET"], "/auth/*", (c) => betterAuth.handler(c.req.raw));
   return { app, ready: Promise.resolve() };
