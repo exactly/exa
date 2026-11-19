@@ -537,10 +537,21 @@ describe("authenticated", () => {
     await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
   });
 
-  it("returns 403 when panda user is not found", async () => {
-    vi.spyOn(panda, "getSecrets").mockResolvedValueOnce(panTemplate);
-    vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
-    vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
+  it("returns 403 offboarded and keeps the card when panda user is not found", async () => {
+    const credentialId = "get-lost-user";
+    const cardId = "00000000-0000-4000-8000-0000000000e1";
+    await database.insert(credentials).values({
+      id: credentialId,
+      publicKey: new Uint8Array(),
+      account: padHex("0x40a1", { size: 20 }),
+      factory: exaAccountFactoryAddress,
+      pandaId: credentialId,
+    });
+    await database
+      .insert(cards)
+      .values({ id: cardId, credentialId, tenant: "OP", lastFour: "9993", productId: SIGNATURE_PRODUCT_ID });
+
+    vi.spyOn(panda, "getCard").mockResolvedValueOnce({ ...cardTemplate, id: cardId });
     vi.spyOn(panda, "getUser").mockRejectedValueOnce(
       new ServiceError(
         "Panda",
@@ -550,18 +561,26 @@ describe("authenticated", () => {
         "Not Found",
       ),
     );
-    vi.spyOn(panda, "getProcessorDetails").mockResolvedValueOnce({
-      processorCardId: "proc-x",
-      timeBasedSecret: "secret-x",
-    });
 
-    const response = await appClient.index.$get(
-      { header: { sessionid: "fakeSession" } },
-      { headers: { "test-credential-id": "default" } },
-    );
+    const response = await appClient.index.$get({ header: {} }, { headers: { "test-credential-id": credentialId } });
 
     expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
+    await expect(response.json()).resolves.toStrictEqual({ code: "offboarded" });
+    await expect(
+      database.query.cards.findFirst({ columns: { status: true }, where: eq(cards.id, cardId) }),
+    ).resolves.toStrictEqual({ status: "ACTIVE" });
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(ServiceError) as ServiceError, {
+      level: "warning",
+      fingerprint: ["{{ default }}", "PandaNotFound"],
+      extra: {
+        cardId,
+        credentialId,
+        pandaId: credentialId,
+        status: "ACTIVE",
+        shouldCapture: true,
+        userIssue: "PandaNotFound",
+      },
+    });
   });
 
   it("returns 403 when panda user is not approved on get", async () => {
@@ -620,24 +639,93 @@ describe("authenticated", () => {
     expect(captureException).toHaveBeenCalledOnce();
   });
 
-  it("returns 403 when panda user is not found on get with empty body", async () => {
-    vi.spyOn(panda, "getSecrets").mockResolvedValueOnce(panTemplate);
-    vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
-    vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
-    vi.spyOn(panda, "getUser").mockRejectedValueOnce(new ServiceError("Panda", 404, "", "NotFoundError"));
-    vi.spyOn(panda, "getProcessorDetails").mockResolvedValueOnce({
-      processorCardId: "proc-x",
-      timeBasedSecret: "secret-x",
+  it("returns 403 offboarded when panda user is not found on get with empty body", async () => {
+    const credentialId = "get-lost-user-empty";
+    const cardId = "00000000-0000-4000-8000-0000000000e2";
+    await database.insert(credentials).values({
+      id: credentialId,
+      publicKey: new Uint8Array(),
+      account: padHex("0x40a2", { size: 20 }),
+      factory: exaAccountFactoryAddress,
+      pandaId: credentialId,
     });
+    await database
+      .insert(cards)
+      .values({ id: cardId, credentialId, tenant: "OP", lastFour: "9993", productId: SIGNATURE_PRODUCT_ID });
+
+    vi.spyOn(panda, "getCard").mockResolvedValueOnce({ ...cardTemplate, id: cardId });
+    vi.spyOn(panda, "getUser").mockRejectedValueOnce(new ServiceError("Panda", 404, "", "NotFoundError"));
+
+    const response = await appClient.index.$get({ header: {} }, { headers: { "test-credential-id": credentialId } });
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toStrictEqual({ code: "offboarded" });
+    await expect(
+      database.query.cards.findFirst({ columns: { status: true }, where: eq(cards.id, cardId) }),
+    ).resolves.toStrictEqual({ status: "ACTIVE" });
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(ServiceError) as ServiceError, {
+      level: "warning",
+      fingerprint: ["{{ default }}", "PandaNotFound"],
+      extra: {
+        cardId,
+        credentialId,
+        pandaId: credentialId,
+        status: "ACTIVE",
+        shouldCapture: true,
+        userIssue: "PandaNotFound",
+      },
+    });
+  });
+
+  it("returns 403 offboarded when panda user is not found and secrets fail", async () => {
+    const credentialId = "get-lost-user-secrets";
+    const cardId = "00000000-0000-4000-8000-0000000000e4";
+    await database.insert(credentials).values({
+      id: credentialId,
+      publicKey: new Uint8Array(),
+      account: padHex("0x40a5", { size: 20 }),
+      factory: exaAccountFactoryAddress,
+      pandaId: credentialId,
+    });
+    await database
+      .insert(cards)
+      .values({ id: cardId, credentialId, tenant: "OP", lastFour: "9994", productId: SIGNATURE_PRODUCT_ID });
+
+    vi.spyOn(panda, "getCard").mockResolvedValueOnce({ ...cardTemplate, id: cardId });
+    vi.spyOn(panda, "getUser").mockRejectedValueOnce(new ServiceError("Panda", 404, "", "NotFoundError"));
+    vi.spyOn(panda, "getSecrets").mockRejectedValueOnce(
+      new ServiceError(
+        "Panda",
+        400,
+        '{"message":"Cannot retrieve details for a non-active card","error":"BadRequestError","statusCode":400}',
+        "BadRequestError",
+        "Cannot retrieve details for a non-active card",
+      ),
+    );
+    vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
 
     const response = await appClient.index.$get(
       { header: { sessionid: "fakeSession" } },
-      { headers: { "test-credential-id": "default" } },
+      { headers: { "test-credential-id": credentialId } },
     );
 
     expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
-    expect(captureException).toHaveBeenCalledOnce();
+    await expect(response.json()).resolves.toStrictEqual({ code: "offboarded" });
+    await expect(
+      database.query.cards.findFirst({ columns: { status: true }, where: eq(cards.id, cardId) }),
+    ).resolves.toStrictEqual({ status: "ACTIVE" });
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(ServiceError) as ServiceError, {
+      level: "warning",
+      fingerprint: ["{{ default }}", "PandaNotFound"],
+      extra: {
+        cardId,
+        credentialId,
+        pandaId: credentialId,
+        status: "ACTIVE",
+        shouldCapture: true,
+        userIssue: "PandaNotFound",
+      },
+    });
   });
 
   it("throws when panda user is forbidden on get with empty body", async () => {
@@ -1017,7 +1105,7 @@ describe("authenticated", () => {
     expect(persisted).toBeUndefined();
   });
 
-  it("returns 403 no panda when getApplicationStatus reports user not found", async () => {
+  it("returns 403 offboarded when getApplicationStatus reports user not found", async () => {
     const credentialId = "stale-panda-id";
     await database.insert(credentials).values({
       id: credentialId,
@@ -1041,8 +1129,98 @@ describe("authenticated", () => {
     const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
 
     expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
+    await expect(response.json()).resolves.toStrictEqual({ code: "offboarded" });
     expect(createCard).not.toHaveBeenCalled();
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(ServiceError) as ServiceError, {
+      level: "warning",
+      fingerprint: ["{{ default }}", "PandaNotFound"],
+      extra: {
+        credentialId,
+        hasCardHistory: false,
+        pandaId: credentialId,
+        statuses: [],
+        userIssue: "PandaNotFound",
+      },
+    });
+  });
+
+  it("returns 403 offboarded when panda lost the user of a deleted card", async () => {
+    const credentialId = "deleted-user";
+    await database.insert(credentials).values({
+      id: credentialId,
+      publicKey: new Uint8Array(),
+      account: padHex("0x4044", { size: 20 }),
+      factory: exaAccountFactoryAddress,
+      pandaId: credentialId,
+    });
+    await database.insert(cards).values({
+      id: "00000000-0000-4000-8000-00000000000d",
+      credentialId,
+      tenant: "OP",
+      status: "DELETED",
+      lastFour: "9997",
+      productId: SIGNATURE_PRODUCT_ID,
+    });
+
+    const getCard = vi.spyOn(panda, "getCard");
+    vi.spyOn(panda, "getApplicationStatus").mockRejectedValueOnce(
+      new ServiceError(
+        "Panda",
+        404,
+        '{"statusCode":404,"error":"Not Found","message":"Not Found"}',
+        "NotFoundError",
+        "application",
+      ),
+    );
+    const createCard = vi.spyOn(panda, "createCard");
+
+    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toStrictEqual({ code: "offboarded" });
+    expect(getCard).not.toHaveBeenCalled();
+    expect(createCard).not.toHaveBeenCalled();
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(ServiceError) as ServiceError, {
+      level: "warning",
+      fingerprint: ["{{ default }}", "PandaNotFound"],
+      extra: {
+        credentialId,
+        hasCardHistory: true,
+        pandaId: credentialId,
+        statuses: ["DELETED"],
+        userIssue: "PandaNotFound",
+      },
+    });
+  });
+
+  it("returns 403 no panda when createCard reports not found", async () => {
+    const credentialId = "create-not-found";
+    await database.insert(credentials).values({
+      id: credentialId,
+      publicKey: new Uint8Array(),
+      account: padHex("0x4050", { size: 20 }),
+      factory: exaAccountFactoryAddress,
+      pandaId: credentialId,
+    });
+
+    vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
+    const createCard = vi
+      .spyOn(panda, "createCard")
+      .mockRejectedValueOnce(
+        new ServiceError(
+          "Panda",
+          404,
+          '{"message":"Not Found","error":"NotFoundError","statusCode":404}',
+          "NotFoundError",
+          "Not Found",
+        ),
+      );
+
+    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
+    expect(createCard).toHaveBeenCalledOnce();
     expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(ServiceError) as ServiceError, {
       level: "warning",
       fingerprint: ["{{ default }}", "PandaNotFound"],
@@ -1136,7 +1314,7 @@ describe("authenticated", () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 
-  it("returns 403 no panda when the active card was canceled with its panda user", async () => {
+  it("returns 403 offboarded when the active card was canceled with its panda user", async () => {
     const credentialId = "canceled-user";
     const cardId = "00000000-0000-4000-8000-000000000002";
     await database.insert(credentials).values({
@@ -1165,7 +1343,7 @@ describe("authenticated", () => {
     const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
 
     expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
+    await expect(response.json()).resolves.toStrictEqual({ code: "offboarded" });
     expect(createCard).not.toHaveBeenCalled();
     await expect(
       database.query.cards.findFirst({ columns: { status: true }, where: eq(cards.id, cardId) }),

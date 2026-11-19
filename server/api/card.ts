@@ -294,7 +294,12 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
           403: {
             description: "Forbidden",
             content: {
-              "application/json": { schema: resolver(object({ code: literal("no panda") }), { errorMode: "ignore" }) },
+              "application/json": {
+                schema: resolver(
+                  union([object({ code: literal("no panda") }), object({ code: literal("offboarded") })]),
+                  { errorMode: "ignore" },
+                ),
+              },
             },
           },
           404: {
@@ -332,69 +337,74 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
           const { id, lastFour, status, mode, productId } = credential.cards[0];
           if (status === "DELETED") throw new Error("card deleted");
           if (!is(CardUUID, id)) return c.json({ code: "no card" }, 404);
-          const [{ expirationMonth, expirationYear, limit, status: state, user }, pan, pin, challenge, provisioning] =
-            await Promise.all([
-              panda.getCard(id).then(async (card) => ({
-                ...card,
-                user: await panda.getUser(card.userId).catch((error: unknown) => {
-                  const issue = noUser(error);
-                  if (!issue) throw error;
-                  const shouldCapture = issue.error.status === 404 || status === "ACTIVE";
-                  if (shouldCapture) {
-                    withScope((s) => {
-                      s.addEventProcessor((event) => {
-                        if (event.exception?.values?.[0]) event.exception.values[0].type = issue.type;
-                        return event;
-                      });
-                      captureException(issue.error, {
-                        level: "warning",
-                        fingerprint: ["{{ default }}", issue.type],
-                        extra: {
-                          cardId: id,
-                          credentialId,
-                          pandaId: credential.pandaId,
-                          status,
-                          shouldCapture,
-                          userIssue: issue.type,
-                        },
-                      });
-                    });
-                  }
-                  return null;
-                }),
-              })),
-              sessionid && panda.getSecrets(id, sessionid),
-              sessionid && panda.getPIN(id, sessionid),
-              (async () => {
-                if (include("siwe")) {
-                  if (!credential.pandaId) return;
-                  return panda.getNonce(credential.pandaId).then(({ nonce }) =>
-                    createSiweMessage({
-                      domain: new URL(origin(c.req.raw)).host,
-                      address: parse(Address, bytesToHex(credential.publicKey)),
-                      statement: `I authorize the account ${account} to be linked with the card ending in ${lastFour} for my user (${credential.pandaId})`,
-                      uri: origin(c.req.raw),
-                      version: "1",
-                      chainId: chain.id,
-                      nonce,
-                    }),
-                  );
-                } else if (include("webauthn")) {
-                  return `I authorize the account ${account} to be linked with the card ending in ${lastFour} for my user (${credential.pandaId})`;
-                }
-              })(),
-              include("provisioning")
-                ? panda.getProcessorDetails(id).then(({ processorCardId, timeBasedSecret }) => ({
-                    id: processorCardId,
-                    secret: timeBasedSecret,
-                  }))
-                : undefined,
-            ]);
+          const details = panda.getCard(id).then(async (card) => ({
+            ...card,
+            user: await panda.getUser(card.userId).catch((error: unknown) => {
+              const issue = noUser(error);
+              if (!issue) throw error;
+              const shouldCapture = issue.error.status === 404 || status === "ACTIVE";
+              if (shouldCapture) {
+                withScope((s) => {
+                  s.addEventProcessor((event) => {
+                    if (event.exception?.values?.[0]) event.exception.values[0].type = issue.type;
+                    return event;
+                  });
+                  captureException(issue.error, {
+                    level: "warning",
+                    fingerprint: ["{{ default }}", issue.type],
+                    extra: {
+                      cardId: id,
+                      credentialId,
+                      pandaId: credential.pandaId,
+                      status,
+                      shouldCapture,
+                      userIssue: issue.type,
+                    },
+                  });
+                });
+              }
+              return issue.error;
+            }),
+          }));
+          const extras = Promise.all([
+            sessionid && panda.getSecrets(id, sessionid),
+            sessionid && panda.getPIN(id, sessionid),
+            (async () => {
+              if (include("siwe")) {
+                if (!credential.pandaId) return;
+                return panda.getNonce(credential.pandaId).then(({ nonce }) =>
+                  createSiweMessage({
+                    domain: new URL(origin(c.req.raw)).host,
+                    address: parse(Address, bytesToHex(credential.publicKey)),
+                    statement: `I authorize the account ${account} to be linked with the card ending in ${lastFour} for my user (${credential.pandaId})`,
+                    uri: origin(c.req.raw),
+                    version: "1",
+                    chainId: chain.id,
+                    nonce,
+                  }),
+                );
+              } else if (include("webauthn")) {
+                return `I authorize the account ${account} to be linked with the card ending in ${lastFour} for my user (${credential.pandaId})`;
+              }
+            })(),
+            include("provisioning")
+              ? panda.getProcessorDetails(id).then(({ processorCardId, timeBasedSecret }) => ({
+                  id: processorCardId,
+                  secret: timeBasedSecret,
+                }))
+              : undefined,
+          ]);
+          extras.catch(() => undefined);
+          const { expirationMonth, expirationYear, limit, status: state, user } = await details;
+          if (state !== "canceled" && user instanceof ServiceError && user.status === 404) {
+            return c.json({ code: "offboarded" }, 403);
+          }
+          const [pan, pin, challenge, provisioning] = await extras;
           if (state === "canceled") {
             await database.update(cards).set({ status: "DELETED" }).where(eq(cards.id, id));
             return c.json({ code: "no card" }, 404);
           }
-          if (!user) return c.json({ code: "no panda" }, 403);
+          if (user instanceof ServiceError) return c.json({ code: "no panda" }, 403);
           if (include("siwe") || include("webauthn") || include("provisioning")) c.header("Cache-Control", "no-store");
 
           return c.json(
@@ -550,6 +560,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
                   union([
                     object({ code: literal("business") }),
                     object({ code: literal("no panda") }),
+                    object({ code: literal("offboarded") }),
                     object({ code: literal("kyc not approved") }),
                   ]),
                   { errorMode: "ignore" },
@@ -618,8 +629,9 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
               if (card.productId === PLATINUM_PRODUCT_ID) isUpgradeFromPlatinum = true;
             }
             if (cardCount > 0) return c.json({ code: "already created" }, 400);
+            let kyc: Awaited<ReturnType<typeof panda.getApplicationStatus>> | undefined;
             try {
-              const kyc = await panda.getApplicationStatus(pandaId);
+              kyc = await panda.getApplicationStatus(pandaId);
               if (kyc.applicationStatus !== "approved") {
                 return c.json({ code: "kyc not approved" }, 403);
               }
@@ -747,7 +759,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
                   });
                 });
               }
-              return c.json({ code: "no panda" }, 403);
+              return c.json({ code: !kyc && issue.error.status === 404 ? "offboarded" : "no panda" }, 403);
             }
           })
           .finally(() => {
