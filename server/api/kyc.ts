@@ -35,6 +35,7 @@ import { parseSiweMessage } from "viem/siwe";
 
 import accountInit from "@exactly/common/accountInit";
 import chain, {
+  chains,
   exaAccountFactoryAddress,
   exaPluginAddress,
   upgradeableModularAccountAbi,
@@ -864,7 +865,7 @@ The admin should add a member using [addMember method](https://www.better-auth.c
         if (siweMessage.domain !== new URL(origin(c.req.raw)).host)
           return c.json({ code: "no permission", message: "invalid domain" }, 403);
 
-        if (siweMessage.chainId !== chain.id)
+        if (siweMessage.chainId !== chain.id && !(siweMessage.chainId && chains.has(siweMessage.chainId)))
           return c.json({ code: "bad chain", message: `expected ${chain.id} but got ${siweMessage.chainId}` }, 400);
 
         const { verify, ...body } = payload;
