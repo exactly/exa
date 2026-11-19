@@ -385,7 +385,7 @@ export default function persona(key: string, url: string) {
     if (!response.ok) throw new ServiceError("Persona", response.status, await response.text());
     const result = safeParse(schema, await response.json());
     if (!result.success) {
-      setContext("validation", { ...result, flatten: flatten(result.issues) });
+      setContext("validation", { flatten: flatten(result.issues) });
       throw new ValiError(result.issues);
     }
     return result.output;
