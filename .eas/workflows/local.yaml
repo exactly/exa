@@ -97,14 +97,14 @@ jobs:
       - uses: eas/restore_cache
         id: maestro
         with:
-          key: "maestro-${{ steps.script.outputs.hash }}-${{ hashFiles('.maestro/patches/*.patch') }}"
+          key: "maestro-android-${{ steps.script.outputs.hash }}-${{ hashFiles('.maestro/patches/*.patch') }}"
           path: .maestro/build
       - uses: eas/restore_cache
         id: gradle
         if: ${{ steps.maestro.outputs.cache_hit != 'true' }}
         with:
-          key: "gradle-${{ steps.script.outputs.hash }}"
-          restore_keys: gradle-
+          key: "gradle-android-${{ steps.script.outputs.hash }}"
+          restore_keys: gradle-android-
           path: | # cspell:ignore dists
             .maestro/.gradle/caches/modules-2
             .maestro/.gradle/wrapper/dists
@@ -123,12 +123,12 @@ jobs:
       - uses: eas/save_cache
         if: ${{ steps.maestro.outputs.cache_hit != 'true' }}
         with:
-          key: "maestro-${{ steps.script.outputs.hash }}-${{ hashFiles('.maestro/patches/*.patch') }}"
+          key: "maestro-android-${{ steps.script.outputs.hash }}-${{ hashFiles('.maestro/patches/*.patch') }}"
           path: .maestro/build
       - uses: eas/save_cache
         if: ${{ steps.maestro.outputs.cache_hit != 'true' && steps.gradle.outputs.cache_hit != 'true' }}
         with:
-          key: "gradle-${{ steps.script.outputs.hash }}"
+          key: "gradle-android-${{ steps.script.outputs.hash }}"
           path: |
             .maestro/.gradle/caches/modules-2
             .maestro/.gradle/wrapper/dists
@@ -251,14 +251,14 @@ jobs:
       - uses: eas/restore_cache
         id: maestro
         with:
-          key: "maestro-${{ steps.script.outputs.hash }}-${{ hashFiles('.maestro/patches/*.patch') }}"
+          key: "maestro-ios-${{ steps.script.outputs.hash }}-${{ hashFiles('.maestro/patches/*.patch') }}"
           path: .maestro/build
       - uses: eas/restore_cache
         id: gradle
         if: ${{ steps.maestro.outputs.cache_hit != 'true' }}
         with:
-          key: "gradle-${{ steps.script.outputs.hash }}"
-          restore_keys: gradle-
+          key: "gradle-ios-${{ steps.script.outputs.hash }}"
+          restore_keys: gradle-ios-
           path: | # cspell:ignore dists
             .maestro/.gradle/caches/modules-2
             .maestro/.gradle/wrapper/dists
@@ -267,12 +267,12 @@ jobs:
       - uses: eas/save_cache
         if: ${{ steps.maestro.outputs.cache_hit != 'true' }}
         with:
-          key: "maestro-${{ steps.script.outputs.hash }}-${{ hashFiles('.maestro/patches/*.patch') }}"
+          key: "maestro-ios-${{ steps.script.outputs.hash }}-${{ hashFiles('.maestro/patches/*.patch') }}"
           path: .maestro/build
       - uses: eas/save_cache
         if: ${{ steps.maestro.outputs.cache_hit != 'true' && steps.gradle.outputs.cache_hit != 'true' }}
         with:
-          key: "gradle-${{ steps.script.outputs.hash }}"
+          key: "gradle-ios-${{ steps.script.outputs.hash }}"
           path: |
             .maestro/.gradle/caches/modules-2
             .maestro/.gradle/wrapper/dists
