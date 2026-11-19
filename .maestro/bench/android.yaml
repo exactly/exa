@@ -1,0 +1,29 @@
+appId: com.android.settings
+---
+- launchApp
+- repeat:
+    times: 3
+    commands:
+      - tapOn: Network.*
+      - assertVisible: Internet
+      - back
+      - tapOn: Connected devices
+      - assertVisible: Pair new device
+      - back
+      - scrollUntilVisible: { element: Display.* }
+      - tapOn: Display.*
+      - assertVisible: Dark theme
+      - back
+      - scrollUntilVisible: { element: System }
+      - tapOn: System
+      - assertVisible: Languages.*
+      - back
+      - scrollUntilVisible: { element: About.* }
+      - tapOn: About.*
+      - tapOn: Device name
+      - eraseText
+      - inputText: exa bench device
+      - assertVisible: exa bench device
+      - tapOn: Cancel
+      - back
+      - scrollUntilVisible: { element: Network.*, direction: UP }
