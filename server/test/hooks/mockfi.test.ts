@@ -24,7 +24,7 @@ import {
   type Hex,
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { anvil, baseSepolia, moonbeamDev, optimismSepolia } from "viem/chains";
+import { anvil, baseSepolia, moonbeamDev, optimism, optimismSepolia } from "viem/chains";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
@@ -199,14 +199,18 @@ beforeAll(async () => {
 
 describe("chains", () => {
   it("lists every network with its diamond", async () => {
-    const { status, body } = await get<{ chains: { diamondAddress: Address; id: number; nativeToken: Token }[] }>(
-      "/v1/chains",
-    );
+    const { status, body } = await get<{
+      chains: { diamondAddress: Address; id: number; multicallAddress: string; nativeToken: Token }[];
+    }>("/v1/chains");
 
     expect(status).toBe(200);
     expect(body.chains.map(({ id, diamondAddress }) => [id, diamondAddress])).toStrictEqual([
       [anvil.id, swapperAddress],
       [moonbeamDev.id, swapperAddress],
+    ]);
+    expect(body.chains.map(({ multicallAddress }) => multicallAddress)).toStrictEqual([
+      optimism.contracts.multicall3.address,
+      optimism.contracts.multicall3.address,
     ]);
     expect(body.chains.map(({ nativeToken }) => nativeToken.address)).toStrictEqual([zeroAddress, zeroAddress]);
   });
@@ -954,6 +958,151 @@ describe("codegen", () => {
     expect(listed.tokens[anvil.id]?.map(({ address }) => address)).not.toContain(marketWETHAddress);
   });
 
+  it("lists mock swapper testnets and bridges them into exa networks", async () => {
+    const foreign = 4242;
+    vi.resetModules();
+    vi.doMock("@exactly/common/generated/chain", async (importOriginal) => {
+      const original = await importOriginal<typeof Chain>();
+      const anvil2 = original.chains.get(moonbeamDev.id);
+      if (!anvil2) throw new Error("missing anvil2");
+      return {
+        ...original,
+        alchemyChains: new Map([
+          ...original.alchemyChains,
+          [
+            foreign,
+            {
+              id: foreign,
+              name: "Foreign",
+              nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+              rpcUrls: anvil2.rpcUrls,
+              alchemyNetwork: "FOREIGN",
+              testnet: true,
+              mockfi: { startBlock: 0 },
+              swapper: anvil2.swapper,
+            },
+          ],
+          [
+            foreign + 1,
+            {
+              id: foreign + 1,
+              name: "Bare",
+              rpcUrls: anvil2.rpcUrls,
+              alchemyNetwork: "BARE",
+              testnet: true,
+              mockfi: { startBlock: 0 },
+              swapper: anvil2.swapper,
+            },
+          ],
+          [
+            foreign + 2,
+            {
+              id: foreign + 2,
+              name: "Other",
+              nativeCurrency: { name: "Other", symbol: "OTH", decimals: 18 },
+              rpcUrls: anvil2.rpcUrls,
+              alchemyNetwork: "OTHER",
+              testnet: true,
+              mockfi: { startBlock: 0 },
+              swapper: anvil2.swapper,
+            },
+          ],
+        ]),
+      };
+    });
+    const { default: create } = await import("../../hooks/mockfi");
+    const mockfi = create({ database }).app;
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- response shape per endpoint
+    const request = async <T>(path: string) => {
+      const response = await mockfi.request(path);
+      return { status: response.status, body: (await response.json()) as T };
+    };
+
+    const { body: listed } = await request<{
+      chains: { diamondAddress: Address; id: number; multicallAddress: string; nativeToken: Token }[];
+    }>("/v1/chains");
+    expect(listed.chains.find(({ id }) => id === foreign)).toMatchObject({
+      diamondAddress: swapperAddress,
+      multicallAddress: "",
+      nativeToken: { address: zeroAddress, symbol: "ETH", priceUSD: token(anvil.id, "ETH").priceUSD },
+    });
+    expect(listed.chains.find(({ id }) => id === foreign + 1)).toMatchObject({
+      nativeToken: { symbol: "ETH", decimals: 18, priceUSD: token(anvil.id, "ETH").priceUSD },
+    });
+    expect(listed.chains.find(({ id }) => id === foreign + 2)).toMatchObject({
+      nativeToken: { symbol: "OTH", priceUSD: "0" },
+    });
+
+    const { body: tools } = await request<{
+      bridges: { supportedChains: { fromChainId: number; toChainId: number }[] }[];
+      exchanges: { supportedChains: number[] }[];
+    }>("/v1/tools");
+    expect(tools.bridges[0]?.supportedChains).toContainEqual({ fromChainId: foreign, toChainId: anvil.id });
+    expect(tools.bridges[0]?.supportedChains.map(({ toChainId }) => toChainId)).not.toContain(foreign);
+    expect(tools.exchanges[0]?.supportedChains).not.toContain(foreign);
+
+    const amount = parseUnits("0.001", 18);
+    const params = (fromChain: number, toChain: number) =>
+      String(
+        new URLSearchParams({
+          fromAddress: account.address,
+          fromChain: String(fromChain),
+          toChain: String(toChain),
+          fromToken: zeroAddress,
+          toToken: zeroAddress,
+          fromAmount: String(amount),
+        }),
+      );
+    const { status, body } = await request<Quote>(`/v1/quote?${params(foreign, anvil.id)}`);
+    expect(status).toBe(200);
+    expect(body.transactionRequest).toMatchObject({ chainId: foreign, to: swapperAddress, value: toHex(amount) });
+    const { functionName, args } = decodeFunctionData({ abi: mockSwapperAbi, data: body.transactionRequest.data });
+    expect(functionName).toBe("swapAndStartBridgeTokensViaMock");
+    expect(args[0]).toMatchObject({ sendingAssetId: zeroAddress, destinationChainId: BigInt(anvil.id) });
+
+    await expect(request(`/v1/quote?${params(anvil.id, foreign)}`)).resolves.toMatchObject({ status: 400 });
+  });
+
+  it("quotes only the bridges the relay delivers", async () => {
+    const [left, right] = [4343, 4444];
+    vi.resetModules();
+    vi.doMock("@exactly/common/generated/chain", async (importOriginal) => {
+      const original = await importOriginal<typeof Chain>();
+      const anvil2 = original.chains.get(moonbeamDev.id);
+      if (!anvil2) throw new Error("missing anvil2");
+      const peer = (id: number) => [id, { ...anvil2, id, name: `Peer ${id}`, alchemyNetwork: `PEER_${id}` }] as const;
+      return {
+        ...original,
+        alchemyChains: new Map([...original.alchemyChains, peer(left), peer(right)]),
+        peers: new Map([peer(left), peer(right)]),
+        allowlists: { ...original.allowlists, [left]: [token(moonbeamDev.id, "WETH").address] },
+      };
+    });
+    const { default: create } = await import("../../hooks/mockfi");
+    const mockfi = create({ database, testnets: true }).app;
+    const status = async (path: string) => {
+      const response = await mockfi.request(path);
+      return response.status;
+    };
+    const usdc = token(anvil.id, "USDC");
+    const peerUSDC = token(moonbeamDev.id, "USDC");
+
+    const response = await mockfi.request("/v1/tools");
+    const { bridges } = (await response.json()) as {
+      bridges: { supportedChains: { fromChainId: number; toChainId: number }[] }[];
+    };
+    expect(bridges[0]?.supportedChains).toContainEqual({ fromChainId: anvil.id, toChainId: left });
+    expect(bridges[0]?.supportedChains).not.toContainEqual({ fromChainId: left, toChainId: right });
+    await expect(status(`/v1/quote?${relayParameters(left, right, zeroAddress, zeroAddress)}`)).resolves.toBe(404);
+    await expect(status(`/v1/quote?${relayParameters(anvil.id, left, usdc.address, peerUSDC.address)}`)).resolves.toBe(
+      404,
+    );
+    await expect(status(`/v1/quote?${relayParameters(anvil.id, right, usdc.address, peerUSDC.address)}`)).resolves.toBe(
+      404,
+    );
+    await expect(status(`/v1/quote?${relayParameters(anvil.id, left, zeroAddress, zeroAddress)}`)).resolves.toBe(200);
+  });
+
   it("refuses to run outside testnets", async () => {
     vi.resetModules();
     vi.doMock("@exactly/common/generated/chain", async (importOriginal) => {
@@ -965,3 +1114,16 @@ describe("codegen", () => {
     expect(() => create({ database })).toThrow("mockfi outside testnets");
   });
 });
+
+function relayParameters(fromChain: number, toChain: number, fromToken: Address, toToken: Address) {
+  return String(
+    new URLSearchParams({
+      fromAddress: account.address,
+      fromChain: String(fromChain),
+      toChain: String(toChain),
+      fromToken,
+      toToken,
+      fromAmount: String(parseUnits("10", 6)),
+    }),
+  );
+}
