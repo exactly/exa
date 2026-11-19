@@ -178,7 +178,8 @@ describe("e2e", () => {
             ]),
           );
           const expiring = new Set<string>();
-          const holds = new Map<string, { held: boolean; released: PromiseWithResolvers<void> }>();
+          const expiries = new Map<string, number>();
+          const holds = new Map<string, { held: PromiseWithResolvers<void>; released: PromiseWithResolvers<void> }>();
           const { fetch } = app;
           app.fetch = async (request, ...rest) => {
             const response = await fetch(request, ...rest);
@@ -186,13 +187,16 @@ describe("e2e", () => {
             if (request.method !== "POST" || pathname !== "/api/auth/authentication" || !response.ok) return response;
             const json = (await response.clone().json()) as { credentialId: string };
             const id = json.credentialId.toLowerCase();
-            const hold = holds.get(id);
-            if (hold) {
-              hold.held = true;
-              await hold.released.promise;
+            if (!expiring.delete(id)) {
+              const hold = holds.get(id);
+              if (hold) {
+                hold.held.resolve();
+                await hold.released.promise;
+              }
+              return response;
             }
-            if (!expiring.delete(id)) return response;
             const expires = new Date(Date.now() + 5000);
+            expiries.set(id, expires.getTime());
             const headers = new Headers(response.headers);
             headers.delete("content-length");
             headers.delete("set-cookie");
@@ -210,16 +214,29 @@ describe("e2e", () => {
             expiring.add(id.toLowerCase());
             return c.json({ code: "ok" });
           });
-          app.post("/e2e/hold", async (c) => {
-            const id = await c.req.text();
-            holds.set(id.toLowerCase(), { held: false, released: Promise.withResolvers() });
+          app.get("/e2e/expiry", async (c) => {
+            const expires = expiries.get(c.req.query("credential")?.toLowerCase() ?? "");
+            if (expires === undefined) return c.json({ code: "no expiry" }, 404);
+            await setTimeout(expires - Date.now());
             return c.json({ code: "ok" });
           });
-          app.get("/e2e/hold", (c) =>
-            holds.get(c.req.query("credential")?.toLowerCase() ?? "")?.held
-              ? c.json({ code: "ok" })
-              : c.json({ code: "not held" }, 404),
-          );
+          app.post("/e2e/hold", async (c) => {
+            const id = await c.req.text();
+            holds.set(id.toLowerCase(), { held: Promise.withResolvers(), released: Promise.withResolvers() });
+            return c.json({ code: "ok" });
+          });
+          app.get("/e2e/hold", async (c) => {
+            const hold = holds.get(c.req.query("credential")?.toLowerCase() ?? "");
+            if (!hold) return c.json({ code: "no hold" }, 404);
+            const held = Promise.withResolvers<boolean>();
+            const signal = AbortSignal.any([c.req.raw.signal, AbortSignal.timeout(30_000)]);
+            signal.addEventListener("abort", () => held.reject(signal.reason), { once: true });
+            hold.held.promise.then(() => held.resolve(true), held.reject);
+            return held.promise.then(
+              () => c.json({ code: "ok" }),
+              () => c.json({ code: "not held" }, 504),
+            );
+          });
           app.post("/e2e/release", async (c) => {
             const id = await c.req.text();
             holds.get(id.toLowerCase())?.released.resolve();
