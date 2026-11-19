@@ -1,12 +1,21 @@
-import { isHex } from "viem/utils";
+import { padHex } from "viem";
+import { getAbiItem, isHex, toEventSelector } from "viem/utils";
 
-import anvil from "../anvil";
+import { exaAccountFactoryAbi } from "@exactly/common/generated/chain";
+
+import { awaitLogs } from "../server";
 
 declare const account: string | undefined;
 declare const network: string | undefined;
 
 if (!account || !isHex(account)) throw new Error("bad account");
 
-for (const deadline = Date.now() + 30_000; anvil("eth_getCode", [account, "latest"], network) === "0x"; ) {
-  if (Date.now() >= deadline) throw new Error("timeout waiting for deployment");
-}
+awaitLogs(
+  {
+    topics: [
+      toEventSelector(getAbiItem({ abi: exaAccountFactoryAbi, name: "ExaAccountInitialized" })),
+      padHex(account),
+    ],
+  },
+  network,
+);

@@ -23,7 +23,7 @@ import {
 } from "@exactly/common/generated/chain";
 
 import anvil, { readContract } from "../anvil";
-import { activity, block } from "../server";
+import { activity, awaitLogs, block } from "../server";
 
 declare const account: string | undefined;
 declare const amount: string | undefined;
@@ -40,10 +40,26 @@ if (receiver !== undefined && !isAddress(receiver)) throw new Error("bad receive
 if ((receiver ?? beneficiary) !== undefined && !amount && !max) throw new Error("bad amount");
 
 const proposalDelay = readContract({ address: proposalManagerAddress, functionName: "delay", abi: proposalManagerAbi });
-let proposals = pending(account);
-for (const deadline = Date.now() + 30_000; proposals.length < Number(count ?? "1"); proposals = pending(account)) {
-  if (Date.now() >= deadline) throw new Error("timeout waiting for queued proposals");
-}
+awaitLogs({
+  address: proposalManagerAddress,
+  topics: encodeEventTopics({
+    abi: proposalManagerAbi,
+    eventName: "Proposed",
+    args: {
+      account,
+      nonce:
+        readContract({
+          address: proposalManagerAddress,
+          functionName: "nonces",
+          abi: proposalManagerAbi,
+          args: [account],
+        }) +
+        BigInt(count ?? "1") -
+        1n,
+    },
+  }),
+});
+const proposals = pending(account);
 if (market !== undefined) {
   const expected = `exa${market === "ETH" ? "WETH" : market}`;
   const markets = proposals
@@ -70,14 +86,8 @@ const nonceSet = encodeEventTopics({
   eventName: "ProposalNonceSet",
   args: { account, nonce: (proposals[0]?.nonce ?? 0n) + BigInt(proposals.length) },
 });
-let toBlock = anvil("eth_blockNumber", []);
-for (
-  const deadline = Date.now() + 30_000;
-  anvil("eth_getLogs", [{ address: proposalManagerAddress, fromBlock, toBlock, topics: nonceSet }]).length === 0;
-  toBlock = anvil("eth_blockNumber", [])
-) {
-  if (Date.now() >= deadline) throw new Error("timeout waiting for proposals");
-}
+awaitLogs({ address: proposalManagerAddress, fromBlock, topics: nonceSet });
+const toBlock = anvil("eth_blockNumber", []);
 if (max) {
   for (const { market: address } of proposals) {
     const shares = readContract({ address, functionName: "balanceOf", abi: erc20Abi, args: [account] });

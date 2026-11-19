@@ -1,10 +1,20 @@
-import { decodeEventLog, erc20Abi, formatUnits, hexToBigInt, hexToNumber, isAddressEqual, type Address } from "viem";
+import {
+  decodeEventLog,
+  erc20Abi,
+  formatUnits,
+  hexToBigInt,
+  hexToNumber,
+  isAddressEqual,
+  toHex,
+  type Address,
+  type Hex,
+} from "viem";
 import { getAbiItem, isHex, parseUnits, toEventSelector } from "viem/utils";
 
 import { mockSwapperAbi, swapperAddress } from "@exactly/common/generated/chain";
 
 import anvil, { readContract, writeContract } from "../anvil";
-import { activity } from "../server";
+import { activity, awaitLogs } from "../server";
 
 declare const destination: string | undefined;
 declare const network: string | undefined;
@@ -14,11 +24,7 @@ declare const amount: string | undefined;
 if (!to || !isHex(to)) throw new Error("bad to");
 if (!amount || Number.isNaN(Number(amount))) throw new Error("bad amount");
 
-let transfer = bridge(to);
-for (const deadline = Date.now() + 30_000; !transfer; transfer = bridge(to)) {
-  if (Date.now() >= deadline) throw new Error("timeout waiting for bridge");
-}
-const { transactionId, sendingAssetId, minAmount, destinationChainId } = transfer;
+const { transactionId, sendingAssetId, minAmount, destinationChainId } = bridge(to);
 if (destinationChainId !== hexToBigInt(anvil("eth_chainId", [], destination))) throw new Error("bad destination");
 const { tokens } = JSON.parse(http.get("http://localhost:3000/e2e/lifi/v1/tokens").body) as {
   tokens: Record<number, { address: Address; symbol: string }[]>;
@@ -49,28 +55,31 @@ if (delivered < (expected * 98n) / 100n || delivered > (expected * 102n) / 100n)
 activity(token, to, Number(formatUnits(delivered, decimals)), hash, destination);
 
 function bridge(account: Address) {
-  let latest;
-  for (const { data, topics } of anvil(
-    "eth_getLogs",
-    [
-      {
-        address: swapperAddress,
-        fromBlock: "0x0",
-        topics: [toEventSelector(getAbiItem({ abi: mockSwapperAbi, name: "LiFiTransferStarted" }))],
-      },
-    ],
-    network,
-  )) {
-    const { bridgeData } = decodeEventLog({ abi: mockSwapperAbi, eventName: "LiFiTransferStarted", data, topics }).args;
-    if (isAddressEqual(bridgeData.receiver, account)) latest = bridgeData;
-  }
-  if (
-    latest &&
-    !readContract(
-      { address: swapperAddress, functionName: "completed", abi: mockSwapperAbi, args: [latest.transactionId] },
-      destination,
-    )
-  ) {
-    return latest;
+  const started = toEventSelector(getAbiItem({ abi: mockSwapperAbi, name: "LiFiTransferStarted" }));
+  const deadline = Date.now() + 30_000;
+  for (let fromBlock: Hex = "0x0"; ; ) {
+    const timeout = deadline - Date.now();
+    if (timeout <= 0) throw new Error("timeout waiting for bridge");
+    const found = awaitLogs({ address: swapperAddress, fromBlock, timeout, topics: [started] }, network);
+    let latest;
+    for (const { data, topics } of found) {
+      const { bridgeData } = decodeEventLog({
+        abi: mockSwapperAbi,
+        eventName: "LiFiTransferStarted",
+        data,
+        topics,
+      }).args;
+      if (isAddressEqual(bridgeData.receiver, account)) latest = bridgeData;
+    }
+    if (
+      latest &&
+      !readContract(
+        { address: swapperAddress, functionName: "completed", abi: mockSwapperAbi, args: [latest.transactionId] },
+        destination,
+      )
+    ) {
+      return latest;
+    }
+    fromBlock = toHex(Math.max(...found.map(({ blockNumber }) => hexToNumber(blockNumber ?? "0x0"))) + 1);
   }
 }

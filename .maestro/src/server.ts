@@ -15,6 +15,8 @@ import {
   type Address,
   type Hash,
   type Hex,
+  type LogTopic,
+  type RpcLog,
 } from "viem";
 import { publicKeyToAddress } from "viem/accounts";
 import { parseUnits } from "viem/utils";
@@ -102,6 +104,18 @@ export function block(
     body: payload,
   });
   if (!ok) throw new Error(`${status} ${body}`);
+}
+
+export function awaitLogs(
+  filter: { address?: Address; fromBlock?: Hex; timeout?: number; topics?: LogTopic[] },
+  network?: string,
+) {
+  const { ok, status, body } = http.post("http://localhost:3000/e2e/logs", {
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ ...filter, network }),
+  });
+  if (!ok) throw new Error(`${status} ${body}`);
+  return JSON.parse(body) as RpcLog[];
 }
 
 export function persona(referenceId: string, event = "approved") {
