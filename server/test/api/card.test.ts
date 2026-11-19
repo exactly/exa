@@ -8,6 +8,7 @@ import * as segment from "../mocks/segment";
 import "../mocks/wallet";
 
 import { KeyManagementServiceClient } from "@google-cloud/kms";
+import { Queue } from "bullmq";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
@@ -17,11 +18,21 @@ import { SignJWT } from "jose";
 import { createSecretKey } from "node:crypto";
 import { env } from "node:process";
 import { nonEmpty, parse, pipe, string } from "valibot";
-import { checksumAddress, hexToBigInt, hexToBytes, isAddress, padHex, parseEther, zeroAddress, zeroHash } from "viem";
+import {
+  checksumAddress,
+  hexToBigInt,
+  hexToBytes,
+  isAddress,
+  padHex,
+  parseEther,
+  zeroAddress,
+  zeroHash,
+  type Hex,
+} from "viem";
 import { generatePrivateKey, privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { base, optimism } from "viem/chains";
 import { createSiweMessage, parseSiweMessage } from "viem/siwe";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
@@ -49,14 +60,15 @@ import authSecret from "../../utils/authSecret";
 import createPanda from "../../utils/panda";
 import createPax from "../../utils/pax";
 import createPersona from "../../utils/persona";
+import { bullmq } from "../../utils/redis";
 import createSardine from "../../utils/sardine";
 import createSegment from "../../utils/segment";
 import ServiceError from "../../utils/ServiceError";
 import wallet, { signer } from "../../utils/wallet";
 import createWalletExtension from "../../utils/walletExtension";
+import createCredit from "../../workers/credit/queue";
 
 import type * as PandaModule from "../../utils/panda";
-import type createCredit from "../../workers/credit/queue";
 import type * as C from "@exactly/common/generated/chain";
 import type * as sentry from "@sentry/node";
 import type { UnofficialStatusCode } from "hono/utils/http-status";
@@ -4542,6 +4554,16 @@ const holder = {
 };
 
 describe("base program", () => {
+  const partner = "5lu2sNu0v0ZElC2m77QR3rAZBHLr8PoG"; // cspell:ignore azbh
+  const partnerShipping = {
+    line1: "123 Main St",
+    city: "San Francisco",
+    region: "CA",
+    postalCode: "94105",
+    countryCode: "US",
+    phoneNumber: "+14155551234",
+    displayName: "JOSE NUNEZ",
+  };
   const assertion = {
     id: "I8d7DPRtg1GZ83as5R9LWw",
     rawId: "I8d7DPRtg1GZ83as5R9LWw",
@@ -4637,6 +4659,133 @@ describe("base program", () => {
     await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
     expect(createCard).not.toHaveBeenCalled();
     expect(homeCreate).not.toHaveBeenCalled();
+  });
+
+  describe("partner issuance", () => {
+    const queued = createCredit(bullmq);
+    const queuedPrograms = testClient(route({ ...dependencies, credit: queued, panda: programs }));
+    const queuedApp = testClient(route({ ...dependencies, credit: queued }));
+
+    afterAll(async () => {
+      await queued.close();
+    });
+
+    it.each([
+      {
+        name: "virtual",
+        seed: "0xba5e0a",
+        json: {},
+        productId: SIGNATURE_PRODUCT_ID,
+        shipping: undefined,
+        status: "ACTIVE",
+      },
+      {
+        name: "physical",
+        seed: "0xba5e0b",
+        json: { shipping: partnerShipping },
+        productId: PHYSICAL_SIGNATURE_PRODUCT_ID,
+        shipping: partnerShipping,
+        status: "FROZEN",
+      },
+    ] as const)(
+      "issues partner $name cards on the base program",
+      async ({ name, seed, json, productId, shipping, status }) => {
+        const credentialId = `base-partner-${name}`;
+        const id = crypto.randomUUID();
+        const account = await withCollateral(seed);
+        await database.insert(credentials).values({
+          id: credentialId,
+          publicKey: new Uint8Array(),
+          account,
+          factory: exaAccountFactoryAddress,
+          otherPandaId: `${credentialId}-base`,
+          source: partner,
+        });
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        vi.spyOn(baseProgram, "getApplicationStatus").mockResolvedValueOnce({
+          id: `${credentialId}-base`,
+          applicationStatus: "approved",
+        });
+        vi.spyOn(baseProgram, "getCards").mockResolvedValueOnce([]);
+        const createCard = vi
+          .spyOn(baseProgram, "createCard")
+          .mockResolvedValueOnce({ ...cardTemplate, id, last4: "9090", type: shipping ? "physical" : "virtual" });
+        const homeStatus = vi.spyOn(programs, "getApplicationStatus");
+        const homeCreate = vi.spyOn(programs, "createCard");
+        const add = vi.spyOn(Queue.prototype, "add");
+
+        const response = await queuedPrograms.index.$post(
+          { json },
+          { headers: { "test-credential-id": credentialId } },
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({ status, lastFour: "9090", cardId: id, productId });
+        expect(createCard).toHaveBeenCalledExactlyOnceWith(
+          `${credentialId}-base`,
+          productId,
+          undefined,
+          undefined,
+          partner,
+          shipping,
+        );
+        expect(homeStatus).not.toHaveBeenCalled();
+        expect(homeCreate).not.toHaveBeenCalled();
+        expect(credits(add, account)).toStrictEqual([
+          ["credit", expect.objectContaining({ account }), { jobId: account }],
+        ]);
+        await expect(
+          database.query.cards.findFirst({
+            columns: { tenant: true },
+            where: eq(cards.credentialId, credentialId),
+          }),
+        ).resolves.toStrictEqual({ tenant: "BASE" });
+      },
+    );
+
+    it("issues partner cards on the home program without the base program", async () => {
+      const credentialId = "home-partner";
+      const account = await withCollateral("0xba5e0c");
+      await database.insert(credentials).values({
+        id: credentialId,
+        publicKey: new Uint8Array(),
+        account,
+        factory: exaAccountFactoryAddress,
+        pandaId: `${credentialId}-home`,
+        source: partner,
+      });
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce(undefined); // eslint-disable-line unicorn/no-useless-undefined
+      vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({
+        id: `${credentialId}-home`,
+        applicationStatus: "approved",
+      });
+      vi.spyOn(panda, "getCards").mockResolvedValueOnce([]);
+      const createCard = vi
+        .spyOn(panda, "createCard")
+        .mockResolvedValueOnce({ ...cardTemplate, id: crypto.randomUUID(), last4: "9191" });
+      const add = vi.spyOn(Queue.prototype, "add");
+
+      const response = await queuedApp.index.$post({}, { headers: { "test-credential-id": credentialId } });
+
+      expect(response.status).toBe(200);
+      expect(createCard).toHaveBeenCalledExactlyOnceWith(
+        `${credentialId}-home`,
+        SIGNATURE_PRODUCT_ID,
+        undefined,
+        undefined,
+        partner,
+        undefined, // eslint-disable-line unicorn/no-useless-undefined
+      );
+      expect(credits(add, account)).toStrictEqual([
+        ["credit", expect.objectContaining({ account }), { jobId: account }],
+      ]);
+      await expect(
+        database.query.cards.findFirst({
+          columns: { tenant: true },
+          where: eq(cards.credentialId, credentialId),
+        }),
+      ).resolves.toStrictEqual({ tenant: "OP" });
+    });
   });
 
   it("deletes a base card on the base program", async () => {
@@ -4883,9 +5032,38 @@ async function baseUser(name: string, seed: number, { cardId, home }: { cardId?:
   return account;
 }
 
+async function withCollateral(seed: Hex) {
+  const owner = privateKeyToAddress(padHex(seed));
+  const account = deriveAddress(exaAccountFactoryAddress, { x: padHex(owner), y: zeroHash });
+  await Promise.all([
+    keeper.exaSend(
+      { name: "create account", op: "exa.account" },
+      {
+        address: exaAccountFactoryAddress,
+        abi: exaAccountFactoryAbi,
+        functionName: "createAccount",
+        args: [0n, [{ x: hexToBigInt(owner), y: 0n }]],
+      },
+    ),
+    keeper.exaSend(
+      { name: "mint weth", op: "exa.weth" },
+      { address: wethAddress, abi: mockERC20Abi, functionName: "mint", args: [account, parseEther("1")] },
+    ),
+  ]);
+  await keeper.exaSend(
+    { name: "poke", op: "exa.poke" },
+    { address: account, abi: exaPluginAbi, functionName: "poke", args: [marketWETHAddress] },
+  );
+  return account;
+}
+
 async function bearer(credentialId = "wallet-extension") {
   const { walletExtension: extension } = await walletExtension.create(credentialId);
   return `Bearer ${extension.token}`;
+}
+
+function credits(add: MockInstance<Queue["add"]>, account: Hex) {
+  return add.mock.calls.filter(([name, data]) => name === "credit" && (data as { account: Hex }).account === account);
 }
 
 const { captureException } = vi.hoisted(() => ({ captureException: vi.fn<typeof sentry.captureException>() }));
