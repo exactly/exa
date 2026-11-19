@@ -1179,7 +1179,7 @@ const refundedSynthetic = {
       amount: "4128.09",
       asset: "ARS",
       destination: {
-        address: "ARS-.-4128.09-.-Jorge hanne-.-ARG-.-20608344401-.-qr3refund-.-PLUSBILLETERA", // cspell:ignore PLUSBILLETERA
+        address: "ARS-.-4128.09-.-Jorge hanne-.-ARG-.-20608344401-.-qr3refund-.-PLUSBILLETERA", // cspell:ignore hanne PLUSBILLETERA
         network: "QR3",
       },
       legalEntity: "WALLET_ARG",
