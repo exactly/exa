@@ -18,7 +18,6 @@ import {
   type InferOutput,
 } from "valibot";
 
-import { isBase } from "@exactly/common/generated/chain";
 import {
   BASE_PRODUCT_ID,
   CLASSIC_PRODUCT_ID,
@@ -29,6 +28,7 @@ import {
 import { Address } from "@exactly/common/validation";
 
 import { cards, credentials } from "../database/schema";
+import { homeFirst, pandaUser } from "../utils/panda";
 import ServiceError from "../utils/ServiceError";
 
 import type * as schema from "../database/schema";
@@ -80,14 +80,11 @@ Pass an active or frozen item's \`lastFour\` to \`GET /card\` or \`PATCH /card\`
       const { credentialId } = c.req.valid("cookie");
       const credential = await database.query.credentials.findFirst({
         where: eq(credentials.id, credentialId),
-        columns: { account: true, pandaId: true, source: true },
+        columns: { account: true, otherPandaId: true, pandaId: true, source: true },
         with: {
           cards: {
-            columns: { id: true, lastFour: true, status: true, mode: true, productId: true },
-            where: and(
-              inArray(cards.status, ["ACTIVE", "FROZEN", "DELETED"]),
-              eq(cards.tenant, isBase ? "BASE" : "OP"),
-            ),
+            columns: { id: true, lastFour: true, status: true, mode: true, productId: true, tenant: true },
+            where: and(inArray(cards.status, ["ACTIVE", "FROZEN", "DELETED"]), inArray(cards.tenant, panda.tenants())),
             orderBy: cards.id,
           },
         },
@@ -95,58 +92,76 @@ Pass an active or frozen item's \`lastFour\` to \`GET /card\` or \`PATCH /card\`
       if (!credential) return c.json({ code: "no credential" }, 500);
       const account = parse(Address, credential.account);
       setUser({ id: account });
-      if (!credential.pandaId) return c.json({ code: "no panda" }, 403);
+      if (panda.tenants().every((target) => !pandaUser(credential, target))) return c.json({ code: "no panda" }, 403);
       const listed = credential.cards.filter(({ id }) => is(CardUUID, id));
       if (listed.length === 0) return c.json([], 200);
-      const user = await panda.getUser(credential.pandaId).catch((error: unknown) => {
-        if (
-          !(error instanceof ServiceError) ||
-          !(
-            (error.status === 404 && error.name.includes("NotFound")) ||
-            (error.status === 403 &&
-              error.name.includes("Forbidden") &&
-              error.message.toLowerCase().includes("not approved"))
-          )
-        ) {
-          throw error;
-        }
-        if (error.status === 404 || listed.some(({ status }) => status === "ACTIVE")) {
-          withScope((s) => {
-            s.addEventProcessor((event) => {
-              if (event.exception?.values?.[0]) event.exception.values[0].type = error.name;
-              return event;
-            });
-            captureException(error, {
-              level: "warning",
-              fingerprint: ["{{ default }}", error.name],
-              extra: {
-                cardIds: listed.map(({ id }) => id),
-                credentialId,
-                pandaId: credential.pandaId,
-                statuses: listed.map(({ status }) => status),
-                userIssue: error.name,
-              },
-            });
-          });
-        }
-        return null;
-      });
-      if (!user) return c.json({ code: "no panda" }, 403);
-      const holders = new Map([[credential.pandaId, Promise.resolve(user)]]);
-      function holder(userId: string) {
-        const cached = holders.get(userId);
+      const users = new Map(
+        await Promise.all(
+          [...new Set(listed.map(({ tenant }) => tenant))].map(async (target) => {
+            const pandaId = pandaUser(credential, target);
+            const owned = listed.filter(({ tenant }) => tenant === target);
+            if (!pandaId) return [target, null] as const;
+            const user = await panda
+              .program(target)
+              .getUser(pandaId)
+              .catch((error: unknown) => {
+                if (
+                  !(error instanceof ServiceError) ||
+                  !(
+                    (error.status === 404 && error.name.includes("NotFound")) ||
+                    (error.status === 403 &&
+                      error.name.includes("Forbidden") &&
+                      error.message.toLowerCase().includes("not approved"))
+                  )
+                ) {
+                  throw error;
+                }
+                if (error.status === 404 || owned.some(({ status }) => status === "ACTIVE")) {
+                  withScope((s) => {
+                    s.addEventProcessor((event) => {
+                      if (event.exception?.values?.[0]) event.exception.values[0].type = error.name;
+                      return event;
+                    });
+                    captureException(error, {
+                      level: "warning",
+                      fingerprint: ["{{ default }}", error.name],
+                      extra: {
+                        cardIds: owned.map(({ id }) => id),
+                        credentialId,
+                        pandaId,
+                        statuses: owned.map(({ status }) => status),
+                        userIssue: error.name,
+                      },
+                    });
+                  });
+                }
+                return null;
+              });
+            return [target, user] as const;
+          }),
+        ),
+      );
+      if ([...users.values()].every((user) => !user)) return c.json({ code: "no panda" }, 403);
+      const holders = new Map<string, Promise<{ firstName: string; lastName: string }>>();
+      const holder = (target: Parameters<typeof panda.program>[0], userId: string) => {
+        const key = `${target}:${userId}`;
+        const cached = holders.get(key);
         if (cached) return cached;
-        const pending = panda.getUser(userId);
-        holders.set(userId, pending);
+        const pending = panda.program(target).getUser(userId);
+        holders.set(key, pending);
         return pending;
-      }
+      };
       return c.json(
         (await Promise.all(
-          listed.map(({ id, lastFour, status, mode, productId }) =>
-            panda
+          homeFirst(listed).flatMap(({ id, lastFour, status, mode, productId, tenant }) => {
+            const user = users.get(tenant);
+            if (!user) return [];
+            return panda
+              .program(tenant)
               .getCard(id)
               .then(async ({ expirationMonth, expirationYear, limit, status: state, type, userId }) => {
-                const { firstName, lastName } = await holder(userId);
+                const { firstName, lastName } =
+                  userId === pandaUser(credential, tenant) ? user : await holder(tenant, userId);
                 const canceled = state === "canceled" && status !== "DELETED";
                 if (canceled) {
                   const [deleted] = await database
@@ -177,8 +192,8 @@ Pass an active or frozen item's \`lastFour\` to \`GET /card\` or \`PATCH /card\`
               .catch((error: unknown): undefined => {
                 if (status !== "DELETED") throw error;
                 captureException(error, { level: "error", extra: { cardId: id, credentialId } });
-              }),
-          ),
+              });
+          }),
         ).then((profiles) => profiles.filter((profile) => profile !== undefined))) satisfies InferOutput<
           typeof CardsResponse
         >,

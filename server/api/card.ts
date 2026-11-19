@@ -36,7 +36,7 @@ import { bytesToHex, isAddressEqual } from "viem";
 import { base, optimism } from "viem/chains";
 import { createSiweMessage, parseSiweMessage, verifySiweMessage } from "viem/siwe";
 
-import chain, { isBase } from "@exactly/common/generated/chain";
+import chain from "@exactly/common/generated/chain";
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 import {
   BASE_PRODUCT_ID,
@@ -50,7 +50,7 @@ import { Address, Base64URL, Hex } from "@exactly/common/validation";
 
 import { cards, credentials } from "../database/schema";
 import { origin } from "../utils/appOrigin";
-import { partner, Shipping } from "../utils/panda";
+import { home, pandaUser, partner, pickCard, Shipping } from "../utils/panda";
 import publicClient from "../utils/publicClient";
 import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
@@ -364,14 +364,14 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
         const { credentialId } = c.req.valid("cookie");
         const credential = await database.query.credentials.findFirst({
           where: eq(credentials.id, credentialId),
-          columns: { account: true, pandaId: true, publicKey: true },
+          columns: { account: true, otherPandaId: true, pandaId: true, publicKey: true },
           with: {
             cards: {
-              columns: { id: true, lastFour: true, status: true, mode: true, productId: true },
+              columns: { id: true, lastFour: true, status: true, mode: true, productId: true, tenant: true },
               where: and(
                 inArray(cards.status, ["ACTIVE", "FROZEN"]),
                 query.lastFour ? eq(cards.lastFour, query.lastFour) : undefined,
-                eq(cards.tenant, isBase ? "BASE" : "OP"),
+                inArray(cards.tenant, panda.tenants()),
               ),
               orderBy: sql`${cards.productId} = ${PHYSICAL_SIGNATURE_PRODUCT_ID}`,
             },
@@ -380,17 +380,19 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
         if (!credential) return c.json({ code: "no credential" }, 500);
         const account = parse(Address, credential.account);
         setUser({ id: account });
-        if (!credential.pandaId) return c.json({ code: "no panda" }, 403);
+        const found = pickCard(credential, credential.cards);
+        if (!found && !pandaUser(credential, home())) return c.json({ code: "no panda" }, 403);
         const sessionid = c.req.valid("header").sessionid;
-        if (credential.cards.length > 0 && credential.cards[0]) {
-          const { id, lastFour, status, mode, productId } = credential.cards[0];
+        if (found) {
+          const { id, lastFour, status, mode, pandaId, productId } = found;
+          const program = panda.program(found.tenant);
           if (status === "DELETED") throw new Error("card deleted");
           if (!is(CardUUID, id)) return c.json({ code: "no card" }, 404);
           const [{ expirationMonth, expirationYear, limit, status: state, user }, pan, pin, challenge, provisioning] =
             await Promise.all([
-              panda.getCard(id).then(async (card) => ({
+              program.getCard(id).then(async (card) => ({
                 ...card,
-                user: await panda.getUser(card.userId).catch((error: unknown) => {
+                user: await program.getUser(card.userId).catch((error: unknown) => {
                   const issue = noUser(error);
                   if (!issue) throw error;
                   const shouldCapture = issue.error.status === 404 || status === "ACTIVE";
@@ -406,7 +408,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
                         extra: {
                           cardId: id,
                           credentialId,
-                          pandaId: credential.pandaId,
+                          pandaId,
                           status,
                           shouldCapture,
                           userIssue: issue.type,
@@ -417,16 +419,15 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
                   return null;
                 }),
               })),
-              sessionid && panda.getSecrets(id, sessionid),
-              sessionid && panda.getPIN(id, sessionid),
+              sessionid && program.getSecrets(id, sessionid),
+              sessionid && program.getPIN(id, sessionid),
               (async () => {
                 if (include("siwe")) {
-                  if (!credential.pandaId) return;
-                  return panda.getNonce(credential.pandaId).then(({ nonce }) =>
+                  return program.getNonce(pandaId).then(({ nonce }) =>
                     createSiweMessage({
                       domain: new URL(origin(c.req.raw)).host,
                       address: parse(Address, bytesToHex(credential.publicKey)),
-                      statement: `I authorize the account ${account} to be linked with the card ending in ${lastFour} for my user (${credential.pandaId})`,
+                      statement: `I authorize the account ${account} to be linked with the card ending in ${lastFour} for my user (${pandaId})`,
                       uri: origin(c.req.raw),
                       version: "1",
                       chainId: chain.id,
@@ -434,11 +435,11 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
                     }),
                   );
                 } else if (include("webauthn")) {
-                  return `I authorize the account ${account} to be linked with the card ending in ${lastFour} for my user (${credential.pandaId})`;
+                  return `I authorize the account ${account} to be linked with the card ending in ${lastFour} for my user (${pandaId})`;
                 }
               })(),
               include("provisioning")
-                ? panda.getProcessorDetails(id).then(({ processorCardId, timeBasedSecret }) => ({
+                ? program.getProcessorDetails(id).then(({ processorCardId, timeBasedSecret }) => ({
                     id: processorCardId,
                     secret: timeBasedSecret,
                   }))
@@ -538,27 +539,28 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
         c.header("Cache-Control", "no-store");
         const credential = await database.query.credentials.findFirst({
           where: eq(credentials.id, c.get("walletExtension").credentialId),
-          columns: { pandaId: true },
+          columns: { otherPandaId: true, pandaId: true },
           with: {
             cards: {
-              columns: { id: true },
-              where: and(inArray(cards.status, ["ACTIVE", "FROZEN"]), eq(cards.tenant, isBase ? "BASE" : "OP")),
+              columns: { id: true, tenant: true },
+              where: and(inArray(cards.status, ["ACTIVE", "FROZEN"]), inArray(cards.tenant, panda.tenants())),
               orderBy: sql`${cards.productId} = ${PHYSICAL_SIGNATURE_PRODUCT_ID}`,
             },
           },
         });
         if (!credential) return c.json({ code: "unauthorized" }, 401);
-        const [card] = credential.cards;
-        if (!card) return c.json({ code: "no card" }, 404);
-        if (!credential.pandaId) return c.json({ code: "no panda" }, 403);
-        const provider = await panda.getCard(card.id).catch((error: unknown) => {
+        if (credential.cards.length === 0) return c.json({ code: "no card" }, 404);
+        const card = pickCard(credential, credential.cards);
+        if (!card) return c.json({ code: "no panda" }, 403);
+        const program = panda.program(card.tenant);
+        const provider = await program.getCard(card.id).catch((error: unknown) => {
           if (error instanceof ServiceError && error.status === 404) return null;
           throw error;
         });
         if (!provider) return c.json({ code: "no card" }, 404);
         if (provider.status !== "active" && provider.status !== "locked") return c.json({ code: "no card" }, 404);
         try {
-          const { processorCardId, timeBasedSecret } = await panda.getProcessorDetails(card.id);
+          const { processorCardId, timeBasedSecret } = await program.getProcessorDetails(card.id);
           return c.json(
             {
               id: processorCardId,
@@ -643,10 +645,7 @@ Send a \`shipping\` object with the address, and optionally the \`displayName\` 
               with: {
                 cards: {
                   columns: { id: true, status: true, productId: true },
-                  where: and(
-                    inArray(cards.status, ["ACTIVE", "FROZEN", "DELETED"]),
-                    eq(cards.tenant, isBase ? "BASE" : "OP"),
-                  ),
+                  where: and(inArray(cards.status, ["ACTIVE", "FROZEN", "DELETED"]), eq(cards.tenant, home())),
                 },
               },
             });
@@ -766,7 +765,7 @@ Send a \`shipping\` object with the address, and optionally the \`displayName\` 
                 {
                   id: card.id,
                   credentialId,
-                  tenant: isBase ? "BASE" : "OP",
+                  tenant: home(),
                   lastFour: card.last4,
                   status: "shipping" in json ? "FROZEN" : "ACTIVE",
                   productId,
@@ -982,6 +981,7 @@ async function encryptPIN(pin: string) {
               columns: {
                 account: true,
                 factory: true,
+                otherPandaId: true,
                 pandaId: true,
                 publicKey: true,
                 salt: true,
@@ -991,11 +991,11 @@ async function encryptPIN(pin: string) {
               where: eq(credentials.id, credentialId),
               with: {
                 cards: {
-                  columns: { id: true, mode: true, status: true, lastFour: true },
+                  columns: { id: true, mode: true, status: true, lastFour: true, tenant: true },
                   where: and(
                     ne(cards.status, "DELETED"),
                     patch.lastFour ? eq(cards.lastFour, patch.lastFour) : undefined,
-                    eq(cards.tenant, isBase ? "BASE" : "OP"),
+                    inArray(cards.tenant, panda.tenants()),
                   ),
                   orderBy: sql`${cards.productId} = ${PHYSICAL_SIGNATURE_PRODUCT_ID}`,
                 },
@@ -1004,10 +1004,10 @@ async function encryptPIN(pin: string) {
             if (!credential) return c.json({ code: "no credential" }, 500);
             const account = parse(Address, credential.account);
             setUser({ id: account });
-            if (credential.cards.length === 0 || !credential.cards[0]) {
-              return c.json({ code: "no card" }, 404);
-            }
-            const card = credential.cards[0];
+            if (credential.cards.length === 0) return c.json({ code: "no card" }, 404);
+            const card = pickCard(credential, credential.cards);
+            if (!card) return c.json({ code: "no panda" }, 403);
+            const program = panda.program(card.tenant);
             switch (patch.type) {
               case "mode": {
                 const { mode } = patch;
@@ -1018,7 +1018,7 @@ async function encryptPIN(pin: string) {
               case "status": {
                 const { status } = patch;
                 if (card.status === status) return c.json({ code: "already set", status }, 400);
-                if (status === "DELETED") await panda.updateCard({ id: card.id, status: "canceled" });
+                if (status === "DELETED") await program.updateCard({ id: card.id, status: "canceled" });
                 const [updated] = await database
                   .update(cards)
                   .set({ status })
@@ -1038,7 +1038,7 @@ async function encryptPIN(pin: string) {
               case "pin": {
                 const { sessionId, data, iv } = patch;
                 try {
-                  await panda.setPIN(card.id, sessionId, { data, iv });
+                  await program.setPIN(card.id, sessionId, { data, iv });
                 } catch (error) {
                   if (error instanceof Error && error.message.includes("Weak PIN")) {
                     return c.json({ code: "weak pin" }, 400);
@@ -1048,8 +1048,8 @@ async function encryptPIN(pin: string) {
                 return c.json({ data, iv } satisfies InferOutput<typeof UpdatedCardResponse>, 200);
               }
               case "signature": {
-                if (!credential.pandaId) return c.json({ code: "no panda" }, 403);
-                const statement = `I authorize the account ${account} to be linked with the card ending in ${card.lastFour} for my user (${credential.pandaId})`;
+                const { pandaId } = card;
+                const statement = `I authorize the account ${account} to be linked with the card ending in ${card.lastFour} for my user (${pandaId})`;
                 switch (patch.method) {
                   case "siwe": {
                     const verified = await Promise.resolve()
@@ -1075,7 +1075,7 @@ async function encryptPIN(pin: string) {
                       });
                     if (!verified) return c.json({ code: "bad signature" }, 400);
                     try {
-                      await panda.verify(credential.pandaId, {
+                      await program.verify(pandaId, {
                         message: patch.message,
                         signature: patch.signature,
                         authType: "siwe",
@@ -1091,7 +1091,7 @@ async function encryptPIN(pin: string) {
 
                   case "webauthn":
                     try {
-                      await panda.verify(credential.pandaId, {
+                      await program.verify(pandaId, {
                         authType: "webauthn",
                         credential: {
                           publicKey: { type: "Buffer", data: [...credential.publicKey] },
