@@ -9,6 +9,7 @@ import { captureEvent, captureException, continueTrace, setExtra, startSpan, wit
 import { deserialize, serialize } from "@wagmi/core";
 import { testClient } from "hono/testing";
 import { Redis } from "ioredis";
+import { setTimeout } from "node:timers/promises";
 import { array, parse } from "valibot";
 import {
   ContractFunctionExecutionError,
@@ -91,6 +92,7 @@ import wallet from "../../utils/wallet";
 import anvilClient from "../anvilClient";
 
 import type * as sentry from "@sentry/node";
+import type * as timers from "node:timers/promises";
 
 let keeper: ReturnType<typeof wallet>;
 
@@ -3485,6 +3487,8 @@ describe("qr payment", () => {
       vi.spyOn(manteca, "getSettlements").mockResolvedValue({ ARS: settlement });
     });
 
+    afterEach(() => vi.mocked(setTimeout).mockReset());
+
     it("refunds a payment whose lock expired without a synthetic", async () => {
       const setUser = await spyScopeSetUser();
       const getPaymentLock = vi.spyOn(manteca, "getPaymentLock").mockResolvedValue(null);
@@ -3797,19 +3801,33 @@ describe("qr payment", () => {
       });
     });
 
-    it("captures a failed check again", async () => {
+    it("checks again when the retry of a failed check fails to schedule", async () => {
+      const { setTimeout: wait } = await vi.importActual<typeof timers>("node:timers/promises");
+      vi.mocked(setTimeout).mockImplementation((delay, value) => wait(delay === 600_000 ? 0 : delay, value));
       const error = new ServiceError("Manteca", 500, "internal");
       const failure = new Error("redis down");
-      vi.spyOn(manteca, "getPaymentLock").mockRejectedValue(error);
+      const getPaymentLock = vi
+        .spyOn(manteca, "getPaymentLock")
+        .mockRejectedValueOnce(error)
+        .mockRejectedValueOnce(error)
+        .mockResolvedValue(null);
+      const getSynthetic = vi.spyOn(manteca, "getSynthetic").mockResolvedValue(synthetic);
       const add = redis.zadd.bind(redis);
-      spyZadd()
+      const zadd = spyZadd()
         .mockImplementationOnce((key, score, member) => add(key, score, member))
         .mockRejectedValueOnce(failure);
+      const removals = waitForRefunds(opHash);
 
       const response = await appClient.index.$post(withLogs([payment]));
+      const [removed] = await removals;
 
       expect(response.status).toBe(500);
-      await vi.waitFor(() => expect(captureException).toHaveBeenCalledWith(failure, { level: "error" }));
+      expect(removed).toBe(1);
+      expect(captureException).toHaveBeenCalledWith(failure, { level: "error" });
+      expect(setTimeout).toHaveBeenCalledWith(600_000);
+      expect(zadd).toHaveBeenCalledTimes(2);
+      expect(getPaymentLock.mock.calls).toStrictEqual([[code], [code], [code]]);
+      expect(getSynthetic).toHaveBeenCalledExactlyOnceWith(opHash);
       expect(refundCaptures()).toStrictEqual([
         [
           error,
@@ -4303,6 +4321,7 @@ afterEach(() => vi.restoreAllMocks());
 
 vi.mock("@sentry/core", { spy: true });
 vi.mock("@sentry/node", { spy: true });
+vi.mock("node:timers/promises", { spy: true });
 
 const wrappedErrorAbi = [
   {

@@ -920,7 +920,10 @@ export default function hook({
           }),
         ),
       )
-      .catch((error: unknown) => captureException(error, { level: "error" }));
+      .catch((error: unknown) => {
+        captureException(error, { level: "error" });
+        return setTimeout(600_000).then(() => scheduleRefund(message));
+      });
   }
 
   return { app, ready };
