@@ -1,0 +1,63 @@
+From f9823739ba2adc5ada5bdb2916d333b453fccd08 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Thu, 19 Nov 2026 03:23:23 +0000
+Subject: [PATCH] fix: report disabled web elements
+
+The web hierarchy left enabled unset, so `enabled: true` never matched on web and a flow could not wait for a button that enables once its data loads. Report an element as disabled when it or an ancestor matches `:disabled` or `[aria-disabled="true"]`, the way users see it.
+---
+ .../src/main/java/maestro/drivers/CdpWebDriver.kt         | 6 +++++-
+ maestro-client/src/main/resources/maestro-web.js          | 8 ++++++--
+ 2 files changed, 11 insertions(+), 3 deletions(-)
+
+diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+index c2a1f31..6d3d13d 100644
+--- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+@@ -449,7 +449,11 @@ class CdpWebDriver(
+ 
+         val children = domRepresentation["children"] as List<Map<String, Any>>
+ 
+-        return TreeNode(attributes = attributes, children = children.map { parseDomAsTreeNodes(it) })
++        return TreeNode(
++            attributes = attributes,
++            children = children.map { parseDomAsTreeNodes(it) },
++            enabled = attrs["enabled"] as? Boolean,
++        )
+     }
+ 
+     private fun detectWindowChange() {
+diff --git a/maestro-client/src/main/resources/maestro-web.js b/maestro-client/src/main/resources/maestro-web.js
+index f528c02..774cd9c 100644
+--- a/maestro-client/src/main/resources/maestro-web.js
++++ b/maestro-client/src/main/resources/maestro-web.js
+@@ -116,8 +116,11 @@
+         return typeof attribute === 'string' && attribute !== '' ? attribute : null
+     }
+ 
+-    const traverse = (node, includeChildren = true, iframeOffsetX = 0, iframeOffsetY = 0, clip = null, outerClip = null) => {
++    const traverse = (node, includeChildren = true, iframeOffsetX = 0, iframeOffsetY = 0, clip = null, outerClip = null, inherited = undefined) => {
+       if (!node || isInvalidTag(node)) return null
++      inherited = inherited ?? !!node.parentElement?.closest('button:disabled, [aria-disabled="true"]')
++      const disabled = inherited || node.matches(':disabled, [aria-disabled="true"]')
++      const childDisabled = inherited || node.matches('button:disabled, [aria-disabled="true"]')
+ 
+       // Traverse into same-origin iframes; skip cross-origin ones silently
+       if (node.tagName.toLowerCase() === 'iframe') {
+@@ -154,12 +157,13 @@
+       const childClip = includeChildren ? getClip(node, style, clip) : clip
+       const childOuterClip = style.position === 'static' ? outerClip : childClip
+       const children = includeChildren
+-        ? [...node.children || []].map(child => traverse(child, true, iframeOffsetX, iframeOffsetY, childClip, childOuterClip)).filter(el => !!el)
++        ? [...node.children || []].map(child => traverse(child, true, iframeOffsetX, iframeOffsetY, childClip, childOuterClip, childDisabled)).filter(el => !!el)
+         : []
+ 
+       const attributes = {
+           text: getNodeText(node),
+           bounds: getNodeBounds(node, iframeOffsetX, iframeOffsetY, clip),
++          enabled: !disabled,
+       }
+ 
+       // If this is an <option> element, we only want to include it if the parent <select> element is focused.
+-- 
+2.43.0
+
