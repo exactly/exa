@@ -446,6 +446,7 @@ describe("mockfi", () => {
     ).resolves.toMatchObject([1_000_000n, expect.any(BigInt)]);
     await expect(arrived(receiver)).resolves.toBe(0n);
     await expect(status(hash, "DONE", anvil.id)).resolves.toMatchObject({
+      substatus: "COMPLETED",
       receiving: { chainId: moonbeamDev.id, amount: "1000000", token: { symbol: "USDC" } },
     });
     expect(captureException).not.toHaveBeenCalled();
@@ -467,6 +468,10 @@ describe("mockfi", () => {
 
     await expect(completion(transactionId, moonbeamDev.id)).resolves.toMatchObject({ amount: 1_000_000n });
     await expect(arrived(receiver)).resolves.toBe(1_000_000n);
+    await expect(status(hash, "DONE", anvil.id)).resolves.toMatchObject({
+      substatus: "PARTIAL",
+      receiving: { chainId: moonbeamDev.id, amount: "1000000", token: { symbol: "USDC" } },
+    });
     await expect(
       source.readContract({
         address: marketUSDCAddress,
