@@ -438,7 +438,7 @@ export const GetDocumentResponse = object({ data: Document });
 const AccountMantecaFields = object({
   isnotfacta: object({ value: boolean() }), // cspell:ignore isnotfacta
   tin: object({ value: string() }),
-  sex_1: object({ value: picklist(["Male", "Female", "Prefer not to say"]) }),
+  sex_1: object({ value: picklist(["Male", "Female", "Prefer not to say", "Rather not say"]) }),
   manteca_t_c: object({ value: boolean() }),
 });
 
