@@ -1,20 +1,20 @@
-From 2a138c63b3bac679045df0e91fc2bd276d0cafca Mon Sep 17 00:00:00 2001
+From fa257f3930e29fff50b631a00b254674c7b3ba7e Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Thu, 19 Nov 2026 03:23:23 +0000
 Subject: [PATCH] fix: settle web pages once the dom goes quiet
 
 On web, waitForAppToSettle compared view hierarchies read back to back, ten times at most with 200 ms between reads. A read that is slow enough hides how weak that check is, but two fast reads can land inside the same animation, so a tap aims at a menu that is still moving. Wait in the page instead until it has gone 50 ms and two rendered frames without dom mutations, scrolling or running finite animations, counting from the moment each animation finishes, up to 2 s or the command's timeout, then read the hierarchy once. The page stays watched while it is read, and if anything changed by then, the positions just read may already be stale, so the wait starts over: a layout that only catches up after a quiet spell, like a sheet resizing to content measured on a timer, no longer gets tapped where it was. Counting frames keeps a busy renderer from passing as quiet before it has laid out the last change, so layout-driven moves like a sheet resizing to its content still settle. Cross-origin iframes that are rendered in the viewport get the same wait inside each frame, through the driver, and the page waits again if one of them moved or navigated. The frame id attribute chromedriver sets on a frame it switches into does not count as a change. Hidden and offscreen frames are left out: they render no frames, so their wait could only run out, and nothing in them can be tapped. When the wait runs out, return a fresh hierarchy, or null while the page is still scrolling so a tap right after a scroll re-aims at a stable position. Scripts may now return promises, which evaluate awaits.
 ---
- .../main/java/maestro/drivers/CdpWebDriver.kt | 47 ++++++++++-
+ .../main/java/maestro/drivers/CdpWebDriver.kt | 54 +++++++++++-
  .../src/main/resources/maestro-web.js         | 83 +++++++++++++++++++
  .../main/kotlin/maestro/web/cdp/CdpClient.kt  |  8 +-
- 3 files changed, 132 insertions(+), 6 deletions(-)
+ 3 files changed, 139 insertions(+), 6 deletions(-)
 
 diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-index e3ea58e..e22db7b 100644
+index e3ea58e..a5337bf 100644
 --- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
 +++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-@@ -850,8 +850,49 @@ class CdpWebDriver(
+@@ -850,8 +850,56 @@ class CdpWebDriver(
          return true
      }
  
@@ -46,13 +46,16 @@ index e3ea58e..e22db7b 100644
 +        val jsExecutor = driver as? JavascriptExecutor ?: return null
 +        val remaining = deadline - System.currentTimeMillis()
 +        if (remaining <= 0) return mapOf("quiet" to false)
++        val timeouts = driver.manage().timeouts()
++        var sessionScriptTimeout: Duration? = null
 +        return try {
++            sessionScriptTimeout = timeouts.scriptTimeout
 +            val iframeElement = jsExecutor.executeScript(
 +                "return document.querySelectorAll('iframe')[arguments[0]];",
 +                iframeIndex
 +            ) as? WebElement ?: return null
 +            driver.switchTo().frame(iframeElement)
-+            driver.manage().timeouts().scriptTimeout(Duration.ofMillis(remaining))
++            timeouts.scriptTimeout(Duration.ofMillis(remaining))
 +            jsExecutor.executeAsyncScript(
 +                "$maestroWebScript\nwindow.maestro.waitForQuiet($SETTLE_QUIET_MS, $remaining).then(arguments[arguments.length - 1]);"
 +            ) as? Map<*, *>
@@ -62,11 +65,15 @@ index e3ea58e..e22db7b 100644
 +        } finally {
 +            try { driver.switchTo().defaultContent() }
 +            catch (e: Exception) { LOGGER.warn("Failed to switch back to default content", e) }
++            sessionScriptTimeout?.let {
++                try { timeouts.scriptTimeout(it) }
++                catch (e: Exception) { LOGGER.warn("Failed to restore the script timeout", e) }
++            }
 +        }
      }
  
      override fun waitUntilScreenIsStatic(timeoutMs: Long): Boolean {
-@@ -1069,6 +1110,8 @@ class CdpWebDriver(
+@@ -1069,6 +1117,8 @@ class CdpWebDriver(
          private const val RETRY_FETCHING_CONTENT_DESCRIPTION = 10
          private const val JS_EXECUTION_MAX_ATTEMPTS = 5
          private const val JS_EXECUTION_RETRY_DELAY_MS = 200L
