@@ -1,0 +1,72 @@
+From 948cf10a7356de5289e368787ccdbe8c90b22002 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Thu, 19 Nov 2026 23:41:51 +0000
+Subject: [PATCH] fix: check the iOS keyboard once before hiding it
+
+hideKeyboard on iOS gave each of its lookups 2 s to find what it looked for: the keyboard's typing tip, its Continue button, and the keyboard's delete key. The tip is almost never there, and once the keyboard is gone the delete key isn't either, so a call that hid the keyboard waited about 4 s for elements it was confirming were absent. Ask the driver whether a keyboard is visible, as hideKeyboard's command already does to report failure, which is cheaper than reading the whole screen. Return when none is, look for the tip once, and after the swipe wait only until the keyboard is gone.
+---
+ .../main/java/maestro/drivers/IOSDriver.kt    | 26 ++++++-------------
+ 1 file changed, 8 insertions(+), 18 deletions(-)
+
+diff --git a/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt b/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt
+index 643ef7e..62c48e0 100644
+--- a/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt
+@@ -377,17 +377,17 @@ class IOSDriver(
+             val width = deviceInfo.widthGrid
+             val height = deviceInfo.heightGrid
+ 
+-            dismissKeyboardIntroduction(heightPoints = deviceInfo.heightGrid)
+-
+             if (isKeyboardHidden()) return@measured
+ 
++            dismissKeyboardIntroduction(heightPoints = deviceInfo.heightGrid)
++
+             swipe(
+                 start = Point(0.5.asPercentOf(width), 0.5.asPercentOf(height)),
+                 end = Point(0.5.asPercentOf(width), 0.47.asPercentOf(height)),
+                 durationMs = 50,
+             )
+ 
+-            if (isKeyboardHidden()) return@measured
++            if (isKeyboardHidden(timeoutMs = 2000)) return@measured
+ 
+             swipe(
+                 start = Point(0.5.asPercentOf(width), 0.5.asPercentOf(height)),
+@@ -399,28 +399,18 @@ class IOSDriver(
+         }
+     }
+ 
+-    private fun isKeyboardHidden(): Boolean {
+-        val filter = Filters.idMatches("delete".toRegex())
+-        val element = MaestroTimer.withTimeout(2000) {
+-            filter(contentDescriptor().aggregate()).firstOrNull()
+-        }?.toUiElementOrNull()
+-
+-        return element == null
+-    }
++    private fun isKeyboardHidden(timeoutMs: Long = 0) =
++        MaestroTimer.withTimeout(timeoutMs) { if (isKeyboardVisible()) null else true } == true
+ 
+     private fun dismissKeyboardIntroduction(heightPoints: Int) {
+         val fastTypingInstruction =
+             "Speed up your typing by sliding your finger across the letters to compose a word.*".toRegex()
+         val instructionTextFilter = Filters.textMatches(fastTypingInstruction)
+-        val instructionText = MaestroTimer.withTimeout(2000) {
+-            instructionTextFilter(contentDescriptor().aggregate()).firstOrNull()
+-        }?.toUiElementOrNull()
++        val instructionText = instructionTextFilter(contentDescriptor().aggregate()).firstOrNull()?.toUiElementOrNull()
+         if (instructionText != null && instructionText.bounds.center().y in heightPoints / 2..heightPoints) {
+             val continueElementFilter = Filters.textMatches("Continue".toRegex())
+-            val continueElement = MaestroTimer.withTimeout(2000) {
+-                continueElementFilter(contentDescriptor().aggregate()).find {
+-                    it.toUiElement().bounds.center().y > instructionText.bounds.center().y
+-                }
++            val continueElement = continueElementFilter(contentDescriptor().aggregate()).find {
++                it.toUiElement().bounds.center().y > instructionText.bounds.center().y
+             }?.toUiElementOrNull()
+             if (continueElement != null && continueElement.bounds.center().y > instructionText.bounds.center().y) {
+                 tap(continueElement.bounds.center())
+-- 
+2.43.0
+
