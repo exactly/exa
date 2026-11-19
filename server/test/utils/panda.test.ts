@@ -21,13 +21,16 @@ import ServiceError from "../../utils/ServiceError";
 
 import type * as viem from "viem";
 
-const chainMock = vi.hoisted(() => ({ id: 0, testnet: true as boolean | undefined }));
+const chainMock = vi.hoisted(() => ({ id: 0, isBase: false, testnet: true as boolean | undefined }));
 
 vi.mock("@exactly/common/generated/chain", async (importOriginal) => ({
   ...(await importOriginal()),
   default: Object.assign(chainMock, baseSepolia, {
     rpcUrls: { ...baseSepolia.rpcUrls, alchemy: baseSepolia.rpcUrls.default },
   }),
+  get isBase() {
+    return chainMock.isBase;
+  },
 }));
 
 vi.mock("viem", async (importOriginal) => {
@@ -42,6 +45,59 @@ vi.mock("viem", async (importOriginal) => {
 });
 
 const panda = { ...Panda, ...createPanda({ key: "panda", url: "https://panda.test" }) };
+
+describe("programs", () => {
+  afterEach(() => {
+    chainMock.isBase = false;
+  });
+
+  it("serves only the home program without a base config", () => {
+    const client = createPanda({ key: "panda", url: "https://panda.test" });
+
+    expect(client.tenants()).toStrictEqual(["OP"]);
+    expect(client.program("OP")).toBe(client);
+    expect(() => client.program("BASE")).toThrow("no BASE program");
+  });
+
+  it("routes base cards to the base program", async () => {
+    const client = createPanda(
+      { key: "panda", url: "https://panda.test" },
+      { key: "base", url: "https://base.panda.test" },
+    );
+    const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json({ nonce: "base" }));
+
+    expect(client.tenants()).toStrictEqual(["OP", "BASE"]);
+    expect(client.program("OP")).toBe(client);
+    expect(client.program("BASE")).not.toBe(client);
+    await expect(client.program("BASE").getNonce("user")).resolves.toStrictEqual({ nonce: "base" });
+    expect(fetch).toHaveBeenCalledOnce();
+    const [request, init] = fetch.mock.calls[0] ?? [];
+    expect(request).toBe("https://base.panda.test/issuing/users/user/signatures/generate-nonce");
+    expect(new Headers(init?.headers).get("api-key")).toBe("base");
+  });
+
+  it("ignores the base config on base stacks", () => {
+    chainMock.isBase = true;
+    const client = createPanda(
+      { key: "panda", url: "https://panda.test" },
+      { key: "base", url: "https://base.panda.test" },
+    );
+
+    expect(client.tenants()).toStrictEqual(["BASE"]);
+    expect(client.program("BASE")).toBe(client);
+    expect(() => client.program("OP")).toThrow("no OP program");
+    expect(Panda.home()).toBe("BASE");
+    expect(Panda.other()).toBe("OP");
+    expect(Panda.pandaUser({ pandaId: "home", otherPandaId: "other" }, "BASE")).toBe("home");
+  });
+
+  it("picks the user id of each program", () => {
+    expect(Panda.home()).toBe("OP");
+    expect(Panda.other()).toBe("BASE");
+    expect(Panda.pandaUser({ pandaId: "home", otherPandaId: "other" }, "OP")).toBe("home");
+    expect(Panda.pandaUser({ pandaId: "home", otherPandaId: "other" }, "BASE")).toBe("other");
+  });
+});
 
 describe("decline reasons", () => {
   it.each([

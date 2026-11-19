@@ -1,13 +1,13 @@
 import { captureException, setUser, withScope } from "@sentry/node";
 import { UnrecoverableError } from "bullmq";
 import createDebug from "debug";
-import { and, eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { createHmac } from "node:crypto";
 import * as v from "valibot";
 
 import { attempts, name, type Job } from "./job";
 import { cards, credentials, transactions } from "../../database/schema";
-import { declineMessage } from "../../utils/panda";
+import { declineMessage, home, Tenant } from "../../utils/panda";
 import createWorker from "../worker";
 
 import type * as schema from "../../database/schema";
@@ -48,13 +48,14 @@ export default function worker({
           receipt: v.optional(
             v.object({ blockNumber: v.number(), chainId: v.optional(v.number()), transactionHash: v.string() }),
           ),
+          tenant: v.optional(Tenant, home),
         }),
         job.data,
       );
       if (!data.success) {
         throw Object.assign(new UnrecoverableError("invalid job data"), { cause: new v.ValiError(data.issues) });
       }
-      const { requestBody: payload } = await panda.getWebhook(id);
+      const { requestBody: payload } = await panda.program(data.output.tenant).getWebhook(id);
       if (payload.resource === "transaction" && payload.action === "requested") return;
       if (payload.resource === "dispute" || payload.resource === "company") return;
       if (payload.resource === "card" && payload.action === "notification") return;
@@ -62,7 +63,7 @@ export default function worker({
         ? database.query.credentials.findFirst({
             columns: { account: true, id: true, source: true },
             with: { source: { columns: { config: true } } },
-            where: eq(credentials.pandaId, payload.body.id),
+            where: or(eq(credentials.pandaId, payload.body.id), eq(credentials.otherPandaId, payload.body.id)),
           })
         : database.query.cards
             .findFirst({
