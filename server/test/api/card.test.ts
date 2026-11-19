@@ -55,6 +55,7 @@ import ServiceError from "../../utils/ServiceError";
 import wallet, { signer } from "../../utils/wallet";
 import createWalletExtension from "../../utils/walletExtension";
 
+import type * as PandaModule from "../../utils/panda";
 import type createCredit from "../../workers/credit/queue";
 import type * as C from "@exactly/common/generated/chain";
 import type * as sentry from "@sentry/node";
@@ -80,7 +81,7 @@ const persona = createPersona(
   parse(pipe(string(), nonEmpty()), env.PERSONA_URL),
 );
 const walletExtension = createWalletExtension(WALLET_EXTENSION_SECRET);
-const app = route({
+const dependencies = {
   auth: authenticate(""),
   credit,
   database,
@@ -97,8 +98,16 @@ const app = route({
   ),
   segment: createSegment(parse(pipe(string(), nonEmpty()), env.SEGMENT_WRITE_KEY)),
   walletExtension,
-});
+};
+const app = route(dependencies);
 const appClient = testClient(app);
+const { default: createPrograms } = await vi.importActual<typeof PandaModule>("../../utils/panda");
+const programs = createPrograms(
+  { key: "panda", url: "https://panda.test" },
+  { key: "base", url: "https://base.panda.test" },
+);
+const baseProgram = programs.program("BASE");
+const programsClient = testClient(route({ ...dependencies, panda: programs }));
 
 beforeAll(async () => {
   keeper = wallet(await signer("keeper", kms));
@@ -4068,6 +4077,348 @@ const mockERC20Abi = [
     stateMutability: "nonpayable",
   },
 ] as const;
+
+describe("base program", () => {
+  const assertion = {
+    id: "I8d7DPRtg1GZ83as5R9LWw",
+    rawId: "I8d7DPRtg1GZ83as5R9LWw",
+    response: {
+      clientDataJSON: "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0In0",
+      authenticatorData: "5d85uxU17437HNUygAfwlrv58UORvl7p-OfSMVnQe64dAAAAAA",
+      signature: "MEYCIQD2d5ovtuEXMvfRdJa4JiotIYLnCCR3oEWQRX0xggyfwA",
+      userHandle: "cv99bMRjY0w-G2076bDKKTbxiLDpv6_iI19xJRifYzM",
+    },
+    clientExtensionResults: {},
+    type: "public-key" as const,
+  };
+
+  it("serves a base card from the base program", async () => {
+    const id = "6a1e3c5d-0000-4000-8000-0000000b0001";
+    const account = await baseUser("base-get", 0xba_5e_01, { cardId: id });
+    const homeCard = vi.spyOn(programs, "getCard");
+    vi.spyOn(baseProgram, "getCard").mockResolvedValueOnce({ ...cardTemplate, id, userId: "base-get-base" });
+    const getUser = vi.spyOn(baseProgram, "getUser").mockResolvedValueOnce(userTemplate);
+    const getSecrets = vi.spyOn(baseProgram, "getSecrets").mockResolvedValueOnce(panTemplate);
+    const getPIN = vi.spyOn(baseProgram, "getPIN").mockResolvedValueOnce(pinTemplate);
+
+    const response = await programsClient.index.$get(
+      { header: { sessionid: "fakeSession" }, query: { scope: "webauthn" } },
+      { headers: { "test-credential-id": "base-get" } },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({
+      ...panTemplate,
+      ...pinTemplate,
+      cardId: id,
+      challenge: `I authorize the account ${checksumAddress(account)} to be linked with the card ending in 8642 for my user (base-get-base)`,
+      displayName: "First Last",
+      expirationMonth: "9",
+      expirationYear: "2029",
+      lastFour: "8642",
+      mode: 0,
+      provider: "panda",
+      status: "ACTIVE",
+      limit: { amount: 5000, frequency: "per24HourPeriod" },
+      productId: PLATINUM_PRODUCT_ID,
+    });
+    expect(getUser).toHaveBeenCalledExactlyOnceWith("base-get-base");
+    expect(getSecrets).toHaveBeenCalledExactlyOnceWith(id, "fakeSession");
+    expect(getPIN).toHaveBeenCalledExactlyOnceWith(id, "fakeSession");
+    expect(homeCard).not.toHaveBeenCalled();
+  });
+
+  it("signs the base card siwe challenge with the base program nonce", async () => {
+    const id = "6a1e3c5d-0000-4000-8000-0000000b0002";
+    const credentialId = privateKeyToAddress(padHex("0xba5e02"));
+    await baseUser(credentialId, 0xba_5e_02, { cardId: id });
+    vi.spyOn(baseProgram, "getCard").mockResolvedValueOnce({ ...cardTemplate, id, userId: `${credentialId}-base` });
+    vi.spyOn(baseProgram, "getUser").mockResolvedValueOnce(userTemplate);
+    const getNonce = vi.spyOn(baseProgram, "getNonce").mockResolvedValueOnce({ nonce: "basenonce" }); // cspell:ignore basenonce
+
+    const response = await programsClient.index.$get(
+      { header: {}, query: { scope: "siwe" } },
+      { headers: { "test-credential-id": credentialId } },
+    );
+    const json = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(getNonce).toHaveBeenCalledExactlyOnceWith(`${credentialId}-base`);
+    const message = parseSiweMessage("challenge" in json && typeof json.challenge === "string" ? json.challenge : "");
+    expect(message.nonce).toBe("basenonce");
+    expect(message.statement).toContain(`for my user (${credentialId}-base)`);
+  });
+
+  it("asks base users without a card to onboard on the home program", async () => {
+    await baseUser("base-no-card", 0xba_5e_03);
+    const getCard = vi.spyOn(baseProgram, "getCard");
+
+    const response = await programsClient.index.$get(
+      { header: {} },
+      { headers: { "test-credential-id": "base-no-card" } },
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
+    expect(getCard).not.toHaveBeenCalled();
+  });
+
+  it("issues new cards on the home program only", async () => {
+    await baseUser("base-post", 0xba_5e_04, { cardId: "6a1e3c5d-0000-4000-8000-0000000b0004" });
+    const createCard = vi.spyOn(baseProgram, "createCard");
+    const homeCreate = vi.spyOn(programs, "createCard");
+
+    const response = await programsClient.index.$post({}, { headers: { "test-credential-id": "base-post" } });
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
+    expect(createCard).not.toHaveBeenCalled();
+    expect(homeCreate).not.toHaveBeenCalled();
+  });
+
+  it("deletes a base card on the base program", async () => {
+    const id = "6a1e3c5d-0000-4000-8000-0000000b0005";
+    await baseUser("base-delete", 0xba_5e_05, { cardId: id });
+    const updateCard = vi.spyOn(baseProgram, "updateCard").mockResolvedValueOnce({ ...cardTemplate, id });
+    const homeUpdate = vi.spyOn(programs, "updateCard");
+
+    const response = await programsClient.index.$patch({
+      // @ts-expect-error - bad hono patch type
+      header: { "test-credential-id": "base-delete" },
+      json: { status: "DELETED" },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ status: "DELETED" });
+    expect(updateCard).toHaveBeenCalledExactlyOnceWith({ id, status: "canceled" });
+    expect(homeUpdate).not.toHaveBeenCalled();
+    await expect(
+      database.query.cards.findFirst({ columns: { status: true, tenant: true }, where: eq(cards.id, id) }),
+    ).resolves.toStrictEqual({ status: "DELETED", tenant: "BASE" });
+  });
+
+  it("sets a base card pin on the base program", async () => {
+    const id = "6a1e3c5d-0000-4000-8000-0000000b0006";
+    await baseUser("base-pin", 0xba_5e_06, { cardId: id });
+    const setPIN = vi.spyOn(baseProgram, "setPIN").mockResolvedValueOnce({});
+    const homePIN = vi.spyOn(programs, "setPIN");
+
+    const response = await programsClient.index.$patch({
+      // @ts-expect-error - bad hono patch type
+      header: { "test-credential-id": "base-pin" },
+      json: { sessionId: "session", data: "data", iv: "iv" },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ data: "data", iv: "iv" });
+    expect(setPIN).toHaveBeenCalledExactlyOnceWith(id, "session", { data: "data", iv: "iv" });
+    expect(homePIN).not.toHaveBeenCalled();
+  });
+
+  it("verifies a base card signature with the base user", async () => {
+    const id = "6a1e3c5d-0000-4000-8000-0000000b0007";
+    const account = await baseUser("base-verify", 0xba_5e_07, { cardId: id, home: "base-verify-home" });
+    const verify = vi.spyOn(baseProgram, "verify").mockResolvedValueOnce({});
+    const homeVerify = vi.spyOn(programs, "verify");
+
+    const response = await programsClient.index.$patch({
+      // @ts-expect-error - bad hono patch type
+      header: { "test-credential-id": "base-verify" },
+      json: { method: "webauthn", assertion },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ verification: "OK" });
+    expect(verify).toHaveBeenCalledExactlyOnceWith("base-verify-base", {
+      authType: "webauthn",
+      credential: { publicKey: { type: "Buffer", data: [4, 5, 6] }, transports: null },
+      assertion,
+      factory: exaAccountFactoryAddress,
+      salt: zeroAddress,
+      statement: `I authorize the account ${checksumAddress(account)} to be linked with the card ending in 8642 for my user (base-verify-base)`,
+    });
+    expect(homeVerify).not.toHaveBeenCalled();
+  });
+
+  it("provisions a base card from the base program", async () => {
+    const id = "6a1e3c5d-0000-4000-8000-0000000b0008";
+    await baseUser("base-provisioning", 0xba_5e_08, { cardId: id });
+    vi.spyOn(baseProgram, "getCard").mockResolvedValueOnce({ ...cardTemplate, id });
+    const getProcessorDetails = vi
+      .spyOn(baseProgram, "getProcessorDetails")
+      .mockResolvedValueOnce({ processorCardId: "proc-base", timeBasedSecret: "secret-base" });
+    const homeDetails = vi.spyOn(programs, "getProcessorDetails");
+
+    const response = await route({ ...dependencies, panda: programs }).request("/provisioning", {
+      headers: { authorization: await bearer("base-provisioning") },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ id: "proc-base", secret: "secret-base" });
+    expect(getProcessorDetails).toHaveBeenCalledExactlyOnceWith(id);
+    expect(homeDetails).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["base", 0xba_5e_10, ["BASE", "OP"]],
+    ["home", 0xba_5e_12, ["OP", "BASE"]],
+  ] as const)(
+    "serves the home card to clients without last four when the %s card comes first",
+    async (first, seed, order) => {
+      const name = `base-default-${first}`;
+      const ids = {
+        BASE: `6a1e3c5d-0000-4000-8000-000000${seed.toString(16)}`,
+        OP: `6a1e3c5d-0000-4000-8000-000000${(seed + 1).toString(16)}`,
+      };
+      await baseUser(name, seed, { home: `${name}-home` });
+      for (const tenant of order) {
+        await database
+          .insert(cards)
+          .values({ id: ids[tenant], credentialId: name, tenant, lastFour: tenant === "OP" ? "1111" : "8642" });
+      }
+      const baseCard = vi.spyOn(baseProgram, "getCard");
+      const homeCard = vi
+        .spyOn(programs, "getCard")
+        .mockResolvedValueOnce({ ...cardTemplate, id: ids.OP, userId: `${name}-home` });
+      vi.spyOn(programs, "getUser").mockResolvedValueOnce(userTemplate);
+      vi.spyOn(programs, "getSecrets").mockResolvedValueOnce(panTemplate);
+      vi.spyOn(programs, "getPIN").mockResolvedValueOnce(pinTemplate);
+
+      const response = await programsClient.index.$get(
+        { header: { sessionid: "fakeSession" }, query: { scope: "webauthn" } },
+        { headers: { "test-credential-id": name } },
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({ cardId: ids.OP, lastFour: "1111" });
+      expect(homeCard).toHaveBeenCalledExactlyOnceWith(ids.OP);
+      expect(baseCard).not.toHaveBeenCalled();
+    },
+  );
+
+  it("skips a first card of a program the user is not on", async () => {
+    const ids = { BASE: "6a1e3c5d-0000-4000-8000-0000000b0014", OP: "6a1e3c5d-0000-4000-8000-0000000b0015" };
+    await database.insert(credentials).values({
+      id: "base-unlinked-first",
+      publicKey: new Uint8Array([4, 5, 6]),
+      account: padHex("0xba5e14", { size: 20 }),
+      factory: exaAccountFactoryAddress,
+      pandaId: "base-unlinked-first-home",
+    });
+    await database.insert(cards).values([
+      { id: ids.BASE, credentialId: "base-unlinked-first", tenant: "BASE", lastFour: "8642" },
+      { id: ids.OP, credentialId: "base-unlinked-first", tenant: "OP", lastFour: "1111" },
+    ]);
+    const baseCard = vi.spyOn(baseProgram, "getCard");
+    const homeCard = vi
+      .spyOn(programs, "getCard")
+      .mockResolvedValueOnce({ ...cardTemplate, id: ids.OP, userId: "base-unlinked-first-home" });
+    vi.spyOn(programs, "getUser").mockResolvedValueOnce(userTemplate);
+    vi.spyOn(programs, "getSecrets").mockResolvedValueOnce(panTemplate);
+    vi.spyOn(programs, "getPIN").mockResolvedValueOnce(pinTemplate);
+
+    const response = await programsClient.index.$get(
+      { header: { sessionid: "fakeSession" }, query: { scope: "webauthn" } },
+      { headers: { "test-credential-id": "base-unlinked-first" } },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ cardId: ids.OP, lastFour: "1111" });
+    expect(homeCard).toHaveBeenCalledExactlyOnceWith(ids.OP);
+    expect(baseCard).not.toHaveBeenCalled();
+  });
+
+  it("freezes the home card for clients without last four", async () => {
+    const ids = { BASE: "6a1e3c5d-0000-4000-8000-0000000b0016", OP: "6a1e3c5d-0000-4000-8000-0000000b0017" };
+    await baseUser("base-freeze-default", 0xba_5e_16, { home: "base-freeze-default-home" });
+    await database.insert(cards).values([
+      { id: ids.BASE, credentialId: "base-freeze-default", tenant: "BASE", lastFour: "8642" },
+      { id: ids.OP, credentialId: "base-freeze-default", tenant: "OP", lastFour: "1111" },
+    ]);
+    const baseUpdate = vi.spyOn(baseProgram, "updateCard");
+    const homeUpdate = vi.spyOn(programs, "updateCard");
+
+    const response = await programsClient.index.$patch({
+      // @ts-expect-error - bad hono patch type
+      header: { "test-credential-id": "base-freeze-default" },
+      json: { status: "FROZEN" },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(
+      database.query.cards.findMany({
+        columns: { status: true, tenant: true },
+        where: eq(cards.credentialId, "base-freeze-default"),
+        orderBy: cards.tenant,
+      }),
+    ).resolves.toStrictEqual([
+      { status: "ACTIVE", tenant: "BASE" },
+      { status: "FROZEN", tenant: "OP" },
+    ]);
+    expect(homeUpdate).not.toHaveBeenCalled();
+    expect(baseUpdate).not.toHaveBeenCalled();
+  });
+
+  it("rejects updating a card of a program the user is not on", async () => {
+    const id = "6a1e3c5d-0000-4000-8000-0000000b0018";
+    await database.insert(credentials).values({
+      id: "base-update-orphan",
+      publicKey: new Uint8Array([4, 5, 6]),
+      account: padHex("0xba5e18", { size: 20 }),
+      factory: exaAccountFactoryAddress,
+      pandaId: "base-update-orphan-home",
+    });
+    await database.insert(cards).values({ id, credentialId: "base-update-orphan", tenant: "BASE", lastFour: "8642" });
+    const baseUpdate = vi.spyOn(baseProgram, "updateCard");
+
+    const response = await programsClient.index.$patch({
+      // @ts-expect-error - bad hono patch type
+      header: { "test-credential-id": "base-update-orphan" },
+      json: { status: "FROZEN" },
+    });
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
+    expect(baseUpdate).not.toHaveBeenCalled();
+  });
+
+  it("rejects provisioning a base card without a base user", async () => {
+    const id = "6a1e3c5d-0000-4000-8000-0000000b0009";
+    await database.insert(credentials).values({
+      id: "base-provisioning-orphan",
+      publicKey: new Uint8Array(),
+      account: padHex("0xba5e09", { size: 20 }),
+      factory: exaAccountFactoryAddress,
+      pandaId: "base-provisioning-orphan-home",
+    });
+    await database
+      .insert(cards)
+      .values({ id, credentialId: "base-provisioning-orphan", tenant: "BASE", lastFour: "8643" });
+    const getCard = vi.spyOn(baseProgram, "getCard");
+
+    const response = await route({ ...dependencies, panda: programs }).request("/provisioning", {
+      headers: { authorization: await bearer("base-provisioning-orphan") },
+    });
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
+    expect(getCard).not.toHaveBeenCalled();
+  });
+});
+
+async function baseUser(name: string, seed: number, { cardId, home }: { cardId?: string; home?: string } = {}) {
+  const account = padHex(`0x${seed.toString(16)}`, { size: 20 });
+  await database.insert(credentials).values({
+    id: name,
+    publicKey: new Uint8Array([4, 5, 6]),
+    account,
+    factory: exaAccountFactoryAddress,
+    otherPandaId: `${name}-base`,
+    ...(home && { pandaId: home }),
+  });
+  if (cardId) await database.insert(cards).values({ id: cardId, credentialId: name, tenant: "BASE", lastFour: "8642" });
+  return account;
+}
 
 async function bearer(credentialId = "wallet-extension") {
   const { walletExtension: extension } = await walletExtension.create(credentialId);

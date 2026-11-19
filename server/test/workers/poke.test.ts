@@ -173,11 +173,16 @@ afterAll(async () => {
 
 describe("poke queue", () => {
   it("publishes panda ids", async () => {
-    await poke.enqueue({ ...request, origin: "activity", pandaId: `queue-${account}` });
+    await poke.enqueue({
+      ...request,
+      origin: "activity",
+      otherPandaId: `queue-base-${account}`,
+      pandaId: `queue-${account}`,
+    });
 
     const job = await queue.getJob(`${request.chainId}-${account}`);
     if (!job) throw new Error("job not found");
-    expect(job.data).toMatchObject({ pandaId: `queue-${account}` });
+    expect(job.data).toMatchObject({ otherPandaId: `queue-base-${account}`, pandaId: `queue-${account}` });
     await job.remove();
   });
 
@@ -455,14 +460,22 @@ describe("poke worker", () => {
     const deposit = parseEther("5");
     await anvilClient.setBalance({ address: account, value: deposit });
 
-    await jobFinished({ ...request, assets: [eth], origin: "activity", pandaId: `poke-${account}` });
+    await jobFinished({
+      ...request,
+      assets: [eth],
+      origin: "activity",
+      otherPandaId: `poke-base-${account}`,
+      pandaId: `poke-${account}`,
+    });
 
-    const positions = deserialize<{ floatingDepositAssets: bigint; market: string }[]>(
-      (await bullmq.hget(key(`poke-${account}`), String(chain.id))) ?? "[]",
-    );
-    expect(
-      Number(positions.find(({ market }) => market === marketWETHAddress)?.floatingDepositAssets) / 1e18,
-    ).toBeCloseTo(Number(deposit) / 1e18, 9);
+    for (const user of [`poke-${account}`, `poke-base-${account}`]) {
+      const positions = deserialize<{ floatingDepositAssets: bigint; market: string }[]>(
+        (await bullmq.hget(key(user), String(chain.id))) ?? "[]",
+      );
+      expect(
+        Number(positions.find(({ market }) => market === marketWETHAddress)?.floatingDepositAssets) / 1e18,
+      ).toBeCloseTo(Number(deposit) / 1e18, 9);
+    }
     expect(captureException).not.toHaveBeenCalled();
   });
 

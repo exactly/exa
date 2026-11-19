@@ -114,6 +114,8 @@ describe("hook queue", () => {
   });
 });
 
+const panda = createPanda({ key: "panda", url: "https://panda.test" }, { key: "base", url: "https://base.panda.test" });
+
 describe("hook worker", () => {
   beforeAll(async () => {
     await queue.drain(true);
@@ -182,11 +184,7 @@ describe("hook worker", () => {
       ]);
     });
     connection = connect(redisUrl);
-    worker = hookWorker({
-      bullmq: connection,
-      database,
-      panda: createPanda({ key: "panda", url: "https://panda.test" }),
-    });
+    worker = hookWorker({ bullmq: connection, database, panda });
     await worker.ready;
   });
 
@@ -404,6 +402,36 @@ describe("hook worker", () => {
       resource: "user",
       action: "updated",
       body: { credentialId: "webhook-cred", applicationReason: "", applicationStatus: "approved", isActive: true },
+    });
+  });
+
+  it("reads base program webhooks from the base program", async () => {
+    await database.insert(credentials).values({
+      id: "webhook-cred-base",
+      publicKey: new Uint8Array(),
+      account: parse(Address, padHex("0xfab5", { size: 20 })),
+      factory: zeroAddress,
+      otherPandaId: "webhook-user-base",
+      source: "webhook-source",
+    });
+    user("wk-user-base", "webhook-user-base");
+    const base = panda.program("BASE");
+    const getWebhook = vi
+      .spyOn(base, "getWebhook")
+      .mockImplementation((id) => Promise.resolve(webhooks.get(id) as Awaited<ReturnType<typeof base.getWebhook>>));
+    const mockFetch = vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(new Response("OK")));
+
+    await jobFinished("wk-user-base", undefined, { tenant: "BASE" });
+
+    expect(getWebhook).toHaveBeenCalledExactlyOnceWith("wk-user-base");
+    expect(mocks.getWebhook).not.toHaveBeenCalled();
+    const body = parse(string(), mockFetch.mock.calls[0]?.[1]?.body);
+    expect(JSON.parse(body)).toStrictEqual({
+      id: "wk-user-base",
+      timestamp: expect.any(String) as string,
+      resource: "user",
+      action: "updated",
+      body: { credentialId: "webhook-cred-base", applicationReason: "", applicationStatus: "approved", isActive: true },
     });
   });
 
@@ -799,7 +827,10 @@ vi.mock("../../utils/panda", async (importOriginal) => {
   const original = await importOriginal<typeof P>();
   return {
     ...original,
-    default: ((options) => ({ ...original.default(options), getWebhook: mocks.getWebhook })) as typeof original.default,
+    default: ((...options) => ({
+      ...original.default(...options),
+      getWebhook: mocks.getWebhook,
+    })) as typeof original.default,
   };
 });
 

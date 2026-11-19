@@ -3,15 +3,26 @@ import sendPushNotificationMock from "../mocks/onesignal";
 import "../mocks/sentry";
 
 import { captureException, setUser } from "@sentry/node";
+import { Queue, type Job } from "bullmq";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { Redis } from "ioredis";
 import { createHmac } from "node:crypto";
 import { v5 } from "uuid";
-import { getAddress, hexToBytes, padHex, zeroAddress, zeroHash, type Address, type PrivateKeyAccount } from "viem";
+import { parse } from "valibot";
+import {
+  getAddress,
+  hexToBytes,
+  padHex,
+  parseEther,
+  zeroAddress,
+  zeroHash,
+  type Address,
+  type PrivateKeyAccount,
+} from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { anvil } from "viem/chains";
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import {
@@ -21,22 +32,27 @@ import {
   marketWETHAddress,
   wethAddress,
 } from "@exactly/common/generated/chain";
+import { Address as AddressSchema } from "@exactly/common/validation";
 
 import database, { credentials } from "../../database";
 import activity from "../../hooks/activity";
 import t, { f } from "../../i18n";
 import createAlchemy, { activityChain, activityUrl, type Webhook } from "../../utils/alchemy";
 import createOnesignal from "../../utils/onesignal";
-import redis from "../../utils/redis";
+import redis, { bullmq } from "../../utils/redis";
+import { name as pokeName } from "../../workers/poke/job";
+import createPokeQueue from "../../workers/poke/queue";
+import anvilClient from "../anvilClient";
 
-import type createPoke from "../../workers/poke/queue";
+import type { Job as Poke } from "../../workers/poke/job";
 import type * as C from "@exactly/common/generated/chain";
 
+const ETH = parse(AddressSchema, "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
 const alchemy = createAlchemy("webhooks");
 const onesignal = createOnesignal("onesignal");
 const poke = {
-  close: vi.fn<ReturnType<typeof createPoke>["close"]>().mockResolvedValue(),
-  enqueue: vi.fn<ReturnType<typeof createPoke>["enqueue"]>().mockResolvedValue(),
+  close: vi.fn<ReturnType<typeof createPokeQueue>["close"]>().mockResolvedValue(),
+  enqueue: vi.fn<ReturnType<typeof createPokeQueue>["enqueue"]>().mockResolvedValue(),
 };
 
 const activityHook = createHook();
@@ -373,6 +389,58 @@ describe("address activity", () => {
       source: null,
     });
     expect(response.status).toBe(200);
+  });
+
+  describe("with the shared poke queue", () => {
+    const queued = createPokeQueue(bullmq);
+    const queue = new Queue(pokeName, { connection: bullmq });
+    const hook = createHook(alchemy, queued);
+
+    beforeAll(() => hook.ready);
+
+    afterAll(() => Promise.all([queue.close(), queued.close()]));
+
+    it("publishes the base program user of the account", async () => {
+      const id = `${anvil.id}-${account}-${ETH}`;
+      await database
+        .update(credentials)
+        .set({ pandaId: null, otherPandaId: `activity-base-${account}` })
+        .where(eq(credentials.id, account));
+      await anvilClient.setBalance({ address: account, value: parseEther("0.5") });
+      const add = vi.spyOn(Queue.prototype, "add");
+      onTestFinished(() => add.mockRestore());
+
+      const response = await deliver(
+        hook.app,
+        JSON.stringify({
+          ...activityPayload.json,
+          event: {
+            ...activityPayload.json.event,
+            activity: [{ ...activityPayload.json.event.activity[0], toAddress: account }],
+          },
+        }),
+        "activity",
+      );
+
+      expect(response.status).toBe(200);
+      const jobs = await Promise.all(add.mock.results.map(({ value }) => value as Promise<Job<Poke>>));
+      expect(jobs.filter((job) => job.id === id).map(({ data }) => data)).toEqual([
+        {
+          account,
+          assets: [ETH],
+          chainId: anvil.id,
+          factory: exaAccountFactoryAddress,
+          origin: "activity",
+          otherPandaId: `activity-base-${account}`,
+          publicKey: owner.address.toLowerCase(),
+          salt: zeroAddress,
+          source: null,
+          sentryBaggage: expect.any(String) as string,
+          sentryTrace: expect.any(String) as string,
+        },
+      ]);
+      await queue.remove(id).catch(() => undefined);
+    });
   });
 
   it("ignores zero raw values when value is missing", async () => {
@@ -1059,12 +1127,12 @@ function key(toAddress: Address, chainId = 10) {
   );
 }
 
-function createHook(current = alchemy) {
+function createHook(current = alchemy, queue: ReturnType<typeof createPokeQueue> = poke) {
   return activity({
     alchemy: current,
     database,
     onesignal,
-    poke,
+    poke: queue,
     redis,
   });
 }

@@ -1,5 +1,6 @@
 import chain from "@exactly/common/generated/chain";
 
+import type { Tenant } from "../../utils/panda";
 import type { Address } from "@exactly/common/validation";
 
 export const name = "hook";
@@ -11,4 +12,5 @@ export type Job = {
   receipt?: { blockNumber: number; transactionHash: string };
   sentryBaggage?: string;
   sentryTrace?: string;
+  tenant?: Tenant;
 };

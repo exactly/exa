@@ -67,7 +67,7 @@ const refunder = privateKeyToAccount(padHex("0xfee"));
 const pandaAddress = parse(Address, "0x54d02DcB38B76A67dC9368D8457D1F384B865c70");
 const collateral = parse(Address, padHex("0xc011a7", { size: 20 }));
 const usdc = parse(Address, "0x29684075a3C86ea11D9964BcAf0F956e801396bD");
-const panda = createPanda({ key: "panda", url: "https://panda.test" });
+const panda = createPanda({ key: "panda", url: "https://panda.test" }, { key: "base", url: "https://base.panda.test" });
 const store = "0x600160005500";
 const sardineConfig = { key: "sardine", url: "https://sardine.test" };
 const redisUrl = parse(pipe(string(), nonEmpty()), env.REDIS_URL);
@@ -82,7 +82,7 @@ const hook = vi.hoisted(() => ({
   close: vi.fn<ReturnType<typeof createHook>["close"]>().mockResolvedValue(),
   enqueue: vi.fn<ReturnType<typeof createHook>["enqueue"]>(),
 }));
-const remember = vi.hoisted(() => vi.fn<typeof L.default>(() => Promise.resolve([])));
+const refresh = vi.hoisted(() => vi.fn<typeof L.refresh>());
 const slot = keccak256(
   encodeAbiParameters(
     [{ type: "address" }, { type: "bytes32" }],
@@ -355,7 +355,11 @@ describe("refund worker", () => {
       payload: { type: "panda", bodies: [{ ...requestBody, createdAt: "2026-01-01T00:00:01.000Z" }] },
     });
     expect(hook.enqueue).toHaveBeenCalledExactlyOnceWith(
-      { account, receipt: { blockNumber: expect.any(Number) as number, transactionHash: transaction?.hashes[0] } },
+      {
+        account,
+        receipt: { blockNumber: expect.any(Number) as number, transactionHash: transaction?.hashes[0] },
+        tenant: "OP",
+      },
       "wh-authorized",
     );
     expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
@@ -396,7 +400,7 @@ describe("refund worker", () => {
       expect.any(Function),
     );
     expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
-    expect(remember).toHaveBeenCalledExactlyOnceWith(connection, "user", account, chain.id);
+    expect(refresh).toHaveBeenCalledExactlyOnceWith(database, connection, account, chain.id);
     expect(continueTrace).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
   });
@@ -520,22 +524,6 @@ describe("refund worker", () => {
     });
   });
 
-  it("captures liquidity refresh failures", async () => {
-    webhook("wh-liquidity-error", { amount: 500, authorizedAmount: 1500, status: "pending" });
-    const error = new Error("redis down");
-    remember.mockRejectedValueOnce(error);
-    const track = vi.spyOn(segment, "track").mockReturnValue();
-
-    await jobFinished("wh-liquidity-error");
-
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error));
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(error, { level: "warning", tags: { chainId: chain.id } });
-    expect(hook.enqueue).toHaveBeenCalledOnce();
-    expect(track).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ userId: account, event: "TransactionRefund" }),
-    );
-  });
-
   it("refunds reversed authorization updates", async () => {
     await database
       .insert(transactions)
@@ -582,6 +570,7 @@ describe("refund worker", () => {
           blockNumber: expect.any(Number) as number,
           transactionHash: expect.stringMatching(/^0x[0-9a-f]{64}$/) as string,
         },
+        tenant: "OP",
       },
       "wh-reversed",
     );
@@ -620,6 +609,7 @@ describe("refund worker", () => {
           blockNumber: expect.any(Number) as number,
           transactionHash: expect.stringMatching(/^0x[0-9a-f]{64}$/) as string,
         },
+        tenant: "OP",
       },
       "wh-negative",
     );
@@ -724,7 +714,7 @@ describe("refund worker", () => {
 
     await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error));
     expect(hook.enqueue).toHaveBeenCalledExactlyOnceWith(
-      { account, receipt: expect.anything() as unknown },
+      { account, receipt: expect.anything() as unknown, tenant: "OP" },
       "wh-hook-error",
     );
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
@@ -734,6 +724,29 @@ describe("refund worker", () => {
     });
     expect(sendPushNotification).toHaveBeenCalledOnce();
     expect(track).toHaveBeenCalledOnce();
+  });
+
+  it("rejects refunds of other programs before touching them", async () => {
+    const getWebhook = vi.spyOn(panda.program("BASE"), "getWebhook").mockRejectedValue(new Error("base webhook"));
+
+    const result = jobFinished("wh-base", undefined, { tenant: "BASE" });
+
+    await expect(result).rejects.toThrow("unsupported BASE refund");
+    await vi.waitFor(() => expect(getWebhook).toHaveBeenCalledExactlyOnceWith("wh-base"));
+    expect(mocks.getWebhook).not.toHaveBeenCalled();
+    expect(mocks.getUser).not.toHaveBeenCalled();
+    expect(mocks.exaSend).not.toHaveBeenCalled();
+    expect(captureException).toHaveBeenCalledWith(expect.objectContaining({ message: "unsupported BASE refund" }), {
+      level: "fatal",
+      fingerprint: ["{{ default }}", "refund.exhausted", "unknown"],
+      tags: {
+        queue: "refund",
+        job: "refund",
+        "panda.reason": "unsupported BASE refund",
+        "panda.reasonName": "UnrecoverableError",
+      },
+      extra: { attempts: 1, id: "wh-base", recipient: refunderAddress },
+    });
   });
 
   it("fails without card", async () => {
@@ -1358,8 +1371,8 @@ vi.mock("../../utils/panda", async (importOriginal) => {
   const original = await importOriginal<typeof P>();
   return {
     ...original,
-    default: ((options) => ({
-      ...original.default(options),
+    default: ((...options) => ({
+      ...original.default(...options),
       getContracts: mocks.getContracts,
       getUser: mocks.getUser,
       getWebhook: mocks.getWebhook,
@@ -1398,7 +1411,7 @@ vi.mock("../../utils/wallet", async (importOriginal) => {
 
 vi.mock("../../utils/liquidity", async (importOriginal) => ({
   ...(await importOriginal<typeof L>()),
-  default: remember,
+  refresh,
 }));
 
 vi.mock("@exactly/common/generated/chain", async (importOriginal) => {

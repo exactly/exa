@@ -12,7 +12,7 @@ import {
 } from "@sentry/node";
 import { E_TIMEOUT } from "async-mutex";
 import createDebug from "debug";
-import { and, eq, ne, sql } from "drizzle-orm";
+import { and, eq, ne, or, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { setTimeout } from "node:timers/promises";
 import { v5 } from "uuid";
@@ -61,15 +61,18 @@ import { MATURITY_INTERVAL, splitInstallments } from "@exactly/lib";
 
 import { cards, credentials, transactions } from "../database/schema";
 import t, { f } from "../i18n";
-import remember, { key, limit } from "../utils/liquidity";
+import remember, { key, limit, refresh } from "../utils/liquidity";
 import {
   collectors,
   createMutex,
   declineMessage,
   getMutex,
+  home,
+  other,
   Payload,
   signIssuerOp,
   TransactionPayload,
+  type Tenant,
   type Transaction,
 } from "../utils/panda";
 import publicClient from "../utils/publicClient";
@@ -215,14 +218,20 @@ export default function hook({
             : payload.body.id;
         if (pandaId) {
           const user = await database.query.credentials.findFirst({
-            columns: { account: true },
-            where: eq(credentials.pandaId, pandaId),
+            columns: { account: true, pandaId: true },
+            where: or(eq(credentials.pandaId, pandaId), eq(credentials.otherPandaId, pandaId)),
           });
           if (user) setUser({ id: user.account });
           if (payload.resource !== "card" || payload.action !== "notification") {
             if (!user) return c.json({ code: "user not found" }, 404);
             try {
-              await webhook.enqueue({ account: v.parse(Address, user.account) }, payload.id);
+              await webhook.enqueue(
+                {
+                  account: v.parse(Address, user.account),
+                  tenant: user.pandaId === pandaId ? home() : other(),
+                },
+                payload.id,
+              );
             } catch (error: unknown) {
               captureException(error, {
                 level: "error",
@@ -266,7 +275,7 @@ export default function hook({
       switch (payload.action) {
         case "requested": {
           const card = await database.query.cards.findFirst({
-            columns: { mode: true, status: true },
+            columns: { mode: true, status: true, tenant: true },
             where: eq(cards.id, payload.body.spend.cardId),
             with: { credential: { columns: { account: true, id: true, source: true } } },
           });
@@ -549,7 +558,7 @@ export default function hook({
               })() / 100;
             const refundAmount = Math.round(refundAmountUsd * 1e6);
             const card = await database.query.cards.findFirst({
-              columns: { mode: true },
+              columns: { mode: true, tenant: true },
               where: eq(cards.id, payload.body.spend.cardId),
               with: { credential: { columns: { account: true } } },
             });
@@ -569,7 +578,7 @@ export default function hook({
               Math.floor(new Date(payload.body.spend.authorizedAt).getTime() / 1000) -
               Number(BigInt(`0x${payload.id.replaceAll(/[^0-9a-f]/g, "")}`) % 3600n);
 
-            if (payload.body.spend.signature) {
+            if (payload.body.spend.signature && card.tenant === home()) {
               await startSpan(
                 {
                   name: "panda.signature",
@@ -603,6 +612,7 @@ export default function hook({
                 {
                   account,
                   amount: refundAmount,
+                  tenant: card.tenant,
                   signature: await signIssuerOp({ account, amount: -BigInt(refundAmount), timestamp }, issuer), // TODO replace with payload signature
                   timestamp,
                 },
@@ -624,7 +634,7 @@ export default function hook({
         // falls through
         case "created": {
           const card = await database.query.cards.findFirst({
-            columns: { lastFour: true, mode: true },
+            columns: { lastFour: true, mode: true, tenant: true },
             where: eq(cards.id, payload.body.spend.cardId),
             with: { credential: { columns: { account: true, id: true, source: true } } },
           });
@@ -689,7 +699,7 @@ export default function hook({
               })
               .catch((error: unknown) => captureException(error, { level: "error" }));
             try {
-              await webhook.enqueue({ account }, payload.id);
+              await webhook.enqueue({ account, tenant: card.tenant }, payload.id);
             } catch (error: unknown) {
               captureException(error, {
                 level: "error",
@@ -714,7 +724,7 @@ export default function hook({
               .catch((error: unknown) => captureException(error, { level: "error" }));
 
             try {
-              await webhook.enqueue({ account }, payload.id);
+              await webhook.enqueue({ account, tenant: card.tenant }, payload.id);
             } catch (error: unknown) {
               captureException(error, {
                 level: "error",
@@ -775,7 +785,7 @@ export default function hook({
                 .catch((error: unknown) => captureException(error, { level: "error" }));
 
               try {
-                await webhook.enqueue({ account }, payload.id);
+                await webhook.enqueue({ account, tenant: card.tenant }, payload.id);
               } catch (error: unknown) {
                 captureException(error, {
                   level: "error",
@@ -796,6 +806,7 @@ export default function hook({
                   {
                     account,
                     receipt: { blockNumber: Number(receipt.blockNumber), transactionHash: receipt.transactionHash },
+                    tenant: card.tenant,
                   },
                   payload.id,
                 )
@@ -855,9 +866,7 @@ export default function hook({
                     },
                     onReceipt(receipt) {
                       if (receipt.status === "reverted") return;
-                      remember(redis, payload.body.spend.userId, account, network.id).catch((error: unknown) =>
-                        captureException(error, { level: "warning", tags: { chainId: network.id } }),
-                      );
+                      refresh(database, redis, account, network.id);
                       if (!partial) return deliver(receipt);
                     },
                   },
@@ -1207,7 +1216,7 @@ export default function hook({
                   account,
                   amount: payload.body.spend.amount,
                 });
-                await panda.updateUser({ id: payload.body.spend.userId, isActive: false });
+                await panda.program(card.tenant).updateUser({ id: payload.body.spend.userId, isActive: false });
                 getActiveSpan()?.setAttributes({ "panda.suspicious": true, "panda.amount": payload.body.spend.amount });
                 return c.text(error instanceof Error ? error.message : String(error), 556 as UnofficialStatusCode);
               }
@@ -1372,7 +1381,7 @@ function getCreatedAt(payload: v.InferOutput<typeof Transaction>): string | unde
 }
 
 async function prepareCollection(
-  card: { credential: { account: string }; mode: number },
+  card: { credential: { account: string }; mode: number; tenant: Tenant },
   payload: v.InferOutput<typeof Transaction>,
   issuer: LocalAccount,
   panda: ReturnType<typeof createPanda>,
@@ -1412,7 +1421,7 @@ async function prepareCollection(
     (payload.action === "completed" && amount !== BigInt(Math.round((payload.body.spend.amount / 100) * 1e6)))
       ? authorized - Number(BigInt(`0x${payload.id.replaceAll(/[^0-9a-f]/g, "")}`) % 3600n)
       : authorized;
-  if (payload.body.spend.signature) {
+  if (payload.body.spend.signature && card.tenant === home()) {
     await startSpan(
       {
         name: "panda.signature",

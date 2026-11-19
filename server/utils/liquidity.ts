@@ -33,7 +33,12 @@ const sources = new Map(
   ]),
 );
 
-export default async function remember(redis: Redis, user: string, account: Address, chainId: number) {
+export default async function remember(
+  redis: Redis,
+  users: readonly string[] | string,
+  account: Address,
+  chainId: number,
+) {
   const source = sources.get(chainId);
   if (!source) throw new Error(`unsupported network ${chainId}`);
   const positions = v.parse(
@@ -45,7 +50,10 @@ export default async function remember(redis: Redis, user: string, account: Addr
       args: [account],
     }),
   );
-  await redis.hset(key(user), String(chainId), serialize(positions));
+  const value = serialize(positions);
+  await (typeof users === "string"
+    ? redis.hset(key(users), String(chainId), value)
+    : Promise.all(users.map((user) => redis.hset(key(user), String(chainId), value))));
   return positions;
 }
 
@@ -53,9 +61,10 @@ export const key = (user: string) => `liquidity:${user}`;
 
 export function refresh(database: NodePgDatabase<typeof schema>, redis: Redis, account: Address, chainId: number) {
   database.query.credentials
-    .findFirst({ columns: { pandaId: true }, where: eq(credentials.account, account) })
+    .findFirst({ columns: { otherPandaId: true, pandaId: true }, where: eq(credentials.account, account) })
     .then(async (credential) => {
-      if (credential?.pandaId) await remember(redis, credential.pandaId, account, chainId);
+      const users = [credential?.pandaId, credential?.otherPandaId].flatMap((user) => (user ? [user] : []));
+      if (users.length > 0) await remember(redis, users, account, chainId);
     })
     .catch((error: unknown) => captureException(error, { level: "warning", tags: { chainId } }));
 }
