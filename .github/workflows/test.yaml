@@ -240,6 +240,7 @@ jobs:
           pr() { number=$(gh api -X GET "repos/$GITHUB_REPOSITORY/pulls" -f head="$GITHUB_REPOSITORY_OWNER:$GITHUB_REF_NAME" -f per_page=1 -q '.[].number') && echo "$number"; }
           (for delay in 5 10; do pr && exit; sleep "$delay"; done; pr) > "$RUNNER_TEMP/pr" &
           for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done
+          for i in {1..60}; do [ -f server/node_modules/@exactly/.postgres/postmaster.pid ] || break; sleep 1; done
           wait $!
           echo "pr=$(cat "$RUNNER_TEMP/pr")" >> "$GITHUB_OUTPUT"
         env: { GH_TOKEN: "${{ github.token }}" }
