@@ -22,20 +22,22 @@ import createPanda from "../../utils/panda";
 import createSegment from "../../utils/segment";
 import ServiceError from "../../utils/ServiceError";
 
+import type * as PandaModule from "../../utils/panda";
 import type * as C from "@exactly/common/generated/chain";
 
 const panda = createPanda({
   key: parse(pipe(string(), nonEmpty()), env.PANDA_API_KEY),
   url: parse(pipe(string(), nonEmpty()), env.PANDA_API_URL),
 });
-const appClient = testClient(
-  route({
-    auth: authenticate(""),
-    database,
-    panda,
-    segment: createSegment(parse(pipe(string(), nonEmpty()), env.SEGMENT_WRITE_KEY)),
-  }),
+const analytics = createSegment(parse(pipe(string(), nonEmpty()), env.SEGMENT_WRITE_KEY));
+const appClient = testClient(route({ auth: authenticate(""), database, panda, segment: analytics }));
+const { default: createPrograms } = await vi.importActual<typeof PandaModule>("../../utils/panda");
+const programs = createPrograms(
+  { key: "panda", url: "https://panda.test" },
+  { key: "base", url: "https://base.panda.test" },
 );
+const baseProgram = programs.program("BASE");
+const programsClient = testClient(route({ auth: authenticate(""), database, panda: programs, segment: analytics }));
 
 describe("authenticated", () => {
   beforeAll(async () => {
@@ -398,6 +400,131 @@ describe("authenticated", () => {
 
     expect(response.status).toBe(500);
     expect(captureException).not.toHaveBeenCalled();
+  });
+});
+
+describe("base program", () => {
+  beforeAll(async () => {
+    const publicKey = new Uint8Array();
+    const factory = exaAccountFactoryAddress;
+    await database.insert(credentials).values([
+      {
+        id: "cards-both",
+        publicKey,
+        factory,
+        account: padHex("0xca7db1", { size: 20 }),
+        pandaId: "cards-both-home",
+        otherPandaId: "cards-both-base",
+      },
+      { id: "cards-base", publicKey, factory, account: padHex("0xca7db2", { size: 20 }), otherPandaId: "cards-base" },
+      {
+        id: "cards-order",
+        publicKey,
+        factory,
+        account: padHex("0xca7db3", { size: 20 }),
+        pandaId: "cards-order-home",
+        otherPandaId: "cards-order-base",
+      },
+    ]);
+    await database.insert(cards).values([
+      { id: "ca7db000-0000-4000-8000-000000000001", credentialId: "cards-both", tenant: "OP", lastFour: "1001" },
+      { id: "ca7db000-0000-4000-8000-000000000002", credentialId: "cards-both", tenant: "BASE", lastFour: "1002" },
+      { id: "ca7db000-0000-4000-8000-000000000003", credentialId: "cards-base", tenant: "BASE", lastFour: "1003" },
+      { id: "ca7db000-0000-4000-8000-000000000004", credentialId: "cards-base", tenant: "OP", lastFour: "1004" },
+      { id: "ca7db000-0000-4000-8000-000000000005", credentialId: "cards-order", tenant: "BASE", lastFour: "1005" },
+      { id: "ca7db000-0000-4000-8000-000000000006", credentialId: "cards-order", tenant: "OP", lastFour: "1006" },
+    ]);
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it("lists cards of both programs with each program's user", async () => {
+    const homeCard = vi
+      .spyOn(programs, "getCard")
+      .mockImplementation((id) => Promise.resolve({ ...cardTemplate, id, userId: "cards-both-home" }));
+    const homeUser = vi.spyOn(programs, "getUser").mockResolvedValueOnce(userTemplate);
+    const baseCard = vi
+      .spyOn(baseProgram, "getCard")
+      .mockImplementation((id) =>
+        Promise.resolve({ ...cardTemplate, id, type: "physical", userId: "cards-both-base" }),
+      );
+    const baseUser = vi.spyOn(baseProgram, "getUser").mockResolvedValueOnce({ ...userTemplate, firstName: "Base" });
+
+    const response = await programsClient.index.$get({}, { headers: { "test-credential-id": "cards-both" } });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual([
+      { ...profile, lastFour: "1001", mode: 0, status: "ACTIVE", productId: PLATINUM_PRODUCT_ID },
+      {
+        ...profile,
+        displayName: "Base Last",
+        type: "physical",
+        lastFour: "1002",
+        mode: 0,
+        status: "ACTIVE",
+        productId: PLATINUM_PRODUCT_ID,
+      },
+    ]);
+    expect(homeUser).toHaveBeenCalledExactlyOnceWith("cards-both-home");
+    expect(baseUser).toHaveBeenCalledExactlyOnceWith("cards-both-base");
+    expect(homeCard).toHaveBeenCalledExactlyOnceWith("ca7db000-0000-4000-8000-000000000001");
+    expect(baseCard).toHaveBeenCalledExactlyOnceWith("ca7db000-0000-4000-8000-000000000002");
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("lists home program cards first", async () => {
+    vi.spyOn(programs, "getCard").mockImplementation((id) =>
+      Promise.resolve({ ...cardTemplate, id, userId: "cards-order-home" }),
+    );
+    vi.spyOn(programs, "getUser").mockResolvedValueOnce(userTemplate);
+    vi.spyOn(baseProgram, "getCard").mockImplementation((id) =>
+      Promise.resolve({ ...cardTemplate, id, userId: "cards-order-base" }),
+    );
+    vi.spyOn(baseProgram, "getUser").mockResolvedValueOnce(userTemplate);
+
+    const response = await programsClient.index.$get({}, { headers: { "test-credential-id": "cards-order" } });
+
+    expect(response.status).toBe(200);
+    const listed = (await response.json()) as { lastFour: string }[];
+    expect(listed.map(({ lastFour }) => lastFour)).toStrictEqual(["1006", "1005"]);
+  });
+
+  it("skips cards of a program the user is not on", async () => {
+    const homeCard = vi.spyOn(programs, "getCard");
+    const homeUser = vi.spyOn(programs, "getUser");
+    vi.spyOn(baseProgram, "getCard").mockImplementation((id) =>
+      Promise.resolve({ ...cardTemplate, id, userId: "cards-base" }),
+    );
+    vi.spyOn(baseProgram, "getUser").mockResolvedValueOnce(userTemplate);
+
+    const response = await programsClient.index.$get({}, { headers: { "test-credential-id": "cards-base" } });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual([
+      { ...profile, lastFour: "1003", mode: 0, status: "ACTIVE", productId: PLATINUM_PRODUCT_ID },
+    ]);
+    expect(homeUser).not.toHaveBeenCalled();
+    expect(homeCard).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 no panda when no program knows the user", async () => {
+    vi.spyOn(baseProgram, "getUser").mockRejectedValueOnce(new ServiceError("Panda", 404, "", "NotFoundError"));
+    const getCard = vi.spyOn(baseProgram, "getCard");
+
+    const response = await programsClient.index.$get({}, { headers: { "test-credential-id": "cards-base" } });
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toStrictEqual({ code: "no panda" });
+    expect(getCard).not.toHaveBeenCalled();
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(
+      expect.any(ServiceError),
+      expect.objectContaining({
+        level: "warning",
+        fingerprint: ["{{ default }}", "PandaNotFound"],
+        extra: expect.objectContaining({ pandaId: "cards-base" }) as unknown,
+      }),
+    );
   });
 });
 

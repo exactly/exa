@@ -68,6 +68,53 @@ describe("refresh", () => {
     await vi.waitFor(() => expect(redis.hexists(key("refresh"), String(chain.id))).resolves.toBe(1));
   });
 
+  it("stores positions under the user of each program", async () => {
+    const both = parse(Address, padHex("0x5679", { size: 20 }));
+    await database.insert(credentials).values({
+      id: "refresh-both",
+      publicKey: new Uint8Array(),
+      account: both,
+      factory: both,
+      pandaId: "refresh-home",
+      otherPandaId: "refresh-other",
+    });
+
+    refresh(database, redis, both, chain.id);
+
+    await vi.waitFor(() =>
+      expect(
+        Promise.all([
+          redis.hexists(key("refresh-home"), String(chain.id)),
+          redis.hexists(key("refresh-other"), String(chain.id)),
+        ]),
+      ).resolves.toStrictEqual([1, 1]),
+    );
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("stores positions under the card holder", async () => {
+    const company = parse(Address, padHex("0x567a", { size: 20 }));
+    await database.insert(credentials).values({
+      id: "refresh-company",
+      publicKey: new Uint8Array(),
+      account: company,
+      factory: company,
+      pandaId: "refresh-company",
+    });
+
+    refresh(database, redis, company, chain.id, "refresh-holder");
+
+    await vi.waitFor(() =>
+      expect(
+        Promise.all([
+          redis.hexists(key("refresh-company"), String(chain.id)),
+          redis.hexists(key("refresh-holder"), String(chain.id)),
+        ]),
+      ).resolves.toStrictEqual([1, 1]),
+    );
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
   it("skips accounts without card", async () => {
     const other = parse(Address, privateKeyToAddress(generatePrivateKey()));
     await database
@@ -78,7 +125,7 @@ describe("refresh", () => {
     refresh(database, redis, other, chain.id);
 
     await vi.waitFor(() => expect(findFirst).toHaveBeenCalledOnce());
-    await expect(findFirst.mock.results[0]?.value).resolves.toStrictEqual({ pandaId: null });
+    await expect(findFirst.mock.results[0]?.value).resolves.toStrictEqual({ otherPandaId: null, pandaId: null });
     expect(captureException).not.toHaveBeenCalled();
   });
 
