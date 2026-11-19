@@ -1,5 +1,5 @@
 import { captureException, withScope } from "@sentry/node";
-import { and, eq, isNotNull, notExists } from "drizzle-orm";
+import { and, eq, isNotNull, notExists, or } from "drizzle-orm";
 import { parse, safeParse } from "valibot";
 import { bytesToHex, encodeFunctionData, keccak256, parseAbi, toHex, zeroAddress } from "viem";
 
@@ -64,7 +64,7 @@ export default function worker({
           .from(credentials)
           .where(
             and(
-              isNotNull(credentials.pandaId),
+              or(isNotNull(credentials.pandaId), isNotNull(credentials.otherPandaId)),
               notExists(
                 database
                   .select({ id: organizations.id })
