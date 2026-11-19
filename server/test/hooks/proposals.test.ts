@@ -58,6 +58,7 @@ import publicClient from "../../utils/publicClient";
 import createManteca from "../../utils/ramps/manteca";
 import redis from "../../utils/redis";
 import wallet from "../../utils/wallet";
+import createQR from "../../workers/qr/queue";
 
 const anvil2 = activityChains.get(moonbeamDev.id);
 if (!anvil2?.smartAccount) throw new Error("missing anvil2");
@@ -84,6 +85,7 @@ vi.spyOn(redis, "zrange").mockImplementation((async (...arguments_: Parameters<t
 }) as typeof redis.zrange);
 const manteca = createManteca("manteca", "https://manteca.test");
 const persona = createPersona("persona", "https://persona.test");
+const qr = createQR(redis);
 const hook = createBlockHook({
   alchemy: createAlchemy("webhooks"),
   database,
@@ -91,6 +93,7 @@ const hook = createBlockHook({
   manteca,
   onesignal: createOnesignal('{"2f79a35c-8b11-4725-84d8-fc096f3f216e":"onesignal"}'),
   persona,
+  qr,
   redis,
   source: "indexer",
 });
@@ -318,6 +321,7 @@ describe("indexer source", () => {
       manteca,
       onesignal: createOnesignal('{"2f79a35c-8b11-4725-84d8-fc096f3f216e":"onesignal"}'),
       persona,
+      qr,
       redis,
       source: "indexer",
     });
@@ -467,6 +471,7 @@ describe("indexer source", () => {
       manteca,
       onesignal: createOnesignal('{"2f79a35c-8b11-4725-84d8-fc096f3f216e":"onesignal"}'),
       persona,
+      qr,
       redis,
       source,
     });
@@ -548,6 +553,7 @@ describe("indexer source", () => {
       manteca,
       onesignal: createOnesignal('{"2f79a35c-8b11-4725-84d8-fc096f3f216e":"onesignal"}'),
       persona,
+      qr,
       redis,
       source: "alchemy",
     });
@@ -605,6 +611,7 @@ describe("indexer source", () => {
       manteca,
       onesignal: createOnesignal('{"2f79a35c-8b11-4725-84d8-fc096f3f216e":"onesignal"}'),
       persona,
+      qr,
       redis,
       source: "indexer",
     });
@@ -654,6 +661,7 @@ describe("indexer source", () => {
       manteca,
       onesignal: createOnesignal('{"2f79a35c-8b11-4725-84d8-fc096f3f216e":"onesignal"}'),
       persona,
+      qr,
       redis,
       source: "indexer",
     });

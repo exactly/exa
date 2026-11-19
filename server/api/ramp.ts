@@ -5,6 +5,7 @@ import { describeRoute } from "hono-openapi";
 import { resolver, validator as vValidator } from "hono-openapi/valibot";
 import {
   array,
+  digits,
   is,
   literal,
   nonEmpty,
@@ -52,7 +53,9 @@ import type { Auth } from "../middleware/auth";
 import type createPersona from "../utils/persona";
 import type createBridge from "../utils/ramps/bridge";
 import type createManteca from "../utils/ramps/manteca";
+import type createQR from "../workers/qr/queue";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Redis } from "ioredis";
 
 const ErrorCodes = {
   EXTERNAL_ACCOUNT_ALREADY_EXISTS: "external account already exists",
@@ -79,12 +82,16 @@ export default function route({
   database,
   manteca,
   persona,
+  qr,
+  redis,
 }: {
   auth: Auth;
   bridge: ReturnType<typeof createBridge>;
   database: NodePgDatabase<typeof schema>;
   manteca: ReturnType<typeof createManteca>;
   persona: ReturnType<typeof createPersona>;
+  qr: ReturnType<typeof createQR>;
+  redis: Redis;
 }) {
   return new Hono()
     .get(
@@ -604,7 +611,8 @@ The locked payment charges \`amount\` USDC for \`assetAmount\` in \`asset\`, the
           columns: { account: true },
         });
         if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
-        setUser({ id: parse(Address, credential.account) });
+        const account = parse(Address, credential.account);
+        setUser({ id: account });
 
         const personaAccount = await persona.getAccount(credentialId, "basic").catch((error: unknown) => {
           if (error instanceof ValiError && error.issues.every((issue: BaseIssue<unknown>) => isMissingOrNull(issue))) {
@@ -635,6 +643,17 @@ The locked payment charges \`amount\` USDC for \`assetAmount\` in \`asset\`, the
           }
           if (!lock.code) return c.json({ recipient: lock.paymentRecipientName, asset }, 206);
           if (!lock.sender) throw new Error("lock without sender");
+          await redis.set(
+            `qr:${lock.code}`,
+            JSON.stringify({
+              account,
+              amount: lock.paymentAgainstAmount,
+              asset: lock.paymentAsset,
+              expireAt: lock.expireAt,
+            }),
+            "EX",
+            8 * 24 * 60 * 60,
+          );
           return c.json(
             {
               code: lock.code,
@@ -667,7 +686,7 @@ The locked payment charges \`amount\` USDC for \`assetAmount\` in \`asset\`, the
         description: `
 Retrieve the status of the QR payment made by the user operation \`userOpHash\` of the authenticated user.
 
-Returns the synthetic of the payment once the server executed it, \`FAILED\` when the user operation reverted, or \`EXPIRED\` when the lock expired before the execution.
+Returns the synthetic of the payment once the server executed it, or \`FAILED\` when the user operation reverted. When the lock expired before the execution or the merchant cancelled the synthetic, the server refunds to the account the USDC that went to the ARS settlement, less the withdraw cost when the user pays the gas, and returns \`REFUNDING\` while the refund is pending, \`REFUNDED\` once it is sent, or \`EXPIRED\` if it is cancelled. When nothing is refunded, like for a payment to the BRL settlement or one that doesn't cover the withdraw cost, it returns the cancelled synthetic, or \`EXPIRED\` when the lock expired.
         `,
         tags: ["QR"],
         security: [{ credentialAuth: [] }],
@@ -721,10 +740,33 @@ Returns the synthetic of the payment once the server executed it, \`FAILED\` whe
         if (!operation.success) return c.json({ status: "FAILED" } satisfies InferOutput<typeof QRPayment>, 200);
         const lock = await manteca.getPaymentLock(code);
         const synthetic = await manteca.getSynthetic(userOpHash);
-        if (synthetic) {
+        if (synthetic && synthetic.status !== "CANCELLED") {
           return c.json({ id: synthetic.id, status: synthetic.status } satisfies InferOutput<typeof QRPayment>, 200);
         }
-        if (lock === null) return c.json({ status: "EXPIRED" } satisfies InferOutput<typeof QRPayment>, 200);
+        if (!lock || synthetic) {
+          const refund = await manteca.getQRRefund(userOpHash);
+          if (refund) {
+            return c.json({ status: RefundStatus[refund.status] } satisfies InferOutput<typeof QRPayment>, 200);
+          }
+          const check = await qr.getJob(userOpHash);
+          const pending =
+            check &&
+            !check.finishedOn &&
+            safeParse(Manteca.QRRecord, await redis.get(`qr:${code}`)).success &&
+            (is(object({ amount: pipe(string(), digits()) }), check.data)
+              ? BigInt(check.data.amount) > 0n
+              : await manteca
+                  .getSettlements()
+                  .then(({ ARS }) =>
+                    parse(object({ withdraws: array(object({ receiver: Address })) }), check.data).withdraws.some(
+                      ({ receiver }) => receiver === ARS,
+                    ),
+                  ));
+          if (synthetic && !pending) {
+            return c.json({ id: synthetic.id, status: synthetic.status } satisfies InferOutput<typeof QRPayment>, 200);
+          }
+          return c.json({ status: pending ? "REFUNDING" : "EXPIRED" } satisfies InferOutput<typeof QRPayment>, 200);
+        }
         return c.json({ code: ErrorCodes.PAYMENT_NOT_EXECUTED }, 404);
       },
     )
@@ -882,8 +924,10 @@ const QRLock = object({
 
 const QRPayment = union([
   object({ id: string(), status: picklist(Manteca.SyntheticStatus) }),
-  object({ status: picklist(["EXPIRED", "FAILED"]) }),
+  object({ status: picklist(["EXPIRED", "FAILED", "REFUNDING", "REFUNDED"]) }),
 ]);
+
+const RefundStatus = { PENDING: "REFUNDING", EXECUTED: "REFUNDED", CANCELLED: "EXPIRED" } as const;
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const RampResponse = object({
