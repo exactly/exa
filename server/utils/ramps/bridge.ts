@@ -1406,7 +1406,9 @@ export default function bridge(key: string, url: string) {
             } = await persona.getUnknownAccount(params.credentialId);
             const countryCode = account?.attributes["country-code"];
             if (countryCode && Denylist.has(countryCode)) throw new Error(ErrorCodes.DENYLISTED_COUNTRY);
-            if (account?.attributes.fields?.bridge_enable?.value !== true) throw new Error(ErrorCodes.NOT_ENABLED);
+            if (account?.attributes.fields?.bridge_enable?.value !== true) {
+              throw new Error(ErrorCodes.NOT_ENABLED, { cause: ErrorCodes.MISSING_FIELDS });
+            }
             throw new Error(ErrorCodes.MISSING_FIELDS);
           }
           throw error;

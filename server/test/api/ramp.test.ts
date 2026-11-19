@@ -1306,6 +1306,7 @@ describe("ramp api", () => {
 
       it("returns 400 when bridge is not enabled", async () => {
         vi.spyOn(bridge, "onboarding").mockRejectedValue(new Error(bridge.ErrorCodes.NOT_ENABLED));
+        vi.spyOn(persona, "getLatestInquiry");
 
         const response = await appClient.index.$post(
           { json: { provider: "bridge", acceptedTermsId: "terms_123" } },
@@ -1314,6 +1315,46 @@ describe("ramp api", () => {
 
         expect(response.status).toBe(400);
         await expect(response.json()).resolves.toStrictEqual({ code: "not enabled" });
+        expect(persona.getLatestInquiry).not.toHaveBeenCalled();
+      });
+
+      it("returns 400 when bridge is not enabled and persona fails", async () => {
+        const notEnabled = new Error(bridge.ErrorCodes.NOT_ENABLED, { cause: bridge.ErrorCodes.MISSING_FIELDS });
+        const personaError = new Error("persona unavailable");
+        vi.spyOn(bridge, "onboarding").mockRejectedValue(notEnabled);
+        vi.spyOn(persona, "getLatestInquiry").mockRejectedValue(personaError);
+
+        const response = await appClient.index.$post(
+          { json: { provider: "bridge", acceptedTermsId: "terms_123" } },
+          { headers: { "test-credential-id": "ramp-bridge" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code: "not enabled" });
+        const context = {
+          level: "error",
+          contexts: { credential: expect.objectContaining(bridgeCredential) as unknown },
+        };
+        expect(vi.mocked(captureException).mock.calls).toStrictEqual([
+          [personaError, context],
+          [notEnabled, context],
+        ]);
+      });
+
+      it("fails when fields are missing and persona fails", async () => {
+        vi.spyOn(bridge, "onboarding").mockRejectedValue(new Error(bridge.ErrorCodes.MISSING_FIELDS));
+        vi.spyOn(persona, "getLatestInquiry").mockRejectedValue(new Error("persona unavailable"));
+        vi.spyOn(persona, "createInquiry");
+        vi.spyOn(persona, "resumeInquiry");
+
+        const response = await appClient.index.$post(
+          { json: { provider: "bridge", acceptedTermsId: "terms_123" } },
+          { headers: { "test-credential-id": "ramp-bridge" } },
+        );
+
+        expect(response.status).toBe(500);
+        expect(persona.createInquiry).not.toHaveBeenCalled();
+        expect(persona.resumeInquiry).not.toHaveBeenCalled();
       });
 
       it("returns 400 with new inquiry for invalid address when no existing inquiry", async () => {
@@ -1458,6 +1499,34 @@ describe("ramp api", () => {
           sessionToken: "token_addr_fresh",
         });
         expect(persona.createInquiry).toHaveBeenCalledTimes(1);
+      });
+
+      it.each([
+        new Error(bridge.ErrorCodes.MISSING_FIELDS),
+        new Error(bridge.ErrorCodes.NOT_ENABLED, { cause: bridge.ErrorCodes.MISSING_FIELDS }),
+      ])("returns pending for $message while persona updates the account", async (error) => {
+        vi.spyOn(bridge, "onboarding").mockRejectedValue(error);
+        vi.spyOn(persona, "getLatestInquiry").mockResolvedValue({
+          id: "inq_basic",
+          type: "inquiry" as const,
+          attributes: {
+            status: "approved",
+            "reference-id": "ramp-test",
+            "decisioned-at": new Date(Date.now() - 120_000).toISOString(),
+          },
+        });
+        vi.spyOn(persona, "createInquiry");
+
+        const response = await appClient.index.$post(
+          { json: { provider: "bridge", acceptedTermsId: "terms_123" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({ code: "pending" });
+        expect(persona.getLatestInquiry).toHaveBeenCalledExactlyOnceWith("ramp-test", persona.PANDA_TEMPLATE);
+        expect(persona.createInquiry).not.toHaveBeenCalled();
+        expect(captureException).not.toHaveBeenCalled();
       });
 
       it.each(["approved", "failed"] as const)(

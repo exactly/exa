@@ -2957,7 +2957,7 @@ describe("bridge utils", () => {
           customerId: null,
           acceptedTermsId: "terms-1",
         }),
-      ).rejects.toThrow(bridge.ErrorCodes.NOT_ENABLED);
+      ).rejects.toMatchObject({ message: bridge.ErrorCodes.NOT_ENABLED, cause: bridge.ErrorCodes.MISSING_FIELDS });
       expect(fetchSpy).toHaveBeenCalledTimes(2);
       expect(captureException).not.toHaveBeenCalled();
     });
@@ -3000,7 +3000,7 @@ describe("bridge utils", () => {
           customerId: null,
           acceptedTermsId: "terms-1",
         }),
-      ).rejects.toThrow(bridge.ErrorCodes.NOT_ENABLED);
+      ).rejects.toMatchObject({ message: bridge.ErrorCodes.NOT_ENABLED, cause: bridge.ErrorCodes.MISSING_FIELDS });
       expect(fetchSpy).toHaveBeenCalledTimes(2);
       expect(captureException).not.toHaveBeenCalled();
     });

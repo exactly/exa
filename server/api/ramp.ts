@@ -31,7 +31,13 @@ import { canRetry } from "./kyc";
 import { credentials } from "../database/schema";
 import findOperation from "../utils/findOperation";
 import { BusinessApplicationError } from "../utils/panda";
-import { ADDRESS_TEMPLATE, isMissingOrNull, MANTECA_TEMPLATE_EXTRA_FIELDS, PANDA_TEMPLATE } from "../utils/persona";
+import {
+  ADDRESS_TEMPLATE,
+  isMissingOrNull,
+  MANTECA_TEMPLATE_EXTRA_FIELDS,
+  PANDA_TEMPLATE,
+  syncing,
+} from "../utils/persona";
 import * as Bridge from "../utils/ramps/bridge";
 import * as Manteca from "../utils/ramps/manteca";
 import ServiceError from "../utils/ServiceError";
@@ -402,6 +408,18 @@ export default function route({
               );
             } catch (error) {
               if (error instanceof BusinessApplicationError) return c.json({ code: error.code }, 400);
+              const inquiry =
+                error instanceof Error &&
+                (error.message === Bridge.ErrorCodes.MISSING_FIELDS ||
+                  (error.message === Bridge.ErrorCodes.NOT_ENABLED && error.cause === Bridge.ErrorCodes.MISSING_FIELDS))
+                  ? await persona
+                      .getLatestInquiry(credentialId, PANDA_TEMPLATE)
+                      .catch((personaError: unknown): undefined => {
+                        if (error.message !== Bridge.ErrorCodes.NOT_ENABLED) throw personaError;
+                        captureException(personaError, { level: "error", contexts: { credential } });
+                      })
+                  : undefined;
+              if (syncing(inquiry)) return c.json({ code: "pending" }, 200);
               if (!(error instanceof Error && error.message === Bridge.ErrorCodes.MISSING_FIELDS)) {
                 captureException(error, { level: "error", contexts: { credential } });
               }
@@ -426,7 +444,6 @@ export default function route({
                     return c.json({ code: error.message, inquiryId, sessionToken }, 400);
                   }
                   case Bridge.ErrorCodes.MISSING_FIELDS: {
-                    const inquiry = await persona.getLatestInquiry(credentialId, PANDA_TEMPLATE);
                     if (inquiry?.attributes.status === "completed" || inquiry?.attributes.status === "needs_review") {
                       return c.json({ code: "pending" }, 200);
                     }
