@@ -1,5 +1,16 @@
 # @exactly/mobile
 
+## 1.2.58
+
+### Patch Changes
+
+- [#2037](https://github.com/exactly/exa/pull/2037) [`538998a`](https://github.com/exactly/exa/commit/538998a20d327c75b9886dd6214b76f091c61d57) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 🛂 allow passkeys on business tenants
+
+- [#2017](https://github.com/exactly/exa/pull/2017) [`3dbaa09`](https://github.com/exactly/exa/commit/3dbaa09e83734e9b7dd3289679f2f2d39af35b6c) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 translate bank deposit times
+
+- Updated dependencies [[`09c5fc8`](https://github.com/exactly/exa/commit/09c5fc8d3fb394bdcc73a8e65b1b53b2dfce75ce)]:
+  - @exactly/server@0.4.1
+
 ## 1.2.57
 
 ### Patch Changes

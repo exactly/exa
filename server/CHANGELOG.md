@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.4.1
+
+### Patch Changes
+
+- [#2005](https://github.com/exactly/exa/pull/2005) [`09c5fc8`](https://github.com/exactly/exa/commit/09c5fc8d3fb394bdcc73a8e65b1b53b2dfce75ce) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix bank deposit times
+
 ## 0.4.0
 
 ### Minor Changes
