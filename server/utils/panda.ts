@@ -44,9 +44,9 @@ import {
   type InferOutput,
 } from "valibot";
 import { recoverTypedDataAddress, withRetry, type LocalAccount } from "viem";
-import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
+import { anvil, base, baseSepolia, moonbeamDev, optimism, optimismSepolia } from "viem/chains";
 
-import chain, { isBase, issuerCheckerAddress, usdcAddress } from "@exactly/common/generated/chain";
+import chain, { isBase, issuerCheckerAddress } from "@exactly/common/generated/chain";
 import {
   BASE_PRODUCT_ID,
   CLASSIC_PRODUCT_ID,
@@ -71,6 +71,7 @@ export const served = (): Tenant[] => (isBase ? [home()] : [home(), other()]);
 
 export function programChain(tenant: Tenant) {
   if (tenant === home()) return chain.id;
+  if (chain.id === anvil.id) return moonbeamDev.id;
   if (tenant === "BASE") return chain.testnet ? baseSepolia.id : base.id;
   return chain.testnet ? optimismSepolia.id : optimism.id;
 }
@@ -360,17 +361,17 @@ function connect({ key, url }: { key: string; url: string }, network = () => cha
       client.get(`/webhooks/${id}`),
     );
   }
-  async function getWithdrawal(amount: number, recipient: Address, admin: Address) {
+  async function getWithdrawal(amount: number, recipient: Address, admin: Address, chainId: number, token: Address) {
     return await request(
       Withdrawal,
       "tenant",
       client.get("/tenants/signatures/withdrawals", {
         query: {
-          token: parse(Address, chain.testnet ? "0x29684075a3C86ea11D9964BcAf0F956e801396bD" : usdcAddress),
+          token,
           amount,
           recipientAddress: recipient,
           adminAddress: admin,
-          chainId: chain.id,
+          chainId,
         },
       }),
     );
