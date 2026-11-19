@@ -129,8 +129,10 @@ export default defineConfig([
             .filter((address) => address.slice(0, 5).toLowerCase() === "0xb20")
             .map((address) => address.toLowerCase());
           if (stocks.length === 0) throw new Error("missing stocks");
-          const networkConfig: Record<string, undefined | { network: string; slug: string; testnet?: boolean }> =
-            alchemyNetworks;
+          const networkConfig: Record<
+            string,
+            undefined | { network: string; slug: string; testnet?: boolean; webhooks?: boolean }
+          > = alchemyNetworks;
           const slugs = Object.fromEntries(
             Object.entries(networkConfig).flatMap(([id, config]) => (config ? [[id, config.slug]] : [])),
           ) as Record<number, string | undefined>;
@@ -238,6 +240,22 @@ export default defineConfig([
             );
             allowlists[moonbeamDev.id] = { "0x345108DA76464B8115ABcDBf0E8C969c470aE02c": "USDC.e" };
           }
+          const activityChains = alchemyChains.flatMap(({ id }) =>
+            (
+              chain
+                ? networkConfig[id]?.webhooks &&
+                  Boolean(networkConfig[id].testnet) === testnet &&
+                  (!testnet ||
+                    sameSide.some(([current]) => current.id === id) ||
+                    factoryChains.some((current) => current.id === id))
+                : id === anvil.id || id === moonbeamDev.id
+            )
+              ? [[id, {}] as const]
+              : [],
+          );
+          for (const { id } of factoryChains) {
+            if (!activityChains.some(([current]) => current === id)) throw new Error(`missing activity chain ${id}`);
+          }
           const source = alchemyChains.find(({ id }) => id === chainId)?.source;
           if (chain && !source) throw new Error("missing alchemy chain");
           function chainMap(entries: readonly (readonly [number, Record<string, unknown>])[]) {
@@ -315,6 +333,7 @@ export default defineConfig([
                     `chain.contracts = { multicall3: { address: "${optimism.contracts.multicall3.address}" } }`,
                     'chain.blockExplorers = { default: { name: "Otterscan", url: "http://localhost:5100" } }',
                   ]),
+              `export const activityChains: ReadonlyMap<number, AlchemyChain> = ${chainMap(activityChains)}`,
               `export const alchemyChains: ReadonlyMap<number, AlchemyChain> = new Map<number, AlchemyChain>([${alchemyChains
                 .map(({ id, source: s }) => `[${id}, ${id === chainId ? "chain" : s}]`)
                 .join(", ")}])`,
