@@ -220,6 +220,35 @@ describe("authentication", () => {
     );
   });
 
+  it.each([
+    ["cross-platform", { "client-platform": "ios" }, [{ name: "passkey_attachment", value: "cross-platform" }], "ios"],
+    ["unknown", {}, [], "web"],
+  ])("tags a %s authenticator attachment on login", async (attachment, headers, extra, platform) => {
+    const response = await appClient.index.$post(
+      {
+        json: {
+          method: "webauthn",
+          id: "dGVzdC1jcmVkLWlk",
+          rawId: "dGVzdC1jcmVkLWlk",
+          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
+          authenticatorAttachment: attachment as "cross-platform",
+          clientExtensionResults: {},
+          type: "public-key",
+        },
+      },
+      { headers: { cookie: "session_id=test-session", origin: consumer, ...headers } },
+    );
+
+    expect(response.status).toBe(200);
+    expect(sardineCustomer.mock.calls[0]?.[0].customer?.tags).toStrictEqual([
+      { name: "auth_method", value: "webauthn", type: "string" },
+      ...passkeyTags.slice(0, 3),
+      ...extra.map((tag) => ({ ...tag, type: "string" })),
+      { name: "app_platform", value: platform, type: "string" },
+      ...passkeyTags.slice(4),
+    ]);
+  });
+
   it("returns intercom token on successful login", async () => {
     const response = await appClient.index.$post(
       {
@@ -253,7 +282,10 @@ describe("authentication", () => {
       flow: { name: "login", type: "login" },
       sessionKey,
       checkpoints: ["login"],
-      customer: { id: "dGVzdC1jcmVkLWlk", tags: [{ name: "auth_method", value: "webauthn", type: "string" }] },
+      customer: {
+        id: "dGVzdC1jcmVkLWlk",
+        tags: [{ name: "auth_method", value: "webauthn", type: "string" }, ...passkeyTags],
+      },
       device: { ip: "203.0.113.42" },
     });
     await vi.waitFor(() => expect(redis.get(session("dGVzdC1jcmVkLWlk"))).resolves.toBe(sessionKey));
@@ -304,7 +336,7 @@ describe("authentication", () => {
       checkpoints: ["login"],
       customer: {
         id: "dGVzdC1jcmVkLWlk",
-        tags: [{ name: "auth_method", value: "webauthn", type: "string" }],
+        tags: [{ name: "auth_method", value: "webauthn", type: "string" }, ...passkeyTags],
       },
     });
     await expect(redis.get(session("dGVzdC1jcmVkLWlk")).then((key) => key === sessionKey)).resolves.toBe(stored);
@@ -1497,6 +1529,7 @@ describe("registration", () => {
         tags: [
           { name: "source", value: "12345", type: "string" },
           { name: "auth_method", value: "webauthn", type: "string" },
+          ...signupTags,
         ],
       },
       device: { ip, ...signals },
@@ -1534,6 +1567,7 @@ describe("registration", () => {
         tags: [
           { name: "source", value: "EXA", type: "string" },
           { name: "auth_method", value: "webauthn", type: "string" },
+          ...signupTags,
         ],
       },
       ...device,
@@ -1698,6 +1732,7 @@ describe("registration", () => {
           tags: [
             { name: "source", value: "EXA", type: "string" },
             { name: "auth_method", value: "webauthn", type: "string" },
+            ...signupTags,
           ],
         },
       }),
@@ -1777,22 +1812,48 @@ describe("registration", () => {
   });
 });
 
+const passkeyTags = [
+  { name: "passkey_backed_up", value: "true", type: "string" },
+  { name: "passkey_device_type", value: "multiDevice", type: "string" },
+  { name: "passkey_user_verified", value: "true", type: "string" },
+  { name: "app_platform", value: "web", type: "string" },
+  { name: "rp_id", value: "localhost", type: "string" },
+];
+
+const signupTags = [
+  ...passkeyTags.slice(0, 3),
+  { name: "passkey_aaguid", value: "ea9b8d66-4d01-1d21-3ce4-b6b48cb575d4", type: "string" },
+  { name: "passkey_transports", value: "hybrid,internal", type: "string" },
+  ...passkeyTags.slice(3),
+];
+
 vi.mock("@simplewebauthn/server", async (importOriginal) => {
   const actual = await importOriginal<typeof SimpleWebAuthn>();
   return {
     ...actual,
-    verifyAuthenticationResponse: vi
-      .fn<() => Promise<{ authenticationInfo: { credentialID: string }; verified: boolean }>>()
-      .mockResolvedValue({
-        verified: true,
-        authenticationInfo: { credentialID: "dGVzdC1jcmVkLWlk" },
-      }),
+    verifyAuthenticationResponse: vi.fn<typeof actual.verifyAuthenticationResponse>().mockResolvedValue({
+      verified: true,
+      authenticationInfo: {
+        credentialID: "dGVzdC1jcmVkLWlk",
+        newCounter: 0,
+        userVerified: true,
+        credentialDeviceType: "multiDevice",
+        credentialBackedUp: true,
+        origin: "http://localhost",
+        rpID: "localhost",
+      },
+    }),
     verifyRegistrationResponse: vi
       .fn<
         (options: { response: { id: string } }) => Promise<{
           registrationInfo: {
+            aaguid: string;
             credential: { id: string; publicKey: Uint8Array; transports: string[] };
+            credentialBackedUp: boolean;
             credentialDeviceType: string;
+            origin: string;
+            rpID: string;
+            userVerified: boolean;
           };
           verified: boolean;
         }>
@@ -1801,12 +1862,17 @@ vi.mock("@simplewebauthn/server", async (importOriginal) => {
         Promise.resolve({
           verified: true,
           registrationInfo: {
+            aaguid: "ea9b8d66-4d01-1d21-3ce4-b6b48cb575d4",
             credential: {
               id: options.response.id,
               publicKey: new Uint8Array(65),
-              transports: ["internal"],
+              transports: ["internal", "hybrid"],
             },
+            credentialBackedUp: true,
             credentialDeviceType: "multiDevice",
+            origin: "http://localhost",
+            rpID: "localhost",
+            userVerified: true,
           },
         }),
       ),

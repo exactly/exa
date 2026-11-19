@@ -14,7 +14,7 @@ import decodePublicKey from "./decodePublicKey";
 import { session, SESSION_TTL, signals } from "./sardine";
 import { credentials } from "../database/schema";
 
-import type { IpAddress } from "./sardine";
+import type { IpAddress, passkey } from "./sardine";
 import type createSardine from "./sardine";
 import type createSegment from "./segment";
 import type * as schema from "../database/schema";
@@ -42,7 +42,14 @@ export default function createCredential({
   return async function credential<C extends string>(
     c: Context,
     credentialId: C,
-    options?: { factory?: Address; ip?: IpAddress; salt?: Address; source?: string; webauthn?: WebAuthnCredential },
+    options?: {
+      factory?: Address;
+      ip?: IpAddress;
+      salt?: Address;
+      source?: string;
+      tags?: ReturnType<typeof passkey>;
+      webauthn?: WebAuthnCredential;
+    },
   ) {
     const factory = options?.factory ?? exaAccountFactoryAddress;
     const publicKey =
@@ -86,6 +93,7 @@ export default function createCredential({
             tags: [
               { name: "source", value: options?.source ?? "EXA", type: "string" },
               { name: "auth_method", value: isAddress(credentialId) ? "siwe" : "webauthn", type: "string" },
+              ...(options?.tags ?? []),
             ],
           },
           ...(device && { device }),

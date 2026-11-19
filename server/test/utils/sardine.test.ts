@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import domain from "@exactly/common/domain";
 
-import createSardine, { cryptoNetwork } from "../../utils/sardine";
+import createSardine, { cryptoNetwork, passkey } from "../../utils/sardine";
 
 const sardine = createSardine("key:secret", "https://sardine.test");
 
@@ -194,5 +194,47 @@ describe("sardine", () => {
     ["ANVIL", undefined],
   ])("maps %s to a sardine network", (alchemy, network) => {
     expect(cryptoNetwork(alchemy)).toBe(network);
+  });
+
+  it("tags a device-bound android passkey without optional details", () => {
+    expect(
+      passkey({
+        credentialBackedUp: false,
+        credentialDeviceType: "singleDevice",
+        origin: "android:apk-key-hash:abc",
+        transports: [],
+        userVerified: false,
+      }),
+    ).toStrictEqual([
+      { name: "passkey_backed_up", value: "false", type: "string" },
+      { name: "passkey_device_type", value: "singleDevice", type: "string" },
+      { name: "passkey_user_verified", value: "false", type: "string" },
+      { name: "app_platform", value: "android", type: "string" },
+    ]);
+  });
+
+  it("tags a roaming ios passkey with every detail", () => {
+    expect(
+      passkey({
+        aaguid: "ea9b8d66-4d01-1d21-3ce4-b6b48cb575d4",
+        attachment: "cross-platform",
+        credentialBackedUp: true,
+        credentialDeviceType: "multiDevice",
+        origin: "https://web.exactly.app",
+        platform: "ios",
+        rpID: "exactly.app",
+        transports: ["internal", "hybrid"],
+        userVerified: true,
+      }),
+    ).toStrictEqual([
+      { name: "passkey_backed_up", value: "true", type: "string" },
+      { name: "passkey_device_type", value: "multiDevice", type: "string" },
+      { name: "passkey_user_verified", value: "true", type: "string" },
+      { name: "passkey_attachment", value: "cross-platform", type: "string" },
+      { name: "passkey_aaguid", value: "ea9b8d66-4d01-1d21-3ce4-b6b48cb575d4", type: "string" },
+      { name: "passkey_transports", value: "hybrid,internal", type: "string" },
+      { name: "app_platform", value: "ios", type: "string" },
+      { name: "rp_id", value: "exactly.app", type: "string" },
+    ]);
   });
 });

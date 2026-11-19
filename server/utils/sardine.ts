@@ -91,6 +91,45 @@ export function signals(c: Context, address?: IpAddress) {
     : undefined;
 }
 
+export function passkey({
+  aaguid,
+  attachment,
+  credentialBackedUp,
+  credentialDeviceType,
+  origin,
+  platform,
+  rpID,
+  transports,
+  userVerified,
+}: {
+  aaguid?: string;
+  attachment?: string;
+  credentialBackedUp: boolean;
+  credentialDeviceType: string;
+  origin: string;
+  platform?: string;
+  rpID?: string;
+  transports?: string[];
+  userVerified: boolean;
+}) {
+  return [
+    { name: "passkey_backed_up", value: String(credentialBackedUp), type: "string" },
+    { name: "passkey_device_type", value: credentialDeviceType, type: "string" },
+    { name: "passkey_user_verified", value: String(userVerified), type: "string" },
+    ...(attachment ? [{ name: "passkey_attachment", value: attachment, type: "string" } as const] : []),
+    ...(aaguid ? [{ name: "passkey_aaguid", value: aaguid, type: "string" } as const] : []),
+    ...(transports?.length
+      ? [{ name: "passkey_transports", value: transports.toSorted().join(","), type: "string" } as const]
+      : []),
+    {
+      name: "app_platform",
+      value: platform === "ios" ? "ios" : origin.startsWith("android:") ? "android" : "web",
+      type: "string",
+    },
+    ...(rpID ? [{ name: "rp_id", value: rpID, type: "string" } as const] : []),
+  ] satisfies Tag[];
+}
+
 export function ramp(
   provider: "bridge" | "manteca",
   kind: "offramp" | "onramp",
@@ -345,6 +384,8 @@ const CustomerRequest = object({
     }),
   ),
 });
+
+type Tag = NonNullable<NonNullable<InferInput<typeof CustomerRequest>["customer"]>["tags"]>[number];
 
 const Level = picklist(["very_high", "high", "medium", "low", "unknown"]);
 

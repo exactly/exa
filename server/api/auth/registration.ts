@@ -24,6 +24,7 @@ import {
   number,
   object,
   optional,
+  picklist,
   pipe,
   record,
   string,
@@ -46,7 +47,7 @@ import { Authentication } from "./authentication";
 import androidOrigins from "../../utils/android/origins";
 import { origin, origins } from "../../utils/appOrigin";
 import publicClient from "../../utils/publicClient";
-import { IpAddress } from "../../utils/sardine";
+import { IpAddress, passkey } from "../../utils/sardine";
 import validatorHook from "../../utils/validatorHook";
 import validFactories from "../../utils/validFactories";
 
@@ -339,6 +340,11 @@ export default function route({
                   array(pipe(string(), title("Transport methods"), description("How the authenticator can be used."))),
                 ),
               }),
+              authenticatorAttachment: pipe(
+                fallback(optional(picklist(["platform", "cross-platform"])), () => undefined),
+                title("Authenticator attachment"),
+                description("Whether the authenticator is built into the device or roams from another one."),
+              ),
               clientExtensionResults: pipe(
                 any(),
                 title("Extension results"),
@@ -367,6 +373,7 @@ export default function route({
         if (!challenge) return c.json({ code: "no registration", legacy: "no registration" }, 400);
 
         let webauthn: undefined | WebAuthnCredential;
+        let tags: ReturnType<typeof passkey> = [];
         try {
           switch (attestation.method) {
             case "siwe": {
@@ -414,6 +421,12 @@ export default function route({
                 return c.json({ code: "backup eligibility required", legacy: "backup eligibility required" }, 400);
               }
               webauthn = credential;
+              tags = passkey({
+                ...registrationInfo,
+                attachment: attestation.authenticatorAttachment,
+                platform: headers?.["client-platform"],
+                transports: credential.transports,
+              });
             }
           }
         } catch (error) {
@@ -427,6 +440,7 @@ export default function route({
             webauthn,
             source: headers?.["client-fid"],
             ip: headers?.["do-connecting-ip"],
+            tags,
             ...(business &&
               headers?.origin &&
               Object.hasOwn(tenants, headers.origin) && { salt: tenants[headers.origin] }),

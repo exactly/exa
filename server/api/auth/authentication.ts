@@ -49,7 +49,7 @@ import androidOrigins from "../../utils/android/origins";
 import { origin, origins } from "../../utils/appOrigin";
 import decodePublicKey from "../../utils/decodePublicKey";
 import publicClient from "../../utils/publicClient";
-import { IpAddress, session, SESSION_TTL, signals } from "../../utils/sardine";
+import { IpAddress, passkey, session, SESSION_TTL, signals } from "../../utils/sardine";
 import validatorHook from "../../utils/validatorHook";
 import validFactories from "../../utils/validFactories";
 
@@ -353,6 +353,11 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
                   pipe(Base64URL, title("User handle"), description("Optional identifier for the user.")),
                 ),
               }),
+              authenticatorAttachment: pipe(
+                fallback(optional(picklist(["platform", "cross-platform"])), () => undefined),
+                title("Authenticator attachment"),
+                description("Whether the authenticator is built into the device or roams from another one."),
+              ),
               clientExtensionResults: pipe(
                 any(),
                 title("Extension results"),
@@ -448,6 +453,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
         setUser({ id: parse(Address, credential.account) });
 
         let rp: string | undefined;
+        let tags: ReturnType<typeof passkey> = [];
         try {
           switch (assertion.method) {
             case "siwe": {
@@ -488,6 +494,11 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
                 return c.json({ code: "bad authentication", legacy: "bad authentication" }, 400);
               }
               rp = authenticationInfo.rpID;
+              tags = passkey({
+                ...authenticationInfo,
+                attachment: assertion.authenticatorAttachment,
+                platform: headers?.["client-platform"],
+              });
             }
           }
         } catch (error) {
@@ -505,7 +516,10 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
             checkpoints: ["login"],
             customer: {
               id: assertion.id,
-              tags: [{ name: "auth_method", value: assertion.method === "siwe" ? "siwe" : "webauthn", type: "string" }],
+              tags: [
+                { name: "auth_method", value: assertion.method === "siwe" ? "siwe" : "webauthn", type: "string" },
+                ...tags,
+              ],
             },
             ...(device && { device }),
           }),
