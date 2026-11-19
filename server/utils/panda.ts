@@ -41,11 +41,12 @@ import {
   type BaseIssue,
   type BaseSchema,
   type InferInput,
+  type InferOutput,
 } from "valibot";
 import { recoverTypedDataAddress, withRetry, type LocalAccount } from "viem";
 import { base, baseSepolia, optimismSepolia } from "viem/chains";
 
-import chain, { issuerCheckerAddress, usdcAddress } from "@exactly/common/generated/chain";
+import chain, { isBase, issuerCheckerAddress, usdcAddress } from "@exactly/common/generated/chain";
 import {
   BASE_PRODUCT_ID,
   CLASSIC_PRODUCT_ID,
@@ -57,8 +58,46 @@ import { Address, Hex } from "@exactly/common/validation";
 import { accounts, proposalManager } from "@exactly/plugin/deploy.json";
 
 import ServiceError from "./ServiceError";
+import { cards } from "../database/schema";
 
-export default function panda({ key, url }: { key: string; url: string }) {
+export const Tenant = picklist(cards.tenant.enumValues);
+export type Tenant = InferOutput<typeof Tenant>;
+
+export const home = (): Tenant => (isBase ? "BASE" : "OP");
+
+export const other = (): Tenant => (isBase ? "OP" : "BASE");
+
+export default function panda(config: { key: string; url: string }, baseConfig?: { key: string; url: string }) {
+  const remote = baseConfig && !isBase ? connect(baseConfig) : undefined;
+  return Object.assign(connect(config), {
+    tenants: (): Tenant[] => (remote ? [home(), other()] : [home()]),
+    program(this: ReturnType<typeof connect>, target: Tenant) {
+      if (target === home()) return this;
+      if (!remote) throw new Error(`no ${target} program`);
+      return remote;
+    },
+  });
+}
+
+export function pandaUser(credential: { otherPandaId: null | string; pandaId: null | string }, target: Tenant) {
+  return target === home() ? credential.pandaId : credential.otherPandaId;
+}
+
+export function homeFirst<T extends { tenant: Tenant }>(owned: readonly T[]) {
+  return owned.toSorted((a, b) => Number(b.tenant === home()) - Number(a.tenant === home()));
+}
+
+export function pickCard<T extends { tenant: Tenant }>(
+  credential: { otherPandaId: null | string; pandaId: null | string },
+  owned: readonly T[],
+) {
+  for (const card of homeFirst(owned)) {
+    const pandaId = pandaUser(credential, card.tenant);
+    if (pandaId) return { ...card, pandaId };
+  }
+}
+
+function connect({ key, url }: { key: string; url: string }) {
   const client = new Client({
     apiKey: key,
     baseURL: `${url}/issuing`,

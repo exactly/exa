@@ -277,13 +277,18 @@ describe("bin", () => {
       "refund-onesignal-api-key",
       "refund-panda-api-key",
       "panda-api-url",
+      "refund-panda-base-api-key",
+      "panda-base-api-url",
       "refund-sardine-api-key",
       "sardine-api-url",
       "refund-segment-write-key",
     ]);
     expect(new Set(mocks.secret.mock.calls.map(([, secrets]) => secrets)).size).toBe(1);
     expect(mocks.signer.mock.calls.map(([signer]) => signer)).toStrictEqual(["refunder"]);
-    expect(mocks.panda).toHaveBeenCalledExactlyOnceWith({ key: "refund-panda-api-key", url: "panda-api-url" });
+    expect(mocks.panda).toHaveBeenCalledExactlyOnceWith(
+      { key: "refund-panda-api-key", url: "panda-api-url" },
+      { key: "refund-panda-base-api-key", url: "panda-base-api-url" },
+    );
     expect(mocks.refund).toHaveBeenCalledExactlyOnceWith({
       bullmq: expect.objectContaining({ redisUrl: "redis-url", options: { maxRetriesPerRequest: null } }) as object,
       database,
@@ -322,9 +327,14 @@ describe("bin", () => {
       "hook-postgres-url",
       "hook-panda-api-key",
       "panda-api-url",
+      "hook-panda-base-api-key",
+      "panda-base-api-url",
     ]);
     expect(new Set(mocks.secret.mock.calls.map(([, secrets]) => secrets)).size).toBe(1);
-    expect(mocks.panda).toHaveBeenCalledExactlyOnceWith({ key: "hook-panda-api-key", url: "panda-api-url" });
+    expect(mocks.panda).toHaveBeenCalledExactlyOnceWith(
+      { key: "hook-panda-api-key", url: "panda-api-url" },
+      { key: "hook-panda-base-api-key", url: "panda-base-api-url" },
+    );
     expect(mocks.hook).toHaveBeenCalledExactlyOnceWith({
       bullmq: expect.objectContaining({ redisUrl: "redis-url", options: { maxRetriesPerRequest: null } }) as object,
       database,
