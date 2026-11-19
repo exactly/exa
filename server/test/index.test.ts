@@ -114,6 +114,21 @@ describe("server", () => {
     vi.doUnmock("@exactly/common/generated/chain");
   });
 
+  it.each([
+    { key: undefined, tenants: ["OP"] },
+    { key: "base", tenants: ["OP", "BASE"] },
+  ])("serves the base program when its key is $key", async ({ key, tenants }) => {
+    if (key) {
+      vi.stubEnv("PANDA_BASE_API_KEY", key);
+      vi.stubEnv("PANDA_BASE_API_URL", "https://base.panda.test");
+    }
+
+    await import("../index");
+
+    const [options] = mocks.api.mock.calls[0] as unknown as [{ panda: { tenants: () => string[] } }];
+    expect(options.panda.tenants()).toStrictEqual(tenants);
+  });
+
   it("disables business", async () => {
     vi.stubEnv("DISABLED_MODULES", "business");
 

@@ -2,7 +2,7 @@ import { captureException, setUser, withScope } from "@sentry/node";
 import { UnrecoverableError } from "bullmq";
 import { eq, sql } from "drizzle-orm";
 import { v5 } from "uuid";
-import { number, object, parse, string } from "valibot";
+import { number, object, optional, parse, string } from "valibot";
 import {
   BaseError,
   ContractFunctionExecutionError,
@@ -31,7 +31,8 @@ import { attempts, name, type Job } from "./job";
 import { cards, transactions } from "../../database/schema";
 import t, { f } from "../../i18n";
 import { own } from "../../supervise";
-import remember from "../../utils/liquidity";
+import { refresh } from "../../utils/liquidity";
+import { home, Tenant } from "../../utils/panda";
 import revertFingerprint from "../../utils/revertFingerprint";
 import createWallet from "../../utils/wallet";
 import { name as hookName } from "../hook/job";
@@ -89,8 +90,8 @@ export default function worker({
           });
         });
         if (!job) return;
-        panda
-          .getWebhook(parse(string(), job.id))
+        Promise.resolve()
+          .then(() => panda.program(job.data.tenant ?? home()).getWebhook(parse(string(), job.id)))
           .then(async ({ requestBody }) => {
             if (requestBody.resource !== "transaction") return;
             if (requestBody.action !== "completed" && requestBody.action !== "updated") return;
@@ -147,10 +148,17 @@ export default function worker({
       async process(job, span) {
         const webhookId = parse(string(), job.id);
         span.setAttribute("panda.event", webhookId);
-        const { account, amount, signature, timestamp } = parse(
-          object({ account: Address, amount: number(), signature: Hex, timestamp: number() }),
+        const { account, amount, signature, tenant, timestamp } = parse(
+          object({
+            account: Address,
+            amount: number(),
+            signature: Hex,
+            tenant: optional(Tenant, home),
+            timestamp: number(),
+          }),
           job.data,
         );
+        if (tenant !== home()) throw new UnrecoverableError(`unsupported ${tenant} refund`);
         const { requestBody } = await panda.getWebhook(webhookId);
         if (requestBody.resource !== "transaction") throw new Error("unexpected resource");
         if (requestBody.action !== "completed" && requestBody.action !== "updated")
@@ -313,12 +321,14 @@ export default function worker({
               },
               onReceipt({ blockNumber, status, transactionHash }) {
                 if (status === "reverted") return;
-                remember(bullmq, spend.userId, account, chain.id).catch((error: unknown) =>
-                  captureException(error, { level: "warning", tags: { chainId: chain.id } }),
-                );
+                refresh(database, bullmq, account, chain.id);
                 return hook
                   .enqueue(
-                    { account: job.data.account, receipt: { blockNumber: Number(blockNumber), transactionHash } },
+                    {
+                      account: job.data.account,
+                      receipt: { blockNumber: Number(blockNumber), transactionHash },
+                      tenant,
+                    },
                     webhookId,
                   )
                   .catch((error: unknown) =>
