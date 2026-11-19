@@ -57,6 +57,7 @@ describe("programs", () => {
     expect(client.tenants()).toStrictEqual(["OP"]);
     expect(client.program("OP")).toBe(client);
     expect(() => client.program("BASE")).toThrow("no BASE program");
+    expect(client.issuing(Panda.partner)).toBe("OP");
   });
 
   it("routes base cards to the base program", async () => {
@@ -76,6 +77,17 @@ describe("programs", () => {
     expect(new Headers(init?.headers).get("api-key")).toBe("base");
   });
 
+  it("issues partner cards on the base program", () => {
+    const client = createPanda(
+      { key: "panda", url: "https://panda.test" },
+      { key: "base", url: "https://base.panda.test" },
+    );
+
+    expect(client.issuing(Panda.partner)).toBe("BASE");
+    expect(client.issuing("other")).toBe("OP");
+    expect(client.issuing(null)).toBe("OP");
+  });
+
   it("ignores the base config on base stacks", () => {
     chainMock.isBase = true;
     const client = createPanda(
@@ -86,6 +98,8 @@ describe("programs", () => {
     expect(client.tenants()).toStrictEqual(["BASE"]);
     expect(client.program("BASE")).toBe(client);
     expect(() => client.program("OP")).toThrow("no OP program");
+    expect(client.issuing(Panda.partner)).toBe("BASE");
+    expect(client.issuing(null)).toBe("BASE");
     expect(Panda.home()).toBe("BASE");
     expect(Panda.other()).toBe("OP");
     expect(Panda.pandaUser({ pandaId: "home", otherPandaId: "other" }, "BASE")).toBe("home");
@@ -715,6 +729,31 @@ describe("create card", () => {
     );
     expect(new Headers(fetchSpy.mock.lastCall?.[1]?.headers).get("Api-Key")).toBe("panda");
     expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("sends partner card art from the base program on other chains", async () => {
+    chainMock.id = optimism.id;
+    const client = createPanda(
+      { key: "panda", url: "https://panda.test" },
+      { key: "base", url: "https://base.panda.test" },
+    );
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(card));
+
+    await expect(
+      client.program("BASE").createCard("user-id", SIGNATURE_PRODUCT_ID, 1_000_000, undefined, Panda.partner),
+    ).resolves.toStrictEqual(card);
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      "https://base.panda.test/issuing/users/user-id/cards",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          type: "virtual",
+          status: "active",
+          limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
+          configuration: { productId: SIGNATURE_PRODUCT_ID, virtualCardArt: "c4c03256d6764a8390f41b60561d27af" },
+        }),
+      }),
+    );
   });
 
   it("ships a us physical card with standard method", async () => {
