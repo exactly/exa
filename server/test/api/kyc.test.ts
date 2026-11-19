@@ -12,6 +12,7 @@ import { env } from "node:process";
 import { nonEmpty, parse, pipe, string } from "valibot";
 import { getAddress, padHex, sha256 } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
+import { mainnet, moonbeamDev } from "viem/chains";
 import { createSiweMessage, generateSiweNonce } from "viem/siwe";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -3662,6 +3663,48 @@ describe("authenticated", () => {
           expect(response.status).toBe(200);
           expect(JSON.parse(body as string)).toStrictEqual(payload);
           await expect(response.json()).resolves.toStrictEqual({ status: "approved" });
+        });
+
+        it.each([
+          { name: "another served network", chainId: moonbeamDev.id, status: 200, body: { status: "approved" } },
+          {
+            name: "an unserved chain",
+            chainId: mainnet.id,
+            status: 400,
+            body: { code: "bad chain", message: `expected ${chain.id} but got ${mainnet.id}` },
+          },
+        ])("answers $status to signatures for $name", async ({ chainId, status, body }) => {
+          const credential = await database.query.credentials.findFirst({ where: eq(credentials.id, account) });
+          const statement = `I apply for KYC approval on behalf of address ${getAddress(credential?.account ?? "")} with payload hash ${sha256(Buffer.from(canonicalize(applicationPayload) ?? "", "utf8"))}`;
+          const message = createSiweMessage({
+            statement,
+            resources: ["https://exactly.github.io/exa"],
+            nonce: generateSiweNonce(),
+            uri: `https://${domain}`,
+            address: owner.address,
+            chainId,
+            scheme: "https",
+            version: "1",
+            domain,
+          });
+          const verify = {
+            message,
+            signature: await owner.signMessage({ message }),
+            walletAddress: owner.address,
+            chainId,
+          };
+          const submitApplication = vi
+            .spyOn(panda, "submitApplication")
+            .mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
+
+          const response = await appClient.application.$post(
+            { json: { ...applicationPayload, verify } },
+            { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+          );
+
+          expect(response.status).toBe(status);
+          await expect(response.json()).resolves.toStrictEqual(body);
+          expect(submitApplication).toHaveBeenCalledTimes(status === 200 ? 1 : 0);
         });
 
         it("returns 409 when kyc is already started", async () => {
