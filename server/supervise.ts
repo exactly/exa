@@ -18,6 +18,9 @@ export default function supervise<App extends Hono | undefined = undefined>(
     .then(async (handle) => {
       const { app } = handle;
       app?.onError((error, c) => {
+        if ("getResponse" in error && error.getResponse().status === 400) {
+          return c.json({ code: "bad request", legacy: "bad request", message: [error.message] }, 400);
+        }
         captureException(error, {
           level: "error",
           tags: { unhandled: true },

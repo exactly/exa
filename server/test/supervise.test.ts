@@ -3,6 +3,8 @@ import "./mocks/sentry";
 import { serve } from "@hono/node-server";
 import { captureException, close as closeSentry } from "@sentry/node";
 import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
+import { validator } from "hono/validator";
 import { exit } from "node:process";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -137,6 +139,7 @@ describe("supervise", () => {
       ["{{ default }}", "PandaNotFound", "404"],
     ],
     ["plain", new Error("500 unavailable"), undefined],
+    ["server http", new HTTPException(500, { message: "unexpected panda failure" }), undefined],
   ])("captures and responds for %s errors", async (_, error, fingerprint) => {
     const app = new Hono().get("/", () => Promise.reject(error));
     const close = supervise("test", Promise.resolve({ ...createHandle(), app }));
@@ -155,6 +158,31 @@ describe("supervise", () => {
       tags: { unhandled: true },
       fingerprint,
     });
+    await close();
+  });
+
+  it("rejects malformed json without capturing", async () => {
+    const app = new Hono().post(
+      "/",
+      validator("json", () => ({})),
+      (c) => c.json({}),
+    );
+    const close = supervise("test", Promise.resolve({ ...createHandle(), app }));
+    await settle();
+
+    const response = await app.request("/", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{",
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toStrictEqual({
+      code: "bad request",
+      legacy: "bad request",
+      message: ["Malformed JSON in request body"],
+    });
+    expect(captureException).not.toHaveBeenCalled();
     await close();
   });
 
