@@ -20,6 +20,7 @@ import secret from "../utils/secret";
 import createSegment from "../utils/segment";
 import createWalletExtension from "../utils/walletExtension";
 import createCredit from "../workers/credit/queue";
+import createQR from "../workers/qr/queue";
 import createSubscribe from "../workers/subscribe/queue";
 
 const secrets = new SecretManagerServiceClient();
@@ -29,7 +30,7 @@ supervise(
   Promise.all([
     secret("redis-url", secrets).then((url) => {
       const redis = new Redis(url);
-      return [redis, createCredit(redis), createSubscribe(redis)] as const;
+      return [redis, createCredit(redis), createQR(redis), createSubscribe(redis)] as const;
     }),
     secret("api-auth-secret", secrets),
     Promise.all([secret("api-bridge-api-key", secrets), secret("bridge-api-url", secrets)]).then(([key, url]) =>
@@ -68,7 +69,7 @@ supervise(
     secret("api-wallet-extension-secret", secrets).then((value) => createWalletExtension(value)),
   ]).then(
     ([
-      [redis, credit, subscribe],
+      [redis, credit, qr, subscribe],
       authSecret,
       bridge,
       business,
@@ -95,6 +96,7 @@ supervise(
         panda,
         pax,
         persona,
+        qr,
         redis,
         sardine,
         segment,
@@ -108,7 +110,7 @@ supervise(
         () => database.$client.end(),
         () => secrets.close(),
         () => segment.close(),
-        () => Promise.all([credit.close(), subscribe.close()]).finally(() => redis.quit()),
+        () => Promise.all([credit.close(), qr.close(), subscribe.close()]).finally(() => redis.quit()),
       );
     },
   ),
