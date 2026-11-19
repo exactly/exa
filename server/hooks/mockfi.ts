@@ -56,29 +56,42 @@ const velodromeAbi = parseAbi(["function getPool(address tokenA, address tokenB,
 
 export default function hook({ database, testnets }: { database: NodePgDatabase<typeof schema>; testnets?: boolean }) {
   if (!chain.testnet) throw new Error("mockfi outside testnets");
-  const sources = new Map(
+  const listing = new Map(
     [...alchemyChains.values()].flatMap((network) => {
-      const contracts = chains.get(network.id) ?? (testnets ? peers.get(network.id) : undefined);
-      return network.smartAccount && contracts
-        ? [[network.id, { ...contracts, chain: network, client: alchemyClient(network) }] as const]
-        : [];
+      const contracts = network.smartAccount
+        ? (chains.get(network.id) ?? (testnets ? peers.get(network.id) : undefined))
+        : undefined;
+      const swapper = contracts?.swapper ?? (network.mockfi && network.swapper);
+      if (!swapper) return [];
+      return [
+        [
+          network.id,
+          {
+            chain: network,
+            client: alchemyClient({ ...network, nativeCurrency: currency({ chain: network }) }),
+            exaPreviewer: contracts?.exaPreviewer,
+            swapper,
+          },
+        ] as const,
+      ];
     }),
   );
-  type Source = typeof sources extends ReadonlyMap<number, infer S> ? S : never;
-  const Network = pipe(
-    union([string(), number()]),
-    transform((id) => sources.get(Number(id))),
-    custom<Source>((source) => source !== undefined, "unsupported chain"),
+  type Listed = typeof listing extends ReadonlyMap<number, infer L> ? L : never;
+  type Destination = Listed & { exaPreviewer: `0x${string}` };
+  const destinations = new Map(
+    [...listing].filter((entry): entry is [number, Destination] => entry[1].exaPreviewer !== undefined),
   );
+  const Listed = supported(listing);
+  const Destination = supported(destinations);
   const Quote = {
     fromAddress: Address,
-    fromChain: Network,
+    fromChain: Listed,
     fromToken: Address,
     fee: optional(pipe(Fraction, maxValue(0.1)), "0"),
     integrator: optional(string(), ""),
     slippage: optional(Fraction, "0.005"),
     toAddress: optional(Address),
-    toChain: Network,
+    toChain: Destination,
     toToken: Address,
   };
   const invalid = validatorHook({ code: "bad mockfi" });
@@ -88,22 +101,22 @@ export default function hook({ database, testnets }: { database: NodePgDatabase<
       .get("/v1/chains", async (c) =>
         c.json({
           chains: await Promise.all(
-            [...sources.values()].map(async (source) => ({
-              key: `mock${source.chain.id}`,
+            [...listing.values()].map(async (entry) => ({
+              key: `mock${entry.chain.id}`,
               chainType: "EVM",
-              name: source.chain.name,
-              coin: "ETH",
-              id: source.chain.id,
+              name: entry.chain.name,
+              coin: currency(entry).symbol,
+              id: entry.chain.id,
               mainnet: true,
-              multicallAddress: "0xcA11bde05977b3631167028862bE2a173976CA11",
-              diamondAddress: source.swapper,
-              nativeToken: await tokens(source).then((list) => list.find(({ address }) => address === zeroAddress)),
+              multicallAddress: entry.chain.contracts?.multicall3?.address ?? "",
+              diamondAddress: entry.swapper,
+              nativeToken: await tokens(entry).then((list) => list.find(({ address }) => address === zeroAddress)),
               metamask: {
-                chainId: toHex(source.chain.id),
+                chainId: toHex(entry.chain.id),
                 blockExplorerUrls: [],
-                chainName: source.chain.name,
-                nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
-                rpcUrls: source.chain.rpcUrls.default.http,
+                chainName: entry.chain.name,
+                nativeCurrency: currency(entry),
+                rpcUrls: entry.chain.rpcUrls.default.http,
               },
             })),
           ),
@@ -114,16 +127,16 @@ export default function hook({ database, testnets }: { database: NodePgDatabase<
         return c.json({
           tokens: Object.fromEntries(
             await Promise.all(
-              [...sources]
+              [...listing]
                 .filter(([id]) => !requested || requested.includes(String(id)) || requested.includes(`mock${id}`))
-                .map(async ([id, source]) => [id, await tokens(source)] as const),
+                .map(async ([id, entry]) => [id, await tokens(entry)] as const),
             ),
           ),
         });
       })
-      .get("/v1/token", vValidator("query", object({ chain: Network, token: Address }), invalid), async (c) => {
-        const { chain: source, token } = c.req.valid("query");
-        const found = await tokens(source).then((list) => list.find(({ address }) => address === token));
+      .get("/v1/token", vValidator("query", object({ chain: Listed, token: Address }), invalid), async (c) => {
+        const { chain: entry, token } = c.req.valid("query");
+        const found = await tokens(entry).then((list) => list.find(({ address }) => address === token));
         return found ? c.json(found) : c.json({ code: 1003, message: "token not found" }, 404);
       })
       .get("/v1/tools", (c) =>
@@ -131,12 +144,14 @@ export default function hook({ database, testnets }: { database: NodePgDatabase<
           bridges: [
             {
               ...tool,
-              supportedChains: [...sources.keys()].flatMap((fromChainId) =>
-                [...sources.keys()].filter((id) => id !== fromChainId).map((toChainId) => ({ fromChainId, toChainId })),
+              supportedChains: [...listing.keys()].flatMap((fromChainId) =>
+                [...destinations.keys()]
+                  .filter((id) => id !== fromChainId)
+                  .map((toChainId) => ({ fromChainId, toChainId })),
               ),
             },
           ],
-          exchanges: [{ ...tool, supportedChains: [...sources.keys()] }],
+          exchanges: [{ ...tool, supportedChains: [...destinations.keys()] }],
         }),
       )
       .get("/v1/quote", vValidator("query", object({ ...Quote, fromAmount: Amount }), invalid), (c) => {
@@ -170,13 +185,13 @@ export default function hook({ database, testnets }: { database: NodePgDatabase<
               minLength(1),
             ),
             fromAddress: Address,
-            fromChain: Network,
+            fromChain: Listed,
             fromToken: Address,
             fee: optional(pipe(number(), minValue(0), maxValue(0.1)), 0),
             integrator: optional(string(), ""),
             slippage: optional(pipe(number(), minValue(0), maxValue(1)), 0.005),
             toAmount: Amount,
-            toChain: Network,
+            toChain: Destination,
             toFallbackAddress: optional(Address),
             toToken: Address,
           }),
@@ -201,7 +216,7 @@ export default function hook({ database, testnets }: { database: NodePgDatabase<
           ).then((result) => ("code" in result ? c.json(result, 404) : c.json(result)));
         },
       )
-      .get("/v1/status", vValidator("query", object({ fromChain: Network, txHash: Hash }), invalid), async (c) => {
+      .get("/v1/status", vValidator("query", object({ fromChain: Listed, txHash: Hash }), invalid), async (c) => {
         const { fromChain, txHash } = c.req.valid("query");
         const sending = { txHash, chainId: fromChain.chain.id };
         const receipt = await fromChain.client.getTransactionReceipt({ hash: txHash }).catch(() => undefined);
@@ -268,7 +283,7 @@ export default function hook({ database, testnets }: { database: NodePgDatabase<
                   txHash: completion.hash,
                   chainId: Number(destinationChainId),
                   amount: String(completion.amount),
-                  token: await tokens(parse(Network, String(destinationChainId))).then((list) =>
+                  token: await tokens(parse(Listed, String(destinationChainId))).then((list) =>
                     list.find(({ address }) => address === getAddress(completion.asset)),
                   ),
                 },
@@ -283,7 +298,37 @@ export default function hook({ database, testnets }: { database: NodePgDatabase<
     ready: Promise.resolve(),
   };
 
-  async function tokens({ chain: { id }, client, exaPreviewer, swapper }: Source) {
+  function supported<T extends Listed>(entries: ReadonlyMap<number, T>) {
+    return pipe(
+      union([string(), number()]),
+      transform((id) => entries.get(Number(id))),
+      custom<T>((entry) => entry !== undefined, "unsupported chain"),
+    );
+  }
+
+  async function tokens(entry: Listed) {
+    const { exaPreviewer, swapper } = entry;
+    if (exaPreviewer) return marketTokens({ ...entry, exaPreviewer, swapper });
+    const { decimals, name, symbol } = currency(entry);
+    const home = destinations.get(chain.id);
+    const priceUSD =
+      symbol === "ETH" && home
+        ? await marketTokens(home).then((list) => list.find(({ address }) => address === zeroAddress)?.priceUSD)
+        : undefined;
+    return [
+      {
+        address: zeroAddress,
+        chainId: entry.chain.id,
+        decimals,
+        name,
+        symbol,
+        coinKey: symbol,
+        priceUSD: priceUSD ?? "0",
+      },
+    ];
+  }
+
+  async function marketTokens({ chain: { id }, client, exaPreviewer, swapper }: Destination) {
     const markets = await client.readContract({ address: exaPreviewer, abi: exaPreviewerAbi, functionName: "markets" });
     const listed = markets.flatMap(({ asset, decimals, symbol, usdPrice }) => {
       const token = {
@@ -356,12 +401,12 @@ export default function hook({ database, testnets }: { database: NodePgDatabase<
     }: {
       fee: number;
       fromAddress: Address;
-      fromChain: Source;
+      fromChain: Listed;
       fromToken: Address;
       integrator: string;
       slippage: number;
       toAddress?: Address;
-      toChain: Source;
+      toChain: Destination;
       toToken: Address;
     },
     { amount, exact }: { amount: bigint; exact: "in" | "out" },
@@ -554,6 +599,14 @@ export default function hook({ database, testnets }: { database: NodePgDatabase<
       },
     };
   }
+}
+
+function currency({
+  chain: { nativeCurrency },
+}: {
+  chain: { nativeCurrency?: { decimals: number; name: string; symbol: string } };
+}) {
+  return nativeCurrency ?? { decimals: 18, name: "ETH", symbol: "ETH" };
 }
 
 function collector(chainId: number) {
