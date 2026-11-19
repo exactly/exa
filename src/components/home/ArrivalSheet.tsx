@@ -26,6 +26,7 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAllowlists from "../../utils/useAllowlists";
+import { useNetworkMarkets } from "../../utils/useDeposits";
 import useKYC from "../../utils/useKYC";
 import useMarkets from "../../utils/useMarkets";
 import usePortfolio from "../../utils/usePortfolio";
@@ -47,6 +48,7 @@ export default function ArrivalSheet({ focused }: { focused: boolean }) {
   const { address } = useAccount();
   const { externalAssets, crossChainAssets, portfolio, isBalancesPending, isExternal } = usePortfolio();
   const { markets, supportedAssets, isPending } = useMarkets();
+  const { markets: networkMarkets, loading } = useNetworkMarkets();
   const { data: tokens } = useQuery(lifiTokensOptions);
   const { data: dismissed } = useQuery<string[]>({ queryKey: ["settings", "arrivals", address], enabled: !!address });
   const { fetchStatus } = useQuery(balancesOptions(address));
@@ -65,13 +67,19 @@ export default function ArrivalSheet({ focused }: { focused: boolean }) {
     !!markets &&
     !isBalancesPending &&
     !!tokens &&
+    !networks.some((id) => loading.has(id)) &&
     factories.every(({ isLoading }) => !isLoading);
   const allowed = swappable(allowlists[chain.id], markets);
   const collateral = (symbol: string) => supportedAssets.includes(correlate(symbol));
   const deposited = new Set(
-    markets
-      ?.filter(({ isFrozen, nonCollateral }) => !isFrozen && !nonCollateral)
-      .flatMap(({ asset, symbol }) => [asset.toLowerCase(), ...(symbol === "exaWETH" ? [zeroAddress] : [])]),
+    [...networkMarkets].flatMap(([id, network]) =>
+      ((id === chain.id ? markets : network) ?? [])
+        .filter(({ isFrozen, nonCollateral }) => !isFrozen && !nonCollateral)
+        .flatMap(({ asset, symbol }) => [
+          `${id}:${asset.toLowerCase()}`,
+          ...(symbol === "exaWETH" ? [`${id}:${zeroAddress}`] : []),
+        ]),
+    ),
   );
   const [arrival, setArrival] = useState<ExternalAsset>();
   const pending = [...externalAssets, ...crossChainAssets]
@@ -82,7 +90,8 @@ export default function ArrivalSheet({ focused }: { focused: boolean }) {
         (asset.chainId === chain.id
           ? allowed.has(asset.address.toLowerCase())
           : factories[networks.indexOf(asset.chainId)]?.data === true) &&
-        !(asset.chainId === chain.id && (portfolio.collateralUSD > 0n || deposited.has(asset.address.toLowerCase()))) &&
+        !(asset.chainId === chain.id && portfolio.collateralUSD > 0n) &&
+        !deposited.has(`${asset.chainId}:${asset.address.toLowerCase()}`) &&
         !dismissed?.includes(`${asset.chainId}:${asset.address.toLowerCase()}`),
     )
     .sort((a, b) => b.usdValue - a.usdValue);
