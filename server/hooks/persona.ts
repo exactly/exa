@@ -31,12 +31,12 @@ import {
 import { bytesToHex } from "viem";
 
 import domain from "@exactly/common/domain";
-import { chains, isBase } from "@exactly/common/generated/chain";
+import { chains } from "@exactly/common/generated/chain";
 import { CLASSIC_PRODUCT_ID } from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
 
 import { cards, credentials } from "../database/schema";
-import { home, pandaUser } from "../utils/panda";
+import { home, homeFirst, pandaUser } from "../utils/panda";
 import {
   ADDRESS_TEMPLATE,
   BUSINESS_PANDA_REPRESENTATIVE_TEMPLATE,
@@ -317,13 +317,12 @@ export default function hook({
           .getInquiryById(inquiryId)
           .then((r) => r.data.attributes);
         const credential = await database.query.credentials.findFirst({
-          columns: { pandaId: true },
+          columns: { otherPandaId: true, pandaId: true },
           where: eq(credentials.id, referenceId),
           with: {
             cards: {
-              columns: { id: true },
-              where: and(inArray(cards.status, ["ACTIVE", "FROZEN"]), eq(cards.tenant, isBase ? "BASE" : "OP")),
-              limit: 2,
+              columns: { id: true, tenant: true },
+              where: and(inArray(cards.status, ["ACTIVE", "FROZEN"]), inArray(cards.tenant, panda.tenants())),
             },
           },
         });
@@ -332,10 +331,16 @@ export default function hook({
           captureException(new Error("no credential"), { level: "error", contexts: { credential: { referenceId } } });
           return c.json({ code: "ok" }, 200);
         }
-        if (credential.cards.length > 1) {
+        if (
+          credential.cards.some((card, index, all) => all.findIndex(({ tenant }) => tenant === card.tenant) !== index)
+        ) {
           captureException(new Error("multiple cards"), { level: "error", contexts: { credential: { referenceId } } });
           return c.json({ code: "multiple cards" }, 200);
         }
+        const owned = homeFirst(credential.cards).flatMap((card) => {
+          const pandaId = pandaUser(credential, card.tenant);
+          return pandaId ? [{ ...card, pandaId }] : [];
+        });
         await persona.updateCardLimit(referenceId, limitUsd).catch((error: unknown) => {
           captureException(error, {
             level: "error",
@@ -343,34 +348,37 @@ export default function hook({
               cardLimitDrift: {
                 referenceId,
                 limitUsd,
-                pandaId: credential.pandaId ?? null,
-                cardId: credential.cards[0]?.id ?? null,
+                pandaId: owned[0]?.pandaId ?? null,
+                cardId: owned[0]?.id ?? null,
               },
             },
           });
           throw error;
         });
-        if (credential.pandaId && credential.cards[0]) {
-          await panda
-            .updateCard({
-              id: credential.cards[0].id,
-              limit: { amount: limitUsd * 100, frequency: "per7DayPeriod" },
-            })
-            .catch((error: unknown) => {
-              captureException(error, {
-                level: "error",
-                contexts: {
-                  cardLimitDrift: {
-                    referenceId,
-                    limitUsd,
-                    pandaId: credential.pandaId,
-                    cardId: credential.cards[0]?.id ?? null,
+        await Promise.all(
+          owned.map((card) =>
+            panda
+              .program(card.tenant)
+              .updateCard({
+                id: card.id,
+                limit: { amount: limitUsd * 100, frequency: "per7DayPeriod" },
+              })
+              .catch((error: unknown) => {
+                captureException(error, {
+                  level: "error",
+                  contexts: {
+                    cardLimitDrift: {
+                      referenceId,
+                      limitUsd,
+                      pandaId: card.pandaId,
+                      cardId: card.id,
+                    },
                   },
-                },
-              });
-              throw error;
-            });
-        }
+                });
+                throw error;
+              }),
+          ),
+        );
         return c.json({ code: "ok" }, 200);
       }
       if (payload.template === "manteca") {
