@@ -133,7 +133,7 @@ describe("api", () => {
       domain: "sandbox.exactly.app",
       id: "sandbox.exactly.app",
       accepted: ["sandbox.exactly.app"],
-      related: ["https://base-sepolia.exactly.app", "https://business.base-sepolia.exactly.app"],
+      related: ["https://base-sepolia.exactly.app"],
     },
     {
       domain: "web.exactly.app",

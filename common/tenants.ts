@@ -9,7 +9,6 @@ export const business = parse(
 );
 
 const tenants: Record<string, Address> = {
-  "https://business.base-sepolia.exactly.app": business,
   "https://business.exactly.app": business,
   "https://business.sandbox.exactly.app": business,
 };
