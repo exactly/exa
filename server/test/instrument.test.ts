@@ -26,10 +26,69 @@ describe("instrument", () => {
     const result = config.beforeSend?.(event as never, { originalException: error });
 
     expect(result).toBe(event);
-    expect(event.exception.values).toStrictEqual([
-      { type: "error", value: 'column "salt" does not exist' },
-      { type: "DrizzleQueryError", value: 'column "salt" does not exist' },
-    ]);
+    expect(event).toStrictEqual({
+      exception: {
+        values: [
+          { type: "error", value: 'column "salt" does not exist' },
+          { type: "DrizzleQueryError", value: 'column "salt" does not exist' },
+        ],
+      },
+    });
+  });
+
+  it("fingerprints failed queries by their database error code", () => {
+    const event = { exception: { values: [{ type: "Error", value: "Failed query: select 1" }] } };
+
+    const result = config.beforeSend?.(event as never, {
+      originalException: new DrizzleQueryError(
+        "select 1",
+        [],
+        Object.assign(new Error("deadlock detected"), { code: "40P01" }),
+      ),
+    });
+
+    expect(result).toBe(event);
+    expect(event).toStrictEqual({
+      exception: { values: [{ type: "DrizzleQueryError", value: "deadlock detected" }] },
+      fingerprint: ["{{ default }}", "40P01"],
+    });
+  });
+
+  it.each(["connect ECONNREFUSED 10.0.0.1:5432", "connect ECONNREFUSED 10.0.0.2:5433"])(
+    "fingerprints failed queries by their code regardless of message (%s)",
+    (message) => {
+      const event = { exception: { values: [{ type: "Error", value: "Failed query: select 1" }] } };
+
+      config.beforeSend?.(event as never, {
+        originalException: new DrizzleQueryError(
+          "select 1",
+          [],
+          Object.assign(new Error(message), { code: "ECONNREFUSED" }),
+        ),
+      });
+
+      expect(event).toStrictEqual({
+        exception: { values: [{ type: "DrizzleQueryError", value: message }] },
+        fingerprint: ["{{ default }}", "ECONNREFUSED"],
+      });
+    },
+  );
+
+  it("keeps the fingerprint of failed queries reported with one", () => {
+    const event = {
+      exception: { values: [{ type: "Error", value: "Failed query: select 1" }] },
+      fingerprint: ["{{ default }}", "bad collection"],
+    };
+
+    const result = config.beforeSend?.(event as never, {
+      originalException: new DrizzleQueryError("select 1", [], Object.assign(new Error("timeout"), { code: "57014" })),
+    });
+
+    expect(result).toBe(event);
+    expect(event).toStrictEqual({
+      exception: { values: [{ type: "DrizzleQueryError", value: "timeout" }] },
+      fingerprint: ["{{ default }}", "bad collection"],
+    });
   });
 
   it("keeps failed queries without exceptions", () => {
@@ -48,7 +107,7 @@ describe("instrument", () => {
     const result = config.beforeSend?.(event as never, { originalException: new DrizzleQueryError("select 1", []) });
 
     expect(result).toBe(event);
-    expect(event.exception.values).toStrictEqual([{ type: "Error", value: "Failed query: select 1" }]);
+    expect(event).toStrictEqual({ exception: { values: [{ type: "Error", value: "Failed query: select 1" }] } });
   });
 
   it("titles failed queries found through an outer error", () => {
@@ -60,9 +119,9 @@ describe("instrument", () => {
     });
 
     expect(result).toBe(event);
-    expect(event.exception.values).toStrictEqual([
-      { type: "DrizzleQueryError", value: 'column "salt" does not exist' },
-    ]);
+    expect(event).toStrictEqual({
+      exception: { values: [{ type: "DrizzleQueryError", value: 'column "salt" does not exist' }] },
+    });
   });
 
   it("moves synthetic message stacks to threads", () => {

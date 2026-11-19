@@ -57,6 +57,8 @@ const config = {
             value.value = error.cause.message;
           }
         }
+        const { code } = /** @type {Error & { code?: unknown }} */ (error.cause);
+        if (typeof code === "string") event.fingerprint ??= ["{{ default }}", code];
         break;
       }
     }
