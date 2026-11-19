@@ -68,9 +68,16 @@ export const home = (): Tenant => (isBase ? "BASE" : "OP");
 export const other = (): Tenant => (isBase ? "OP" : "BASE");
 
 export default function panda(config: { key: string; url: string }, baseConfig?: { key: string; url: string }) {
-  const remote = baseConfig && !isBase ? connect(baseConfig) : undefined;
+  const remote = baseConfig && !isBase ? connect(baseConfig, () => base.id) : undefined;
   return Object.assign(connect(config), {
     tenants: (): Tenant[] => (remote ? [home(), other()] : [home()]),
+    issuing: (source?: null | string): Tenant => (remote && source === partner ? other() : home()),
+    applicant(credential: { otherPandaId: null | string; pandaId: null | string; source: null | string }) {
+      for (const tenant of new Set([this.issuing(credential.source), home()])) {
+        const pandaId = pandaUser(credential, tenant);
+        if (pandaId) return { tenant, pandaId };
+      }
+    },
     program(this: ReturnType<typeof connect>, target: Tenant) {
       if (target === home()) return this;
       if (!remote) throw new Error(`no ${target} program`);
@@ -97,7 +104,7 @@ export function pickCard<T extends { tenant: Tenant }>(
   }
 }
 
-function connect({ key, url }: { key: string; url: string }) {
+function connect({ key, url }: { key: string; url: string }, network = () => chain.id) {
   const client = new Client({
     apiKey: key,
     baseURL: `${url}/issuing`,
@@ -181,7 +188,7 @@ function connect({ key, url }: { key: string; url: string }) {
                   virtualCardArt:
                     chain.id === baseSepolia.id || chain.id === optimismSepolia.id
                       ? "0c515d7eb0a140fa8f938f8242b0780a"
-                      : chain.id === base.id && productId === SIGNATURE_PRODUCT_ID && source === partner
+                      : network() === base.id && productId === SIGNATURE_PRODUCT_ID && source === partner
                         ? "c4c03256d6764a8390f41b60561d27af"
                         : {
                             [BASE_PRODUCT_ID]: "79c1c868c3ae4b4dae2564295e75c357",
