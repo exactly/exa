@@ -9,11 +9,12 @@ import { base } from "viem/chains";
 import { useConnect } from "wagmi";
 
 import chain from "@exactly/common/generated/chain";
+import tenants from "@exactly/common/tenants";
 
 import alchemyConnector from "./alchemyConnector";
 import queryClient, { type AuthMethod } from "./queryClient";
 import reportError, { classifyError } from "./reportError";
-import { APIError, createCredential, getCredential, isUnlinked } from "./server";
+import { APIError, createCredential, getCredential, isUnlinked, origin } from "./server";
 import ownerConfig, { getConnector as getOwnerConnector } from "./wagmi/owner";
 
 import type { Credential } from "@exactly/common/validation";
@@ -27,7 +28,7 @@ export default function useAuth(onSuccess?: (credential: Credential) => unknown)
   const { mutateAsync: connectOwner } = useConnect({ config: ownerConfig });
   const { mutate: signIn, ...mutation } = useMutation({
     mutationFn: async ({ method, register }: { method: AuthMethod; register?: boolean }) => {
-      queryClient.setQueryData(["method"], chain.id === base.id ? "siwe" : method);
+      queryClient.setQueryData(["method"], isPasskeyEnabled ? method : "siwe");
       if (method === "siwe") {
         const connection = getConnection(ownerConfig);
         if (connection.isDisconnected || !connection.address) {
@@ -69,6 +70,8 @@ export default function useAuth(onSuccess?: (credential: Credential) => unknown)
     ...mutation,
   };
 }
+
+export const isPasskeyEnabled = chain.id !== base.id || Object.hasOwn(tenants, origin);
 
 function handleError(error: unknown, onIssue: (issue: SignInIssue) => void, t: TFunction, auth: boolean) {
   const passkey =

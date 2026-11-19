@@ -3,9 +3,6 @@ import React from "react";
 import { ScrollView, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
-import { base } from "viem/chains";
-
-import chain from "@exactly/common/generated/chain";
 
 import ModalSheet from "./ModalSheet";
 import SafeView from "./SafeView";
@@ -13,6 +10,7 @@ import Button from "./StyledButton";
 import Text from "./Text";
 import { Fingerprint } from "../../generated/icons/Fingerprint";
 import { Wallet } from "../../generated/icons/Wallet";
+import { isPasskeyEnabled } from "../../utils/useAuth";
 
 import type { AuthMethod } from "../../utils/queryClient";
 
@@ -58,7 +56,7 @@ export default function ConnectSheet({
               </Text>
             </YStack>
             <YStack gap="s4" alignItems="stretch">
-              {chain.id === base.id ? null : (
+              {isPasskeyEnabled && (
                 <Button
                   primary
                   onPress={() => {
