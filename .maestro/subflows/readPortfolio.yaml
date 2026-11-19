@@ -2,5 +2,6 @@ appId: ${APP_ID ?? "app.exactly"}
 ---
 - runFlow:
     file: copyAria.yaml
-    env: { aria: "^(US)?\\$[\\s\\d,.\\xa0]+$" }
+    env:
+      aria: '${"^(US)?[\x24][\\s\\xa0]*" + (total ? String(Math.round(Number(total) * 100)).padStart(3, "0").split("").join("[\\s,.\\xa0]*") : "[\\s\\d,.\\xa0]+") + "\x24"}'
 - evalScript: ${output.portfolio = Number(maestro.copiedText.replace(/\D/g, "")) / 100}
