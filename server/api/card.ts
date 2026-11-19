@@ -550,6 +550,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
                   union([
                     object({ code: literal("business") }),
                     object({ code: literal("no panda") }),
+                    object({ code: literal("no panda user") }),
                     object({ code: literal("kyc not approved") }),
                   ]),
                   { errorMode: "ignore" },
@@ -618,8 +619,9 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
               if (card.productId === PLATINUM_PRODUCT_ID) isUpgradeFromPlatinum = true;
             }
             if (cardCount > 0) return c.json({ code: "already created" }, 400);
+            let kyc: Awaited<ReturnType<typeof panda.getApplicationStatus>> | undefined;
             try {
-              const kyc = await panda.getApplicationStatus(pandaId);
+              kyc = await panda.getApplicationStatus(pandaId);
               if (kyc.applicationStatus !== "approved") {
                 return c.json({ code: "kyc not approved" }, 403);
               }
@@ -747,7 +749,7 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
                   });
                 });
               }
-              return c.json({ code: "no panda" }, 403);
+              return c.json({ code: !kyc && issue.error.status === 404 ? "no panda user" : "no panda" }, 403);
             }
           })
           .finally(() => {
