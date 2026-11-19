@@ -24,6 +24,10 @@ databases:
 domains:
   - domain: ${{ env.APP_DOMAIN }}
     type: PRIMARY
+  # @if ${{ env.ENVIRONMENT == "base" }}
+  - domain: business.exactly.app
+    type: ALIAS
+  # @endif
   # @if ${{ env.ENVIRONMENT == "base-sepolia" }}
   - domain: business.sandbox.exactly.app
     type: ALIAS
