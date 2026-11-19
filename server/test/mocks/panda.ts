@@ -39,6 +39,8 @@ const mock = vi.hoisted(() => {
       getUser: (...parameters: Parameters<Panda["getUser"]>) => current().getUser(...parameters),
       getWebhook: (...parameters: Parameters<Panda["getWebhook"]>) => current().getWebhook(...parameters),
       getWithdrawal: (...parameters: Parameters<Panda["getWithdrawal"]>) => current().getWithdrawal(...parameters),
+      applicant: (...parameters: Parameters<Panda["applicant"]>) => current().applicant(...parameters),
+      issuing: (...parameters: Parameters<Panda["issuing"]>) => current().issuing(...parameters),
       program: (tenant: Parameters<Panda["program"]>[0]) =>
         tenant === current().tenants()[0] ? mock.panda : current().program(tenant),
       setPIN: (...parameters: Parameters<Panda["setPIN"]>) => current().setPIN(...parameters),
