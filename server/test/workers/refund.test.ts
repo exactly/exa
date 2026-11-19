@@ -21,12 +21,13 @@ import {
   toFunctionSelector,
   toHex,
   zeroHash,
+  type Chain,
   type Hex,
   type LocalAccount,
   type TransactionReceipt,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { optimismSepolia } from "viem/chains";
+import { moonbeamDev, optimismSepolia } from "viem/chains";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import chain, {
@@ -34,6 +35,7 @@ import chain, {
   refunderAbi,
   refunderAddress,
   simple7702AccountAddress,
+  usdcAddress,
 } from "@exactly/common/generated/chain";
 import { Address, type Hash } from "@exactly/common/validation";
 
@@ -314,7 +316,13 @@ describe("refund worker", () => {
 
     expect(mocks.getWebhook).toHaveBeenCalledExactlyOnceWith("wh-authorized");
     expect(mocks.getUser).toHaveBeenCalledExactlyOnceWith("user");
-    expect(mocks.getWithdrawal).toHaveBeenCalledExactlyOnceWith(1000, refunderAddress, refunder.address);
+    expect(mocks.getWithdrawal).toHaveBeenCalledExactlyOnceWith(
+      1000,
+      refunderAddress,
+      refunder.address,
+      chain.id,
+      usdc,
+    );
     expect(mocks.getContracts).toHaveBeenCalledExactlyOnceWith();
     expect(mocks.exaSend).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ name: "panda.refund", op: "panda.refund", attributes: { account } }),
@@ -353,12 +361,19 @@ describe("refund worker", () => {
       id: "wh-authorized",
       cardId: "refund-card",
       hashes: [expect.stringMatching(/^0x[0-9a-f]{64}$/) as string],
-      payload: { type: "panda", bodies: [{ ...requestBody, createdAt: "2026-01-01T00:00:01.000Z" }] },
+      payload: {
+        type: "panda",
+        bodies: [{ ...requestBody, createdAt: "2026-01-01T00:00:01.000Z", chainId: chain.id }],
+      },
     });
     expect(hook.enqueue).toHaveBeenCalledExactlyOnceWith(
       {
         account,
-        receipt: { blockNumber: expect.any(Number) as number, transactionHash: transaction?.hashes[0] },
+        receipt: {
+          blockNumber: expect.any(Number) as number,
+          chainId: chain.id,
+          transactionHash: transaction?.hashes[0],
+        },
         tenant: "OP",
       },
       "wh-authorized",
@@ -401,7 +416,7 @@ describe("refund worker", () => {
       expect.any(Function),
     );
     expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
-    expect(refresh).toHaveBeenCalledExactlyOnceWith(database, connection, account, chain.id);
+    expect(refresh).toHaveBeenCalledExactlyOnceWith(database, connection, account, chain.id, "user");
     expect(continueTrace).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
   });
@@ -412,7 +427,7 @@ describe("refund worker", () => {
     const attempts = timestamps.map((timestamp, index) => {
       const requestBody = webhook(`wh-overlap-${index}`, { amount: 500, authorizedAmount: 1500 });
       requestBody.body.id = "wh-overlap";
-      return { timestamp, body: { ...requestBody, createdAt: "2026-01-01T00:00:01.000Z" } };
+      return { timestamp, body: { ...requestBody, createdAt: "2026-01-01T00:00:01.000Z", chainId: chain.id } };
     });
     await database
       .insert(transactions)
@@ -537,7 +552,13 @@ describe("refund worker", () => {
 
     await jobFinished("wh-reversed", undefined, { amount: 20_000_000 });
 
-    expect(mocks.getWithdrawal).toHaveBeenCalledExactlyOnceWith(2000, refunderAddress, refunder.address);
+    expect(mocks.getWithdrawal).toHaveBeenCalledExactlyOnceWith(
+      2000,
+      refunderAddress,
+      refunder.address,
+      chain.id,
+      usdc,
+    );
     expect(mocks.exaSend).toHaveBeenCalledExactlyOnceWith(
       expect.anything(),
       expect.objectContaining({
@@ -562,13 +583,17 @@ describe("refund worker", () => {
       id: "wh-reversed",
       cardId: "refund-card",
       hashes: [zeroHash, expect.stringMatching(/^0x[0-9a-f]{64}$/) as string],
-      payload: { type: "panda", bodies: [{ ...requestBody, createdAt: "2026-01-01T00:00:00.000Z" }] },
+      payload: {
+        type: "panda",
+        bodies: [{ ...requestBody, createdAt: "2026-01-01T00:00:00.000Z", chainId: chain.id }],
+      },
     });
     expect(hook.enqueue).toHaveBeenCalledExactlyOnceWith(
       {
         account,
         receipt: {
           blockNumber: expect.any(Number) as number,
+          chainId: chain.id,
           transactionHash: expect.stringMatching(/^0x[0-9a-f]{64}$/) as string,
         },
         tenant: "OP",
@@ -594,13 +619,22 @@ describe("refund worker", () => {
 
     await jobFinished("wh-negative", undefined, { amount: 30_000_000 });
 
-    expect(mocks.getWithdrawal).toHaveBeenCalledExactlyOnceWith(3000, refunderAddress, refunder.address);
+    expect(mocks.getWithdrawal).toHaveBeenCalledExactlyOnceWith(
+      3000,
+      refunderAddress,
+      refunder.address,
+      chain.id,
+      usdc,
+    );
     expect(mocks.exaSend).toHaveBeenCalledOnce();
     await expect(
       database.query.transactions.findFirst({ where: eq(transactions.id, "wh-negative") }),
     ).resolves.toStrictEqual(
       expect.objectContaining({
-        payload: { type: "panda", bodies: [{ ...requestBody, createdAt: "2026-01-01T00:00:01.000Z" }] },
+        payload: {
+          type: "panda",
+          bodies: [{ ...requestBody, createdAt: "2026-01-01T00:00:01.000Z", chainId: chain.id }],
+        },
       }),
     );
     expect(hook.enqueue).toHaveBeenCalledExactlyOnceWith(
@@ -608,6 +642,7 @@ describe("refund worker", () => {
         account,
         receipt: {
           blockNumber: expect.any(Number) as number,
+          chainId: chain.id,
           transactionHash: expect.stringMatching(/^0x[0-9a-f]{64}$/) as string,
         },
         tenant: "OP",
@@ -727,27 +762,95 @@ describe("refund worker", () => {
     expect(track).toHaveBeenCalledOnce();
   });
 
-  it("rejects refunds of other programs before touching them", async () => {
-    const getWebhook = vi.spyOn(panda.program("BASE"), "getWebhook").mockRejectedValue(new Error("base webhook"));
-
-    const result = jobFinished("wh-base", undefined, { tenant: "BASE" });
-
-    await expect(result).rejects.toThrow("unsupported BASE refund");
-    await vi.waitFor(() => expect(getWebhook).toHaveBeenCalledExactlyOnceWith("wh-base"));
-    expect(mocks.getWebhook).not.toHaveBeenCalled();
-    expect(mocks.getUser).not.toHaveBeenCalled();
-    expect(mocks.exaSend).not.toHaveBeenCalled();
-    expect(captureException).toHaveBeenCalledWith(expect.objectContaining({ message: "unsupported BASE refund" }), {
-      level: "fatal",
-      fingerprint: ["{{ default }}", "refund.exhausted", "unknown"],
-      tags: {
-        queue: "refund",
-        job: "refund",
-        "panda.reason": "unsupported BASE refund",
-        "panda.reasonName": "UnrecoverableError",
-      },
-      extra: { attempts: 1, id: "wh-base", recipient: refunderAddress },
+  it("refunds base program cards on the base program network", async () => {
+    const base = panda.program("BASE");
+    const requestBody = webhook("wh-base", { amount: 500, authorizedAmount: 1500, status: "pending" });
+    const getWebhook = vi.spyOn(base, "getWebhook").mockImplementation((id) => mocks.getWebhook(id) as never);
+    const getUser = vi.spyOn(base, "getUser").mockResolvedValue(user as never);
+    const getContracts = vi.spyOn(base, "getContracts").mockResolvedValue([
+      { chainId: chain.id, contractVersion: 2, controllerAddress: account, proxyAddress: collateral },
+      { chainId: moonbeamDev.id, contractVersion: 2, controllerAddress: pandaAddress, proxyAddress: collateral },
+    ]);
+    const getWithdrawal = vi.spyOn(base, "getWithdrawal").mockImplementation((amount) =>
+      Promise.resolve({
+        parameters: [collateral, usdc, String(amount * 10_000), refunderAddress, 1_700_000_000, salt, "0x1234"],
+      } as never),
+    );
+    await anvilClient.setCode({ address: refunderAddress, bytecode: deployedRefunder });
+    mocks.exaSend.mockImplementationOnce(async () => {
+      await anvilClient.setCode({ address: refunderAddress, bytecode: store });
+      return null;
     });
+    vi.spyOn(segment, "track").mockReturnValue();
+
+    await jobFinished("wh-base", undefined, { tenant: "BASE" });
+
+    expect(mocks.wallet).toHaveBeenCalledExactlyOnceWith(moonbeamDev.id);
+    expect(getWebhook).toHaveBeenCalledExactlyOnceWith("wh-base");
+    expect(getUser).toHaveBeenCalledExactlyOnceWith("user");
+    expect(getWithdrawal).toHaveBeenCalledExactlyOnceWith(
+      1000,
+      refunderAddress,
+      refunder.address,
+      moonbeamDev.id,
+      usdc,
+    );
+    expect(getContracts).toHaveBeenCalledExactlyOnceWith();
+    expect(mocks.getUser).not.toHaveBeenCalled();
+    expect(mocks.getWithdrawal).not.toHaveBeenCalled();
+    expect(mocks.getContracts).not.toHaveBeenCalled();
+    expect(mocks.exaSend).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ name: "panda.refund", op: "panda.refund", attributes: { account } }),
+      expect.objectContaining({
+        address: refunder.address,
+        args: [
+          [
+            { data: await withdrawal(10_000_000n, moonbeamDev.id), target: pandaAddress, value: 0n },
+            {
+              data: encodeFunctionData({
+                abi: refunderAbi,
+                args: [account, 10_000_000n, 1_700_000_000n, "0x1234"],
+                functionName: "refund",
+              }),
+              target: refunderAddress,
+              value: 0n,
+            },
+          ],
+        ],
+        functionName: "executeBatch",
+      }),
+      {
+        fees: "auto",
+        ignore: expect.any(Function) as (reason: string) => boolean,
+        level: false,
+        onHash: expect.any(Function) as (hash: Hash) => Promise<unknown>,
+        onReceipt: expect.any(Function) as (receipt: TransactionReceipt) => Promise<unknown>,
+      },
+    );
+    const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, "wh-base") });
+    expect(transaction).toStrictEqual({
+      id: "wh-base",
+      cardId: "refund-card",
+      hashes: [expect.stringMatching(/^0x[0-9a-f]{64}$/) as string],
+      payload: {
+        type: "panda",
+        bodies: [{ ...requestBody, createdAt: "2026-01-01T00:00:01.000Z", chainId: moonbeamDev.id }],
+      },
+    });
+    expect(hook.enqueue).toHaveBeenCalledExactlyOnceWith(
+      {
+        account,
+        receipt: {
+          blockNumber: expect.any(Number) as number,
+          chainId: moonbeamDev.id,
+          transactionHash: transaction?.hashes[0],
+        },
+        tenant: "BASE",
+      },
+      "wh-base",
+    );
+    expect(refresh).toHaveBeenCalledExactlyOnceWith(database, connection, account, moonbeamDev.id, "user");
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it("fails without card", async () => {
@@ -864,7 +967,13 @@ describe("refund worker", () => {
 
     await expect(result).rejects.toThrow("withdrawal mismatch");
     await vi.waitUntil(() => track.mock.calls.length > 0);
-    expect(mocks.getWithdrawal).toHaveBeenCalledExactlyOnceWith(1000, refunderAddress, refunder.address);
+    expect(mocks.getWithdrawal).toHaveBeenCalledExactlyOnceWith(
+      1000,
+      refunderAddress,
+      refunder.address,
+      chain.id,
+      testnet ? usdc : parse(Address, usdcAddress),
+    );
     expect(mocks.exaSend).not.toHaveBeenCalled();
     expect(hook.enqueue).not.toHaveBeenCalled();
     expect(sendPushNotification).not.toHaveBeenCalled();
@@ -1361,15 +1470,18 @@ const user = {
 };
 
 const mocks = vi.hoisted(() => ({
+  wallet: vi.fn<(chainId?: number) => void>(),
   exaSend: vi.fn<ReturnType<typeof W.extender>["exaSend"]>(),
   getContracts: vi.fn<() => Promise<unknown>>(),
   getUser: vi.fn<(id: string) => Promise<unknown>>(),
   getWebhook: vi.fn<(id: string) => Promise<unknown>>(),
-  getWithdrawal: vi.fn<(amount: number, recipient: string, admin: string) => Promise<unknown>>(),
+  getWithdrawal:
+    vi.fn<(amount: number, recipient: string, admin: string, chainId: number, token: string) => Promise<unknown>>(),
 }));
 
 vi.mock("../../utils/panda", async (importOriginal) => {
   const original = await importOriginal<typeof P>();
+  const { moonbeamDev: base } = await import("viem/chains");
   return {
     ...original,
     default: ((...options) => ({
@@ -1379,6 +1491,7 @@ vi.mock("../../utils/panda", async (importOriginal) => {
       getWebhook: mocks.getWebhook,
       getWithdrawal: mocks.getWithdrawal,
     })) as typeof original.default,
+    programChain: (tenant: P.Tenant) => (tenant === "BASE" ? base.id : original.programChain(tenant)),
   };
 });
 
@@ -1395,7 +1508,8 @@ vi.mock("../../utils/wallet", async (importOriginal) => {
   const { foundry, optimism } = await import("viem/chains");
   return {
     ...original,
-    default(signer: LocalAccount) {
+    default(signer: LocalAccount, target?: Chain) {
+      mocks.wallet(target?.id);
       const wallet = original.default(signer, {
         ...foundry,
         blockTime: optimism.blockTime,
@@ -1456,7 +1570,7 @@ function webhook(id: string, spend: Record<string, unknown>, action = "completed
   return requestBody;
 }
 
-async function withdrawal(amount: bigint) {
+async function withdrawal(amount: bigint, chainId: number = chain.id) {
   return encodeFunctionData({
     abi: parseAbi([
       "function withdrawAsset(address collateralProxy, address asset, uint256 amount, address recipient, uint256 expiresAt, bytes32 salt, bytes signature, bytes32[] adminSalts, bytes[] adminSignatures, bool directTransfer)",
@@ -1484,7 +1598,7 @@ async function withdrawal(amount: bigint) {
                   ),
                   keccak256(toHex("Collateral")),
                   keccak256(toHex("2")),
-                  BigInt(chain.id),
+                  BigInt(chainId),
                   collateral,
                   zeroHash,
                 ]),
