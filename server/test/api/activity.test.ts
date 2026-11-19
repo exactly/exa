@@ -1371,30 +1371,36 @@ describe.concurrent("authenticated", () => {
           args: [marketUSDCAddress, 3_000_000_000n],
         }),
       });
-      await anvilClient.waitForTransactionReceipt({
+      const deposit = await anvilClient.waitForTransactionReceipt({
         hash: await borrower.writeContract({
           address: marketUSDCAddress,
           abi: marketAbi,
           functionName: "deposit",
           args: [3_000_000_000n, borrower.account.address],
+          gas: 1_000_000n,
         }),
       });
-      await anvilClient.waitForTransactionReceipt({
+      expect(deposit.status).toBe("success");
+      const entry = await anvilClient.waitForTransactionReceipt({
         hash: await borrower.writeContract({
           address: auditorAddress,
           abi: auditorAbi,
           functionName: "enterMarket",
           args: [marketUSDCAddress],
+          gas: 1_000_000n,
         }),
       });
-      await anvilClient.waitForTransactionReceipt({
+      expect(entry.status).toBe("success");
+      const borrow = await anvilClient.waitForTransactionReceipt({
         hash: await borrower.writeContract({
           address: marketWETHAddress,
           abi: marketAbi,
           functionName: "borrow",
           args: [5n * 10n ** 17n, borrower.account.address, borrower.account.address],
+          gas: 1_000_000n,
         }),
       });
+      expect(borrow.status).toBe("success");
       await anvilClient.setBalance({ address: redeemer, value: 5n * 10n ** 16n });
       await keeper.exaSend(
         { name: "poke", op: "exa.poke" },
@@ -1406,11 +1412,12 @@ describe.concurrent("authenticated", () => {
         functionName: "balanceOf",
         args: [redeemer],
       });
-      await anvilClient.waitForTransactionReceipt({
+      const proposal = await anvilClient.waitForTransactionReceipt({
         hash: await owner.writeContract({
           address: redeemer,
           abi: upgradeableModularAccountAbi,
           functionName: "executeBatch",
+          gas: 1_000_000n,
           args: [
             [
               {
@@ -1431,6 +1438,7 @@ describe.concurrent("authenticated", () => {
           ],
         }),
       });
+      expect(proposal.status).toBe("success");
       await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
       const receipt = await keeper.exaSend(
         { name: "execute proposal", op: "exa.execute" },
