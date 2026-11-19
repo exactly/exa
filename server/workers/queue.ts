@@ -22,14 +22,15 @@ export default function queue<Job extends Trace>(
   return {
     close: () => instance.close(),
     ready: (): Promise<unknown> => instance.waitUntilReady(),
-    async enqueue(data: Payload<Job>, jobId: string, spanName: string = name) {
+    getJob: (id: string) => instance.getJob(id),
+    async enqueue(data: Payload<Job>, jobId: string, schedule?: { delay: number }) {
       await startSpan(
-        { name: spanName, op: "queue.publish", attributes: { "messaging.destination.name": name } },
+        { name, op: "queue.publish", attributes: { "messaging.destination.name": name } },
         async (span) => {
           const job = await instance.add(
             name,
             { ...data, sentryBaggage: spanToBaggageHeader(span), sentryTrace: spanToTraceHeader(span) },
-            { jobId },
+            { jobId, ...schedule },
           );
           span.setAttribute("messaging.message.id", job.id);
           span.setAttribute("messaging.message.body.size", Buffer.byteLength(JSON.stringify(job.data)));
