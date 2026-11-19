@@ -110,7 +110,10 @@ export default define({
       shared: ["redis-url"],
     },
     credit: { secrets: ["onesignal-api-key", "onesignal-apps", "postgres-url"], shared: ["redis-url"] },
-    hook: { secrets: ["panda-api-key", "postgres-url"], shared: ["panda-api-url", "redis-url"] },
+    hook: {
+      secrets: ["panda-api-key", "panda-base-api-key", "postgres-url"],
+      shared: ["panda-api-url", "panda-base-api-url", "redis-url"],
+    },
     mockfi: { secrets: ["postgres-url"], shared: ["redis-url"], signers: ["bridger"] },
     poke: {
       secrets: ["onesignal-api-key", "onesignal-apps", "segment-write-key"],
@@ -120,13 +123,14 @@ export default define({
     refund: {
       secrets: [
         "panda-api-key",
+        "panda-base-api-key",
         "onesignal-api-key",
         "onesignal-apps",
         "postgres-url",
         "sardine-api-key",
         "segment-write-key",
       ],
-      shared: ["panda-api-url", "redis-url", "sardine-api-url"],
+      shared: ["panda-api-url", "panda-base-api-url", "redis-url", "sardine-api-url"],
       signers: ["refunder"],
     },
     subscribe: { secrets: ["alchemy-webhooks-key", "postgres-url"], shared: ["redis-url"], timeout: "1800s" },
