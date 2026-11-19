@@ -1,11 +1,13 @@
 {
   "1": {
     "network": "ETH_MAINNET",
-    "slug": "eth-mainnet"
+    "slug": "eth-mainnet",
+    "webhooks": true
   },
   "10": {
     "network": "OPT_MAINNET",
-    "slug": "opt-mainnet"
+    "slug": "opt-mainnet",
+    "webhooks": true
   },
   "25": {
     "network": "CRONOS_MAINNET",
@@ -22,32 +24,39 @@
   },
   "56": {
     "network": "BNB_MAINNET",
-    "slug": "bnb-mainnet"
+    "slug": "bnb-mainnet",
+    "webhooks": true
   },
   "97": {
     "network": "BNB_TESTNET",
     "slug": "bnb-testnet",
-    "testnet": true
+    "testnet": true,
+    "webhooks": true
   },
   "100": {
     "network": "GNOSIS_MAINNET",
-    "slug": "gnosis-mainnet"
+    "slug": "gnosis-mainnet",
+    "webhooks": true
   },
   "130": {
     "network": "UNICHAIN_MAINNET",
-    "slug": "unichain-mainnet"
+    "slug": "unichain-mainnet",
+    "webhooks": true
   },
   "137": {
     "network": "MATIC_MAINNET",
-    "slug": "polygon-mainnet"
+    "slug": "polygon-mainnet",
+    "webhooks": true
   },
   "143": {
     "network": "MONAD_MAINNET",
-    "slug": "monad-mainnet"
+    "slug": "monad-mainnet",
+    "webhooks": true
   },
   "146": {
     "network": "SONIC_MAINNET",
-    "slug": "sonic-mainnet"
+    "slug": "sonic-mainnet",
+    "webhooks": true
   },
   "196": {
     "network": "XLAYER_MAINNET",
@@ -72,11 +81,13 @@
   "300": {
     "network": "ZKSYNC_SEPOLIA",
     "slug": "zksync-sepolia",
-    "testnet": true
+    "testnet": true,
+    "webhooks": true
   },
   "324": {
     "network": "ZKSYNC_MAINNET",
-    "slug": "zksync-mainnet"
+    "slug": "zksync-mainnet",
+    "webhooks": true
   },
   "338": {
     "network": "CRONOS_TESTNET",
@@ -85,11 +96,13 @@
   },
   "360": {
     "network": "SHAPE_MAINNET",
-    "slug": "shape-mainnet"
+    "slug": "shape-mainnet",
+    "webhooks": true
   },
   "480": {
     "network": "WORLDCHAIN_MAINNET",
-    "slug": "worldchain-mainnet"
+    "slug": "worldchain-mainnet",
+    "webhooks": true
   },
   "545": {
     "network": "FLOW_TESTNET",
@@ -124,16 +137,19 @@
   },
   "999": {
     "network": "HYPERLIQUID_MAINNET",
-    "slug": "hyperliquid-mainnet"
+    "slug": "hyperliquid-mainnet",
+    "webhooks": true
   },
   "1088": {
     "network": "METIS_MAINNET",
-    "slug": "metis-mainnet"
+    "slug": "metis-mainnet",
+    "webhooks": true
   },
   "1301": {
     "network": "UNICHAIN_SEPOLIA",
     "slug": "unichain-sepolia",
-    "testnet": true
+    "testnet": true,
+    "webhooks": true
   },
   "1315": {
     "network": "STORY_AENEID",
@@ -168,12 +184,14 @@
   },
   "1868": {
     "network": "SONEIUM_MAINNET",
-    "slug": "soneium-mainnet"
+    "slug": "soneium-mainnet",
+    "webhooks": true
   },
   "1946": {
     "network": "SONEIUM_MINATO",
     "slug": "soneium-minato",
-    "testnet": true
+    "testnet": true,
+    "webhooks": true
   },
   "1952": {
     "network": "XLAYER_TESTNET",
@@ -182,7 +200,8 @@
   },
   "2020": {
     "network": "RONIN_MAINNET",
-    "slug": "ronin-mainnet"
+    "slug": "ronin-mainnet",
+    "webhooks": true
   },
   "2201": {
     "network": "STABLE_TESTNET",
@@ -191,7 +210,8 @@
   },
   "2741": {
     "network": "ABSTRACT_MAINNET",
-    "slug": "abstract-mainnet"
+    "slug": "abstract-mainnet",
+    "webhooks": true
   },
   "4114": {
     "network": "CITREA_MAINNET",
@@ -212,7 +232,8 @@
   },
   "4217": {
     "network": "TEMPO_MAINNET",
-    "slug": "tempo-mainnet"
+    "slug": "tempo-mainnet",
+    "webhooks": true
   },
   "4326": {
     "network": "MEGAETH_MAINNET",
@@ -220,25 +241,30 @@
   },
   "4663": {
     "network": "ROBINHOOD_MAINNET",
-    "slug": "robinhood-mainnet"
+    "slug": "robinhood-mainnet",
+    "webhooks": true
   },
   "4801": {
     "network": "WORLDCHAIN_SEPOLIA",
     "slug": "worldchain-sepolia",
-    "testnet": true
+    "testnet": true,
+    "webhooks": true
   },
   "5000": {
     "network": "MANTLE_MAINNET",
-    "slug": "mantle-mainnet"
+    "slug": "mantle-mainnet",
+    "webhooks": true
   },
   "5003": {
     "network": "MANTLE_SEPOLIA",
     "slug": "mantle-sepolia",
-    "testnet": true
+    "testnet": true,
+    "webhooks": true
   },
   "5042": {
     "network": "ARC_MAINNET",
-    "slug": "arc-mainnet"
+    "slug": "arc-mainnet",
+    "webhooks": true
   },
   "5115": {
     "network": "CITREA_TESTNET",
@@ -251,12 +277,14 @@
   },
   "5371": {
     "network": "SETTLUS_MAINNET",
-    "slug": "settlus-mainnet"
+    "slug": "settlus-mainnet",
+    "webhooks": true
   },
   "5373": {
     "network": "SETTLUS_SEPTESTNET",
     "slug": "settlus-septestnet",
-    "testnet": true
+    "testnet": true,
+    "webhooks": true
   },
   "5611": {
     "network": "OPBNB_TESTNET",
@@ -271,16 +299,19 @@
   "6900": {
     "network": "ANIME_SEPOLIA",
     "slug": "anime-sepolia",
-    "testnet": true
+    "testnet": true,
+    "webhooks": true
   },
   "7000": {
     "network": "ZETACHAIN_MAINNET",
-    "slug": "zetachain-mainnet"
+    "slug": "zetachain-mainnet",
+    "webhooks": true
   },
   "7001": {
     "network": "ZETACHAIN_TESTNET",
     "slug": "zetachain-testnet",
-    "testnet": true
+    "testnet": true,
+    "webhooks": true
   },
   "8217": {
     "network": "KAIA_MAINNET",
@@ -288,11 +319,13 @@
   },
   "8453": {
     "network": "BASE_MAINNET",
-    "slug": "base-mainnet"
+    "slug": "base-mainnet",
+    "webhooks": true
   },
   "9745": {
     "network": "PLASMA_MAINNET",
-    "slug": "plasma-mainnet"
+    "slug": "plasma-mainnet",
+    "webhooks": true
   },
   "9746": {
     "network": "PLASMA_TESTNET",
@@ -302,22 +335,26 @@
   "10143": {
     "network": "MONAD_TESTNET",
     "slug": "monad-testnet",
-    "testnet": true
+    "testnet": true,
+    "webhooks": true
   },
   "10200": {
     "network": "GNOSIS_CHIADO",
     "slug": "gnosis-chiado",
-    "testnet": true
+    "testnet": true,
+    "webhooks": true
   },
   "11011": {
     "network": "SHAPE_SEPOLIA",
     "slug": "shape-sepolia",
-    "testnet": true
+    "testnet": true,
+    "webhooks": true
   },
   "11124": {
     "network": "ABSTRACT_TESTNET",
     "slug": "abstract-testnet",
-    "testnet": true
+    "testnet": true,
+    "webhooks": true
   },
   "14601": {
     "network": "SONIC_TESTNET",
@@ -337,11 +374,13 @@
   "33111": {
     "network": "APECHAIN_CURTIS",
     "slug": "apechain-curtis",
-    "testnet": true
+    "testnet": true,
+    "webhooks": true
   },
   "33139": {
     "network": "APECHAIN_MAINNET",
-    "slug": "apechain-mainnet"
+    "slug": "apechain-mainnet",
+    "webhooks": true
   },
   "34443": {
     "network": "MODE_MAINNET",
@@ -362,30 +401,36 @@
   },
   "42161": {
     "network": "ARB_MAINNET",
-    "slug": "arb-mainnet"
+    "slug": "arb-mainnet",
+    "webhooks": true
   },
   "42220": {
     "network": "CELO_MAINNET",
-    "slug": "celo-mainnet"
+    "slug": "celo-mainnet",
+    "webhooks": true
   },
   "42431": {
     "network": "TEMPO_MODERATO",
     "slug": "tempo-moderato",
-    "testnet": true
+    "testnet": true,
+    "webhooks": true
   },
   "43113": {
     "network": "AVAX_FUJI",
     "slug": "avax-fuji",
-    "testnet": true
+    "testnet": true,
+    "webhooks": true
   },
   "43114": {
     "network": "AVAX_MAINNET",
-    "slug": "avax-mainnet"
+    "slug": "avax-mainnet",
+    "webhooks": true
   },
   "46630": {
     "network": "ROBINHOOD_TESTNET",
     "slug": "robinhood-testnet",
-    "testnet": true
+    "testnet": true,
+    "webhooks": true
   },
   "53302": {
     "network": "SUPERSEED_SEPOLIA",
@@ -394,16 +439,19 @@
   },
   "57073": {
     "network": "INK_MAINNET",
-    "slug": "ink-mainnet"
+    "slug": "ink-mainnet",
+    "webhooks": true
   },
   "59141": {
     "network": "LINEA_SEPOLIA",
     "slug": "linea-sepolia",
-    "testnet": true
+    "testnet": true,
+    "webhooks": true
   },
   "59144": {
     "network": "LINEA_MAINNET",
-    "slug": "linea-mainnet"
+    "slug": "linea-mainnet",
+    "webhooks": true
   },
   "60808": {
     "network": "BOB_MAINNET",
@@ -411,40 +459,48 @@
   },
   "69000": {
     "network": "ANIME_MAINNET",
-    "slug": "anime-mainnet"
+    "slug": "anime-mainnet",
+    "webhooks": true
   },
   "80002": {
     "network": "MATIC_AMOY",
     "slug": "polygon-amoy",
-    "testnet": true
+    "testnet": true,
+    "webhooks": true
   },
   "80069": {
     "network": "BERACHAIN_BEPOLIA",
     "slug": "berachain-bepolia",
-    "testnet": true
+    "testnet": true,
+    "webhooks": true
   },
   "80094": {
     "network": "BERACHAIN_MAINNET",
-    "slug": "berachain-mainnet"
+    "slug": "berachain-mainnet",
+    "webhooks": true
   },
   "84532": {
     "network": "BASE_SEPOLIA",
     "slug": "base-sepolia",
-    "testnet": true
+    "testnet": true,
+    "webhooks": true
   },
   "91342": {
     "network": "GIWA_SEPOLIA",
     "slug": "giwa-sepolia",
-    "testnet": true
+    "testnet": true,
+    "webhooks": true
   },
   "99801": {
     "network": "ELYSIUM_TESTNET",
     "slug": "elysium-testnet",
-    "testnet": true
+    "testnet": true,
+    "webhooks": true
   },
   "99901": {
     "network": "ELYSIUM_MAINNET",
-    "slug": "elysium-mainnet"
+    "slug": "elysium-mainnet",
+    "webhooks": true
   },
   "99999": {
     "network": "ADI_TESTNET",
@@ -454,16 +510,19 @@
   "202601": {
     "network": "RONIN_SAIGON",
     "slug": "ronin-saigon",
-    "testnet": true
+    "testnet": true,
+    "webhooks": true
   },
   "421614": {
     "network": "ARB_SEPOLIA",
     "slug": "arb-sepolia",
-    "testnet": true
+    "testnet": true,
+    "webhooks": true
   },
   "534352": {
     "network": "SCROLL_MAINNET",
-    "slug": "scroll-mainnet"
+    "slug": "scroll-mainnet",
+    "webhooks": true
   },
   "560048": {
     "network": "ETH_HOODI",
@@ -473,7 +532,8 @@
   "685685": {
     "network": "GENSYN_TESTNET",
     "slug": "gensyn-testnet",
-    "testnet": true
+    "testnet": true,
+    "webhooks": true
   },
   "685689": {
     "network": "GENSYN_MAINNET",
@@ -496,7 +556,8 @@
   "763373": {
     "network": "INK_SEPOLIA",
     "slug": "ink-sepolia",
-    "testnet": true
+    "testnet": true,
+    "webhooks": true
   },
   "808813": {
     "network": "BOB_SEPOLIA",
@@ -516,7 +577,8 @@
   "5042002": {
     "network": "ARC_TESTNET",
     "slug": "arc-testnet",
-    "testnet": true
+    "testnet": true,
+    "webhooks": true
   },
   "5734951": {
     "network": "JOVAY_MAINNET",
@@ -528,22 +590,26 @@
   },
   "7777777": {
     "network": "ZORA_MAINNET",
-    "slug": "zora-mainnet"
+    "slug": "zora-mainnet",
+    "webhooks": true
   },
   "11142220": {
     "network": "CELO_SEPOLIA",
     "slug": "celo-sepolia",
-    "testnet": true
+    "testnet": true,
+    "webhooks": true
   },
   "11155111": {
     "network": "ETH_SEPOLIA",
     "slug": "eth-sepolia",
-    "testnet": true
+    "testnet": true,
+    "webhooks": true
   },
   "11155420": {
     "network": "OPT_SEPOLIA",
     "slug": "opt-sepolia",
-    "testnet": true
+    "testnet": true,
+    "webhooks": true
   },
   "11155931": {
     "network": "RISE_TESTNET",
@@ -557,7 +623,8 @@
   "999999999": {
     "network": "ZORA_SEPOLIA",
     "slug": "zora-sepolia",
-    "testnet": true
+    "testnet": true,
+    "webhooks": true
   },
   "3448148188": {
     "network": "TRON_TESTNET",
