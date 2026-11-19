@@ -14,6 +14,7 @@ import {
 import { deserialize, serialize } from "@wagmi/core";
 import { Mutex } from "async-mutex";
 import createDebug from "debug";
+import { inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { createHash } from "node:crypto";
 import { setTimeout } from "node:timers/promises";
@@ -52,6 +53,7 @@ import revertReason from "@exactly/common/revertReason";
 import shortenHex from "@exactly/common/shortenHex";
 import { Address, Hash, Hex } from "@exactly/common/validation";
 
+import { credentials } from "../database/schema";
 import t, { f } from "../i18n";
 import { headerValidator } from "../utils/alchemy";
 import appOrigin from "../utils/appOrigin";
@@ -63,8 +65,10 @@ import validatorHook from "../utils/validatorHook";
 import validFactories from "../utils/validFactories";
 import createWallet from "../utils/wallet";
 
+import type * as schema from "../database/schema";
 import type createAlchemy from "../utils/alchemy";
 import type createOnesignal from "../utils/onesignal";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Redis } from "ioredis";
 
 const debug = createDebug("exa:block");
@@ -74,6 +78,7 @@ export default function hook({
   alchemy,
   blockKey,
   chainId = chain.id,
+  database,
   executor,
   onesignal,
   redis,
@@ -81,6 +86,7 @@ export default function hook({
   alchemy: ReturnType<typeof createAlchemy>;
   blockKey?: string;
   chainId?: number;
+  database: NodePgDatabase<typeof schema>;
   executor: LocalAccount;
   onesignal: ReturnType<typeof createOnesignal>;
   redis: Redis;
@@ -173,7 +179,7 @@ export default function hook({
       }, new Map<string, typeof logs>());
 
       // TODO use .filter((event) => event.eventName === "Proposed") after migration
-      const proposalsByAccount =
+      const proposed =
         proposalsBySignature
           .get("0x4cf7794d9c19185f7d95767c53e511e2e67ae50f68ece9c9079c6ae83403a3e7")
           ?.map(({ topics, data }) => decodeEventLog({ topics, data, abi: [...exaPluginAbi, ...proposalManagerAbi] }))
@@ -191,12 +197,25 @@ export default function hook({
             }
             accumulator.get(account)?.push(event);
             return accumulator;
-          }, new Map<string, v.InferOutput<typeof Proposal>[]>()) ?? [];
+          }, new Map<string, v.InferOutput<typeof Proposal>[]>()) ??
+        new Map<string, v.InferOutput<typeof Proposal>[]>();
 
-      const oldWithdraws =
+      const withdraws =
         proposalsBySignature
           .get("0x0c652a21d96e4efed065c3ef5961e4be681be99b95dd55126669ae9be95767e0")
           ?.map(({ topics, data }) => decodeEventLog({ topics, data, abi: legacyExaPluginAbi })) ?? [];
+
+      const accounts = [...new Set([...proposed.keys(), ...withdraws.map(({ args }) => args.account)])];
+      const known =
+        accounts.length > 0
+          ? await database.query.credentials
+              .findMany({ columns: { account: true }, where: inArray(credentials.account, accounts) })
+              .then((rows) => new Set(rows.map(({ account }) => account)))
+          : new Set<string>();
+      const unknown = accounts.filter((account) => !known.has(account));
+      if (unknown.length > 0) getActiveSpan()?.setAttribute("exa.unknown", unknown);
+      const proposalsByAccount = new Map(proposed.entries().filter(([account]) => known.has(account)));
+      const oldWithdraws = withdraws.filter(({ args }) => known.has(args.account));
 
       await Promise.all([
         ...proposalsByAccount.values().map(async (ps) => {

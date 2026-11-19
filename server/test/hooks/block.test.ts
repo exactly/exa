@@ -4,11 +4,12 @@ import "../mocks/sentry";
 import "../mocks/traceClient";
 import "../mocks/wallet";
 
-import { captureException, continueTrace, withScope } from "@sentry/node";
+import { captureException, continueTrace, getActiveSpan, withScope } from "@sentry/node";
 import { deserialize } from "@wagmi/core";
 import { testClient } from "hono/testing";
 import { Redis } from "ioredis";
 import { createHash } from "node:crypto";
+import { inspect } from "node:util";
 import { v5 } from "uuid";
 import {
   ContractFunctionExecutionError,
@@ -17,6 +18,7 @@ import {
   decodeEventLog,
   encodeAbiParameters,
   encodeErrorResult,
+  encodeEventTopics,
   encodeFunctionData,
   erc20Abi,
   ExecutionRevertedError,
@@ -24,6 +26,7 @@ import {
   getAbiItem,
   getAddress,
   getContractError,
+  hexToBytes,
   http,
   HttpRequestError,
   maxUint256,
@@ -65,6 +68,7 @@ import ProposalType, { decodeWithdraw } from "@exactly/common/ProposalType";
 import shortenHex from "@exactly/common/shortenHex";
 import deploy from "@exactly/plugin/deploy.json";
 
+import database, { credentials } from "../../database";
 import createBlockHook from "../../hooks/block";
 import t, { f } from "../../i18n";
 import createAlchemy from "../../utils/alchemy";
@@ -89,6 +93,7 @@ const bob = createWalletClient({
 const bobAccount = deriveAddress(exaAccountFactoryAddress, { x: padHex(bob.account.address), y: zeroHash });
 const defaults = {
   alchemy: createAlchemy("webhooks"),
+  database,
   executor: bob.account,
   onesignal: createOnesignal("onesignal"),
   redis,
@@ -224,6 +229,29 @@ describe("validation", () => {
     const response = await appClient.index.$post(blockPayload);
 
     expect(response.status).toBe(200);
+  });
+
+  it("skips credentials lookup without proposals", async () => {
+    const findMany = vi.spyOn(database.query.credentials, "findMany");
+
+    const response = await appClient.index.$post({
+      header: {},
+      json: {
+        type: "GRAPHQL",
+        event: {
+          data: {
+            block: {
+              number: 1,
+              timestamp: 1,
+              logs: [{ topics: [zeroHash], data: "0x", account: { address: proposalManagerAddress } }],
+            },
+          },
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(findMany).not.toHaveBeenCalled();
   });
 });
 
@@ -1608,12 +1636,22 @@ describe("proposal", () => {
 
 describe("legacy withdraw", () => {
   const withdrawUnlock = 1000n;
-  const withdrawAccount = getAddress(padHex("0xdead", { size: 20 }));
+  const withdrawOwner = padHex("0xdead", { size: 20 });
+  const withdrawAccount = deriveAddress(exaAccountFactoryAddress, { x: padHex(withdrawOwner), y: zeroHash });
   const withdrawMarket = getAddress(padHex("0xbeef", { size: 20 }));
   const withdrawReceiver = getAddress(padHex("0xcafe", { size: 20 }));
   const { simulateContract } = publicClient;
 
-  function legacyPayload(amount: bigint, emitter: Address = exaPluginAddress) {
+  beforeAll(async () => {
+    await database.insert(credentials).values({
+      id: "legacy-withdraw",
+      publicKey: new Uint8Array(hexToBytes(withdrawOwner)),
+      account: withdrawAccount,
+      factory: exaAccountFactoryAddress,
+    });
+  });
+
+  function legacyPayload(amount: bigint, account: Address = withdrawAccount, emitter: Address = exaPluginAddress) {
     return {
       header: {},
       json: {
@@ -1627,7 +1665,7 @@ describe("legacy withdraw", () => {
                 {
                   topics: [
                     "0x0c652a21d96e4efed065c3ef5961e4be681be99b95dd55126669ae9be95767e0",
-                    encodeAbiParameters([{ type: "address" }], [withdrawAccount]),
+                    encodeAbiParameters([{ type: "address" }], [account]),
                     encodeAbiParameters([{ type: "address" }], [withdrawMarket]),
                     encodeAbiParameters([{ type: "address" }], [withdrawReceiver]),
                   ] as [Hex, ...Hex[]],
@@ -1645,12 +1683,60 @@ describe("legacy withdraw", () => {
   it("ignores withdrawals emitted by an untrusted contract", async () => {
     const zadd = spyZadd();
 
-    const response = await appClient.index.$post(legacyPayload(1_500_000n, zeroAddress));
+    const response = await appClient.index.$post(legacyPayload(1_500_000n, withdrawAccount, zeroAddress));
 
     expect(response.status).toBe(200);
     expect(
       zadd.mock.calls.filter(([key, , member]) => key === "withdraw" && member.includes(withdrawAccount)),
     ).toStrictEqual([]);
+  });
+
+  it("ignores proposals from unknown accounts", async () => {
+    const unknownAccount = getAddress(padHex("0xbad", { size: 20 }));
+    const proposed = getAbiItem({ abi: proposalManagerAbi, name: "Proposed" });
+    const setAttribute = vi.fn();
+    vi.mocked(getActiveSpan).mockReturnValue({ setAttribute } as unknown as ReturnType<typeof getActiveSpan>);
+    onTestFinished(() => {
+      vi.mocked(getActiveSpan).mockReset();
+    });
+    const payload = legacyPayload(1n, unknownAccount);
+    payload.json.event.data.block.logs.push({
+      topics: encodeEventTopics({
+        abi: [proposed],
+        args: { account: unknownAccount, nonce: 0n, market: withdrawMarket },
+      }) as [Hex, ...Hex[]],
+      data: encodeAbiParameters(
+        proposed.inputs.filter(({ indexed }) => !indexed),
+        [ProposalType.Withdraw, 1n, encodeAbiParameters([{ type: "address" }], [unknownAccount]), 1n],
+      ),
+      account: { address: proposalManagerAddress },
+    });
+
+    const response = await appClient.index.$post(payload);
+
+    expect(response.status).toBe(200);
+    const queued = [...(await redis.zrange("proposals", 0, -1)), ...(await redis.zrange("withdraw", 0, -1))];
+    expect(queued.map((message) => deserialize<{ account: string }>(message).account)).not.toContain(unknownAccount);
+    expect(setAttribute).toHaveBeenCalledWith("exa.unknown", [unknownAccount]);
+    expect(vi.mocked(captureException).mock.calls.filter((call) => inspect(call).includes(unknownAccount))).toEqual([]);
+    expect(sendPushNotificationMock).not.toHaveBeenCalledWith(expect.objectContaining({ userId: unknownAccount }));
+  });
+
+  it("fails without queueing when credentials lookup fails", async () => {
+    const amount = 1_125_000n;
+    vi.spyOn(database.query.credentials, "findMany").mockReturnValueOnce(
+      Promise.reject(new Error("credentials lookup failed")) as never,
+    );
+
+    const response = await appClient.index.$post(legacyPayload(amount));
+
+    expect(response.status).toBe(500);
+    const queued = [...(await redis.zrange("proposals", 0, -1)), ...(await redis.zrange("withdraw", 0, -1))];
+    expect(
+      queued
+        .map((message) => deserialize<{ account: string; amount: bigint }>(message))
+        .filter((message) => message.account === withdrawAccount && message.amount === amount),
+    ).toEqual([]);
   });
 
   it("removes withdraw from queue on InsufficientAccountLiquidity", async () => {
