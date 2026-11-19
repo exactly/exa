@@ -1,20 +1,20 @@
-From 3ebfa73de9e6f09c1eea5fde60890f899be17fc2 Mon Sep 17 00:00:00 2001
+From 2a138c63b3bac679045df0e91fc2bd276d0cafca Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Thu, 19 Nov 2026 03:23:23 +0000
 Subject: [PATCH] fix: settle web pages once the dom goes quiet
 
-On web, waitForAppToSettle compared view hierarchies read back to back, ten times at most with 200 ms between reads. A read that is slow enough hides how weak that check is, but two fast reads can land inside the same animation, so a tap aims at a menu that is still moving. Wait in the page instead until it has gone 50 ms without dom mutations, scrolling or running finite animations, counting from the moment each animation finishes, up to 2 s or the command's timeout, then read the hierarchy once. When the wait runs out, return a fresh hierarchy, or null while the page is still scrolling so a tap right after a scroll re-aims at a stable position. Scripts may now return promises, which evaluate awaits.
+On web, waitForAppToSettle compared view hierarchies read back to back, ten times at most with 200 ms between reads. A read that is slow enough hides how weak that check is, but two fast reads can land inside the same animation, so a tap aims at a menu that is still moving. Wait in the page instead until it has gone 50 ms and two rendered frames without dom mutations, scrolling or running finite animations, counting from the moment each animation finishes, up to 2 s or the command's timeout, then read the hierarchy once. The page stays watched while it is read, and if anything changed by then, the positions just read may already be stale, so the wait starts over: a layout that only catches up after a quiet spell, like a sheet resizing to content measured on a timer, no longer gets tapped where it was. Counting frames keeps a busy renderer from passing as quiet before it has laid out the last change, so layout-driven moves like a sheet resizing to its content still settle. Cross-origin iframes that are rendered in the viewport get the same wait inside each frame, through the driver, and the page waits again if one of them moved or navigated. The frame id attribute chromedriver sets on a frame it switches into does not count as a change. Hidden and offscreen frames are left out: they render no frames, so their wait could only run out, and nothing in them can be tapped. When the wait runs out, return a fresh hierarchy, or null while the page is still scrolling so a tap right after a scroll re-aims at a stable position. Scripts may now return promises, which evaluate awaits.
 ---
- .../main/java/maestro/drivers/CdpWebDriver.kt | 18 ++++++-
- .../src/main/resources/maestro-web.js         | 52 +++++++++++++++++++
- .../main/kotlin/maestro/web/cdp/CdpClient.kt  |  8 +--
- 3 files changed, 72 insertions(+), 6 deletions(-)
+ .../main/java/maestro/drivers/CdpWebDriver.kt | 47 ++++++++++-
+ .../src/main/resources/maestro-web.js         | 83 +++++++++++++++++++
+ .../main/kotlin/maestro/web/cdp/CdpClient.kt  |  8 +-
+ 3 files changed, 132 insertions(+), 6 deletions(-)
 
 diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-index e3ea58e..11ec651 100644
+index e3ea58e..e22db7b 100644
 --- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
 +++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-@@ -850,8 +850,20 @@ class CdpWebDriver(
+@@ -850,8 +850,49 @@ class CdpWebDriver(
          return true
      }
  
@@ -29,15 +29,44 @@ index e3ea58e..11ec651 100644
 +            if (remaining <= 0) return ViewHierarchy.from(this, false)
 +            val state = executeJS("window.maestro.waitForQuiet($SETTLE_QUIET_MS, $remaining)") as? Map<*, *> ?: continue
 +            if (state["quiet"] != true) return if (state["scrolling"] == true) null else ViewHierarchy.from(this, false)
++            val iframes = (state["iframes"] as? List<*>).orEmpty().filterIsInstance<Number>()
++            val iframeStates = iframes.mapNotNull { waitForIframeQuiet(it.toInt(), deadline) }
++            val restless = iframeStates.filter { it["quiet"] != true }
++            if (restless.isNotEmpty()) return if (restless.any { it["scrolling"] == true }) null else ViewHierarchy.from(this, false)
++            if (iframeStates.any { it["moved"] == true }) continue
 +            detectWindowChange()
 +            if (currentWindow != window) continue
 +            val hierarchy = ViewHierarchy.from(this, false)
-+            if (currentWindow == window) return hierarchy
++            if (currentWindow == window && executeJS("window.maestro.moved ? window.maestro.moved() : true") == false) return hierarchy
++        }
++    }
++
++    private fun waitForIframeQuiet(iframeIndex: Int, deadline: Long): Map<*, *>? {
++        val driver = seleniumDriver ?: return null
++        val jsExecutor = driver as? JavascriptExecutor ?: return null
++        val remaining = deadline - System.currentTimeMillis()
++        if (remaining <= 0) return mapOf("quiet" to false)
++        return try {
++            val iframeElement = jsExecutor.executeScript(
++                "return document.querySelectorAll('iframe')[arguments[0]];",
++                iframeIndex
++            ) as? WebElement ?: return null
++            driver.switchTo().frame(iframeElement)
++            driver.manage().timeouts().scriptTimeout(Duration.ofMillis(remaining))
++            jsExecutor.executeAsyncScript(
++                "$maestroWebScript\nwindow.maestro.waitForQuiet($SETTLE_QUIET_MS, $remaining).then(arguments[arguments.length - 1]);"
++            ) as? Map<*, *>
++        } catch (e: Exception) {
++            LOGGER.warn("Failed to wait for cross-origin iframe $iframeIndex to settle", e)
++            mapOf("quiet" to true, "moved" to true)
++        } finally {
++            try { driver.switchTo().defaultContent() }
++            catch (e: Exception) { LOGGER.warn("Failed to switch back to default content", e) }
 +        }
      }
  
      override fun waitUntilScreenIsStatic(timeoutMs: Long): Boolean {
-@@ -1069,6 +1081,8 @@ class CdpWebDriver(
+@@ -1069,6 +1110,8 @@ class CdpWebDriver(
          private const val RETRY_FETCHING_CONTENT_DESCRIPTION = 10
          private const val JS_EXECUTION_MAX_ATTEMPTS = 5
          private const val JS_EXECUTION_RETRY_DELAY_MS = 200L
@@ -47,20 +76,37 @@ index e3ea58e..11ec651 100644
  
          private val LAUNCH_PAGE_LOAD_TIMEOUT: Duration = Duration.ofSeconds(30)
 diff --git a/maestro-client/src/main/resources/maestro-web.js b/maestro-client/src/main/resources/maestro-web.js
-index 774cd9c..64d2161 100644
+index 774cd9c..81ba56d 100644
 --- a/maestro-client/src/main/resources/maestro-web.js
 +++ b/maestro-client/src/main/resources/maestro-web.js
-@@ -205,6 +205,58 @@
+@@ -205,6 +205,89 @@
          return traverse(document.body)
      }
  
 +    maestro.waitForQuiet = (quietMs, timeoutMs) => new Promise(resolve => {
++        maestro.unwatch?.()
++        maestro.unwatch = maestro.moved = undefined
 +        const start = performance.now()
 +        let last = start
 +        let scrolled = -Infinity
-+        const touch = () => { last = performance.now() }
-+        const scroll = () => { last = scrolled = performance.now() }
-+        const observer = new MutationObserver(touch)
++        let frames = 0
++        let done = false
++        const frame = () => {
++            frames++
++            if (!done) requestAnimationFrame(frame)
++        }
++        requestAnimationFrame(frame)
++        const touch = () => {
++            last = performance.now()
++            frames = 0
++        }
++        const scroll = () => {
++            touch()
++            scrolled = last
++        }
++        const observer = new MutationObserver(records => {
++            if (records.some(record => record.attributeName !== 'cd_frame_id_')) touch()
++        })
 +        const watched = new Set()
 +        const documents = (doc, found = []) => {
 +            found.push(doc)
@@ -91,11 +137,25 @@ index 774cd9c..64d2161 100644
 +            watch(docs)
 +            if (animating(docs)) touch()
 +            const now = performance.now()
-+            const quiet = now - last >= quietMs && docs.every(doc => doc.readyState === 'complete')
++            const quiet = now - last >= quietMs && frames >= 2 && docs.every(doc => doc.readyState === 'complete')
 +            if (quiet || now - start >= timeoutMs) {
-+                observer.disconnect()
-+                watched.forEach(doc => doc.removeEventListener('scroll', scroll, { capture: true }))
-+                resolve({ quiet, scrolling: now - scrolled < quietMs })
++                done = true
++                const stop = () => {
++                    observer.disconnect()
++                    watched.forEach(doc => doc.removeEventListener('scroll', scroll, { capture: true }))
++                }
++                const iframes = [...document.querySelectorAll('iframe')].flatMap((iframe, index) => {
++                    try { if (iframe.contentDocument) return [] } catch (e) {}
++                    const rect = iframe.getBoundingClientRect()
++                    return iframe.checkVisibility() && rect.bottom > 0 && rect.right > 0 &&
++                        rect.top < innerHeight && rect.left < innerWidth ? [index] : []
++                })
++                if (quiet) {
++                    const settled = last
++                    maestro.unwatch = stop
++                    maestro.moved = () => last > settled || animating(documents(document))
++                } else stop()
++                resolve({ quiet, moved: last > start, scrolling: now - scrolled < quietMs, iframes })
 +            } else {
 +                setTimeout(check, Math.max(10, quietMs - (now - last)))
 +            }
