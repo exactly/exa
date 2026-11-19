@@ -1,0 +1,75 @@
+From fa2a3c16aa1f0f5bf49e8cf4b211d0f78a6f3305 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Thu, 19 Nov 2026 21:32:46 +0000
+Subject: [PATCH] fix: refresh a tapped element that shares its attributes
+
+a tap resolves its element, waits for the app to settle and then finds
+the element again in the settled hierarchy, matching every attribute but
+the bounds. when another element has the same attributes, like a second
+"View statement" link, the lookup gives up and the tap uses the bounds
+from before the settle, so it presses wherever the element used to be.
+
+the lookup now takes the element at the same position among its
+matches, as long as the settled hierarchy has as many of them.
+---
+ maestro-client/src/main/java/maestro/Maestro.kt     |  4 ++--
+ .../src/main/java/maestro/ViewHierarchy.kt          | 13 ++++++++++---
+ 2 files changed, 12 insertions(+), 5 deletions(-)
+
+diff --git a/maestro-client/src/main/java/maestro/Maestro.kt b/maestro-client/src/main/java/maestro/Maestro.kt
+index 45d3d33..13afba3 100644
+--- a/maestro-client/src/main/java/maestro/Maestro.kt
++++ b/maestro-client/src/main/java/maestro/Maestro.kt
+@@ -243,7 +243,7 @@ class Maestro(
+                 else "Tap aimed via trusted pre-wait hierarchy (null settle, no recent scroll)"
+             )
+             val hierarchy = settledHierarchy ?: initialHierarchy
+-            hierarchy to hierarchy.refreshElement(element.treeNode)?.toUiElementOrNull()
++            hierarchy to hierarchy.refreshElement(element.treeNode, initialHierarchy)?.toUiElementOrNull()
+         }
+ 
+         val center = (refreshedElement ?: element)
+@@ -310,7 +310,7 @@ class Maestro(
+                 delay(ELEMENT_STABILITY_POLL_INTERVAL_MS)
+                 continue
+             }
+-            val freshElement = freshHierarchy.refreshElement(element.treeNode)?.toUiElementOrNull()
++            val freshElement = freshHierarchy.refreshElement(element.treeNode, initialHierarchy)?.toUiElementOrNull()
+ 
+             when {
+                 freshElement == null ->
+diff --git a/maestro-client/src/main/java/maestro/ViewHierarchy.kt b/maestro-client/src/main/java/maestro/ViewHierarchy.kt
+index 67fe3d0..97822e6 100644
+--- a/maestro-client/src/main/java/maestro/ViewHierarchy.kt
++++ b/maestro-client/src/main/java/maestro/ViewHierarchy.kt
+@@ -49,17 +49,24 @@ value class ViewHierarchy(val root: TreeNode) {
+         return node == elementAtPosition
+     }
+ 
+-    fun refreshElement(node: TreeNode): TreeNode? {
++    fun refreshElement(node: TreeNode, from: ViewHierarchy? = null): TreeNode? {
+         val matches = root.aggregate()
+             .filter {
+                 (it.attributes - "bounds") == (node.attributes - "bounds")
+             }
+ 
+-        if (matches.size != 1) {
++        if (matches.size == 1) {
++            return matches[0]
++        }
++
++        val previous = from?.root?.aggregate()
++            ?.filter { (it.attributes - "bounds") == (node.attributes - "bounds") }
++            ?: return null
++        if (previous.size != matches.size) {
+             return null
+         }
+ 
+-        return matches[0]
++        return previous.indexOfFirst { it === node }.takeIf { it != -1 }?.let { matches[it] }
+     }
+ 
+     fun getElementAt(
+-- 
+2.43.0
+
