@@ -75,6 +75,16 @@ services:
         scope: RUN_TIME
         type: SECRET
         value: ${{ env.ENCRYPTED_ALCHEMY_WEBHOOKS_KEY || env.ALCHEMY_WEBHOOKS_KEY }}
+      # @if ${{ env.ENVIRONMENT == "base" }}
+      - key: APP_ORIGINS
+        scope: RUN_TIME
+        value: https://business.exactly.app
+      # @endif
+      # @if ${{ env.ENVIRONMENT == "base-sepolia" }}
+      - key: APP_ORIGINS
+        scope: RUN_TIME
+        value: https://business.sandbox.exactly.app
+      # @endif
       - key: AUTH_SECRET
         scope: RUN_TIME
         type: SECRET
