@@ -53,6 +53,7 @@ import {
   PANDA_BUSINESS_CHECKBOX_TEMPLATE,
   PANDA_TEMPLATE,
   scopeValidationErrors,
+  syncing,
 } from "../utils/persona";
 import publicClient from "../utils/publicClient";
 import { IpAddress } from "../utils/sardine";
@@ -198,12 +199,6 @@ export default function route({
           switch (cardLimit.status) {
             case "resolved":
               return c.json({ code: "ok" }, 200);
-            case "approved":
-              captureException(new Error("inquiry approved but account not updated"), {
-                level: "error",
-                contexts: { inquiry: { templateId: CARD_LIMIT_TEMPLATE, referenceId: credentialId } },
-              });
-              return c.json({ code: "ok" }, 200);
             case "noTemplate":
               return c.json({ code: "no kyc" }, 400);
             case "noInquiry":
@@ -211,6 +206,7 @@ export default function route({
             case "pending":
             case "expired":
               return c.json({ code: "not started" }, 400);
+            case "approved":
             case "completed":
             case "needs_review":
               return c.json({ code: "processing" }, 400);
@@ -285,10 +281,12 @@ export default function route({
         }
         switch (inquiry.attributes.status) {
           case "approved":
-            captureException(new Error("inquiry approved but account not updated"), {
-              level: "error",
-              contexts: { inquiry: { templateId: inquiryTemplateId, referenceId: credentialId } },
-            });
+            if (!syncing(inquiry)) {
+              captureException(new Error("inquiry approved but account not updated"), {
+                level: "error",
+                contexts: { inquiry: { templateId: inquiryTemplateId, referenceId: credentialId } },
+              });
+            }
             return c.json({ code: "ok", legacy: "ok" }, 200);
           case "created":
           case "pending":
@@ -536,12 +534,6 @@ export default function route({
           switch (cardLimit.status) {
             case "resolved":
               return c.json({ code: "already approved" }, 400);
-            case "approved":
-              captureException(new Error("inquiry approved but account not updated"), {
-                level: "error",
-                contexts: { inquiry: { templateId: CARD_LIMIT_TEMPLATE, referenceId: credentialId } },
-              });
-              return c.json({ code: "already approved" }, 400);
             case "noTemplate":
               return c.json({ code: "not started" }, 400);
             case "noInquiry": {
@@ -557,6 +549,7 @@ export default function route({
               );
               return c.json(await generateInquiryTokens(data.id, persona), 200);
             }
+            case "approved":
             case "completed":
             case "needs_review":
               return c.json({ code: "processing" }, 400);
@@ -614,10 +607,12 @@ export default function route({
 
         switch (inquiry.attributes.status) {
           case "approved":
-            captureException(new Error("inquiry approved but account not updated"), {
-              level: "error",
-              contexts: { inquiry: { templateId: inquiryTemplateId, referenceId: credentialId } },
-            });
+            if (!syncing(inquiry)) {
+              captureException(new Error("inquiry approved but account not updated"), {
+                level: "error",
+                contexts: { inquiry: { templateId: inquiryTemplateId, referenceId: credentialId } },
+              });
+            }
             return c.json({ code: "already approved", legacy: "kyc already approved" }, 400);
           case "failed":
           case "declined":

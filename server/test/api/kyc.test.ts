@@ -231,6 +231,40 @@ describe("authenticated", () => {
         });
       });
 
+      it.each([
+        { name: "skips sentry error while persona updates the account", age: 1000, reported: false },
+        { name: "sends sentry error when the account is still not updated", age: 600_000, reported: true },
+      ])("$name", async ({ age, reported }) => {
+        await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
+        vi.spyOn(persona, "getPendingInquiryTemplate").mockResolvedValueOnce(persona.PANDA_TEMPLATE);
+        vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+          ...personaTemplate,
+          attributes: {
+            ...personaTemplate.attributes,
+            status: "approved",
+            "decisioned-at": new Date(Date.now() - age).toISOString(),
+          },
+        });
+
+        const response = await appClient.index.$get(
+          { query: { scope: "basic" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        await expect(response.json()).resolves.toStrictEqual({ code: "ok", legacy: "ok" });
+        expect(response.status).toBe(200);
+        expect(vi.mocked(captureException).mock.calls).toStrictEqual(
+          reported
+            ? [
+                [
+                  new Error("inquiry approved but account not updated"),
+                  { level: "error", contexts: { inquiry: { templateId: persona.PANDA_TEMPLATE, referenceId: "bob" } } },
+                ],
+              ]
+            : [],
+        );
+      });
+
       it("returns not started when inquiry is created", async () => {
         await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, "bob"));
         const getPendingInquiryTemplate = vi
@@ -468,6 +502,27 @@ describe("authenticated", () => {
           level: "error",
           contexts: { inquiry: { templateId: persona.PANDA_TEMPLATE, referenceId: "bob" } },
         });
+      });
+
+      it("skips sentry error while persona updates the account", async () => {
+        await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, "bob"));
+        vi.spyOn(persona, "getPendingInquiryTemplate").mockResolvedValueOnce(persona.PANDA_TEMPLATE);
+        vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+          ...personaTemplate,
+          attributes: { ...personaTemplate.attributes, status: "approved", "decisioned-at": new Date().toISOString() },
+        });
+
+        const response = await appClient.index.$post(
+          { json: { scope: "basic" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "already approved",
+          legacy: "kyc already approved",
+        });
+        expect(response.status).toBe(400);
+        expect(captureException).not.toHaveBeenCalled();
       });
 
       it("returns session token when creating inquiry", async () => {
@@ -1821,7 +1876,7 @@ describe("authenticated", () => {
         expect(response.status).toBe(400);
       });
 
-      it("returns ok and sends sentry error when inquiry is approved but account not updated", async () => {
+      it("returns processing while the approved limit is not on the account yet", async () => {
         vi.spyOn(persona, "getCardLimitStatus").mockResolvedValueOnce({
           status: "approved",
           id: personaTemplate.id,
@@ -1832,12 +1887,9 @@ describe("authenticated", () => {
           { headers: { "test-credential-id": "bob", SessionID: "fakeSession" } },
         );
 
-        await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-        expect(response.status).toBe(200);
-        expect(captureException).toHaveBeenCalledExactlyOnceWith(
-          new Error("inquiry approved but account not updated"),
-          { level: "error", contexts: { inquiry: { templateId: persona.CARD_LIMIT_TEMPLATE, referenceId: "bob" } } },
-        );
+        await expect(response.json()).resolves.toStrictEqual({ code: "processing" });
+        expect(response.status).toBe(400);
+        expect(captureException).not.toHaveBeenCalled();
       });
 
       it.each(["created", "expired", "pending"] as const)("returns not started when inquiry is %s", async (status) => {
@@ -1996,7 +2048,7 @@ describe("authenticated", () => {
         expect(response.status).toBe(400);
       });
 
-      it("returns already approved for approved inquiry", async () => {
+      it("returns processing while the approved limit is not on the account yet", async () => {
         vi.spyOn(persona, "getCardLimitStatus").mockResolvedValueOnce({
           status: "approved",
           id: personaTemplate.id,
@@ -2007,12 +2059,9 @@ describe("authenticated", () => {
           { headers: { "test-credential-id": "bob" } },
         );
 
-        await expect(response.json()).resolves.toStrictEqual({ code: "already approved" });
+        await expect(response.json()).resolves.toStrictEqual({ code: "processing" });
         expect(response.status).toBe(400);
-        expect(captureException).toHaveBeenCalledWith(new Error("inquiry approved but account not updated"), {
-          level: "error",
-          contexts: { inquiry: { templateId: persona.CARD_LIMIT_TEMPLATE, referenceId: "bob" } },
-        });
+        expect(captureException).not.toHaveBeenCalled();
       });
 
       it("returns processing for completed inquiry", async () => {

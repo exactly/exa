@@ -614,6 +614,7 @@ export const Inquiry = object({
   type: literal("inquiry"),
   attributes: object({
     fields: optional(flat),
+    "decisioned-at": nullish(string()),
     "reference-id": string(),
     status: picklist(["created", "pending", "expired", "failed", "needs_review", "declined", "completed", "approved"]),
   }),
@@ -652,6 +653,15 @@ export function headerValidator(secret = getWebhookSecret()) {
       });
     return isVerified ? undefined : c.text("unauthorized", 401);
   });
+}
+
+export function syncing(inquiry: undefined | { attributes: { "decisioned-at"?: null | string; status: string } }) {
+  const decisionedAt = inquiry?.attributes["decisioned-at"];
+  return (
+    inquiry?.attributes.status === "approved" &&
+    decisionedAt != null &&
+    Date.now() - new Date(decisionedAt).getTime() < 300_000
+  );
 }
 
 export function isMissingOrNull<TInput>(issue: BaseIssue<TInput>): boolean {
