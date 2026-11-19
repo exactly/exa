@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import { IAccountLoupe } from "modular-account-libs/interfaces/IAccountLoupe.sol";
+import { IERC20 } from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import { LibBytes } from "solady/utils/LibBytes.sol";
 import { LibCall } from "solady/utils/LibCall.sol";
 import { LibString } from "solady/utils/LibString.sol";
@@ -21,7 +22,15 @@ contract AppPreviewer {
     address[] calldata targets
   ) external view returns (NetworkPreview memory preview_) {
     preview_.timestamp = block.timestamp;
-    if (address(auditor) != address(0)) preview_.markets = markets(auditor);
+    preview_.balance = account.balance;
+    if (address(auditor) != address(0)) {
+      preview_.markets = markets(auditor);
+      preview_.balances = new uint256[](preview_.markets.length);
+      for (uint256 i = 0; i < preview_.markets.length; ++i) {
+        // slither-disable-next-line calls-loop
+        preview_.balances[i] = IERC20(preview_.markets[i].asset).balanceOf(account); // forge-lint: disable-line(calls-loop)
+      }
+    }
     if (previewer != address(0)) {
       preview_.exactly = LibCall.staticCallContract(previewer, abi.encodeWithSignature("exactly(address)", account));
     }
@@ -101,6 +110,8 @@ struct NetworkPreview {
   uint256 floatingAssetsAverage;
   ProposalManagerPreview proposalManager;
   bool[] allowed;
+  uint256 balance;
+  uint256[] balances;
 }
 
 struct ProposalManagerPreview {
