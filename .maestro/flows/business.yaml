@@ -52,6 +52,8 @@ env:
 - assertVisible: { text: In review, rightOf: Exa Card for your business }
 - assertTrue: '${http.post("http://localhost:3000/e2e/review", { body: "persona" }).ok}'
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- tapOn: Card
+- assertVisible: Freeze card
 - tapOn: Home
 - runFlow: ../subflows/storeCoverage.yaml
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }

@@ -160,7 +160,7 @@ export default function route({
         setContext("exa", { credential });
 
         if (scope === "panda-business") {
-          const application = await panda.getCompanyApplication(credentialId);
+          const application = await panda.program("BASE").getCompanyApplication(credentialId);
           if (!application) return c.json({ code: BadRequestCodes.NOT_STARTED }, 400);
           const status = application.applicationStatus ?? "unknown";
           let code = "processing";
@@ -375,7 +375,7 @@ export default function route({
             return c.json({ code: BadRequestCodes.BAD_REQUEST, message: ["missing valid client IP address"] }, 400);
           }
           try {
-            let application = await panda.getCompanyApplication(credentialId);
+            let application = await panda.program("BASE").getCompanyApplication(credentialId);
             if (!application) {
               const inquiry = await persona.getInquiry(credentialId, BUSINESS_TEMPLATE);
               if (!inquiry) throw new BusinessApplicationError("business inquiry not started", "not started");
@@ -475,7 +475,7 @@ export default function route({
                 });
               const [owner] = owners;
               if (!owner) throw new BusinessApplicationError("business account is not complete", "processing");
-              application = await panda.createCompanyApplication(credentialId, {
+              application = await panda.program("BASE").createCompanyApplication(credentialId, {
                 name: fields.business_name,
                 address: {
                   line1: fields.street_1_2,

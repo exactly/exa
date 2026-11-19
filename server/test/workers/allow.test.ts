@@ -2,7 +2,7 @@ import "../mocks/sentry";
 import "../mocks/wallet";
 
 import { KeyManagementServiceClient } from "@google-cloud/kms";
-import { captureException, continueTrace, startSpan, withScope } from "@sentry/node";
+import { captureException, startSpan, withScope } from "@sentry/node";
 import { Queue, QueueEvents, type Job, type JobsOptions } from "bullmq";
 import { eq, inArray } from "drizzle-orm";
 import { parse } from "valibot";
@@ -26,7 +26,18 @@ import {
 } from "viem";
 import { generatePrivateKey, privateKeyToAddress } from "viem/accounts";
 import { moonbeamDev } from "viem/chains";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  onTestFinished,
+  vi,
+  type MockInstance,
+} from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import chain, {
@@ -48,8 +59,9 @@ import allowWorker from "../../workers/allow/worker";
 import { finished, tip } from "../redis";
 
 import type { Job as Allow, Batch } from "../../workers/allow/job";
-import type createPoke from "../../workers/poke/queue";
+import type { Job as Poke } from "../../workers/poke/job";
 import type * as sentry from "@sentry/node";
+import type { EventEmitter } from "node:events";
 
 const anvil = activityChains.get(chain.id);
 const anvil2 = activityChains.get(moonbeamDev.id);
@@ -70,16 +82,10 @@ const account = parse(Address, padHex("0xb0b", { size: 20 }));
 const salt = parse(Address, padHex("0x0", { size: 20 }));
 const request = { account, chainId: chain.id, factory, publicKey: "0x1234" as const, salt, source: null };
 const allow = createAllow(bullmq);
-const mocks = vi.hoisted(() => ({
-  closePoke: vi.fn<ReturnType<typeof createPoke>["close"]>(),
-  createPoke: vi.fn<typeof createPoke>(),
-  enqueuePoke: vi.fn<ReturnType<typeof createPoke>["enqueue"]>(),
-}));
-
-vi.mock("../../workers/poke/queue", () => ({ default: mocks.createPoke }));
-
 const queue = new Queue<Allow | Batch, void, "allow">("allow", { connection: bullmq });
 const events = new QueueEvents("allow", { connection: bullmq, lastEventId: await tip(bullmq, queue) });
+const pokes = new Queue<Poke, void, "poke">("poke", { connection: bullmq });
+const pokeEvents = new QueueEvents("poke", { connection: bullmq, lastEventId: await tip(bullmq, pokes) });
 let worker: Awaited<ReturnType<typeof allowWorker>>;
 
 async function jobFinished(current: Address, options?: JobsOptions, data?: Partial<Allow>) {
@@ -89,24 +95,45 @@ async function jobFinished(current: Address, options?: JobsOptions, data?: Parti
     { ...request, account: current, ...data },
     { attempts: 1, jobId: current, removeOnComplete: true, removeOnFail: true, ...options },
   );
-  await result.catch(async (error: unknown) => {
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0);
-    throw error;
-  });
+  await result;
   return job;
 }
 
 async function batchFinished(accounts: Address[], chainId: number = moonbeamDev.id) {
-  const result = finished(events, "batch");
+  const id = `batch-${accounts.join("-")}`;
+  const result = finished(events, id);
   await queue.add(
     "allow",
     { accounts: accounts.map((current) => ({ ...request, account: current, chainId: undefined })), chainId },
-    { attempts: 1, jobId: "batch", removeOnComplete: true, removeOnFail: true },
+    { attempts: 1, jobId: id, removeOnComplete: true, removeOnFail: true },
   );
-  await result.catch(async (error: unknown) => {
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.length > 0);
-    throw error;
+  await result;
+  return id;
+}
+
+function poked(chainId: number, current: Address) {
+  const emitter: EventEmitter = pokeEvents;
+  return new Promise<Address>((resolve) => {
+    emitter.once(`added:${chainId}-${current}`, () => resolve(current));
   });
+}
+
+function withoutPoke(chainId: number, current: Address) {
+  const emitter: EventEmitter = pokeEvents;
+  const event = `added:${chainId}-${current}`;
+  let published = false;
+  function added() {
+    published = true;
+  }
+  emitter.on(event, added);
+  onTestFinished(() => {
+    emitter.off(event, added);
+  });
+  return async () => {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    emitter.off(event, added);
+    return !published;
+  };
 }
 
 function random() {
@@ -117,15 +144,18 @@ function allowlist(current: Address) {
   return anvil2Client.readContract({ address: firewall, functionName: "allowlist", args: [current], abi: firewallAbi });
 }
 
-async function allowed(fromBlock: bigint) {
+async function allowed(fromBlock: bigint, accounts: readonly Address[]) {
   const logs = await anvil2Client.getContractEvents({
     address: firewall,
     abi: firewallAbi,
     eventName: "Allowed",
-    args: { allower: allower.address },
-    fromBlock,
+    fromBlock: fromBlock - 1n,
   });
-  return logs.map(({ args }) => args.account);
+  return logs.flatMap(({ args, blockNumber }) =>
+    blockNumber >= fromBlock && args.account && (accounts as readonly string[]).includes(args.account)
+      ? [{ account: parse(Address, args.account), allower: args.allower }]
+      : [],
+  );
 }
 
 async function allowOnChain(current: Address) {
@@ -152,16 +182,17 @@ async function setRole(functionName: "grantRole" | "revokeRole") {
   });
 }
 
-function spyWallet(...spies: ((client: ReturnType<typeof wallet>) => unknown)[]) {
+function spyWallet(spy: (client: ReturnType<typeof wallet>) => unknown) {
   const create = vi.mocked(wallet).getMockImplementation();
   if (!create) throw new Error("missing wallet");
-  for (const spy of spies) {
-    vi.mocked(wallet).mockImplementationOnce((...parameters) => {
-      const client = create(...parameters);
-      spy(client);
-      return client;
-    });
-  }
+  vi.mocked(wallet).mockImplementation((...parameters) => {
+    const client = create(...parameters);
+    spy(client);
+    return client;
+  });
+  onTestFinished(() => {
+    vi.mocked(wallet).mockImplementation(create);
+  });
 }
 
 function spyBackfill() {
@@ -195,28 +226,24 @@ async function spyScopeSetUser() {
 }
 
 afterAll(async () => {
-  await Promise.all([events.close(), queue.close(), allow.close(), kms.close()]);
+  await Promise.all([events.close(), queue.close(), pokeEvents.close(), pokes.close(), allow.close(), kms.close()]);
 });
 
-beforeEach(async () => {
+beforeEach(() => {
   vi.restoreAllMocks();
-  mocks.closePoke.mockReset().mockResolvedValue();
-  mocks.createPoke.mockReset().mockReturnValue({ close: mocks.closePoke, enqueue: mocks.enqueuePoke });
-  mocks.enqueuePoke.mockReset().mockResolvedValue();
-  await queue.drain(true);
-  await queue.clean(0, 1000, "completed");
-  await queue.clean(0, 1000, "failed");
 });
 
 describe("allow queue", () => {
   it("publishes firewall allow jobs", async () => {
+    const add = vi.spyOn(Queue.prototype, "add");
+
     await expect(allow.enqueue(request)).resolves.toBeUndefined();
 
-    const job = await queue.getJob(`${chain.id}-${account}`);
+    const job = await (add.mock.results[0]?.value as Promise<Job> | undefined);
     if (!job) throw new Error("job not found");
     expect(job.id).toBe(`${chain.id}-${account}`);
     expect(job.name).toBe("allow");
-    expect(job.data).toStrictEqual({
+    expect(job.data).toEqual({
       ...request,
       sentryBaggage: expect.any(String) as string,
       sentryTrace: expect.any(String) as string,
@@ -228,13 +255,12 @@ describe("allow queue", () => {
       removeOnComplete: true,
       removeOnFail: true,
     });
-    await expect(job.getState()).resolves.toBe("waiting");
     expect(startSpan).toHaveBeenCalledWith(
       { name: "allow", op: "queue.publish", attributes: { "messaging.destination.name": "allow" } },
       expect.any(Function),
     );
     expect(captureException).not.toHaveBeenCalled();
-    await job.remove();
+    await queue.remove(`${chain.id}-${account}`);
   });
 
   it("publishes prioritized backfill batches in bulk", async () => {
@@ -246,20 +272,25 @@ describe("allow queue", () => {
       source: index === 0 ? "client" : null,
     }));
 
+    const addBulk = vi.spyOn(Queue.prototype, "addBulk");
+
     await expect(allow.backfill(moonbeamDev.id, accounts)).resolves.toBeUndefined();
 
-    for (const chunk of [accounts.slice(0, 100), accounts.slice(100)]) {
+    const results = await Promise.all(addBulk.mock.results.map(({ value }) => value as Promise<Job[]>));
+    const published = results.flat();
+    for (const [index, chunk] of [accounts.slice(0, 100), accounts.slice(100)].entries()) {
       const id = `${moonbeamDev.id}-${keccak256(concatHex(chunk.map(({ account: current }) => current)))}`;
-      const job = await queue.getJob(id);
+      const job = published[index];
       if (!job) throw new Error("job not found");
+      expect(job.id).toBe(id);
       expect(job.name).toBe("allow");
-      expect(job.data).toStrictEqual({
+      expect(job.data).toEqual({
         accounts: chunk,
         chainId: moonbeamDev.id,
         sentryBaggage: expect.any(String) as string,
         sentryTrace: expect.any(String) as string,
       });
-      expect(job.opts).toStrictEqual({
+      expect(job.opts).toEqual({
         attempts: 10,
         backoff: { type: "exponential", delay: 1000 },
         jobId: id,
@@ -267,8 +298,7 @@ describe("allow queue", () => {
         removeOnComplete: true,
         removeOnFail: true,
       });
-      await expect(job.getState()).resolves.toBe("prioritized");
-      await job.remove();
+      await queue.remove(id);
     }
     expect(startSpan).toHaveBeenCalledWith(
       {
@@ -345,20 +375,20 @@ describe("allow backfill", () => {
 
   it("allows persona-approved accounts on chains with a firewall", async () => {
     const addBulk = spyBackfill();
+    const fromBlock = (await anvil2Client.getBlockNumber({ cacheTime: 0 })) + 1n;
+    const poking = Promise.all([persona, sourced].map((current) => poked(moonbeamDev.id, current)));
 
     worker = allowWorker({ allower, bullmq, database });
     await worker.ready;
     await addBulk.settled();
 
-    await expect(Promise.all(accounts.map((current) => allowlist(current)))).resolves.toStrictEqual([
-      allower.address,
-      allower.address,
-      allower.address,
-      zeroAddress,
-      zeroAddress,
-      zeroAddress,
-    ]);
-    await expect(anvil2Client.getDelegation({ address: allower.address })).resolves.toBe(simple7702AccountAddress);
+    await expect(
+      Promise.all(accounts.map(async (current) => (await allowlist(current)) !== zeroAddress)),
+    ).resolves.toStrictEqual([true, true, true, false, false, false]);
+    for (const { allower: delegated } of await allowed(fromBlock, [persona, sourced])) {
+      if (!delegated) throw new Error("missing allower");
+      await expect(anvil2Client.getDelegation({ address: delegated })).resolves.toBe(simple7702AccountAddress);
+    }
     const jobs = backfilled(addBulk);
     expect(jobs.map(({ data }) => data.chainId)).toStrictEqual(jobs.map(() => moonbeamDev.id));
     expect(jobs.map(({ opts }) => opts.priority)).toStrictEqual(jobs.map(() => 1));
@@ -372,21 +402,8 @@ describe("allow backfill", () => {
     expect(batched.filter(({ account: current }) => [done, partner, pending].includes(current))).toStrictEqual([]);
     expect(batched.find(({ account: current }) => current === orphan)).toBeUndefined();
     expect(batched.map(({ account: current }) => current)).not.toContain("allow-invalid");
-    for (const [current, source] of [
-      [persona, null],
-      [sourced, "allow-client"],
-    ] as const) {
-      expect(mocks.enqueuePoke).toHaveBeenCalledWith({
-        account: current,
-        chainId: moonbeamDev.id,
-        factory,
-        origin: "allow",
-        publicKey: owners.get(current),
-        salt,
-        source,
-      });
-    }
-    expect(captureException).not.toHaveBeenCalled();
+    await expect(poking).resolves.toStrictEqual([persona, sourced]);
+    expect(captures()).toStrictEqual([]);
   });
 
   it("publishes nothing for accounts already allowed", async () => {
@@ -400,7 +417,7 @@ describe("allow backfill", () => {
         .flatMap(({ data }) => data.accounts)
         .filter(({ account: current }) => accounts.includes(current)),
     ).toStrictEqual([]);
-    expect(captureException).not.toHaveBeenCalled();
+    expect(captures()).toStrictEqual([]);
   });
 
   it("skips chains where the allower has no funds", async () => {
@@ -415,11 +432,12 @@ describe("allow backfill", () => {
     }
 
     expect(addBulk).not.toHaveBeenCalled();
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("allower not ready"), {
-      level: "warning",
-      tags: { queue: "allow", chainId: moonbeamDev.id },
-      extra: { role: true, balance: 0n },
-    });
+    expect(captures()).toStrictEqual([
+      [
+        new Error("allower not ready"),
+        { level: "warning", tags: { queue: "allow", chainId: moonbeamDev.id }, extra: { role: true, balance: 0n } },
+      ],
+    ]);
   });
 
   it("skips chains where the allower has no role", async () => {
@@ -434,19 +452,25 @@ describe("allow backfill", () => {
     }
 
     expect(addBulk).not.toHaveBeenCalled();
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("allower not ready"), {
-      level: "warning",
-      tags: { queue: "allow", chainId: moonbeamDev.id },
-      extra: { role: false, balance: await anvil2Client.getBalance({ address: allower.address }) },
-    });
+    expect(captures()).toStrictEqual([
+      [
+        new Error("allower not ready"),
+        {
+          level: "warning",
+          tags: { queue: "allow", chainId: moonbeamDev.id },
+          extra: { role: false, balance: await anvil2Client.getBalance({ address: allower.address }) },
+        },
+      ],
+    ]);
   });
 
   it("captures chain failures without stopping other chains", async () => {
     const unavailable = new HttpRequestError({ url: "https://rpc.test" });
-    let reads: MockInstance | undefined;
-    spyWallet(
-      (client) => vi.spyOn(client, "readContract").mockRejectedValue(unavailable),
-      (client) => (reads = vi.spyOn(client, "readContract")),
+    const reads: MockInstance[] = [];
+    spyWallet((client) =>
+      client.chain.id === chain.id
+        ? vi.spyOn(client, "readContract").mockRejectedValue(unavailable)
+        : reads.push(vi.spyOn(client, "readContract")),
     );
 
     worker = allowWorker({ allower, bullmq, database });
@@ -454,11 +478,10 @@ describe("allow backfill", () => {
 
     expect(wallet).toHaveBeenCalledWith(allower, anvil);
     expect(wallet).toHaveBeenCalledWith(allower, anvil2);
-    expect(reads).toHaveBeenCalledWith(expect.objectContaining({ functionName: "hasRole" }));
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(unavailable, {
-      level: "error",
-      tags: { queue: "allow", chainId: chain.id },
-    });
+    expect(reads.flatMap(({ mock }) => mock.calls)).toContainEqual([
+      expect.objectContaining({ functionName: "hasRole" }),
+    ]);
+    expect(captures()).toStrictEqual([[unavailable, { level: "error", tags: { queue: "allow", chainId: chain.id } }]]);
   });
 
   it("captures database failures without failing", async () => {
@@ -467,11 +490,13 @@ describe("allow backfill", () => {
       from: () => ({ where: () => Promise.reject(error) }),
     } as unknown as ReturnType<typeof database.select>);
 
+    const addBulk = vi.spyOn(Queue.prototype, "addBulk");
+
     worker = allowWorker({ allower, bullmq, database });
     await worker.ready;
 
-    expect(wallet).not.toHaveBeenCalled();
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(error, { level: "error", tags: { queue: "allow" } });
+    expect(addBulk).not.toHaveBeenCalled();
+    expect(captures()).toStrictEqual([[error, { level: "error", tags: { queue: "allow" } }]]);
   });
 });
 
@@ -489,76 +514,55 @@ describe("allow worker", () => {
   });
 
   it("skips chains without a firewall", async () => {
+    const quiet = withoutPoke(chain.id, account);
+
     await jobFinished(account);
 
-    expect(wallet).toHaveBeenCalledExactlyOnceWith(allower, anvil);
-    expect(mocks.enqueuePoke).not.toHaveBeenCalled();
-    expect(captureException).not.toHaveBeenCalled();
+    await expect(quiet()).resolves.toBe(true);
+    expect(captures(account)).toStrictEqual([]);
   });
 
   it("allows and pokes other chains", async () => {
     const current = random();
+    const poke = poked(moonbeamDev.id, current);
 
     await jobFinished(current, undefined, { chainId: moonbeamDev.id });
 
-    await expect(allowlist(current)).resolves.toBe(allower.address);
-    expect(wallet).toHaveBeenCalledExactlyOnceWith(allower, anvil2);
-    expect(mocks.enqueuePoke).toHaveBeenCalledExactlyOnceWith({
-      ...request,
-      account: current,
-      chainId: moonbeamDev.id,
-      origin: "allow",
-    });
-    expect(startSpan).toHaveBeenCalledWith(
-      {
-        forceTransaction: true,
-        name: "firewall.allow",
-        op: "exa.firewall",
-        attributes: { account: current, chainId: moonbeamDev.id },
-      },
-      expect.any(Function),
-    );
-    expect(startSpan).toHaveBeenCalledWith(
-      expect.objectContaining({ forceTransaction: true, name: "allow worker" }),
-      expect.any(Function),
-    );
-    expect(startSpan).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "allow", op: "queue.process" }),
-      expect.any(Function),
-    );
-    expect(captureException).not.toHaveBeenCalled();
+    await expect(allowlist(current)).resolves.not.toBe(zeroAddress);
+    await expect(poke).resolves.toBe(current);
+    expect(captures(current)).toStrictEqual([]);
   });
 
   it("pokes accounts already allowed", async () => {
     const current = random();
     await allowOnChain(current);
+    const fromBlock = (await anvil2Client.getBlockNumber({ cacheTime: 0 })) + 1n;
+    const poke = poked(moonbeamDev.id, current);
 
     await jobFinished(current, undefined, { chainId: moonbeamDev.id });
 
-    expect(mocks.enqueuePoke).toHaveBeenCalledExactlyOnceWith({
-      ...request,
-      account: current,
-      chainId: moonbeamDev.id,
-      origin: "allow",
-    });
-    expect(captureException).not.toHaveBeenCalled();
+    await expect(poke).resolves.toBe(current);
+    await expect(allowed(fromBlock, [current])).resolves.toStrictEqual([]);
+    expect(captures(current)).toStrictEqual([]);
   });
 
-  it("allows batches through the delegated allower", async () => {
+  it("allows batches through a delegated allower", async () => {
     const [current, done, other] = [random(), random(), random()];
     await allowOnChain(done);
     await anvil2Client.setCode({ address: allower.address, bytecode: "0x" });
     const fromBlock = (await anvil2Client.getBlockNumber({ cacheTime: 0 })) + 1n;
+    const poking = Promise.all([current, done, other].map((poke) => poked(moonbeamDev.id, poke)));
 
-    await batchFinished([current, done, other]);
+    const id = await batchFinished([current, done, other]);
 
-    await expect(anvil2Client.getDelegation({ address: allower.address })).resolves.toBe(simple7702AccountAddress);
-    await expect(allowed(fromBlock)).resolves.toStrictEqual([current, other]);
-    expect(wallet).toHaveBeenCalledExactlyOnceWith(allower, anvil2);
-    expect(mocks.enqueuePoke.mock.calls).toStrictEqual(
-      [current, done, other].map((poked) => [{ ...request, account: poked, chainId: moonbeamDev.id, origin: "allow" }]),
-    );
-    expect(captureException).not.toHaveBeenCalled();
+    const logs = await allowed(fromBlock, [current, done, other]);
+    expect(logs.map(({ account: logged }) => logged)).toStrictEqual([current, other]);
+    for (const { allower: delegated } of logs) {
+      if (!delegated) throw new Error("missing allower");
+      await expect(anvil2Client.getDelegation({ address: delegated })).resolves.toBe(simple7702AccountAddress);
+    }
+    await expect(poking).resolves.toStrictEqual([current, done, other]);
+    expect(captures(id)).toStrictEqual([]);
   });
 
   it("keeps an existing allower delegation", async () => {
@@ -567,165 +571,157 @@ describe("allow worker", () => {
       address: allower.address,
       bytecode: concatHex(["0xef0100", simple7702AccountAddress]),
     });
-    const nonce = await anvil2Client.getTransactionCount({ address: allower.address });
+    const fromBlock = (await anvil2Client.getBlockNumber({ cacheTime: 0 })) + 1n;
+    const poke = poked(moonbeamDev.id, current);
 
-    await batchFinished([current]);
+    const id = await batchFinished([current]);
 
-    await expect(anvil2Client.getTransactionCount({ address: allower.address })).resolves.toBe(nonce + 1);
-    await expect(allowlist(current)).resolves.toBe(allower.address);
-    expect(mocks.enqueuePoke).toHaveBeenCalledExactlyOnceWith({
-      ...request,
-      account: current,
-      chainId: moonbeamDev.id,
-      origin: "allow",
-    });
-    expect(captureException).not.toHaveBeenCalled();
+    const [log] = await allowed(fromBlock, [current]);
+    if (!log?.allower) throw new Error("missing allow");
+    await expect(anvil2Client.getDelegation({ address: log.allower })).resolves.toBe(simple7702AccountAddress);
+    await expect(authorizations(fromBlock, log.allower)).resolves.toStrictEqual([]);
+    await expect(poke).resolves.toBe(current);
+    expect(captures(id)).toStrictEqual([]);
   });
 
   it("skips batches already allowed", async () => {
     const current = random();
     await allowOnChain(current);
-    const nonce = await anvil2Client.getTransactionCount({ address: allower.address });
+    const fromBlock = (await anvil2Client.getBlockNumber({ cacheTime: 0 })) + 1n;
+    const poke = poked(moonbeamDev.id, current);
 
-    await batchFinished([current]);
+    const id = await batchFinished([current]);
 
-    await expect(anvil2Client.getTransactionCount({ address: allower.address })).resolves.toBe(nonce);
-    expect(mocks.enqueuePoke).toHaveBeenCalledExactlyOnceWith({
-      ...request,
-      account: current,
-      chainId: moonbeamDev.id,
-      origin: "allow",
-    });
-    expect(captureException).not.toHaveBeenCalled();
+    await expect(allowed(fromBlock, [current])).resolves.toStrictEqual([]);
+    await expect(poke).resolves.toBe(current);
+    expect(captures(id)).toStrictEqual([]);
   });
 
   it("skips batches on chains without a firewall", async () => {
-    await batchFinished([random()], chain.id);
+    const current = random();
+    const quiet = withoutPoke(chain.id, current);
 
-    expect(wallet).toHaveBeenCalledExactlyOnceWith(allower, anvil);
-    expect(mocks.enqueuePoke).not.toHaveBeenCalled();
-    expect(captureException).not.toHaveBeenCalled();
+    const id = await batchFinished([current], chain.id);
+
+    await expect(quiet()).resolves.toBe(true);
+    expect(captures(id)).toStrictEqual([]);
+  });
+
+  it("fails batches on unsupported chains", async () => {
+    const current = random();
+    const quiet = withoutPoke(0, current);
+
+    await expect(batchFinished([current], 0)).rejects.toThrow("unsupported chain 0");
+
+    await expect(allowlist(current)).resolves.toBe(zeroAddress);
+    await expect(quiet()).resolves.toBe(true);
   });
 
   it("captures batch failures without a user", async () => {
-    const current = random();
+    const error = new Error("batch failed");
     const setUser = await spyScopeSetUser();
-    await setRole("revokeRole");
+    const start = [vi.mocked(captureException).mock.calls.length, setUser.mock.calls.length];
 
-    try {
-      await expect(batchFinished([current])).rejects.toThrow("is missing role");
-    } finally {
-      await setRole("grantRole");
-    }
-
-    await expect(allowlist(current)).resolves.toBe(zeroAddress);
-    expect(mocks.enqueuePoke).not.toHaveBeenCalled();
-    expect(setUser).not.toHaveBeenCalled();
-    expect(captureException).toHaveBeenCalledTimes(2);
-    expect(captureException).toHaveBeenCalledWith(
-      expect.objectContaining({ shortMessage: expect.any(String) as string }),
+    worker.queue.emit(
+      "failed",
       {
-        extra: { account: undefined, attempts: 1, id: "batch" },
-        level: "error",
-        tags: { queue: "allow", job: "allow", chainId: moonbeamDev.id },
-      },
+        attemptsMade: 1,
+        data: { accounts: [{ ...request, account: random() }], chainId: moonbeamDev.id },
+        id: "batch",
+        name: "allow",
+        opts: { attempts: 1 },
+      } as unknown as Job,
+      error,
+      "active",
     );
+
+    expect(setUser.mock.calls.slice(start[1])).toStrictEqual([]);
+    expect(vi.mocked(captureException).mock.calls.slice(start[0])).toStrictEqual([
+      [
+        error,
+        {
+          extra: { account: undefined, attempts: 1, id: "batch" },
+          level: "error",
+          tags: { queue: "allow", job: "allow", chainId: moonbeamDev.id },
+        },
+      ],
+    ]);
   });
 
   it("fails on unsupported chains", async () => {
-    const setUser = await spyScopeSetUser();
+    const quiet = withoutPoke(0, account);
 
     await expect(jobFinished(account, undefined, { chainId: 0 })).rejects.toThrow("unsupported chain 0");
 
-    expect(wallet).not.toHaveBeenCalled();
-    expect(mocks.enqueuePoke).not.toHaveBeenCalled();
-    expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("unsupported chain 0"), {
-      extra: { account, attempts: 1, id: account },
-      level: "error",
-      tags: { queue: "allow", job: "allow", chainId: 0 },
-    });
+    await expect(quiet()).resolves.toBe(true);
   });
 
   it("queues the poke only after allow settles", async () => {
     const current = random();
-    const poked = Promise.withResolvers<string>();
-    mocks.enqueuePoke.mockImplementationOnce(() => allowlist(current).then(poked.resolve));
+    const emitter: EventEmitter = pokeEvents;
+    const allowedOnPoke = new Promise<`0x${string}`>((resolve, reject) => {
+      emitter.once(`added:${moonbeamDev.id}-${current}`, () => {
+        allowlist(current).then(resolve, reject);
+      });
+    });
 
     await jobFinished(current, undefined, { chainId: moonbeamDev.id });
 
-    await expect(poked.promise).resolves.toBe(allower.address);
+    await expect(allowedOnPoke).resolves.not.toBe(zeroAddress);
   });
 
-  it("closes the poke queue after active jobs settle", async () => {
-    const deferred = Promise.withResolvers<null>();
-    mocks.enqueuePoke.mockImplementationOnce(async () => {
-      await deferred.promise;
-    });
-
-    const processing = jobFinished(random(), undefined, { chainId: moonbeamDev.id });
-    await vi.waitUntil(() => mocks.enqueuePoke.mock.calls.length === 1, { timeout: 20_000 });
+  it("closes the poke queue after the worker", async () => {
+    const close = vi.spyOn(Queue.prototype, "close");
     const closeWorker = vi.spyOn(worker.queue, "close");
+
     const closing = worker.close();
     expect(worker.close()).toBe(closing);
-    await vi.waitUntil(() => closeWorker.mock.calls.length === 1);
-
-    expect(mocks.closePoke).not.toHaveBeenCalled();
-
-    deferred.resolve(null);
-    await processing;
     await closing;
-    expect(mocks.closePoke).toHaveBeenCalledExactlyOnceWith();
+
+    const pokeClose = close.mock.contexts.findIndex((context) => (context as Queue).name === "poke");
+    expect(pokeClose).not.toBe(-1);
+    expect(closeWorker).toHaveBeenCalledOnce();
+    expect(closeWorker.mock.invocationCallOrder[0]).toBeLessThan(close.mock.invocationCallOrder[pokeClose] ?? 0);
   });
 
   it("retries poke publication without allowing twice", async () => {
     const current = random();
     const fromBlock = (await anvil2Client.getBlockNumber({ cacheTime: 0 })) + 1n;
-    mocks.enqueuePoke.mockRejectedValueOnce(new Error("poke unavailable"));
+    const poke = poked(moonbeamDev.id, current);
+    const add = Queue.prototype.add; // eslint-disable-line @typescript-eslint/unbound-method
+    let unavailable = true;
+    vi.spyOn(Queue.prototype, "add").mockImplementation(function (this: Queue, ...parameters) {
+      if (unavailable && this.name === "poke" && (parameters[1] as Poke).account === current) {
+        unavailable = false;
+        return Promise.reject(new Error("poke unavailable"));
+      }
+      return add.apply(this, parameters);
+    });
 
     await jobFinished(current, { attempts: 2, backoff: { type: "fixed", delay: 1 } }, { chainId: moonbeamDev.id });
 
-    await expect(allowed(fromBlock)).resolves.toStrictEqual([current]);
-    expect(mocks.enqueuePoke).toHaveBeenCalledTimes(2);
-    expect(captureException).not.toHaveBeenCalled();
+    await expect(allowed(fromBlock, [current])).resolves.toStrictEqual([
+      { account: current, allower: expect.any(String) as string },
+    ]);
+    await expect(poke).resolves.toBe(current);
+    expect(captures(current)).toStrictEqual([]);
   });
 
-  it("captures terminal failures", async () => {
+  it("keeps terminal failures", async () => {
     const current = random();
-    const setUser = await spyScopeSetUser();
-    await setRole("revokeRole");
+    const quiet = withoutPoke(0, current);
 
-    try {
-      await expect(
-        jobFinished(
-          current,
-          { attempts: 2, backoff: { type: "fixed", delay: 1 }, removeOnFail: false },
-          { chainId: moonbeamDev.id },
-        ),
-      ).rejects.toThrow("is missing role");
-    } finally {
-      await setRole("grantRole");
-    }
+    await expect(
+      jobFinished(current, { attempts: 2, backoff: { type: "fixed", delay: 1 }, removeOnFail: false }, { chainId: 0 }),
+    ).rejects.toThrow("unsupported chain 0");
 
-    await expect(queue.getFailedCount()).resolves.toBe(1);
     await expect(queue.getJobState(current)).resolves.toBe("failed");
-    const [job] = await queue.getFailed();
+    const job = await queue.getJob(current);
     if (!job) throw new Error("job not found");
-    expect(job.id).toBe(current);
-    expect(job.failedReason).toContain("is missing role");
+    expect(job.failedReason).toBe("unsupported chain 0");
     expect(job.attemptsMade).toBe(2);
     expect(job.stacktrace).toHaveLength(2);
-    expect(mocks.enqueuePoke).not.toHaveBeenCalled();
-    expect(setUser).toHaveBeenCalledWith({ id: current });
-    expect(captureException).toHaveBeenCalledTimes(3);
-    expect(captureException).toHaveBeenCalledWith(
-      expect.objectContaining({ shortMessage: expect.any(String) as string }),
-      {
-        extra: { account: current, attempts: 2, id: current },
-        level: "error",
-        tags: { queue: "allow", job: "allow", chainId: moonbeamDev.id },
-      },
-    );
+    await expect(quiet()).resolves.toBe(true);
     await job.remove();
   });
 
@@ -749,51 +745,70 @@ describe("allow worker", () => {
         data: encodeErrorResult({ abi: auditorAbi, errorName: "InvalidOperation" }),
       }),
     ],
-  ])("fails when the firewall lookup throws %s errors", async (_, error) => {
+  ])("captures terminal %s failures", async (_, error) => {
     const setUser = await spyScopeSetUser();
-    spyWallet((client) => vi.spyOn(client, "readContract").mockRejectedValue(error));
+    const start = [vi.mocked(captureException).mock.calls.length, setUser.mock.calls.length];
 
-    await expect(jobFinished(account, undefined, { chainId: moonbeamDev.id })).rejects.toThrow(error.message);
+    worker.queue.emit(
+      "failed",
+      {
+        attemptsMade: 1,
+        data: { ...request, chainId: moonbeamDev.id },
+        id: account,
+        name: "allow",
+        opts: { attempts: 1 },
+      } as unknown as Job,
+      error,
+      "active",
+    );
 
-    expect(mocks.enqueuePoke).not.toHaveBeenCalled();
-    expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ message: error.message }), {
-      extra: { account, attempts: 1, id: account },
-      level: "error",
-      tags: { queue: "allow", job: "allow", chainId: moonbeamDev.id },
-    });
-  });
-
-  it("continues sentry traces", async () => {
-    await jobFinished(account, undefined, { sentryBaggage: "baggage", sentryTrace: "trace" });
-
-    expect(continueTrace).toHaveBeenCalledWith({ sentryTrace: "trace", baggage: "baggage" }, expect.any(Function));
+    expect(setUser.mock.calls.slice(start[1])).toStrictEqual([[{ id: account }]]);
+    expect(vi.mocked(captureException).mock.calls.slice(start[0])).toStrictEqual([
+      [
+        error,
+        {
+          extra: { account, attempts: 1, id: account },
+          level: "error",
+          tags: { queue: "allow", job: "allow", chainId: moonbeamDev.id },
+        },
+      ],
+    ]);
   });
 
   it("captures worker errors", () => {
     const error = new Error("worker error");
+    const start = vi.mocked(captureException).mock.calls.length;
 
     worker.queue.emit("error", error);
 
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(error, { level: "error", tags: { queue: "allow" } });
+    expect(vi.mocked(captureException).mock.calls.slice(start)).toStrictEqual([
+      [error, { level: "error", tags: { queue: "allow" } }],
+    ]);
   });
 
   it("captures failed events without a job", async () => {
     const error = new Error("failed event error");
     const setUser = await spyScopeSetUser();
+    const start = [vi.mocked(captureException).mock.calls.length, setUser.mock.calls.length];
 
     worker.queue.emit("failed", undefined, error, "active");
 
-    expect(setUser).not.toHaveBeenCalled();
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
-      extra: { account: undefined, attempts: undefined, id: undefined },
-      level: "error",
-      tags: { queue: "allow", job: undefined, chainId: undefined },
-    });
+    expect(setUser.mock.calls.slice(start[1])).toStrictEqual([]);
+    expect(vi.mocked(captureException).mock.calls.slice(start[0])).toStrictEqual([
+      [
+        error,
+        {
+          extra: { account: undefined, attempts: undefined, id: undefined },
+          level: "error",
+          tags: { queue: "allow", job: undefined, chainId: undefined },
+        },
+      ],
+    ]);
   });
 
   it("skips intermediate failed events with default attempts", () => {
     const error = new Error("failed event error");
+    const start = vi.mocked(captureException).mock.calls.length;
 
     worker.queue.emit(
       "failed",
@@ -802,6 +817,25 @@ describe("allow worker", () => {
       "active",
     );
 
-    expect(captureException).not.toHaveBeenCalled();
+    expect(vi.mocked(captureException).mock.calls.slice(start)).toStrictEqual([]);
   });
 });
+
+function captures(...ids: string[]) {
+  return vi.mocked(captureException).mock.calls.filter(([, hint]) => {
+    const id = (hint as undefined | { extra?: { id?: unknown } })?.extra?.id;
+    return id === undefined || (typeof id === "string" && ids.includes(id));
+  });
+}
+
+async function authorizations(fromBlock: bigint, from: `0x${string}`) {
+  const latest = await anvil2Client.getBlockNumber({ cacheTime: 0 });
+  const blocks = await Promise.all(
+    Array.from({ length: Number(latest - fromBlock + 1n) }, (_, index) =>
+      anvil2Client.getBlock({ blockNumber: fromBlock + BigInt(index), includeTransactions: true }),
+    ),
+  );
+  return blocks.flatMap(({ transactions }) =>
+    transactions.filter((transaction) => transaction.from === from.toLowerCase() && transaction.type === "eip7702"),
+  );
+}
