@@ -1,0 +1,82 @@
+From c81b13169e0dbcf92568cbf36c61061657c6f69c Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Thu, 19 Nov 2026 23:41:27 +0000
+Subject: [PATCH] fix: read the screen instead of waiting in notVisible and
+ scrollUntilVisible
+
+Both commands look for an element on each pass of their loop, and gave that lookup 500 ms to find it. When the element is missing, which is the reason scrollUntilVisible scrolls, every pass polled the hierarchy for the full 500 ms before it could swipe. A miss also read the hierarchy once more, only to attach it to an error that both commands discard.
+
+scrollUntilVisible keeps the 500 ms lookup on its first pass, for content that shows up right after the previous command, and then reads the screen once per pass: the loop retries until its own timeout, so an element that shows up later is still seen after the next swipe. notVisible keeps its 500 ms lookup, so the element still has to stay missing for 500 ms before the wait ends. Neither builds the discarded error anymore.
+---
+ .../main/java/maestro/orchestra/Orchestra.kt  | 32 +++++++++----------
+ 1 file changed, 16 insertions(+), 16 deletions(-)
+
+diff --git a/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt b/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
+index f1f3315..64c3b86 100644
+--- a/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
++++ b/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
+@@ -876,10 +876,12 @@ class Orchestra(
+         var retryCenterCount = 0
+         val maxRetryCenterCount = 4 // for when the list is no longer scrollable (last element) but the element is visible
+ 
++        var lookupTimeoutMs = 500L
+         do {
+             yield()
+-            try {
+-                val element = findElement(command.selector, command.optional, 500).element
++            val element = findVisibleElement(command.selector, lookupTimeoutMs)
++            lookupTimeoutMs = 0L
++            if (element != null) {
+                 val visibility = element.getVisiblePercentage(deviceInfo.widthGrid, deviceInfo.heightGrid)
+ 
+                 logger.info("Scrolling try count: $retryCenterCount, DeviceWidth: ${deviceInfo.widthGrid}, DeviceWidth: ${deviceInfo.heightGrid}")
+@@ -896,8 +898,8 @@ class Orchestra(
+                 } else if (visibility >= command.visibilityPercentageNormalized) {
+                     return true
+                 }
+-            } catch (ignored: MaestroException.ElementNotFound) {
+-                logger.warn("Error: $ignored")
++            } else {
++                logger.warn("Element not found: ${command.selector.description()}")
+             }
+             maestro.swipeFromCenter(
+                 direction,
+@@ -1142,18 +1144,7 @@ class Orchestra(
+ 
+         condition.notVisible?.let {
+             val disappeared = MaestroTimer.withTimeoutSuspend(adjustedToLatestInteraction(timeoutMs ?: optionalLookupTimeoutMs)) {
+-                try {
+-                    findElement(
+-                        selector = it,
+-                        timeoutMs = 500L,
+-                        optional = commandOptional,
+-                    )
+-                    // Element is still visible
+-                    null
+-                } catch (ignored: MaestroException.ElementNotFound) {
+-                    // Element was not visible, as we expected
+-                    true
+-                }
++                if (findVisibleElement(it, 500L) != null) null else true
+             }
+ 
+             if (disappeared != true) {
+@@ -1513,6 +1504,15 @@ class Orchestra(
+     }
+ 
+ 
++    private suspend fun findVisibleElement(selector: ElementSelector, timeoutMs: Long = 0L) =
++        if (selector.childOf == null) {
++            maestro.findElementWithTimeout(timeoutMs, buildFilter(selector).filterFunc)?.element
++        } else try {
++            findElement(selector = selector, timeoutMs = timeoutMs, optional = true).element
++        } catch (ignored: MaestroException.ElementNotFound) {
++            null
++        }
++
+     private suspend fun findElement(
+         selector: ElementSelector,
+         optional: Boolean,
+-- 
+2.43.0
+
