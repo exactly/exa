@@ -1,0 +1,208 @@
+From 7fe1a2e99e579530d1bd306e74bd7f3c428a49f2 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Thu, 19 Nov 2026 19:18:51 +0000
+Subject: [PATCH] fix: aim web taps again when they land on another element
+
+a page can still move after the settle confirms it quiet, without
+touching the dom: a component that measures its layout on a timer
+resizes a sheet a few frames later. the tap then presses at the old
+point, on whatever is there now, like the sheet's backdrop.
+
+the first press after a settle is guarded: the web driver rejects it
+when the page moved since the settle, and otherwise records the element
+at the tap point and swallows the press if it lands on another one.
+either way the tap command settles again and resolves its selector
+anew, until the press lands or the settle timeout passes.
+---
+ .../src/main/java/maestro/Errors.kt           |  2 +
+ .../main/java/maestro/drivers/CdpWebDriver.kt | 46 ++++++++++++-------
+ .../src/main/resources/maestro-web.js         | 26 +++++++++++
+ .../main/java/maestro/orchestra/Orchestra.kt  | 22 +++++++--
+ 4 files changed, 76 insertions(+), 20 deletions(-)
+
+diff --git a/maestro-client/src/main/java/maestro/Errors.kt b/maestro-client/src/main/java/maestro/Errors.kt
+index 12e82ba..efe3386 100644
+--- a/maestro-client/src/main/java/maestro/Errors.kt
++++ b/maestro-client/src/main/java/maestro/Errors.kt
+@@ -32,6 +32,8 @@ sealed class MaestroException(override val message: String, cause: Throwable? =
+     /** A command found the app under test not running. On its own this says nothing about why. */
+     class AppNotRunning(message: String, cause: Throwable? = null): MaestroException(message, cause)
+ 
++    class ScreenChanged(message: String = "The screen kept changing under the tap after it settled") : MaestroException(message)
++
+     class DriverTimeout(message: String, val debugMessage: String? = null, cause: Throwable? = null): MaestroException(message, cause)
+ 
+     open class AssertionFailure(
+diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+index a5337bf..a8a11b3 100644
+--- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+@@ -108,6 +108,7 @@ class CdpWebDriver(
+ 
+     private var webScreenRecorder: WebScreenRecorder? = null
+     private var authenticatorId: String? = null
++    private var settledForTap = false
+ 
+     init {
+         Maestro::class.java.getResourceAsStream("/maestro-web.js")?.let {
+@@ -285,10 +286,6 @@ class CdpWebDriver(
+ 
+     private fun scrollToPoint(point: Point): Long {
+         ensureOpen()
+-        val windowHeight = executeJS("window.innerHeight") as Int
+-
+-        if (point.y >= 0 && point.y.toLong() <= windowHeight) return 0L
+-
+         val scrolledPixels =
+             executeJS("(() => {const delta = ${point.y} - Math.floor(window.innerHeight / 2); window.scrollBy({ top: delta, left: 0, behavior: 'smooth' }); return delta})()") as Int
+         sleep(3000L)
+@@ -552,20 +549,34 @@ class CdpWebDriver(
+             return
+         }
+ 
+-        val pixelsScrolled = scrollToPoint(point)
++        val guarding = settledForTap
++        settledForTap = false
++        val guard = if (guarding) "(window.maestro.guard ? window.maestro.guard(${point.x}, ${point.y}, true) : true)" else "true"
++        val inView = executeJS("${point.y} <= window.innerHeight ? $guard : 'scroll'")
++            ?: throw IllegalStateException("Failed to read the page before tapping at $point")
++        if (inView == false) throw MaestroException.ScreenChanged()
++        val pixelsScrolled = if (inView == "scroll") scrollToPoint(point) else 0L
++        val y = point.y - pixelsScrolled.toInt()
++        if (guarding && inView == "scroll") executeJS("window.maestro.guard?.(${point.x}, $y, false)")
+ 
+-        dispatchInputEvents(
+-            "Input.dispatchMouseEvent",
+-            listOf("mouseMoved", "mousePressed", "mouseReleased").map { type ->
+-                mapOf(
+-                    "type" to type,
+-                    "x" to point.x,
+-                    "y" to point.y - pixelsScrolled.toInt(),
+-                    "button" to if (type == "mouseMoved") "none" else "left",
+-                    "clickCount" to 1,
+-                )
+-            },
+-        )
++        try {
++            dispatchInputEvents(
++                "Input.dispatchMouseEvent",
++                listOf("mouseMoved", "mousePressed", "mouseReleased").map { type ->
++                    mapOf(
++                        "type" to type,
++                        "x" to point.x,
++                        "y" to y,
++                        "button" to if (type == "mouseMoved") "none" else "left",
++                        "clickCount" to 1,
++                    )
++                },
++            )
++        } catch (e: Exception) {
++            if (guarding) runCatching { executeJS("window.maestro.unguard?.()") }
++            throw e
++        }
++        if (guarding && executeJS("window.maestro.unguard ? window.maestro.unguard() : false") == true) throw MaestroException.ScreenChanged()
+     }
+ 
+     private fun dispatchInputEvents(method: String, events: List<Map<String, Any>>) {
+@@ -851,6 +862,7 @@ class CdpWebDriver(
+     }
+ 
+     override fun waitForAppToSettle(initialHierarchy: ViewHierarchy?, appId: String?, timeoutMs: Int?): ViewHierarchy? {
++        settledForTap = true
+         val deadline = System.currentTimeMillis() + (timeoutMs ?: SETTLE_TIMEOUT_MS)
+         while (true) {
+             detectWindowChange()
+diff --git a/maestro-client/src/main/resources/maestro-web.js b/maestro-client/src/main/resources/maestro-web.js
+index 81ba56d..8c53726 100644
+--- a/maestro-client/src/main/resources/maestro-web.js
++++ b/maestro-client/src/main/resources/maestro-web.js
+@@ -288,6 +288,32 @@
+         setTimeout(check, quietMs)
+     })
+ 
++    maestro.guard = (x, y, checkMoved) => {
++        maestro.unguard?.()
++        if (checkMoved && maestro.moved?.()) return false
++        const expected = document.elementFromPoint(x, y)
++        const types = ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']
++        let pressed = false
++        let blocked = false
++        const block = event => {
++            if (!pressed) {
++                pressed = true
++                blocked = expected !== null && event.target !== expected
++            }
++            if (blocked) {
++                event.preventDefault()
++                event.stopImmediatePropagation()
++            }
++        }
++        types.forEach(type => window.addEventListener(type, block, true))
++        maestro.unguard = () => {
++            types.forEach(type => window.removeEventListener(type, block, true))
++            maestro.unguard = undefined
++            return blocked
++        }
++        return true
++    }
++
+     // Replacer for JSON.stringify of the snapshot. A live DOM node can leak in and, on some frameworks,
+     // carry back-references (node -> ... -> node), so stringify throws "Converting circular structure to
+     // JSON" and the whole capture fails. Drop DOM nodes and break cycles so serialization always completes.
+diff --git a/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt b/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
+index 5aa06b4..b620c6d 100644
+--- a/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
++++ b/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
+@@ -435,7 +435,7 @@ class Orchestra(
+         flowController.waitIfPaused()
+ 
+         return when (command) {
+-            is TapOnElementCommand -> {
++            is TapOnElementCommand -> aimAgainOnScreenChange(command.waitToSettleTimeoutMs) {
+                 tapOnElement(
+                     command = command,
+                     retryIfNoChange = command.retryIfNoChange ?: false,
+@@ -444,8 +444,8 @@ class Orchestra(
+                 )
+             }
+ 
+-            is TapOnPointCommand -> tapOnPoint(command, command.retryIfNoChange ?: false)
+-            is TapOnPointV2Command -> tapOnPointV2Command(command)
++            is TapOnPointCommand -> aimAgainOnScreenChange(null) { tapOnPoint(command, command.retryIfNoChange ?: false) }
++            is TapOnPointV2Command -> aimAgainOnScreenChange(command.waitToSettleTimeoutMs) { tapOnPointV2Command(command) }
+             is BackPressCommand -> backPressCommand()
+             is HideKeyboardCommand -> hideKeyboardCommand()
+             is ScrollCommand -> scrollVerticalCommand()
+@@ -1442,6 +1442,21 @@ class Orchestra(
+         return true
+     }
+ 
++    private suspend fun aimAgainOnScreenChange(waitToSettleTimeoutMs: Int?, tap: suspend () -> Boolean): Boolean {
++        var deadline: Long? = null
++        while (true) {
++            try {
++                return tap()
++            } catch (e: MaestroException.ScreenChanged) {
++                val now = System.currentTimeMillis()
++                val end = deadline ?: (now + (waitToSettleTimeoutMs?.toLong() ?: SCREEN_CHANGE_TIMEOUT_MS)).also { deadline = it }
++                if (now >= end) throw e
++                logger.info("Tap aimed again: the screen changed after it settled")
++                maestro.waitForAppToSettle(waitToSettleTimeoutMs = waitToSettleTimeoutMs)
++            }
++        }
++    }
++
+     private suspend fun tapOnPoint(
+         command: TapOnPointCommand,
+         retryIfNoChange: Boolean,
+@@ -1920,6 +1935,7 @@ class Orchestra(
+ 
+         private const val MAX_ERASE_CHARACTERS = 50
+         private const val MAX_RETRIES_ALLOWED = 3
++        private const val SCREEN_CHANGE_TIMEOUT_MS = 3000L
+         private val logger = LoggerFactory.getLogger(Orchestra::class.java)
+     }
+ 
+-- 
+2.43.0
+
