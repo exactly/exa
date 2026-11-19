@@ -1,6 +1,7 @@
 import { vValidator } from "@hono/valibot-validator";
 import { SPAN_STATUS_ERROR, SPAN_STATUS_OK } from "@sentry/core";
 import {
+  captureEvent,
   captureException,
   continueTrace,
   getActiveSpan,
@@ -71,7 +72,7 @@ import { emit } from "../utils/events";
 import { refresh } from "../utils/liquidity";
 import listen from "../utils/listen";
 import publicClient, { alchemyClient } from "../utils/publicClient";
-import { pay } from "../utils/ramps/manteca";
+import { decodeNonceKey, ErrorCodes, pay } from "../utils/ramps/manteca";
 import revertFingerprint from "../utils/revertFingerprint";
 import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
@@ -172,6 +173,9 @@ export default function hook({
         for (const message of messages) scheduleMessage(message);
       })
       .catch((error: unknown) => captureException(error)),
+    redis.zrange("refunds", 0, Infinity, "BYSCORE").then((messages) => {
+      for (const message of messages) scheduleRefund(message);
+    }),
     initializeAlchemy(alchemy, signingKeys, proposalEmitters).catch((error: unknown) => {
       if (signingKeys.size === 0) throw error;
       captureException(error, { level: "warning" });
@@ -227,14 +231,16 @@ export default function hook({
           ...decodeEventLog({ abi: marketAbi, eventName: "Withdraw", topics, data }),
         }));
       async function settle() {
-        if (outflows.length === 0) return [];
-        const settlements = Object.values(await manteca.getSettlements());
-        return outflows.filter(({ args }) =>
-          settlements.some((settlement) => isAddressEqual(settlement, args.receiver)),
-        );
+        const settlements: Record<string, Address> = outflows.length > 0 ? await manteca.getSettlements() : {};
+        return {
+          settlements,
+          settled: outflows.filter(({ args }) =>
+            Object.values(settlements).some((settlement) => isAddressEqual(settlement, args.receiver)),
+          ),
+        };
       }
       const payments = logs.every(({ topics }) => topics[0] === withdrawTopic) ? await settle() : undefined;
-      if (payments?.length === 0) {
+      if (payments?.settled.length === 0) {
         setExtra("exa.ignore", true);
         return c.json({}, 200);
       }
@@ -398,7 +404,7 @@ export default function hook({
             },
           );
         }),
-        Promise.resolve(payments ?? settle()).then((settled) =>
+        Promise.resolve(payments ?? settle()).then(({ settlements, settled }) =>
           Promise.all(
             new Set(settled.map(({ transaction }) => transaction?.hash)).values().map(async (hash) => {
               const payers = new Set<string>();
@@ -421,17 +427,64 @@ export default function hook({
                   if (!credential) continue;
                   payers.add(args.sender);
                   const start = operations[index - 1]?.logIndex ?? -1;
-                  await pay(manteca, persona, credential.id, {
-                    ...args,
-                    sender,
-                    logs: receipt.logs.filter((log) => log.logIndex > start && log.logIndex < logIndex),
-                  }).catch((error: unknown) => {
-                    failures.push(error);
-                    captureException(error, {
-                      level: "error",
-                      contexts: { payment: { account: args.sender, userOpHash: args.userOpHash } },
-                    });
-                  });
+                  const events = receipt.logs.filter((log) => log.logIndex > start && log.logIndex < logIndex);
+                  const code = decodeNonceKey(args.nonce);
+                  let refund = false;
+                  if (args.success && code) {
+                    const sent = parseEventLogs({ abi: marketAbi, eventName: "Withdraw", logs: events }).filter(
+                      ({ address, args: { owner, receiver } }) =>
+                        isAddressEqual(address, marketUSDCAddress) &&
+                        isAddressEqual(owner, sender) &&
+                        Object.values(settlements).some((settlement) => isAddressEqual(settlement, receiver)),
+                    );
+                    const others = sent.filter(
+                      ({ args: { receiver } }) => v.parse(Address, receiver) !== settlements.ARS,
+                    );
+                    const amount = sent
+                      .filter(({ args: { receiver } }) => v.parse(Address, receiver) === settlements.ARS)
+                      .reduce((total, { args: { assets } }) => total + assets, 0n);
+                    if (amount > 0n && others.length > 0) {
+                      captureException(new Error("qr refund unsupported entity"), {
+                        level: "error",
+                        contexts: {
+                          payment: {
+                            account: sender,
+                            userOpHash: args.userOpHash,
+                            amount: String(others.reduce((total, { args: { assets } }) => total + assets, 0n)),
+                          },
+                        },
+                      });
+                    }
+                    if (amount > 0n) {
+                      refund = await queueRefund({
+                        account: sender,
+                        userOpHash: args.userOpHash,
+                        code,
+                        amount,
+                        unlock: timestamp + 900,
+                        retryCount: 0,
+                      }).then(
+                        () => true,
+                        (error: unknown) => {
+                          failures.push(error);
+                          captureException(error, {
+                            level: "error",
+                            contexts: { payment: { account: sender, userOpHash: args.userOpHash } },
+                          });
+                          return false;
+                        },
+                      );
+                    }
+                  }
+                  await pay(manteca, persona, credential.id, { ...args, sender, logs: events, refund }).catch(
+                    (error: unknown) => {
+                      failures.push(error);
+                      captureException(error, {
+                        level: "error",
+                        contexts: { payment: { account: args.sender, userOpHash: args.userOpHash } },
+                      });
+                    },
+                  );
                 }
               }
               for (const { transaction, args } of settled) {
@@ -970,6 +1023,106 @@ export default function hook({
     }
   }
 
+  function queueRefund(refund: v.InferOutput<typeof Refund>) {
+    return startSpan(
+      {
+        name: "schedule refund",
+        op: "queue.publish",
+        attributes: {
+          account: refund.account,
+          userOpHash: refund.userOpHash,
+          amount: String(refund.amount),
+          unlock: refund.unlock,
+          "messaging.system": "redis",
+          "messaging.operation.type": "send",
+          "messaging.destination.name": "refunds",
+          "messaging.message.id": refund.userOpHash,
+        },
+      },
+      async () => {
+        const { "sentry-trace": sentryTrace, baggage: sentryBaggage } = getTraceData();
+        const message = serialize({ ...refund, sentryTrace, sentryBaggage });
+        getActiveSpan()?.setAttribute("messaging.message.body.size", Buffer.byteLength(message));
+        if (await redis.zadd("refunds", refund.unlock, message)) scheduleRefund(message);
+      },
+    );
+  }
+
+  function scheduleRefund(message: string) {
+    const refund = v.parse(Refund, deserialize(message));
+    const { account, userOpHash, code, amount, unlock, retryCount, sentryTrace, sentryBaggage } = refund;
+    const retry = () =>
+      queueRefund({ ...refund, unlock: Math.floor(Date.now() / 1000) + 600, retryCount: retryCount + 1 }).then(() =>
+        redis.zrem("refunds", message),
+      );
+
+    setTimeout(Math.max(0, unlock * 1000 - Date.now()))
+      .then(() =>
+        continueTrace({ sentryTrace, baggage: sentryBaggage }, () =>
+          withScope((scope) => {
+            scope.setUser({ id: account });
+            return startSpan({ name: "exa.refund", op: "exa.refund", forceTransaction: true }, () =>
+              startSpan(
+                {
+                  name: "process refund",
+                  op: "queue.process",
+                  attributes: {
+                    account,
+                    userOpHash,
+                    amount: String(amount),
+                    unlock,
+                    "messaging.system": "redis",
+                    "messaging.operation.type": "process",
+                    "messaging.destination.name": "refunds",
+                    "messaging.message.id": userOpHash,
+                    "messaging.message.body.size": Buffer.byteLength(message),
+                    "messaging.message.retry.count": retryCount,
+                    "messaging.message.receive.latency": Date.now() - unlock * 1000,
+                  },
+                },
+                async () => {
+                  const lock = await manteca.getPaymentLock(code);
+                  if (lock) return retry();
+                  if (!(await manteca.getSynthetic(userOpHash))) {
+                    const withdraw = await manteca.refundQRPayment(userOpHash, account, amount);
+                    if (withdraw) {
+                      captureEvent({
+                        message: "QRPaymentRefund",
+                        level: "warning",
+                        contexts: {
+                          refund: {
+                            account,
+                            userOpHash,
+                            amount: String(amount),
+                            reason: lock === null ? ErrorCodes.EXPIRED_LOCK : "unknown lock",
+                            withdraw: withdraw.id,
+                          },
+                        },
+                      });
+                    }
+                  }
+                  return redis.zrem("refunds", message);
+                },
+              ).catch((error: unknown) => {
+                captureException(error, {
+                  level: "error",
+                  contexts: { refund: { account, userOpHash, amount: String(amount), retryCount } },
+                });
+                if (error instanceof Error && error.message === ErrorCodes.NOT_SUPPORTED_CHAIN_ID) {
+                  return redis.zrem("refunds", message);
+                }
+                return retry();
+              }),
+            );
+          }),
+        ),
+      )
+      .catch((error: unknown) => {
+        captureException(error, { level: "error" });
+        return setTimeout(600_000).then(() => scheduleRefund(message));
+      });
+  }
+
   async function recover(
     { client, exaPreviewer }: NonNullable<ReturnType<typeof targets.get>>,
     chainId: number,
@@ -1180,6 +1333,17 @@ const Withdraw = v.pipe(
     ...withdraw,
   })),
 );
+
+const Refund = v.object({
+  account: Address,
+  userOpHash: Hash,
+  code: v.string(),
+  amount: v.bigint(),
+  unlock: v.number(),
+  retryCount: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  sentryTrace: v.optional(v.string()),
+  sentryBaggage: v.optional(v.string()),
+});
 
 const legacyExaPluginAbi = [
   { type: "function", name: "withdraw", inputs: [], outputs: [], stateMutability: "nonpayable" },

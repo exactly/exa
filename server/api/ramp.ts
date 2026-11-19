@@ -1,4 +1,4 @@
-import { captureException, setUser } from "@sentry/core";
+import { captureEvent, captureException, setUser } from "@sentry/core";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { describeRoute } from "hono-openapi";
@@ -614,7 +614,7 @@ Pay the lock with a user operation that withdraws at least \`amount\` USDC to \`
         description: `
 Retrieve the status of the QR payment made by the user operation \`userOpHash\` of the authenticated user.
 
-Returns the synthetic of the payment once the server executed it, \`FAILED\` when the user operation reverted, or \`EXPIRED\` when the lock expired before the execution.
+Returns the synthetic of the payment once the server executed it, or \`FAILED\` when the user operation reverted. When the lock expired before the execution, the server refunds the payment to the account, and returns \`REFUNDING\` until the refund is sent, \`REFUNDED\` once it is, or \`EXPIRED\` without a refund.
         `,
         tags: ["QR"],
         security: [{ credentialAuth: [] }],
@@ -671,7 +671,20 @@ Returns the synthetic of the payment once the server executed it, \`FAILED\` whe
         if (synthetic) {
           return c.json({ id: synthetic.id, status: synthetic.status } satisfies InferOutput<typeof QRPayment>, 200);
         }
-        if (lock === null) return c.json({ status: "EXPIRED" } satisfies InferOutput<typeof QRPayment>, 200);
+        if (!lock) {
+          const refund = await manteca.getQRRefund(userOpHash);
+          if (refund?.status === "CANCELLED") {
+            captureEvent({
+              message: "qr refund cancelled",
+              level: "error",
+              contexts: { refund: { account, userOpHash, withdraw: refund.id } },
+            });
+          }
+          return c.json(
+            { status: refund ? RefundStatus[refund.status] : "EXPIRED" } satisfies InferOutput<typeof QRPayment>,
+            200,
+          );
+        }
         return c.json({ code: ErrorCodes.PAYMENT_NOT_EXECUTED }, 404);
       },
     )
@@ -832,8 +845,10 @@ const QRQuotes = object({ ARS: optional(string()), BRL: optional(string()) });
 
 const QRPayment = union([
   object({ id: string(), status: picklist(Manteca.SyntheticStatus) }),
-  object({ status: picklist(["EXPIRED", "FAILED"]) }),
+  object({ status: picklist(["EXPIRED", "FAILED", "REFUNDING", "REFUNDED"]) }),
 ]);
+
+const RefundStatus = { PENDING: "REFUNDING", EXECUTED: "REFUNDED", CANCELLED: "EXPIRED" } as const;
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const RampResponse = object({
