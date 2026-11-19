@@ -809,7 +809,15 @@ type OwnerCalls = SendCallsParameters<
 export async function sendOwnerCalls(parameters: OwnerCalls & { experimental_fallback: true }): Promise<{ id: string }>;
 export async function sendOwnerCalls(parameters: OwnerCalls): Promise<undefined | { id: string }>;
 export async function sendOwnerCalls({ chainId = chain.id, experimental_fallback, ...parameters }: OwnerCalls) {
-  if (getConnection(ownerConfig).chainId !== chainId) await switchChain(ownerConfig, { chainId });
+  if (getConnection(ownerConfig).chainId !== chainId) {
+    try {
+      await switchChain(ownerConfig, { chainId });
+    } catch (error) {
+      if (experimental_fallback || classifyError(error).walletRejected) throw error;
+      reportError(error, { level: "warning" });
+      return;
+    }
+  }
   const key = `${getConnection(ownerConfig).connector?.uid}:${chainId}`;
   try {
     const remembered = unsupported.get(key);
