@@ -1,0 +1,42 @@
+From 6c14d4f97bd0e04751992301773f9d2bcd436532 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Thu, 19 Nov 2026 23:42:16 +0000
+Subject: [PATCH] fix: settle Android without sleeping between hierarchy reads
+
+Android settled by comparing view hierarchies read back to back, sleeping 200 ms after each read that differed from the one before. The device already waits for the app's accessibility events to go quiet before it reads a hierarchy, so the sleep only added to that wait: a tap that changed the screen slept 200 ms or more on top of it before the next command could start. Compare reads with no sleep in between, as the settle with a timeout already did, and stop where it stopped before: at the deadline when the caller gives a timeout, after 10 reads when it does not.
+---
+ .../src/main/java/maestro/drivers/AndroidDriver.kt    | 11 ++++++++++-
+ 1 file changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt b/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
+index f4d647e..1f44467 100644
+--- a/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
+@@ -716,7 +716,15 @@ class AndroidDriver(
+ 
+     override fun waitForAppToSettle(initialHierarchy: ViewHierarchy?, appId: String?, timeoutMs: Int?): ViewHierarchy? {
+         return metrics.measured("operation", mapOf("command" to "waitForAppToSettle", "appId" to appId, "timeoutMs" to timeoutMs.toString())) {
+-            ScreenshotUtils.waitForAppToSettle(initialHierarchy, this, timeoutMs)
++            val endTime = timeoutMs?.let { System.currentTimeMillis() + it }
++            var latestHierarchy = initialHierarchy ?: ViewHierarchy.from(this, false)
++            var reads = 0
++            do {
++                val hierarchy = ViewHierarchy.from(this, false)
++                if (hierarchy == latestHierarchy) return@measured hierarchy
++                latestHierarchy = hierarchy
++            } while (if (endTime != null) System.currentTimeMillis() < endTime else ++reads < SETTLE_MAX_READS)
++            latestHierarchy
+         }
+     }
+ 
+@@ -1544,6 +1552,7 @@ class AndroidDriver(
+         private val FINGERPRINT_LISTENING = Regex("AUTHENTICATING|ENROLLING_START|onEnrollmentProgress\\(.*left=[1-9]")
+         private val FINGERPRINT_IDLE = Regex("onAuthenticationSucceeded|onLockout|onError\\((CANCELED|UNABLE_TO_PROCESS, \\d+\\): fpHash)|onEnrollmentProgress\\(.*left=0")
+         private const val MAESTRO_DRIVER_STARTUP_TIMEOUT = "MAESTRO_DRIVER_STARTUP_TIMEOUT"
++        private const val SETTLE_MAX_READS = 10
+         private const val MAESTRO_IME_ID = "dev.mobile.maestro/.input.MaestroInputMethodService"
+         private const val MAESTRO_IME_RECEIVER = "dev.mobile.maestro/.receivers.UnicodeInputReceiver"
+         private const val MAESTRO_IME_COMMIT_ACTION = "dev.mobile.maestro.ime.commitText"
+-- 
+2.43.0
+
