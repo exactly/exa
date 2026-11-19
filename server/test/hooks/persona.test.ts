@@ -864,7 +864,66 @@ describe("card limit case", () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 
-  it("does not update the card limit of another tenant", async () => {
+  it("updates the card limit of a base program card on the op stack", async () => {
+    await database.update(credentials).set({ otherPandaId: "basePandaId" }).where(eq(credentials.id, referenceId));
+    await database
+      .insert(cards)
+      .values([{ id: "case-card-base", credentialId: referenceId, tenant: "BASE", lastFour: "4321" }]);
+    vi.spyOn(panda, "tenants").mockReturnValue(["OP", "BASE"]);
+    const program = vi.spyOn(panda, "program").mockReturnValue(panda);
+    vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
+      data: { attributes: { "reference-id": referenceId } },
+    });
+    vi.spyOn(persona, "updateCardLimit").mockResolvedValueOnce(cardLimitUpdateResponse);
+    vi.spyOn(panda, "updateCard").mockResolvedValueOnce(cardUpdateResponse);
+    const response = await postCase(casePayload({ status: "Approved", cardLimitUsd: 20_000 }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000);
+    expect(program).toHaveBeenCalledExactlyOnceWith("BASE");
+    expect(panda.updateCard).toHaveBeenCalledExactlyOnceWith({
+      id: "case-card-base",
+      limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
+    });
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("updates the card limit of every program card", async () => {
+    await database
+      .update(credentials)
+      .set({ otherPandaId: "basePandaId", pandaId: "pandaId" })
+      .where(eq(credentials.id, referenceId));
+    await database.insert(cards).values([
+      { id: "case-card-op", credentialId: referenceId, tenant: "OP", lastFour: "1234" },
+      { id: "case-card-base", credentialId: referenceId, tenant: "BASE", lastFour: "4321" },
+    ]);
+    vi.spyOn(panda, "tenants").mockReturnValue(["OP", "BASE"]);
+    const program = vi.spyOn(panda, "program").mockReturnValue(panda);
+    vi.spyOn(persona, "getInquiryById").mockResolvedValueOnce({
+      data: { attributes: { "reference-id": referenceId } },
+    });
+    vi.spyOn(persona, "updateCardLimit").mockResolvedValueOnce(cardLimitUpdateResponse);
+    vi.spyOn(panda, "updateCard").mockResolvedValue(cardUpdateResponse);
+    const response = await postCase(casePayload({ status: "Approved", cardLimitUsd: 20_000 }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(persona.updateCardLimit).toHaveBeenCalledExactlyOnceWith(referenceId, 20_000);
+    expect(program.mock.calls).toStrictEqual([["OP"], ["BASE"]]);
+    expect(panda.updateCard).toHaveBeenCalledTimes(2);
+    expect(panda.updateCard).toHaveBeenCalledWith({
+      id: "case-card-op",
+      limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
+    });
+    expect(panda.updateCard).toHaveBeenCalledWith({
+      id: "case-card-base",
+      limit: { amount: 2_000_000, frequency: "per7DayPeriod" },
+    });
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("does not update the card limit of another tenant without its panda id", async () => {
     await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, referenceId));
     await database
       .insert(cards)
