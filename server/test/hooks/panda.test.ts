@@ -6,6 +6,7 @@ import "../mocks/sentry";
 import "../mocks/wallet";
 
 import { captureException, captureMessage, getClient, setUser, spanToJSON } from "@sentry/node";
+import { Mutex } from "async-mutex";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { parse } from "valibot";
@@ -20,6 +21,7 @@ import {
   encodeFunctionData,
   erc20Abi,
   hexToBigInt,
+  hexToBytes,
   http,
   padHex,
   toHex,
@@ -53,6 +55,7 @@ import { proposalManager } from "@exactly/plugin/deploy.json";
 import database, { cards, credentials, transactions } from "../../database";
 import createPandaHook from "../../hooks/panda";
 import t, { f } from "../../i18n";
+import * as Hold from "../../utils/hold";
 import createOnesignal from "../../utils/onesignal";
 import createPanda, * as Panda from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
@@ -245,12 +248,12 @@ describe("card operations", () => {
         });
       });
 
-      it("fails with frozen card", async () => {
-        const cardId = "rc-frozen";
+      it.each(["FROZEN", "HELD"] as const)("fails with %s card", async (status) => {
+        const cardId = `rc-${status}`;
         const transactionId = crypto.randomUUID();
         await database
           .insert(cards)
-          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "0001", status: "FROZEN" }]);
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "0001", status }]);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -702,6 +705,106 @@ describe("card operations", () => {
         expect(captureException).toHaveBeenCalledWith(error, { level: "error" });
       });
 
+      it("holds cards after a very high risk authorization", async () => {
+        vi.spyOn(sardine, "risk").mockResolvedValueOnce({
+          status: "Success",
+          level: "very_high",
+          sessionKey: "freeze-session",
+          amlLevel: "low",
+          score: 99,
+        });
+        const track = vi.spyOn(segment, "track");
+        const span = spyRiskSpan();
+        const signer = privateKeyToAccount(generatePrivateKey()).address;
+        const risky = deriveAddress(exaAccountFactoryAddress, { x: padHex(signer), y: zeroHash });
+        await database.insert(credentials).values([
+          {
+            id: "frozen-risk",
+            publicKey: new Uint8Array(hexToBytes(signer)),
+            account: risky,
+            factory: exaAccountFactoryAddress,
+          },
+        ]);
+        await database.insert(cards).values([
+          { id: "frozen-risk", credentialId: "frozen-risk", tenant: "OP", lastFour: "5678", mode: 0 },
+          { id: "frozen-risk-frozen", credentialId: "frozen-risk", tenant: "OP", lastFour: "5679", status: "FROZEN" },
+        ]);
+        await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId: "frozen-risk" } },
+          },
+        });
+
+        await expect(span).resolves.toStrictEqual([
+          "tx.risk.authorization",
+          { "exa.level": "very_high", "exa.score": 99, "exa.status": "Success", "exa.aml": "low" },
+        ]);
+        expect(captureException).toHaveBeenCalledWith(new Error("high risk authorization"), { level: "error" });
+        await vi.waitFor(() =>
+          expect(
+            database.query.cards.findMany({
+              columns: { id: true, status: true },
+              where: eq(cards.credentialId, "frozen-risk"),
+              orderBy: cards.id,
+            }),
+          ).resolves.toStrictEqual([
+            { id: "frozen-risk", status: "HELD" },
+            { id: "frozen-risk-frozen", status: "HELD" },
+          ]),
+        );
+        expect(track).toHaveBeenCalledWith({ userId: risky, event: "CardHeld", properties: { source: null } });
+      });
+
+      it.each(["settled", "pending"])("rejects queued authorizations after a %s hold", async (state) => {
+        const id = `queued-${state}`;
+        const signer = privateKeyToAccount(generatePrivateKey()).address;
+        const queued = deriveAddress(exaAccountFactoryAddress, { x: padHex(signer), y: zeroHash });
+        await database
+          .insert(credentials)
+          .values([
+            { id, publicKey: new Uint8Array(hexToBytes(signer)), account: queued, factory: exaAccountFactoryAddress },
+          ]);
+        await database.insert(cards).values([{ id, credentialId: id, tenant: "OP", lastFour: "5680", mode: 0 }]);
+        const mutex = new Mutex();
+        vi.spyOn(Panda, "getMutex").mockReturnValueOnce(mutex);
+        const acquire = vi.spyOn(mutex, "acquire");
+        await mutex.acquire();
+        const response = appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: { ...authorization.json.body, spend: { ...authorization.json.body.spend, cardId: id } },
+          },
+        });
+        await vi.waitFor(() => expect(acquire).toHaveBeenCalledTimes(2));
+        const update = Promise.withResolvers<null>();
+        const held =
+          state === "settled"
+            ? Hold.hold({ database, segment: dependencies.segment }, id)
+            : Hold.hold(
+                {
+                  database: { query: { credentials: { findFirst: () => update.promise } } } as never,
+                  segment: dependencies.segment,
+                },
+                id,
+              );
+        if (state === "settled") await held;
+        mutex.release();
+
+        const queuedResponse = await response;
+        update.resolve(null);
+        await held;
+
+        expect(queuedResponse.status).toBe(403);
+        await expect(queuedResponse.json()).resolves.toStrictEqual({
+          code: "frozen card",
+          rejectionCode: "NOT_PERMITTED",
+        });
+        expect(mutex.isLocked()).toBe(false);
+      });
+
       it("alarms high risk verification", async () => {
         vi.spyOn(sardine, "risk").mockResolvedValueOnce({
           status: "Success",
@@ -734,6 +837,57 @@ describe("card operations", () => {
         expect(captureException).toHaveBeenCalledWith(new Error("high risk verification"), expect.anything());
 
         expect(response.status).toBe(200);
+      });
+
+      it("holds cards after a very high risk verification", async () => {
+        vi.spyOn(sardine, "risk").mockResolvedValueOnce({
+          status: "Success",
+          level: "very_high",
+          sessionKey: "verification-session",
+          amlLevel: "low",
+          score: 99,
+        });
+        const track = vi.spyOn(segment, "track");
+        const span = spyRiskSpan();
+        const signer = privateKeyToAccount(generatePrivateKey()).address;
+        const risky = deriveAddress(exaAccountFactoryAddress, { x: padHex(signer), y: zeroHash });
+        await database.insert(credentials).values([
+          {
+            id: "held-verification",
+            publicKey: new Uint8Array(hexToBytes(signer)),
+            account: risky,
+            factory: exaAccountFactoryAddress,
+          },
+        ]);
+        await database
+          .insert(cards)
+          .values([
+            { id: "held-verification", credentialId: "held-verification", tenant: "OP", lastFour: "5680", mode: 0 },
+          ]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: {
+              ...authorization.json.body,
+              spend: { ...authorization.json.body.spend, cardId: "held-verification", amount: 0 },
+            },
+          },
+        });
+
+        expect(response.status).toBe(200);
+        await expect(span).resolves.toStrictEqual([
+          "tx.risk.verification",
+          { "exa.level": "very_high", "exa.score": 99, "exa.status": "Success", "exa.aml": "low" },
+        ]);
+        expect(captureException).toHaveBeenCalledWith(new Error("high risk verification"), { level: "error" });
+        await vi.waitFor(() =>
+          expect(
+            database.query.cards.findFirst({ columns: { status: true }, where: eq(cards.id, "held-verification") }),
+          ).resolves.toStrictEqual({ status: "HELD" }),
+        );
+        expect(track).toHaveBeenCalledWith({ userId: risky, event: "CardHeld", properties: { source: null } });
       });
 
       it("alarms high risk refund", async () => {

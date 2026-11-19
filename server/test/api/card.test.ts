@@ -17,7 +17,7 @@ import { SignJWT } from "jose";
 import { createSecretKey } from "node:crypto";
 import { env } from "node:process";
 import { nonEmpty, parse, pipe, string } from "valibot";
-import { checksumAddress, hexToBigInt, padHex, parseEther, zeroAddress, zeroHash } from "viem";
+import { checksumAddress, hexToBigInt, hexToBytes, padHex, parseEther, zeroAddress, zeroHash } from "viem";
 import { generatePrivateKey, privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { base, optimism } from "viem/chains";
 import { createSiweMessage, parseSiweMessage } from "viem/siwe";
@@ -165,6 +165,20 @@ describe("authenticated", () => {
         pandaId: "freeze-race",
       },
       {
+        id: "hold-race",
+        publicKey,
+        account: padHex("0x5e", { size: 20 }),
+        factory: exaAccountFactoryAddress,
+        pandaId: "hold-race",
+      },
+      {
+        id: "cancel-failure",
+        publicKey,
+        account: padHex("0x5f", { size: 20 }),
+        factory: exaAccountFactoryAddress,
+        pandaId: "cancel-failure",
+      },
+      {
         id: "migrate-card-upgraded-plugin",
         publicKey,
         account: padHex("0x6", { size: 20 }),
@@ -300,6 +314,52 @@ describe("authenticated", () => {
 
     expect(response.status).toBe(404);
     await expect(response.json()).resolves.toStrictEqual({ code: "no card" });
+  });
+
+  it.each(["ACTIVE", "DELETED", "FROZEN"] as const)("keeps a held card held on %s", async (status) => {
+    const credentialId = `held-${status}`;
+    await hold(
+      credentialId,
+      `00000000-0000-4000-8000-0000000004${{ ACTIVE: "a", DELETED: "d", FROZEN: "f" }[status]}0`,
+    );
+    const updateCard = vi.spyOn(panda, "updateCard");
+
+    const response = await appClient.index.$patch({
+      // @ts-expect-error - bad hono patch type
+      header: { "test-credential-id": credentialId },
+      json: { status },
+    });
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toStrictEqual({ code: "risk hold" });
+    await expect(
+      database.query.cards.findFirst({ columns: { status: true }, where: eq(cards.credentialId, credentialId) }),
+    ).resolves.toStrictEqual({ status: "HELD" });
+    expect(updateCard).not.toHaveBeenCalled();
+  });
+
+  it("returns a held card as frozen", async () => {
+    const cardId = "00000000-0000-4000-8000-0000000004b0";
+    await hold("held-get", cardId);
+    vi.spyOn(panda, "getCard").mockResolvedValueOnce({ ...cardTemplate, id: cardId });
+    vi.spyOn(panda, "getUser").mockResolvedValueOnce(userTemplate);
+
+    const response = await appClient.index.$get({ header: {} }, { headers: { "test-credential-id": "held-get" } });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ cardId, status: "FROZEN" });
+  });
+
+  it("returns 400 already created for a held card", async () => {
+    await hold("held-create", "00000000-0000-4000-8000-0000000004c0");
+    vi.spyOn(panda, "getCard").mockResolvedValueOnce(cardTemplate);
+    const createCard = vi.spyOn(panda, "createCard");
+
+    const response = await appClient.index.$post({ header: { "test-credential-id": "held-create" } });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toStrictEqual({ code: "already created" });
+    expect(createCard).not.toHaveBeenCalled();
   });
 
   it("returns 404 no card and deletes a card canceled on panda", async () => {
@@ -886,6 +946,55 @@ describe("authenticated", () => {
         },
       ],
     ]);
+  });
+
+  it("retries a failed cancellation before issuing a new card", async () => {
+    const credentialId = "retry-cancel";
+    const deletedId = "00000000-0000-4000-8000-0000000000ab";
+    const newId = "00000000-0000-4000-8000-0000000000ac";
+    await database.insert(credentials).values({
+      id: credentialId,
+      publicKey: new Uint8Array(),
+      account: padHex("0x40f6", { size: 20 }),
+      factory: exaAccountFactoryAddress,
+      pandaId: credentialId,
+    });
+    await database
+      .insert(cards)
+      .values({ id: deletedId, credentialId, tenant: "OP", lastFour: "4343", status: "DELETED" });
+    vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
+    vi.spyOn(panda, "getCards").mockResolvedValueOnce([
+      { id: deletedId, status: "active", last4: "4343", expirationMonth: "9", expirationYear: "2029" },
+    ]);
+    const updateCard = vi
+      .spyOn(panda, "updateCard")
+      .mockResolvedValueOnce({ ...cardTemplate, id: deletedId, last4: "4343", status: "canceled" });
+    const createCard = vi
+      .spyOn(panda, "createCard")
+      .mockResolvedValueOnce({ ...cardTemplate, id: newId, last4: "4444" });
+
+    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+
+    expect(response.status).toBe(200);
+    expect(updateCard).toHaveBeenCalledExactlyOnceWith({ id: deletedId, status: "canceled" });
+    expect(createCard).toHaveBeenCalledOnce();
+    await expect(
+      database.query.cards.findMany({
+        columns: { id: true, status: true },
+        where: eq(cards.credentialId, credentialId),
+        orderBy: cards.id,
+      }),
+    ).resolves.toStrictEqual([
+      { id: deletedId, status: "DELETED" },
+      { id: newId, status: "ACTIVE" },
+    ]);
+    expect(
+      vi
+        .mocked(captureException)
+        .mock.calls.filter(([, context]) =>
+          (context as undefined | { fingerprint?: string[] })?.fingerprint?.includes("orphan-card-adopted"),
+        ),
+    ).toStrictEqual([]);
   });
 
   it("adopts only the first active card when panda has multiple orphans", async () => {
@@ -2027,7 +2136,61 @@ describe("authenticated", () => {
     expect(segment.track).not.toHaveBeenCalled();
   });
 
-  it("skips tracking a card already canceled by the webhook", async () => {
+  it("keeps a card held when a hold lands before a cancel", async () => {
+    const id = "123e4567-e89b-12d3-a456-42665544001a";
+    await database.insert(cards).values({ id, credentialId: "hold-race", tenant: "OP", lastFour: "1227" });
+    const findFirst = database.query.credentials.findFirst.bind(database.query.credentials);
+    vi.spyOn(database.query.credentials, "findFirst").mockImplementationOnce((async (
+      config: Parameters<typeof findFirst>[0],
+    ) => {
+      const credential = await findFirst(config);
+      await database.update(cards).set({ status: "HELD" }).where(eq(cards.id, id));
+      return credential;
+    }) as unknown as typeof findFirst);
+    const updateCard = vi.spyOn(panda, "updateCard");
+
+    const response = await appClient.index.$patch({
+      // @ts-expect-error - bad hono patch type
+      header: { "test-credential-id": "hold-race" },
+      json: { status: "DELETED" },
+    });
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toStrictEqual({ code: "no card" });
+    expect(updateCard).not.toHaveBeenCalled();
+    await expect(
+      database.query.cards.findFirst({ columns: { status: true }, where: eq(cards.id, id) }),
+    ).resolves.toStrictEqual({ status: "HELD" });
+    expect(segment.track).not.toHaveBeenCalled();
+  });
+
+  it("keeps a card deleted when the panda cancel fails", async () => {
+    const id = "123e4567-e89b-12d3-a456-42665544001b";
+    const error = new ServiceError("Panda", 500, "unavailable");
+    await database
+      .insert(cards)
+      .values({ id, credentialId: "cancel-failure", tenant: "OP", lastFour: "1228", status: "FROZEN" });
+    vi.spyOn(panda, "updateCard").mockRejectedValueOnce(error);
+
+    const response = await appClient.index.$patch({
+      // @ts-expect-error - bad hono patch type
+      header: { "test-credential-id": "cancel-failure" },
+      json: { status: "DELETED" },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(
+      database.query.cards.findFirst({ columns: { status: true }, where: eq(cards.id, id) }),
+    ).resolves.toStrictEqual({ status: "DELETED" });
+    expect(captureException).toHaveBeenCalledWith(error, { level: "error" });
+    expect(segment.track).toHaveBeenCalledExactlyOnceWith({
+      userId: "0x000000000000000000000000000000000000005F",
+      event: "CardDeleted",
+      properties: { source: null },
+    });
+  });
+
+  it("tracks a deletion once when the webhook also cancels the card", async () => {
     const id = "123e4567-e89b-12d3-a456-42665544000c";
     await database.insert(cards).values({ id, credentialId: "cancel-race", tenant: "OP", lastFour: "1225" });
     vi.spyOn(panda, "updateCard").mockImplementationOnce(async () => {
@@ -2047,7 +2210,11 @@ describe("authenticated", () => {
     await expect(
       database.query.cards.findFirst({ columns: { status: true }, where: eq(cards.id, id) }),
     ).resolves.toStrictEqual({ status: "DELETED" });
-    expect(segment.track).not.toHaveBeenCalled();
+    expect(segment.track).toHaveBeenCalledExactlyOnceWith({
+      userId: padHex("0x5c", { size: 20 }),
+      event: "CardDeleted",
+      properties: { source: null },
+    });
   });
 
   it("propagates stale card provisioning errors", async () => {
@@ -3578,3 +3745,15 @@ vi.mock("@exactly/common/generated/chain", async (importOriginal) => {
 beforeEach(() => {
   mocks.isBase.mockReset().mockImplementation((value) => value);
 });
+
+async function hold(credentialId: string, cardId: string) {
+  const holder = privateKeyToAddress(generatePrivateKey());
+  await database.insert(credentials).values({
+    id: credentialId,
+    publicKey: new Uint8Array(hexToBytes(holder)),
+    account: deriveAddress(exaAccountFactoryAddress, { x: padHex(holder), y: zeroHash }),
+    factory: exaAccountFactoryAddress,
+    pandaId: credentialId,
+  });
+  await database.insert(cards).values({ id: cardId, credentialId, tenant: "OP", lastFour: "9993", status: "HELD" });
+}

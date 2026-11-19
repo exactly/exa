@@ -321,7 +321,7 @@ export default function hook({
           with: {
             cards: {
               columns: { id: true },
-              where: and(inArray(cards.status, ["ACTIVE", "FROZEN"]), eq(cards.tenant, isBase ? "BASE" : "OP")),
+              where: and(inArray(cards.status, ["ACTIVE", "FROZEN", "HELD"]), eq(cards.tenant, isBase ? "BASE" : "OP")),
               limit: 1,
             },
           },
@@ -388,7 +388,7 @@ export default function hook({
           with: {
             cards: {
               columns: { id: true },
-              where: and(inArray(cards.status, ["ACTIVE", "FROZEN"]), eq(cards.tenant, "BASE")),
+              where: and(inArray(cards.status, ["ACTIVE", "FROZEN", "HELD"]), eq(cards.tenant, "BASE")),
             },
           },
         });

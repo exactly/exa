@@ -61,7 +61,7 @@ export default function worker({
           with: {
             cards: {
               columns: { id: true, mode: true },
-              where: and(inArray(cards.status, ["ACTIVE", "FROZEN"]), eq(cards.tenant, isBase ? "BASE" : "OP")),
+              where: and(inArray(cards.status, ["ACTIVE", "FROZEN", "HELD"]), eq(cards.tenant, isBase ? "BASE" : "OP")),
             },
           },
         });

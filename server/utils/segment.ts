@@ -31,6 +31,7 @@ export default function segment(key: string) {
         }
       | { event: "CardDeleted"; properties: SourceProperty }
       | { event: "CardFrozen"; properties: SourceProperty }
+      | { event: "CardHeld"; properties: SourceProperty }
       | { event: "CardIssued"; properties: SourceProperty & { productId: string } }
       | { event: "CardUnfrozen"; properties: SourceProperty }
       | {

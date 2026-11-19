@@ -121,6 +121,8 @@ const hooks = {
   ...(env.SARDINE_WEBHOOK_SECRET && {
     sardine: () =>
       createSardineHook({
+        database,
+        segment,
         webhookSecret: parse(pipe(string("sardine webhook"), nonEmpty("sardine webhook")), env.SARDINE_WEBHOOK_SECRET),
       }),
   }),
