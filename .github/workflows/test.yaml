@@ -208,6 +208,8 @@ jobs:
         name: install
       - run: GITHUB_STEP_SUMMARY= flock /tmp/apt.lock pnpm nx e2e:web:release mobile > server.log 2>&1 &
         name: server
+      - uses: actions/setup-java@v5
+        with: { distribution: temurin, java-version: 21 } # cspell:ignore temurin
       - uses: actions/cache@v6
         with: { path: .maestro/build, key: "maestro-${{ runner.os }}-${{ steps.script.outputs.hash }}" }
       - if: github.ref_name == 'main'
