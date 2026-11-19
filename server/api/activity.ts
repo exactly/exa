@@ -61,12 +61,7 @@ import {
 import { TransactionReceiptNotFoundError, zeroHash } from "viem";
 
 import fixedRate from "@exactly/common/fixedRate";
-import chain, {
-  debtManagerAddress,
-  isBase,
-  marketUSDCAddress,
-  marketWETHAddress,
-} from "@exactly/common/generated/chain";
+import chain, { debtManagerAddress, marketUSDCAddress, marketWETHAddress } from "@exactly/common/generated/chain";
 import ProposalType, { decodeWithdraw } from "@exactly/common/ProposalType";
 import { Address, Hash, type Hex } from "@exactly/common/validation";
 import { effectiveRate, WAD } from "@exactly/lib";
@@ -74,7 +69,7 @@ import { effectiveRate, WAD } from "@exactly/lib";
 import * as indexer from "../database/indexer";
 import { cards, credentials, transactions } from "../database/schema";
 import { collectors as cryptomateCollectors } from "../utils/cryptomate";
-import { declineMessage, collectors as pandaCollectors } from "../utils/panda";
+import { declineMessage, collectors as pandaCollectors, programChain, served } from "../utils/panda";
 import { clients } from "../utils/publicClient";
 import Statement from "../utils/Statement";
 import validatorHook from "../utils/validatorHook";
@@ -149,8 +144,8 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
         columns: { account: true },
         with: {
           cards: {
-            columns: { id: true, lastFour: true },
-            where: eq(cards.tenant, isBase ? "BASE" : "OP"),
+            columns: { id: true, lastFour: true, tenant: true },
+            where: inArray(cards.tenant, served()),
             with: { transactions: { columns: { hashes: true, payload: true } } },
             limit: ignore("card") || maturity !== undefined ? 0 : undefined,
           },
@@ -664,8 +659,8 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                 .toArray();
               if (hashes.length === 0) return [];
               return database.query.cards.findMany({
-                where: and(eq(cards.credentialId, credentialId), eq(cards.tenant, isBase ? "BASE" : "OP")),
-                columns: { id: true, lastFour: true },
+                where: and(eq(cards.credentialId, credentialId), inArray(cards.tenant, served())),
+                columns: { id: true, lastFour: true, tenant: true },
                 with: {
                   transactions: {
                     columns: { hashes: true, payload: true },
@@ -683,8 +678,8 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
           ? await Promise.all(
               [
                 ...new Map(
-                  purchases.flatMap(({ transactions: txs }) =>
-                    txs.flatMap(({ hashes, payload }) => retried(hashes, payload)),
+                  purchases.flatMap(({ tenant, transactions: txs }) =>
+                    txs.flatMap(({ hashes, payload }) => retried(hashes, payload, programChain(tenant))),
                   ),
                 ),
               ]
@@ -949,14 +944,14 @@ const Attempts = object({
   ),
 });
 
-function retried(hashes: string[], payload: unknown) {
+function retried(hashes: string[], payload: unknown, fallback: number) {
   const parsed = safeParse(Attempts, payload);
   if (!parsed.success) return [];
   const { bodies } = parsed.output;
   const keys = bodies.map((body) => attempt(body));
   return hashes.flatMap((hash, index) => {
     const key = keys[index];
-    const client = clients.get(bodies[index]?.chainId ?? chain.id);
+    const client = clients.get(bodies[index]?.chainId ?? fallback);
     return key !== undefined && client && keys.indexOf(key) !== keys.lastIndexOf(key)
       ? [[hash as Hash, client] as const]
       : [];
