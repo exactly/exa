@@ -33,6 +33,12 @@ import("../api")
       panda: createPanda({ key: "panda", url: "https://panda.test" }),
       pax: createPax({ associateKey: "pax", key: "pax", url: "https://pax.test" }),
       persona: createPersona("persona", "https://persona.test"),
+      qr: {
+        close: () => Promise.resolve(),
+        ready: () => Promise.resolve(),
+        enqueue: () => Promise.resolve(),
+        getJob: () => Promise.resolve(undefined), // eslint-disable-line unicorn/no-useless-undefined -- no job
+      },
       redis,
       sardine: createSardine("sardine", "https://api.sardine.ai"),
       segment,
