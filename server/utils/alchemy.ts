@@ -20,20 +20,7 @@ import {
   worldChainSepolia,
 } from "@account-kit/infra";
 import { validator } from "hono/validator";
-import {
-  array,
-  boolean,
-  check,
-  nonEmpty,
-  number,
-  object,
-  optional,
-  parse,
-  picklist,
-  pipe,
-  string,
-  type InferOutput,
-} from "valibot";
+import { array, boolean, nonEmpty, number, object, optional, parse, pipe, string, type InferOutput } from "valibot";
 import { withRetry, type Chain } from "viem";
 import { anvil, moonbeamDev } from "viem/chains";
 
@@ -154,11 +141,8 @@ export function activityNetworks(id = chain.id) {
 
 const Webhook = object({
   id: string(),
-  network: pipe(
-    string(),
-    check((input) => NETWORKS.has(input), "unsupported network"),
-  ),
-  webhook_type: picklist(["GRAPHQL", "ADDRESS_ACTIVITY"]),
+  network: string(),
+  webhook_type: string(),
   webhook_url: string(),
   signing_key: string(),
   is_active: boolean(),

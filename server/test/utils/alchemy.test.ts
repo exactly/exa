@@ -120,6 +120,8 @@ describe("alchemy", () => {
     const hooks = [
       webhook("inactive", network(), false),
       webhook("other", "ETH_MAINNET"),
+      webhook("unknown", "BNB_TESTNET"),
+      { ...webhook("mined"), webhook_type: "MINED_TRANSACTION" },
       { ...webhook("graphql"), webhook_type: "GRAPHQL" as const },
       webhook("activity"),
     ];
