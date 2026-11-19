@@ -216,7 +216,7 @@ jobs:
         with: { path: .maestro/build, key: "maestro-${{ runner.os }}-${{ steps.script.outputs.hash }}" }
       - if: github.ref_name == 'main'
         name: maestro
-        run: echo ${{ steps.script.outputs.hash }} | cmp -s - .maestro/build/hash || for run in $(gh run list -w maestro.yaml -c "$GITHUB_SHA" --json databaseId -q '.[].databaseId'); do timeout 600 gh run watch -i 10 "$run" > /dev/null || true; done
+        run: echo ${{ steps.script.outputs.hash }} | cmp -s - .maestro/build/hash || for run in $(gh run list -w maestro.yaml -c "$GITHUB_SHA" --json databaseId -q '.[].databaseId'); do timeout 900 gh run watch -i 10 "$run" > /dev/null || true; done
         env: { GH_TOKEN: "${{ github.token }}" }
       - run: find /opt/google/chrome .maestro/build "$JAVA_HOME" -type f -exec cat {} + > /dev/null 2>&1 &
         name: warm

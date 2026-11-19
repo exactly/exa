@@ -3,9 +3,10 @@ on:
   push:
     branches: [main]
     paths: [.maestro/patches/build.sh, .maestro/patches/*.patch]
+  workflow_dispatch:
 jobs:
   maestro:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     permissions: { contents: read, packages: write }
     env:
       IMAGE: ghcr.io/${{ github.repository_owner }}/maestro
@@ -24,9 +25,12 @@ jobs:
         name: corepack
       - run: pnpm install --frozen-lockfile --ignore-scripts
         name: install
+      - run: sudo xcode-select -s /Applications/Xcode_26.2.app && test -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+        name: drivers # cspell:ignore cmdline sdkmanager
       - run: GITHUB_STEP_SUMMARY= pnpm nx maestro e2e
         name: build
-      - uses: docker/login-action@v4
-        with: { registry: ghcr.io, username: "${{ github.repository_owner }}", password: "${{ secrets.GITHUB_TOKEN }}" }
-      - run: oras manifest fetch "$IMAGE:$(cat .maestro/build/hash)" > /dev/null || { tar -czf maestro.tgz --exclude hash -C .maestro/build . && oras push "$IMAGE:$(cat .maestro/build/hash)" maestro.tgz:application/vnd.oci.image.layer.v1.tar+gzip; }
-        name: push
+      - run: echo "$TOKEN" | oras login ghcr.io -u "${{ github.repository_owner }}" --password-stdin
+        name: login
+        env: { TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
+      - run: oras manifest fetch "$IMAGE:$(cat .maestro/build/hash)" > /dev/null || { COPYFILE_DISABLE=1 tar -czf maestro.tgz --exclude hash -C .maestro/build . && oras push "$IMAGE:$(cat .maestro/build/hash)" maestro.tgz:application/vnd.oci.image.layer.v1.tar+gzip; }
+        name: push # cspell:ignore COPYFILE
