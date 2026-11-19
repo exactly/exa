@@ -2,7 +2,16 @@ import { captureException } from "@sentry/node";
 import { UnrecoverableError } from "bullmq";
 import { and, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { parse } from "valibot";
-import { erc20Abi, isAddressEqual, parseAbi, parseEventLogs, zeroAddress, type LocalAccount } from "viem";
+import {
+  erc20Abi,
+  isAddressEqual,
+  parseAbi,
+  parseEventLogs,
+  zeroAddress,
+  type Hash,
+  type LocalAccount,
+  type Log,
+} from "viem";
 
 import chain, { alchemyChains, allowlists, chains, mockSwapperAbi, peers } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
@@ -11,6 +20,7 @@ import { attempts, name, type Job } from "./job";
 import { bridgeCompletions, bridges, markets } from "../../database/indexer";
 import { own } from "../../supervise";
 import listen from "../../utils/listen";
+import { alchemyClient } from "../../utils/publicClient";
 import revertFingerprint from "../../utils/revertFingerprint";
 import createWallet from "../../utils/wallet";
 import createQueue from "../queue";
@@ -41,6 +51,12 @@ export default function worker({
         : [];
     }),
   );
+  const origins = new Map<number, { getTransactionReceipt: (args: { hash: Hash }) => Promise<{ logs: Log[] }> }>([
+    ...[...destinations].map(([id, { wallet }]) => [id, wallet] as const),
+    ...[...alchemyChains.values()]
+      .filter(({ id, mockfi }) => mockfi && !destinations.has(id))
+      .map((network) => [network.id, alchemyClient({ nativeCurrency: chain.nativeCurrency, ...network })] as const),
+  ]);
   const home = [...chains.keys()];
   const deliverable = [
     ...[...destinations.keys()].map((id) => `${id}:${zeroAddress}`),
@@ -64,7 +80,7 @@ export default function worker({
       async process({ data: { amount, asset, chainId, receiver, source, transactionId } }) {
         const destination = destinations.get(chainId);
         if (!destination) throw new UnrecoverableError(`unsupported chain ${chainId}`);
-        const origin = destinations.get(source.chainId);
+        const origin = origins.get(source.chainId);
         if (!origin) throw new UnrecoverableError(`unsupported chain ${source.chainId}`);
         const { swapper, wallet } = destination;
         if (
@@ -92,7 +108,7 @@ export default function worker({
           abi: mockSwapperAbi,
           eventName: "BridgeMessage",
           args: { transactionId },
-          logs: await origin.wallet.getTransactionReceipt({ hash: source.hash }).then(({ logs }) => logs),
+          logs: await origin.getTransactionReceipt({ hash: source.hash }).then(({ logs }) => logs),
         });
         await wallet.exaSend(
           { name: "complete bridge", op: "exa.bridge", attributes: { account: receiver, transactionId } },
