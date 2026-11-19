@@ -117,6 +117,11 @@ export default defineConfig([
                 .map((asset) => getAddress(loadDeployment(asset, true, id).address)),
             ]),
           );
+          function contract(script: string, id: number) {
+            const address = loadBroadcast(script, id).transactions[0]?.contractAddress;
+            if (!address) throw new Error(`missing ${script} on ${id}`);
+            return address;
+          }
           function contracts(id: number) {
             const exaPreviewer = loadBroadcast("ExaPreviewer", id).transactions[0]?.contractAddress;
             if (!exaPreviewer) throw new Error(`missing exaPreviewer on ${id}`);
@@ -134,9 +139,11 @@ export default defineConfig([
                 ...(balancerVault && { balancerVault: getAddress(balancerVault) }),
                 exaPreviewer: getAddress(exaPreviewer),
                 integrationPreviewer: getAddress(loadDeployment("IntegrationPreviewer", true, id).address),
+                issuerChecker: getAddress(contract("IssuerChecker", id)),
                 marketUSDC: getAddress(loadDeployment("MarketUSDC", true, id).address),
                 previewer: getAddress(loadDeployment("Previewer", true, id).address),
                 ratePreviewer: getAddress(loadDeployment("RatePreviewer", true, id).address),
+                refunder: getAddress(contract("Refunder", id)),
                 webauthnOwnerPlugin: getAddress(webauthnOwnerPlugin),
               },
             ] as const;
@@ -367,9 +374,9 @@ export default defineConfig([
               `export const alchemyChains: ReadonlyMap<number, AlchemyChain> = new Map<number, AlchemyChain>([${alchemyChains
                 .map(({ id, source: s }) => `[${id}, ${id === chainId ? "chain" : s}]`)
                 .join(", ")}])`,
-              `export const chains: ReadonlyMap<number, AlchemyChain & Readonly<Record<"auditor" | "exaPreviewer" | "integrationPreviewer" | "marketUSDC" | "previewer" | "ratePreviewer" | "swapper" | "webauthnOwnerPlugin", \`0x\${string}\`> & { balancerVault?: \`0x\${string}\` }>> = ${chainMap(chainContracts)}`,
+              `export const chains: ReadonlyMap<number, AlchemyChain & Readonly<Record<"auditor" | "exaPreviewer" | "integrationPreviewer" | "issuerChecker" | "marketUSDC" | "previewer" | "ratePreviewer" | "refunder" | "swapper" | "webauthnOwnerPlugin", \`0x\${string}\`> & { balancerVault?: \`0x\${string}\` }>> = ${chainMap(chainContracts)}`,
               `export const factoryChains: ReadonlyMap<number, AlchemyChain & Readonly<{ startBlock: number; swapper: \`0x\${string}\` }>> = ${chainMap(factoryChains.map(({ id, startBlock }) => [id, { startBlock }] as const))}`,
-              `export const peers: ReadonlyMap<number, AlchemyChain & Readonly<Record<"auditor" | "exaPreviewer" | "integrationPreviewer" | "marketUSDC" | "previewer" | "ratePreviewer" | "swapper" | "webauthnOwnerPlugin", \`0x\${string}\`> & { balancerVault?: \`0x\${string}\` }>> = ${chainMap(peers)}`,
+              `export const peers: ReadonlyMap<number, AlchemyChain & Readonly<Record<"auditor" | "exaPreviewer" | "integrationPreviewer" | "issuerChecker" | "marketUSDC" | "previewer" | "ratePreviewer" | "refunder" | "swapper" | "webauthnOwnerPlugin", \`0x\${string}\`> & { balancerVault?: \`0x\${string}\` }>> = ${chainMap(peers)}`,
               `export const isBase: boolean = ${chainId === base.id || chainId === baseSepolia.id}`,
               `export const lifiURL: string = ${JSON.stringify(chainId === anvil.id ? "http://localhost:3000/hooks/mockfi/v1" : testnet ? "https://sandbox-mockfi-948982108490.us-west1.run.app/v1" : "https://li.quest/v1")}`,
               `export default chain as Chain & { alchemyNetwork: string; swapper: \`0x\${string}\`; smartAccount: true; contracts: { multicall3: { address: \`0x\${string}\` } }; rpcUrls: { alchemy: { http: readonly [string] } } }`,
