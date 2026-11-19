@@ -59,7 +59,7 @@ import { newMessage, present, type Session } from "../utils/intercom";
 import queryClient, { hydrated, isServer } from "../utils/queryClient";
 import reportError, { classifyError } from "../utils/reportError";
 import { page } from "../utils/segment";
-import { origin } from "../utils/server";
+import { isOffboarded, origin } from "../utils/server";
 import exaConfig from "../utils/wagmi/exa";
 import ownerConfig, { getConnector as getOwnerConnector } from "../utils/wagmi/owner";
 
@@ -338,9 +338,9 @@ function Navigator() {
             getAddress: () => getConnection(exaConfig).address,
             hasCard: () =>
               queryClient
-                .fetchQuery({ queryKey: ["card", "details"], staleTime: 3000 })
+                .fetchQuery({ queryKey: ["card", "details"], staleTime: 3000, retry: false })
                 .then((card) => !!card)
-                .catch(() => undefined),
+                .catch((error: unknown) => (isOffboarded(error) ? false : undefined)),
           }),
         )
         .catch(reportError);

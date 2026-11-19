@@ -163,6 +163,14 @@ const api = hc<ExaAPI>(new URL(origin).hostname === "localhost" ? "http://localh
   },
 });
 
+export function isOffboarded(error: unknown) {
+  return error instanceof APIError && error.text === "offboarded";
+}
+
+function retryUnlessOffboarded(failureCount: number, error: unknown) {
+  return !isOffboarded(error) && failureCount < 3;
+}
+
 async function getCard(sessionid?: string) {
   await auth();
   const response = await api.card.$get({ header: sessionid ? { sessionid } : {} });
@@ -178,7 +186,9 @@ async function getCard(sessionid?: string) {
 }
 queryClient.setQueryDefaults(["card", "details"], {
   queryFn: () => getCard(),
+  retry: retryUnlessOffboarded,
   meta: {
+    dropError: isOffboarded,
     persist: (card: Card) => ({
       cardId: card.cardId,
       limit: card.limit,
@@ -205,7 +215,11 @@ async function getSecrets() {
       : [];
   return { ...card, secret, pan, cvc };
 }
-queryClient.setQueryDefaults(["card", "secrets"], { queryFn: getSecrets });
+queryClient.setQueryDefaults(["card", "secrets"], {
+  queryFn: getSecrets,
+  retry: retryUnlessOffboarded,
+  meta: { dropError: isOffboarded },
+});
 export type CardSecrets = Awaited<ReturnType<typeof getSecrets>>;
 
 async function getPIN() {
@@ -220,7 +234,11 @@ async function getPIN() {
   }
   return { ...result, details: { pan, cvc, pin: decryptedPIN } };
 }
-queryClient.setQueryDefaults(["card", "pin"], { queryFn: getPIN });
+queryClient.setQueryDefaults(["card", "pin"], {
+  queryFn: getPIN,
+  retry: retryUnlessOffboarded,
+  meta: { dropError: isOffboarded },
+});
 export type CardWithPIN = Awaited<ReturnType<typeof getPIN>>;
 
 export async function createCard() {

@@ -22,6 +22,7 @@ import CardPIN from "./CardPIN";
 import ExaCard from "./exa-card/ExaCard";
 import SpendingLimits from "./SpendingLimits";
 import TimeoutSheet from "./TimeoutSheet";
+import Unavailable from "./Unavailable";
 import VerificationFailure from "./VerificationFailure";
 import { ChevronRight } from "../../generated/icons/ChevronRight";
 import { CircleHelp } from "../../generated/icons/CircleHelp";
@@ -39,6 +40,7 @@ import reportError from "../../utils/reportError";
 import {
   APIError,
   createCard,
+  isOffboarded,
   setCardStatus,
   type CardActivity,
   type CardDetails as CardDetailsData,
@@ -81,6 +83,7 @@ export default function Card() {
   } = useTranslation();
   const [disclaimerShown, setDisclaimerShown] = useState(false);
   const [verificationFailureShown, setVerificationFailureShown] = useState(false);
+  const [unavailableShown, setUnavailableShown] = useState(false);
   const [freezeConfirmOpen, setFreezeConfirmOpen] = useState(false);
   const [signal, setSignal] = useState(0);
 
@@ -95,6 +98,7 @@ export default function Card() {
 
   const {
     data: cardDetails,
+    error: cardError,
     refetch: refetchCard,
     isFetching: isFetchingCard,
     isPending: isCardPending,
@@ -154,9 +158,14 @@ export default function Card() {
     mutationKey: ["card", "reveal"],
     mutationFn: async function handleReveal() {
       if (queryClient.isMutating({ mutationKey: ["card", "create"] })) return;
+      if (isOffboarded(cardError)) {
+        setUnavailableShown(true);
+        return;
+      }
       if (business && !cardDetails) {
-        const { data, isSuccess } = await refetchCard();
-        if (data) queryClient.setQueryData(["card-details-open"], true);
+        const { data, error, isSuccess } = await refetchCard();
+        if (isOffboarded(error)) setUnavailableShown(true);
+        else if (data) queryClient.setQueryData(["card-details-open"], true);
         else if (isSuccess) router.push("/business");
         else toast.error(t("An error occurred. Please try again later."), { duration: 1000 });
         return;
@@ -176,12 +185,17 @@ export default function Card() {
         const data = await queryClient.fetchQuery<CardSecrets>({
           queryKey: ["card", "secrets", cardDetails?.cardId],
           staleTime: 0,
+          retry: false,
         });
         if (data) {
           queryClient.setQueryData(["card-details-open"], true);
           return;
         }
       } catch (error) {
+        if (isOffboarded(error)) {
+          setUnavailableShown(true);
+          return;
+        }
         if (!(error instanceof APIError) || (error.text !== "not started" && error.text !== "no kyc")) {
           reportError(error);
           toast.error(t("An error occurred. Please try again later."), { duration: 1000 });
@@ -259,7 +273,11 @@ export default function Card() {
     submittedAt: generateSubmittedAt,
   } = useMutation({
     mutationKey: ["card", "create"],
-    retry: (_, error) => error instanceof APIError && error.code !== 504 && !error.text.includes("already created"),
+    retry: (_, error) =>
+      error instanceof APIError &&
+      error.code !== 504 &&
+      !error.text.includes("already created") &&
+      !isOffboarded(error),
     retryDelay: (failureCount, error) => (error instanceof APIError ? failureCount * 5000 : 1000),
     mutationFn: async () => {
       if (!credential) return;
@@ -281,6 +299,10 @@ export default function Card() {
         queryClient.setQueryData<boolean>(["settings", "card-support-contacted"], false);
         await queryClient.refetchQueries({ queryKey: ["card", "details"] });
         await queryClient.setQueryData(["card-details-open"], true);
+        return;
+      }
+      if (isOffboarded(error)) {
+        setUnavailableShown(true);
         return;
       }
       reportError(error);
@@ -470,6 +492,10 @@ export default function Card() {
                           cursor="pointer"
                           onPress={() => {
                             selectionAsync().catch(reportError);
+                            if (isOffboarded(cardError)) {
+                              setUnavailableShown(true);
+                              return;
+                            }
                             setDisplayPIN(true);
                           }}
                         >
@@ -574,6 +600,10 @@ export default function Card() {
           onClose={() => {
             queryClient.setQueryData(["card-details-open"], false);
           }}
+          onOffboarded={() => {
+            queryClient.setQueryData(["card-details-open"], false);
+            setUnavailableShown(true);
+          }}
         />
         <SpendingLimits
           open={spendingLimitsOpen}
@@ -590,6 +620,10 @@ export default function Card() {
           open={displayPIN}
           onClose={() => {
             setDisplayPIN(false);
+          }}
+          onOffboarded={() => {
+            setDisplayPIN(false);
+            setUnavailableShown(true);
           }}
         />
         <CardDisclaimer
@@ -618,6 +652,12 @@ export default function Card() {
             setFreezeConfirmOpen(false);
             if (queryClient.isMutating({ mutationKey: ["card", "status"] })) return;
             changeCardStatus("FROZEN");
+          }}
+        />
+        <Unavailable
+          open={unavailableShown}
+          onClose={() => {
+            setUnavailableShown(false);
           }}
         />
         <TimeoutSheet

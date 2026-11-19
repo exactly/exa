@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable } from "react-native";
 
@@ -22,6 +22,7 @@ import VisaLogoSignature from "../../assets/images/visa-logo-signature.svg";
 import { Copy } from "../../generated/icons/Copy";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
+import { isOffboarded } from "../../utils/server";
 import IconButton from "../shared/IconButton";
 import ModalSheet from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
@@ -31,16 +32,28 @@ import View from "../shared/View";
 
 import type { CardDetails as CardDetailsData, CardSecrets } from "../../utils/server";
 
-export default function CardDetails({ open, onClose }: { onClose: () => void; open: boolean }) {
+export default function CardDetails({
+  open,
+  onClose,
+  onOffboarded,
+}: {
+  onClose: () => void;
+  onOffboarded: () => void;
+  open: boolean;
+}) {
   const theme = useThemeName();
   const { t } = useTranslation();
   const { data: alertShown } = useQuery({ queryKey: ["settings", "alertShown"] });
   const { data: details } = useQuery<CardDetailsData>({ queryKey: ["card", "details"] });
-  const { data, isPending } = useQuery<CardSecrets>({
+  const { data, isPending, error } = useQuery<CardSecrets>({
     queryKey: ["card", "secrets", details?.cardId],
     enabled: open,
     staleTime: (query) => (query.state.data ? Infinity : 0),
   });
+  const offboarded = open && isOffboarded(error);
+  useEffect(() => {
+    if (offboarded) onOffboarded();
+  }, [offboarded, onOffboarded]);
   const card = isPending ? { ...placeholder, ...details } : data;
   const corporate = card?.productId === CLASSIC_PRODUCT_ID;
   const banner = corporate || card?.productId === SIGNATURE_PRODUCT_ID || card?.productId === BASE_PRODUCT_ID;

@@ -1,14 +1,12 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 
+import OnHidden from "./OnHidden";
 import { Headphones } from "../../generated/icons/Headphones";
-import { newMessage } from "../../utils/intercom";
-import queryClient from "../../utils/queryClient";
-import reportError from "../../utils/reportError";
 import ModalSheet from "../shared/ModalSheet";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -79,20 +77,4 @@ export default function TimeoutSheet({
       <OnHidden message={messageRef} />
     </ModalSheet>
   );
-}
-
-function OnHidden({ message }: { message: { current: null | string } }) {
-  useEffect(() => {
-    return () => {
-      const text = message.current;
-      if (text === null) return;
-      message.current = null;
-      newMessage(text)
-        .then((presented) => {
-          if (presented) queryClient.setQueryData<boolean>(["settings", "card-support-contacted"], true);
-        })
-        .catch(reportError);
-    };
-  }, [message]);
-  return null;
 }

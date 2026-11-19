@@ -42,7 +42,7 @@ import { balancesOptions, restrictedCountries } from "../../utils/lifi";
 import { isPromoActive, PROMO } from "../../utils/promo";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import { cardModeMutationOptions } from "../../utils/server";
+import { cardModeMutationOptions, isOffboarded } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import useBusiness from "../../utils/useBusiness";
 import useCardLimit from "../../utils/useCardLimit";
@@ -55,6 +55,7 @@ import useTabPress from "../../utils/useTabPress";
 import BenefitsSection from "../benefits/BenefitsSection";
 import Banner from "../business/Banner";
 import CardDetailsSheet from "../card/CardDetails";
+import Unavailable from "../card/Unavailable";
 import TabBarContext from "../context/TabBarContext";
 import ManualRepaymentSheet from "../pay/ManualRepaymentSheet";
 import OverduePayments from "../pay/OverduePayments";
@@ -87,6 +88,7 @@ export default function Home() {
   const [payModeSheetOpen, setPayModeSheetOpen] = useState(false);
   const [spendingLimitSheetOpen, setSpendingLimitSheetOpen] = useState(false);
   const [cardDetailsOpen, setCardDetailsOpen] = useState(false);
+  const [unavailableShown, setUnavailableShown] = useState(false);
   const [visaSignatureModalOpen, setVisaSignatureModalOpen] = useState(false);
   const [manualRepaymentSheetOpen, setManualRepaymentSheetOpen] = useState(false);
   const [rolloverIntroMaturity, setRolloverIntroMaturity] = useState<string>();
@@ -133,7 +135,11 @@ export default function Home() {
   const { isProcessing } = usePendingOperations();
   const { markets, timestamp, refetch: refetchMarkets } = useMarkets();
   const { approved: isKYCApproved, status: kycStatus, isFetched: isKYCFetched } = useKYC();
-  const { data: card, refetch: refetchCard } = useQuery<CardDetails>({
+  const {
+    data: card,
+    error: cardError,
+    refetch: refetchCard,
+  } = useQuery<CardDetails>({
     queryKey: ["card", "details"],
     enabled: !!account && !!bytecode,
   });
@@ -334,12 +340,20 @@ export default function Home() {
                       setCreditLimitSheetOpen(true);
                     }}
                     onDetailsPress={() => {
+                      if (isOffboarded(cardError)) {
+                        setUnavailableShown(true);
+                        return;
+                      }
                       if (card.displayName) {
                         setCardDetailsOpen(true);
                         return;
                       }
                       refetchCard()
-                        .then(({ data }) => {
+                        .then(({ data, error }) => {
+                          if (isOffboarded(error)) {
+                            setUnavailableShown(true);
+                            return;
+                          }
                           if (data?.displayName) {
                             setCardDetailsOpen(true);
                             return;
@@ -393,6 +407,16 @@ export default function Home() {
             open={cardDetailsOpen}
             onClose={() => {
               setCardDetailsOpen(false);
+            }}
+            onOffboarded={() => {
+              setCardDetailsOpen(false);
+              setUnavailableShown(true);
+            }}
+          />
+          <Unavailable
+            open={unavailableShown}
+            onClose={() => {
+              setUnavailableShown(false);
             }}
           />
           <PaymentSheet onRolloverIntro={setRolloverIntroMaturity} />

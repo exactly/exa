@@ -7,6 +7,7 @@ import { ScrollView, XStack, YStack } from "tamagui";
 import { useQuery } from "@tanstack/react-query";
 
 import reportError from "../../utils/reportError";
+import { isOffboarded } from "../../utils/server";
 import ModalSheet, { Inset } from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
 import Skeleton from "../shared/Skeleton";
@@ -16,9 +17,21 @@ import View from "../shared/View";
 
 import type { CardWithPIN } from "../../utils/server";
 
-export default function CardPIN({ open, onClose }: { onClose: () => void; open: boolean }) {
+export default function CardPIN({
+  open,
+  onClose,
+  onOffboarded,
+}: {
+  onClose: () => void;
+  onOffboarded: () => void;
+  open: boolean;
+}) {
   const { t } = useTranslation();
   const { data: card, isPending, error, refetch } = useQuery<CardWithPIN>({ queryKey: ["card", "pin"], enabled: open });
+  const offboarded = open && isOffboarded(error);
+  useEffect(() => {
+    if (offboarded) onOffboarded();
+  }, [offboarded, onOffboarded]);
   return (
     <ModalSheet open={open} onClose={onClose} backgroundColor="backgroundMild" scrollsUnderInset>
       <SafeView paddingTop="s0" fullScreen borderTopLeftRadius="r4" borderTopRightRadius="r4">
