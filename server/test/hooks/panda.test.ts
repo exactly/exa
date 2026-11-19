@@ -1017,6 +1017,7 @@ describe("card operations", () => {
             amount: f(localAmount / 100, "ARS"),
             merchantName: authorization.json.body.spend.merchantName,
           }),
+          topic: `card-purchase/${cardId}`,
         });
       });
 
@@ -1151,6 +1152,7 @@ describe("card operations", () => {
               amount: f(authorization.json.body.spend.localAmount / 100, authorization.json.body.spend.localCurrency),
               merchantName: authorization.json.body.spend.merchantName,
             }),
+            topic: `card-purchase/${cardId}`,
           });
           expect(feedback).toHaveBeenNthCalledWith(call, {
             kind: "issuing",

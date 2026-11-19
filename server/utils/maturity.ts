@@ -304,6 +304,7 @@ function createNotificationWorker() {
                         `https://exact.ly/maturity-reminder/${userId}/${reminder.maturity}/${reminder.window}`,
                         v5.URL,
                       ),
+                      topic: `maturity/${reminder.maturity}`,
                       ttl: Math.max(0, reminder.maturity - Math.floor(Date.now() / 1000)),
                     }),
                   ),

@@ -5,6 +5,7 @@ import { and, DrizzleQueryError, eq, isNull, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { validator } from "hono/validator";
 import { createHash, createVerify } from "node:crypto";
+import { v5 } from "uuid";
 import { literal, nullish, object, optional, parse, picklist, string, unknown, variant } from "valibot";
 
 import { business } from "@exactly/common/tenants";
@@ -102,6 +103,7 @@ export default function hook({
             object({
               customer_id: string(),
               currency: picklist(BridgeCurrency),
+              deposit_id: optional(string()),
               id: string(),
               type: literal("payment_submitted"),
               receipt: object({ initial_amount: string() }),
@@ -260,6 +262,7 @@ export default function hook({
                   amount: f(payload.event_object.receipt.initial_amount),
                   asset: payload.event_object.currency.toUpperCase(),
                 }),
+                topic: payload.event_object.deposit_id && `bridge-deposit/${payload.event_object.deposit_id}`,
               })
               .catch((error: unknown) => captureException(error, { level: "error" }));
           }
@@ -310,6 +313,11 @@ export default function hook({
                   userId: account,
                   headings: t("Withdrawal in progress"),
                   contents: t("Your funds are on the way to your bank"),
+                  idempotencyKey: v5(
+                    `https://exact.ly/bridge-transfer/${payload.event_object.id}/funds_received`,
+                    v5.URL,
+                  ),
+                  topic: `bridge-transfer/${payload.event_object.id}`,
                 })
                 .catch((error: unknown) => captureException(error, { level: "error" }));
               return c.json({ code: "ok" }, 200);
@@ -323,6 +331,11 @@ export default function hook({
                     amount: f(payload.event_object.receipt.final_amount),
                     asset: payload.event_object.currency.toUpperCase(),
                   }),
+                  idempotencyKey: v5(
+                    `https://exact.ly/bridge-transfer/${payload.event_object.id}/payment_processed`,
+                    v5.URL,
+                  ),
+                  topic: `bridge-transfer/${payload.event_object.id}`,
                 })
                 .catch((error: unknown) => captureException(error, { level: "error" }));
               segment.track({

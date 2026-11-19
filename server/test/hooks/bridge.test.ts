@@ -9,6 +9,7 @@ import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { createHash, createPrivateKey, createSign, generateKeyPairSync } from "node:crypto";
 import { env } from "node:process";
+import { v5 } from "uuid";
 import { nonEmpty, parse, pipe, string } from "valibot";
 import { hexToBytes, padHex, zeroHash } from "viem";
 import { privateKeyToAddress } from "viem/accounts";
@@ -223,7 +224,25 @@ describe("bridge hook", () => {
       userId: account,
       headings: t("Deposited funds"),
       contents: t("{{amount}} {{asset}} deposited", { amount: f("1000"), asset: "USD" }),
+      topic: "bridge-deposit/deposit_123",
     });
+  });
+
+  it("stacks payment_submitted push without deposit_id", async () => {
+    vi.spyOn(segment, "track").mockReturnValue();
+    const { deposit_id: _, ...eventObject } = paymentSubmitted.event_object;
+    const payload = { ...paymentSubmitted, event_object: eventObject };
+    const response = await appClient.index.$post({
+      header: { "x-webhook-signature": createSignature(payload) },
+      json: payload as never,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(sendPushNotificationMock).toHaveBeenCalledOnce();
+    expect(sendPushNotificationMock.mock.lastCall?.[0].topic).toBeUndefined();
+    expect(segment.track).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it("captures payment_submitted notification errors", async () => {
@@ -910,6 +929,8 @@ describe("bridge hook", () => {
       userId: account,
       headings: t("Withdraw completed"),
       contents: t("{{amount}} {{asset}} withdrawn", { amount: f("2.97"), asset: "USD" }),
+      idempotencyKey: v5("https://exact.ly/bridge-transfer/tr_123/payment_processed", v5.URL),
+      topic: "bridge-transfer/tr_123",
     });
     expect(captureException).not.toHaveBeenCalled();
   });
@@ -928,6 +949,8 @@ describe("bridge hook", () => {
       userId: account,
       headings: t("Withdrawal in progress"),
       contents: t("Your funds are on the way to your bank"),
+      idempotencyKey: v5("https://exact.ly/bridge-transfer/tr_123/funds_received", v5.URL),
+      topic: "bridge-transfer/tr_123",
     });
     expect(segment.track).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
@@ -1105,6 +1128,7 @@ const paymentSubmitted = {
     type: "payment_submitted",
     currency: "usd",
     customer_id: "bridgeCustomerId",
+    deposit_id: "deposit_123",
     receipt: { initial_amount: "1000" },
   },
 };

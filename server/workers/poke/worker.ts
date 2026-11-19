@@ -161,6 +161,7 @@ export default function worker({
                 userId: job.data.account,
                 headings: t("Account assets updated"),
                 contents: t("Your funds are ready to use"),
+                topic: "assets",
               })
               .catch((error: unknown) => captureException(error, { level: "error" }));
           }

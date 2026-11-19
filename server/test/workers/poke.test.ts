@@ -278,6 +278,7 @@ describe("poke worker", () => {
       userId: account,
       headings: t("Account assets updated"),
       contents: t("Your funds are ready to use"),
+      topic: "assets",
     });
     expect(setAttribute.mock.calls.filter(([attribute]) => attribute === "exa.new")).toStrictEqual([["exa.new", true]]);
     expect(startSpan).toHaveBeenCalledWith(

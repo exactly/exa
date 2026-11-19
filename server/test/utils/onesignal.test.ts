@@ -19,6 +19,8 @@ vi.mock("@onesignal/node-onesignal", async (importOriginal) => ({
   },
 }));
 
+const uuid = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[89ab][\da-f]{3}-[\da-f]{12}$/u;
+
 describe("onesignal", () => {
   it("sends a notification", async () => {
     const response = {};
@@ -60,5 +62,50 @@ describe("onesignal", () => {
 
     expect(mocks.createNotification.mock.lastCall?.[0]).not.toHaveProperty("idempotency_key");
     expect(mocks.createNotification.mock.lastCall?.[0]).not.toHaveProperty("ttl");
+  });
+
+  it("stacks notifications without a topic", async () => {
+    const onesignal = createOnesignal("secret");
+
+    await onesignal.sendPushNotification({ userId: "user", headings: { en: "a" }, contents: { en: "a" } });
+    await onesignal.sendPushNotification({ userId: "user", headings: { en: "b" }, contents: { en: "b" } });
+
+    const [first, second] = mocks.createNotification.mock.calls.slice(-2).map(([notification]) => notification);
+    expect(first?.web_push_topic).toMatch(uuid);
+    expect(second?.web_push_topic).toMatch(uuid);
+    expect(first?.web_push_topic).not.toBe(second?.web_push_topic);
+    expect(first).not.toHaveProperty("collapse_id");
+    expect(second).not.toHaveProperty("collapse_id");
+  });
+
+  it("replaces notifications sharing a topic on web and mobile", async () => {
+    const onesignal = createOnesignal("secret");
+
+    await onesignal.sendPushNotification({
+      userId: "user",
+      headings: { en: "a" },
+      contents: { en: "a" },
+      topic: "t/1",
+    });
+    await onesignal.sendPushNotification({
+      userId: "user",
+      headings: { en: "b" },
+      contents: { en: "b" },
+      topic: "t/1",
+    });
+    await onesignal.sendPushNotification({
+      userId: "user",
+      headings: { en: "c" },
+      contents: { en: "c" },
+      topic: "t/2",
+    });
+
+    const [first, second, other] = mocks.createNotification.mock.calls.slice(-3).map(([notification]) => notification);
+    expect(first?.web_push_topic).toMatch(uuid);
+    expect(first?.collapse_id).toBe(first?.web_push_topic);
+    expect(second?.web_push_topic).toBe(first?.web_push_topic);
+    expect(second?.collapse_id).toBe(first?.collapse_id);
+    expect(other?.web_push_topic).not.toBe(first?.web_push_topic);
+    expect(other?.collapse_id).toBe(other?.web_push_topic);
   });
 });

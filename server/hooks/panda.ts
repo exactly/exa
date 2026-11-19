@@ -784,6 +784,7 @@ export default function hook({
                       amount: f(payload.body.spend.localAmount / 100, payload.body.spend.localCurrency),
                       merchantName: payload.body.spend.merchantName.trim(),
                     }),
+                    topic: `card-purchase/${payload.body.id}`,
                   })
                   .catch((error: unknown) => captureException(error, { level: "error" }));
               }

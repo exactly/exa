@@ -264,6 +264,7 @@ describe("worker", () => {
       },
     });
     expect(notification?.idempotencyKey).toMatch(/^[\da-f]{8}-[\da-f]{4}-5[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/u);
+    expect(notification?.topic).toBe(`maturity/${maturity}`);
     if (ttl !== undefined) expect(notification?.ttl).toBe(ttl);
   }
 
