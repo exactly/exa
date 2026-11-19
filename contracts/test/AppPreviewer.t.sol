@@ -287,6 +287,20 @@ contract AppPreviewerPreviewTest is ForkTest {
     assertEq(preview.protocol.rates.length, 0);
   }
 
+  function test_preview_returnsWalletBalances() external {
+    p.usdc().mint(account, 420e6);
+    p.weth().mint(account, 2e18);
+    vm.deal(account, 3 ether);
+    AccountPreview memory preview = _preview(new address[](0));
+    assertEq(preview.wallet.balance, 3 ether);
+    for (uint256 i = 0; i < preview.protocol.markets.length; ++i) {
+      address asset = preview.protocol.markets[i].market.asset;
+      assertEq(
+        preview.protocol.markets[i].balance, asset == address(p.usdc()) ? 420e6 : asset == address(p.weth()) ? 2e18 : 0
+      );
+    }
+  }
+
   // solhint-enable func-name-mixedcase
 
   function _preview(address[] memory targets) internal view returns (AccountPreview memory) {
