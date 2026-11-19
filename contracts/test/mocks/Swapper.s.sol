@@ -13,7 +13,7 @@ import { MockERC20 } from "solmate/src/test/utils/mocks/MockERC20.sol";
 
 import { BaseScript } from "../../script/Base.s.sol";
 import { MockSwapper } from "./MockSwapper.sol";
-import { MockVelodromePool } from "./MockVelodromeFactory.sol";
+import { IVelodromeFactory, MockVelodromePool } from "./MockVelodromeFactory.sol";
 
 contract DeploySwapper is BaseScript {
   using FixedPointMathLib for uint256;
@@ -59,6 +59,13 @@ contract DeploySwapper is BaseScript {
     }
 
     vm.stopBroadcast();
+  }
+}
+
+contract DeployBridgeSwapper is BaseScript {
+  function run() external returns (MockSwapper swapper) {
+    vm.broadcast(acct("deployer"));
+    swapper = new MockSwapper{ salt: 0 }(IVelodromeFactory(address(0)), address(0), WETH(payable(0)));
   }
 }
 
