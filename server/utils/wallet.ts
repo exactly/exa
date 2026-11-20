@@ -33,6 +33,7 @@ import {
   type WriteContractParameters,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { estimateFeesPerGas, estimateGas } from "viem/actions";
 import { hashAuthorization } from "viem/utils";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
@@ -109,8 +110,8 @@ export function extender(
           });
           const txOptions = {
             type: "eip1559",
-            gas: 5_000_000n,
             ...(options?.fees !== "auto" && {
+              gas: 5_000_000n,
               maxFeePerGas: 1_000_000_000n,
               maxPriorityFeePerGas: 1_000_000n,
             }),
@@ -125,14 +126,17 @@ export function extender(
             ...request
           } = { from: writeRequest.account.address, to: writeRequest.address, ...writeRequest };
           scope.setContext("tx", { request });
-          const data = encodeFunctionData(call);
+          const encoded = encodeFunctionData(call);
+          const data = dataSuffix ? concatHex([encoded, dataSuffix]) : encoded;
+          const fees =
+            options?.fees === "auto"
+              ? await Promise.all([
+                  estimateGas(keeper, { account: keeper.account.address, to: call.address, data }),
+                  estimateFeesPerGas(keeper),
+                ]).then(([gas, estimated]) => ({ gas, ...estimated }))
+              : {};
           const prepared = await startSpan({ name: "prepare transaction", op: "tx.prepare" }, () =>
-            keeper.prepareTransactionRequest({
-              to: call.address,
-              data: dataSuffix ? concatHex([data, dataSuffix]) : data,
-              ...txOptions,
-              nonceManager,
-            }),
+            keeper.prepareTransactionRequest({ to: call.address, data, ...txOptions, ...fees, nonceManager }),
           );
           scope.setContext("tx", { request, prepared });
           span.setAttribute("tx.nonce", prepared.nonce);

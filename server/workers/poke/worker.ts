@@ -1,14 +1,17 @@
 import { captureException, withScope } from "@sentry/node";
+import { DelayedError } from "bullmq";
 import { v5 } from "uuid";
-import { parse } from "valibot";
-import { bytesToBigInt, erc20Abi, hexToBytes, type LocalAccount } from "viem";
+import { object, parse, string } from "valibot";
+import { bytesToBigInt, erc20Abi, hexToBytes, parseUnits, zeroAddress, type LocalAccount } from "viem";
 
+import { dataSuffix } from "@exactly/common/attribution";
 import exaChain, {
   auditorAbi,
   exaAccountFactoryAbi,
   exaPluginAbi,
   exaPreviewerAbi,
   exaPreviewerAddress,
+  lifiURL,
   marketAbi,
   upgradeableModularAccountAbi,
   wethAddress,
@@ -42,6 +45,7 @@ export default function worker({
   segment: ReturnType<typeof createSegment>;
 }) {
   const credit = createCredit(bullmq);
+  const prices = new Map<number, bigint>();
   return own(
     createWorker<Job>({
       attempts,
@@ -59,25 +63,81 @@ export default function worker({
         });
       },
       name,
-      async process(job, span) {
+      async process(job, span, token) {
         const chain = [...NETWORKS.values()].find(({ id }) => id === job.data.chainId);
         if (!chain) throw new Error(`unsupported chain ${job.data.chainId}`);
         const wallet = createWallet(poker, chain);
         const isDeployed = !!(await wallet.getCode({ address: job.data.account }));
         span.setAttribute("exa.new", !isDeployed);
         if (!isDeployed) {
+          const call = {
+            address: job.data.factory,
+            functionName: "createAccount",
+            args: [
+              BigInt(job.data.salt),
+              [decodePublicKey(new Uint8Array(hexToBytes(job.data.publicKey)), bytesToBigInt)],
+            ],
+            abi: exaAccountFactoryAbi,
+          } as const;
+          const [gas, { maxFeePerGas }, gasPrice, balance, price] = await Promise.all([
+            wallet.estimateContractGas({ ...call, account: wallet.account.address, dataSuffix }),
+            wallet.estimateFeesPerGas(),
+            wallet.getGasPrice(),
+            wallet.getBalance({ address: wallet.account.address }),
+            exaChain.testnet
+              ? 0n
+              : nativePrice(chain.id).then(
+                  (current) => {
+                    prices.set(chain.id, current);
+                    return current;
+                  },
+                  (error: unknown) => {
+                    captureException(error, { level: "error", tags: { queue: name, job: job.name } });
+                    return prices.get(chain.id);
+                  },
+                ),
+          ]);
+          const cost = gas * maxFeePerGas;
+          const unaffordable = cost > balance;
+          if (unaffordable || (price !== undefined && (gas * gasPrice * price) / WAD > MAX_DEPLOY_USD)) {
+            span.setAttribute("exa.delayed", true);
+            const now = Date.now();
+            const data = { ...job.data, delayedAt: job.data.delayedAt ?? now };
+            let changed = job.data.delayedAt === undefined;
+            if (unaffordable && !data.unaffordable) {
+              data.unaffordable = true;
+              changed = true;
+              captureException(new Error("unaffordable deploy"), {
+                extra: { account: data.account, balance: String(balance), cost: String(cost), id: job.id },
+                fingerprint: ["{{ default }}", String(chain.id)],
+                level: "warning",
+                tags: { queue: name, job: job.name },
+              });
+            }
+            if (!data.stuck && now - data.delayedAt >= STUCK_DELAY) {
+              data.stuck = true;
+              changed = true;
+              captureException(new Error("stuck deploy"), {
+                extra: {
+                  account: data.account,
+                  delayedAt: data.delayedAt,
+                  gasPrice: String(gasPrice),
+                  id: job.id,
+                  price: price === undefined ? undefined : String(price),
+                },
+                fingerprint: ["{{ default }}", String(chain.id)],
+                level: "warning",
+                tags: { queue: name, job: job.name },
+              });
+            }
+            if (changed) await job.updateData(data);
+            await job.moveToDelayed(now + GAS_DELAY, token);
+            throw new DelayedError();
+          }
           await wallet.exaSend(
             { name: "create account", op: "exa.account", attributes: { account: job.data.account } },
-            {
-              address: job.data.factory,
-              functionName: "createAccount",
-              args: [
-                BigInt(job.data.salt),
-                [decodePublicKey(new Uint8Array(hexToBytes(job.data.publicKey)), bytesToBigInt)],
-              ],
-              abi: exaAccountFactoryAbi,
-            },
-            chain.id === exaChain.id ? {} : { fees: "auto" },
+            call,
+            { fees: "auto" },
           );
           segment.track({
             event: "AccountFunded",
@@ -174,7 +234,19 @@ export default function worker({
   );
 }
 
+const GAS_DELAY = 10 * 60_000;
+const STUCK_DELAY = 12 * 60 * 60_000;
+const WAD = 10n ** 18n;
+const MAX_DEPLOY_USD = (80n * WAD) / 100n;
 const ETH = parse(Address, "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
 const NO_BALANCE = "NoBalance()";
 const WETH = parse(Address, wethAddress);
 const accountAbi = [...exaPluginAbi, ...upgradeableModularAccountAbi, ...auditorAbi, ...marketAbi];
+
+async function nativePrice(chainId: number) {
+  const response = await fetch(`${lifiURL ?? "https://li.quest/v1"}/token?chain=${chainId}&token=${zeroAddress}`, {
+    signal: AbortSignal.timeout(5000),
+  });
+  if (!response.ok) throw new Error(`lifi token ${response.status}`);
+  return parseUnits(parse(object({ priceUSD: string() }), await response.json()).priceUSD, 18);
+}

@@ -1,6 +1,6 @@
 import { SPAN_STATUS_ERROR, SPAN_STATUS_OK } from "@sentry/core";
 import { captureException, continueTrace, startSpan, withIsolationScope } from "@sentry/node";
-import { UnrecoverableError, Worker } from "bullmq";
+import { DelayedError, UnrecoverableError, Worker } from "bullmq";
 import { Redis } from "ioredis";
 import { argv } from "node:process";
 
@@ -21,13 +21,13 @@ export default function worker<Job extends { sentryBaggage?: string; sentryTrace
   bullmq: Redis;
   failed: (job: BullMQ.Job<Job> | undefined, error: Error) => void;
   name: string;
-  process: (job: BullMQ.Job<Job>, span: Span) => Promise<void>;
+  process: (job: BullMQ.Job<Job>, span: Span, token?: string) => Promise<void>;
   ready?: Promise<Ready>;
 }) {
   const check = argv.includes("--check");
   const queue = new Worker<Job, void>(
     name,
-    (job) => {
+    (job, token) => {
       const callback = () =>
         startSpan({ name: `${job.name} worker`, forceTransaction: true }, (parent) =>
           startSpan(
@@ -44,10 +44,15 @@ export default function worker<Job extends { sentryBaggage?: string; sentryTrace
             },
             async (span) => {
               try {
-                await process(job, span);
+                await process(job, span, token);
                 span.setStatus({ code: SPAN_STATUS_OK });
                 parent.setStatus({ code: SPAN_STATUS_OK });
               } catch (error: unknown) {
+                if (error instanceof DelayedError) {
+                  span.setStatus({ code: SPAN_STATUS_OK });
+                  parent.setStatus({ code: SPAN_STATUS_OK });
+                  throw error;
+                }
                 const message =
                   error instanceof Error ? error.message : typeof error === "string" ? error : "queue process failed";
                 const status = { code: SPAN_STATUS_ERROR, message } as const;

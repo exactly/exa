@@ -1,7 +1,8 @@
 import sendPushNotificationMock from "../mocks/onesignal";
 import "../mocks/sentry";
-import "../mocks/wallet";
+import { walletClient } from "../mocks/wallet";
 
+import { SPAN_STATUS_OK } from "@sentry/core";
 import { captureException, continueTrace, startSpan, withScope } from "@sentry/node";
 import { Queue, QueueEvents, Job as QueueJob } from "bullmq";
 import { v5 } from "uuid";
@@ -13,6 +14,7 @@ import {
   erc20Abi,
   padHex,
   parseEther,
+  zeroAddress,
   zeroHash,
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
@@ -42,8 +44,10 @@ import anvilClient from "../anvilClient";
 import { finished, tip } from "../redis";
 
 import type { Job as Poke } from "../../workers/poke/job";
+import type * as C from "@exactly/common/generated/chain";
 import type * as sentry from "@sentry/node";
 import type { JobsOptions } from "bullmq";
+import type { EventEmitter } from "node:events";
 
 const eth = parse(Address, "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
 const token = parse(Address, wethAddress);
@@ -55,10 +59,20 @@ const poker = privateKeyToAccount(padHex("0xb0b"));
 const poke = createPoke(bullmq);
 const mocks = vi.hoisted(() => ({
   closeSegment: vi.fn(),
+  lifiURL: vi.fn<(url: string | undefined) => string | undefined>(),
   segmentOn: vi.fn<(event: string, listener: (error: Error) => void) => void>(),
   track: vi.fn(),
 }));
 
+vi.mock("@exactly/common/generated/chain", async (importOriginal) => {
+  const original = await importOriginal<typeof C>();
+  return {
+    ...original,
+    get lifiURL() {
+      return mocks.lifiURL(original.lifiURL);
+    },
+  };
+});
 vi.mock("@segment/analytics-node", () => ({
   Analytics: class {
     closeAndFlush = mocks.closeSegment;
@@ -113,6 +127,17 @@ async function spyScopeSetUser() {
   return setUser;
 }
 
+const realFetch = globalThis.fetch;
+
+function mockLifi(response = Response.json({ priceUSD: "100" })) {
+  return vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+    const url = input instanceof Request ? input.url : String(input);
+    return /^(?:https:\/\/li\.quest|http:\/\/localhost:3000\/e2e\/lifi)\/v1\//.test(url)
+      ? Promise.resolve(response.clone())
+      : realFetch(input, init);
+  });
+}
+
 async function spySpanSetAttribute() {
   const { startSpan: realStartSpan } = await vi.importActual<typeof sentry>("@sentry/node");
   const setAttribute = vi.fn();
@@ -133,6 +158,8 @@ beforeEach(() => {
   mocks.closeSegment.mockReset().mockImplementation(() => Promise.resolve());
   mocks.segmentOn.mockReset();
   mocks.track.mockReset();
+  mocks.lifiURL.mockReset().mockImplementation((url) => url);
+  mockLifi();
   sendPushNotificationMock.mockResolvedValue({});
   ({ account, request } = createRequest());
   const waitForReceipt = publicClient.waitForTransactionReceipt;
@@ -559,6 +586,362 @@ describe("poke worker", () => {
     expect(await publicClient.getCode({ address: account })).toBeDefined();
     expect(wallet).toHaveBeenCalledExactlyOnceWith(poker, network);
     expect(readContract).not.toHaveBeenCalled();
+  });
+
+  it("delays deploys on other chains until gas is affordable", async () => {
+    const network = NETWORKS.get("ANVIL");
+    if (!network) throw new Error("missing anvil");
+    const id = `${network.id}-${account}`;
+    const keeper = walletClient.account.address;
+    const funds = await publicClient.getBalance({ address: keeper });
+    const chainId = chain.id;
+    const { startSpan: realStartSpan } = await vi.importActual<typeof sentry>("@sentry/node");
+    const spans: { attributes: Record<string, unknown>; name: string; op?: string; status: unknown[] }[] = [];
+    vi.mocked(startSpan).mockImplementation(((options, callback) =>
+      realStartSpan(options, (span) => {
+        const record = {
+          attributes: {} as Record<string, unknown>,
+          name: options.name,
+          op: options.op,
+          status: [] as unknown[],
+        };
+        if (options.name === "poke worker" || options.op === "queue.process") spans.push(record);
+        const setAttribute = span.setAttribute.bind(span);
+        span.setAttribute = (key, value) => {
+          record.attributes[key] = value;
+          return setAttribute(key, value);
+        };
+        const setStatus = span.setStatus.bind(span);
+        span.setStatus = (status) => {
+          record.status.push(status);
+          return setStatus(status);
+        };
+        return callback(span);
+      })) as typeof startSpan);
+    Object.assign(chain, { id: 1 });
+
+    function delayed() {
+      return new Promise<void>((resolve) => {
+        const emitter: EventEmitter = events;
+        emitter.on("delayed", function listener({ jobId }: { jobId: string }) {
+          if (jobId !== id) return;
+          emitter.off("delayed", listener);
+          resolve();
+        });
+      });
+    }
+
+    let delayedAt: number | undefined;
+    try {
+      await anvilClient.setBalance({ address: keeper, value: 1n });
+      const first = delayed();
+      await poke.enqueue({ ...request, chainId: network.id });
+      const job = await queue.getJob(id);
+      if (!job) throw new Error("job not found");
+      await first;
+
+      await expect(queue.getJobState(id)).resolves.toBe("delayed");
+      expect(await publicClient.getCode({ address: account })).toBeUndefined();
+      const pending = await queue.getJob(id);
+      delayedAt = pending?.data.delayedAt;
+      expect(delayedAt).toBeTypeOf("number");
+      expect(pending?.data.unaffordable).toBe(true);
+
+      const second = delayed();
+      await job.promote();
+      await second;
+
+      await expect(queue.getJobState(id)).resolves.toBe("delayed");
+      const current = await queue.getJob(id);
+      expect(current?.data.delayedAt).toBe(delayedAt);
+      expect(current?.attemptsMade).toBe(0);
+      expect(mocks.track).not.toHaveBeenCalled();
+
+      await anvilClient.setBalance({ address: keeper, value: funds });
+      const result = finished(events, id);
+      await job.promote();
+      await result;
+    } finally {
+      Object.assign(chain, { id: chainId });
+      await anvilClient.setBalance({ address: keeper, value: funds });
+    }
+
+    expect(await publicClient.getCode({ address: account })).toBeDefined();
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("unaffordable deploy"), {
+      extra: { account, balance: "1", cost: expect.stringMatching(/^\d+$/), id }, // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+      fingerprint: ["{{ default }}", String(network.id)],
+      level: "warning",
+      tags: { queue: "poke", job: "poke" },
+    });
+    const delayedSpans = [
+      { attributes: {}, name: "poke worker", op: undefined, status: [{ code: SPAN_STATUS_OK }] },
+      {
+        attributes: { "exa.delayed": true, "exa.new": true },
+        name: "poke",
+        op: "queue.process",
+        status: [{ code: SPAN_STATUS_OK }],
+      },
+    ];
+    expect(spans).toStrictEqual([
+      ...delayedSpans,
+      ...delayedSpans,
+      { attributes: {}, name: "poke worker", op: undefined, status: [{ code: SPAN_STATUS_OK }] },
+      { attributes: { "exa.new": true }, name: "poke", op: "queue.process", status: [{ code: SPAN_STATUS_OK }] },
+    ]);
+    expect(mocks.track).toHaveBeenCalledExactlyOnceWith({
+      event: "AccountFunded",
+      userId: account,
+      properties: { source: null },
+    });
+  });
+
+  it("delays deploys on other chains while gas costs more than the ceiling", async () => {
+    const network = NETWORKS.get("ANVIL");
+    if (!network) throw new Error("missing anvil");
+    const id = `${network.id}-${account}`;
+    const chainId = chain.id;
+    const setAttribute = await spySpanSetAttribute();
+    const fetch = mockLifi(Response.json({ priceUSD: "1000000" }));
+    Object.assign(chain, { testnet: false });
+    Object.assign(chain, { id: 1 });
+
+    try {
+      const delayed = new Promise<void>((resolve) => {
+        const emitter: EventEmitter = events;
+        emitter.on("delayed", function listener({ jobId }: { jobId: string }) {
+          if (jobId !== id) return;
+          emitter.off("delayed", listener);
+          resolve();
+        });
+      });
+      await poke.enqueue({ ...request, chainId: network.id });
+      const job = await queue.getJob(id);
+      if (!job) throw new Error("job not found");
+      await delayed;
+
+      await expect(queue.getJobState(id)).resolves.toBe("delayed");
+      expect(await publicClient.getCode({ address: account })).toBeUndefined();
+      expect(fetch).toHaveBeenCalledWith(
+        `http://localhost:3000/e2e/lifi/v1/token?chain=${network.id}&token=${zeroAddress}`,
+        expect.objectContaining({ signal: expect.any(AbortSignal) }), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+      );
+      expect(setAttribute).toHaveBeenCalledWith("exa.delayed", true);
+      const pending = await queue.getJob(id);
+      expect(pending?.data.delayedAt).toBeTypeOf("number");
+      expect(pending?.data.unaffordable).toBeUndefined();
+      expect(pending?.data.stuck).toBeUndefined();
+      expect(captureException).not.toHaveBeenCalled();
+      expect(mocks.track).not.toHaveBeenCalled();
+
+      mockLifi();
+      const result = finished(events, id);
+      await job.promote();
+      await result;
+    } finally {
+      Object.assign(chain, { testnet: true });
+      Object.assign(chain, { id: chainId });
+    }
+
+    expect(await publicClient.getCode({ address: account })).toBeDefined();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("deploys on testnet stacks without pricing", async () => {
+    const network = NETWORKS.get("ANVIL");
+    if (!network) throw new Error("missing anvil");
+    const chainId = chain.id;
+    const fetch = mockLifi(new Response(null, { status: 500 }));
+    Object.assign(chain, { id: 1 });
+
+    try {
+      await jobFinished({ ...request, chainId: network.id });
+    } finally {
+      Object.assign(chain, { id: chainId });
+    }
+
+    expect(await publicClient.getCode({ address: account })).toBeDefined();
+    expect(fetch).not.toHaveBeenCalledWith(expect.stringContaining("/v1/token"), expect.anything());
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("prices other chains on li.quest when codegen has no lifi url", async () => {
+    const network = NETWORKS.get("ANVIL");
+    if (!network) throw new Error("missing anvil");
+    const chainId = chain.id;
+    mocks.lifiURL.mockReset();
+    const fetch = mockLifi();
+    Object.assign(chain, { testnet: false });
+    Object.assign(chain, { id: 1 });
+
+    try {
+      await jobFinished({ ...request, chainId: network.id });
+    } finally {
+      Object.assign(chain, { testnet: true });
+      Object.assign(chain, { id: chainId });
+    }
+
+    expect(await publicClient.getCode({ address: account })).toBeDefined();
+    expect(fetch).toHaveBeenCalledWith(
+      `https://li.quest/v1/token?chain=${network.id}&token=${zeroAddress}`,
+      expect.objectContaining({ signal: expect.any(AbortSignal) }), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+    );
+  });
+
+  it("deploys on other chains when no native price is known", async () => {
+    const network = NETWORKS.get("ANVIL");
+    if (!network) throw new Error("missing anvil");
+    const id = `${network.id}-${account}`;
+    const chainId = chain.id;
+    const keeper = walletClient.account.address;
+    const funds = await publicClient.getBalance({ address: keeper });
+    await worker.close();
+    worker = pokeWorker({ bullmq, onesignal, poker, segment });
+    await worker.ready;
+    mockLifi(new Response(null, { status: 400 }));
+    Object.assign(chain, { testnet: false });
+    Object.assign(chain, { id: 1 });
+
+    function delayed() {
+      return new Promise<void>((resolve) => {
+        const emitter: EventEmitter = events;
+        emitter.on("delayed", function listener({ jobId }: { jobId: string }) {
+          if (jobId !== id) return;
+          emitter.off("delayed", listener);
+          resolve();
+        });
+      });
+    }
+
+    const delayedAt = Date.now() - 12 * 60 * 60_000;
+    try {
+      await anvilClient.setBalance({ address: keeper, value: 1n });
+      const first = delayed();
+      await poke.enqueue({ ...request, chainId: network.id });
+      const job = await queue.getJob(id);
+      if (!job) throw new Error("job not found");
+      await first;
+
+      const pending = await queue.getJob(id);
+      if (!pending) throw new Error("job not found");
+      await pending.updateData({ ...pending.data, delayedAt });
+      const second = delayed();
+      await job.promote();
+      await second;
+      expect(captureException).toHaveBeenLastCalledWith(new Error("stuck deploy"), {
+        extra: { account, delayedAt, gasPrice: expect.stringMatching(/^\d+$/), id, price: undefined }, // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+        fingerprint: ["{{ default }}", String(network.id)],
+        level: "warning",
+        tags: { queue: "poke", job: "poke" },
+      });
+
+      await anvilClient.setBalance({ address: keeper, value: funds });
+      const result = finished(events, id);
+      await job.promote();
+      await result;
+    } finally {
+      Object.assign(chain, { testnet: true });
+      Object.assign(chain, { id: chainId });
+      await anvilClient.setBalance({ address: keeper, value: funds });
+    }
+
+    expect(await publicClient.getCode({ address: account })).toBeDefined();
+    const lifi = [new Error("lifi token 400"), { level: "error", tags: { queue: "poke", job: "poke" } }];
+    expect(vi.mocked(captureException).mock.calls.map(([error]) => (error as Error).message)).toStrictEqual([
+      "lifi token 400",
+      "unaffordable deploy",
+      "lifi token 400",
+      "stuck deploy",
+      "lifi token 400",
+    ]);
+    expect(captureException).toHaveBeenNthCalledWith(5, ...lifi);
+  });
+
+  it("deploys on other chains with the last native price while li.fi fails", async () => {
+    const network = NETWORKS.get("ANVIL");
+    if (!network) throw new Error("missing anvil");
+    const chainId = chain.id;
+    const next = createRequest();
+    Object.assign(chain, { testnet: false });
+    Object.assign(chain, { id: 1 });
+
+    try {
+      await jobFinished({ ...request, chainId: network.id });
+      mockLifi(new Response(null, { status: 500 }));
+      await jobFinished({ ...next.request, chainId: network.id });
+    } finally {
+      Object.assign(chain, { testnet: true });
+      Object.assign(chain, { id: chainId });
+    }
+
+    expect(await publicClient.getCode({ address: account })).toBeDefined();
+    expect(await publicClient.getCode({ address: next.account })).toBeDefined();
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("lifi token 500"), {
+      level: "error",
+      tags: { queue: "poke", job: "poke" },
+    });
+  });
+
+  it("warns once when deploys stay delayed for twelve hours", async () => {
+    const network = NETWORKS.get("ANVIL");
+    if (!network) throw new Error("missing anvil");
+    const id = `${network.id}-${account}`;
+    const chainId = chain.id;
+    mockLifi(Response.json({ priceUSD: "1000000" }));
+    Object.assign(chain, { testnet: false });
+    Object.assign(chain, { id: 1 });
+
+    function delayed() {
+      return new Promise<void>((resolve) => {
+        const emitter: EventEmitter = events;
+        emitter.on("delayed", function listener({ jobId }: { jobId: string }) {
+          if (jobId !== id) return;
+          emitter.off("delayed", listener);
+          resolve();
+        });
+      });
+    }
+
+    const delayedAt = Date.now() - 12 * 60 * 60_000;
+    try {
+      const first = delayed();
+      await poke.enqueue({ ...request, chainId: network.id });
+      const job = await queue.getJob(id);
+      if (!job) throw new Error("job not found");
+      await first;
+      expect(captureException).not.toHaveBeenCalled();
+
+      const pending = await queue.getJob(id);
+      if (!pending) throw new Error("job not found");
+      await pending.updateData({ ...pending.data, delayedAt });
+      const second = delayed();
+      await job.promote();
+      await second;
+
+      const stuck = await queue.getJob(id);
+      expect(stuck?.data).toMatchObject({ delayedAt, stuck: true });
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("stuck deploy"), {
+        extra: { account, delayedAt, gasPrice: expect.stringMatching(/^\d+$/), id, price: String(10n ** 24n) }, // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+        fingerprint: ["{{ default }}", String(network.id)],
+        level: "warning",
+        tags: { queue: "poke", job: "poke" },
+      });
+
+      const third = delayed();
+      await job.promote();
+      await third;
+      expect(captureException).toHaveBeenCalledOnce();
+
+      mockLifi();
+      const result = finished(events, id);
+      await job.promote();
+      await result;
+    } finally {
+      Object.assign(chain, { testnet: true });
+      Object.assign(chain, { id: chainId });
+    }
+
+    expect(await publicClient.getCode({ address: account })).toBeDefined();
+    expect(captureException).toHaveBeenCalledOnce();
   });
 
   it("deploys activity accounts funded with unsupported assets without queuing credit", async () => {

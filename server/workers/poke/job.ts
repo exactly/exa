@@ -7,6 +7,7 @@ export type Job = {
   account: Address;
   assets?: Address[];
   chainId: number;
+  delayedAt?: number;
   factory: Address;
   origin: "activity" | "allow";
   publicKey: Hex;
@@ -14,4 +15,6 @@ export type Job = {
   sentryBaggage?: string;
   sentryTrace?: string;
   source: null | string;
+  stuck?: true;
+  unaffordable?: true;
 };
