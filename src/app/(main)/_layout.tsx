@@ -9,6 +9,7 @@ import Intro from "../../components/business/Intro";
 import View from "../../components/shared/View";
 import { enablePrompt } from "../../utils/onesignal";
 import useBackgroundColor from "../../utils/useBackgroundColor";
+import useEvents from "../../utils/useEvents";
 import useIsBusiness from "../../utils/useIsBusiness";
 
 import type { KYCStatus } from "../../utils/server";
@@ -16,6 +17,7 @@ import type { KYCStatus } from "../../utils/server";
 export default function AppLayout() {
   const business = useIsBusiness();
   useBackgroundColor();
+  useEvents();
   useEffect(() => {
     enablePrompt();
   }, []);

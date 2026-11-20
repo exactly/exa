@@ -32,7 +32,6 @@ export default function useSimulateProposal({
   enabled = true,
   fresh,
   market,
-  poll = false,
   ...proposal
 }: {
   account: Address | undefined;
@@ -41,7 +40,6 @@ export default function useSimulateProposal({
   enabled?: boolean;
   fresh?: () => boolean;
   market: Address | undefined;
-  poll?: boolean;
 } & (
   | {
       assetOut: Address | undefined;
@@ -86,7 +84,7 @@ export default function useSimulateProposal({
     plugins,
     error: previewError,
     refetch: refetchPreview,
-  } = useProposalPreview({ account, chainId, enabled, poll, fresh: true });
+  } = useProposalPreview({ account, chainId, enabled, fresh: true });
   const nonce = preview?.queueNonce;
   const executed = preview?.nonce;
   const proposalData =
@@ -204,13 +202,11 @@ export function useProposalPreview({
   chainId,
   enabled = true,
   fresh = false,
-  poll = false,
 }: {
   account: Address | undefined;
   chainId: number;
   enabled?: boolean;
   fresh?: boolean;
-  poll?: boolean;
 }) {
   const multicall3Address = alchemyChains.get(chainId)?.contracts?.multicall3?.address;
   const reads = useReadContracts({
@@ -243,7 +239,6 @@ export function useProposalPreview({
     stateOverride: [{ address: previewerAddress, code: appPreviewerDeployedCode }],
     query: {
       enabled: enabled && !!account && !!multicall3Address,
-      refetchInterval: ({ state: { data } }) => (poll && data && data[0].queueNonce > data[0].nonce ? 5000 : false),
     },
   });
   const [preview, timestamp, blockNumber, plugins] =
