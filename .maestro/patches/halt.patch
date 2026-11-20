@@ -1,0 +1,23 @@
+From 60bbdd4ff3d8d844a3d390e02a47bdd4ea42e211 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Fri, 20 Nov 2026 00:30:57 +0000
+Subject: [PATCH] fix: fail the iOS driver build when a runner build fails
+
+build-maestro-ios-runner-all.sh ran each runner build without stopping on errors, and ended with an echo, so a failed xcodebuild still exited 0. buildIosDriver then passed and the jar shipped the prebuilt runner instead of the one built from source, with nothing in the output but the xcodebuild error. Stop at the first failing build so the task fails with it.
+---
+ maestro-ios-xctest-runner/build-maestro-ios-runner-all.sh | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/maestro-ios-xctest-runner/build-maestro-ios-runner-all.sh b/maestro-ios-xctest-runner/build-maestro-ios-runner-all.sh
+index 12652d5..efeca89 100644
+--- a/maestro-ios-xctest-runner/build-maestro-ios-runner-all.sh
++++ b/maestro-ios-xctest-runner/build-maestro-ios-runner-all.sh
+@@ -1,4 +1,5 @@
+ #!/usr/bin/env bash
++set -e
+ 
+ DESTINATION="generic/platform=iOS Simulator" DERIVED_DATA_DIR="driver-iPhoneSimulator" $PWD/maestro-ios-xctest-runner/build-maestro-ios-runner.sh
+ 
+-- 
+2.43.0
+
