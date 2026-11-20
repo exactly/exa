@@ -161,6 +161,8 @@ jobs:
           - { flow: swap, method: webauthn, screen: 740x880 }
           - { flow: transfer, method: webauthn, screen: 760x600 }
     env:
+      ANDROID_HOME: ""
+      ANDROID_SDK_ROOT: ""
       MAESTRO_CLI_NO_ANALYTICS: true
       NX_DAEMON: false
       NX_MAX_CACHE_SIZE: 1GB
