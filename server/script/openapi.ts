@@ -26,7 +26,7 @@ import("../api")
       authSecret: zeroHash,
       bridge: createBridge("bridge", "https://bridge.test"),
       business: true,
-      credit: { close: () => Promise.resolve(), enqueue: () => Promise.resolve() },
+      credit: { close: () => Promise.resolve(), ready: () => Promise.resolve(), enqueue: () => Promise.resolve() },
       database,
       intercom: createIntercom("intercom"),
       manteca: createManteca("manteca", "https://manteca.test"),
@@ -36,7 +36,7 @@ import("../api")
       redis,
       sardine: createSardine("sardine", "https://api.sardine.ai"),
       segment,
-      subscribe: { close: () => Promise.resolve(), enqueue: () => Promise.resolve() },
+      subscribe: { close: () => Promise.resolve(), ready: () => Promise.resolve(), enqueue: () => Promise.resolve() },
       walletExtension: createWalletExtension(zeroHash),
     });
     const spec = await generateSpecs(handle.app, {

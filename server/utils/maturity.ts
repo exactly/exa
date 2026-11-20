@@ -25,7 +25,7 @@ import type createOnesignal from "./onesignal";
 
 export default function start(onesignal: ReturnType<typeof createOnesignal>) {
   setup(onesignal);
-  return { ready: reminders().catch(reminders), close: closeQueue };
+  return { ready: Promise.all([reminders().catch(reminders), notificationQueue.waitUntilReady()]), close: closeQueue };
 }
 
 export function setup(onesignal: ReturnType<typeof createOnesignal>) {

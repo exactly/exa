@@ -63,6 +63,7 @@ export default function worker({
         });
       },
       name,
+      ready: credit.ready(),
       async process(job, span, token) {
         const chain = [...NETWORKS.values()].find(({ id }) => id === job.data.chainId);
         if (!chain) throw new Error(`unsupported chain ${job.data.chainId}`);

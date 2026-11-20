@@ -87,7 +87,7 @@ export default function chat({
         return c.json({ code: "ok" });
       },
     );
-  return own({ app, ready: Promise.resolve() }, () => queue.close());
+  return own({ app, ready: queue.ready() }, () => queue.close());
 }
 
 function verify(body: string, secret: string, signature?: string) {

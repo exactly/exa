@@ -69,10 +69,12 @@ import type { drizzle as Drizzle } from "drizzle-orm/node-postgres";
 
 const refund = vi.hoisted(() => ({
   close: vi.fn<ReturnType<typeof createRefund>["close"]>().mockResolvedValue(),
+  ready: vi.fn<() => Promise<void>>().mockResolvedValue(),
   enqueue: vi.fn<ReturnType<typeof createRefund>["enqueue"]>(),
 }));
 const hookQueue = vi.hoisted(() => ({
   close: vi.fn<ReturnType<typeof createHookQueue>["close"]>().mockResolvedValue(),
+  ready: vi.fn<() => Promise<void>>().mockResolvedValue(),
   enqueue: vi.fn<ReturnType<typeof createHookQueue>["enqueue"]>().mockResolvedValue(),
 }));
 const pandaConfig = { key: "panda", url: "https://panda.test" };

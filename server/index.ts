@@ -500,6 +500,12 @@ export const close = supervise(
           app,
           ready: Promise.all([
             api.ready,
+            allow.ready(),
+            credit.ready(),
+            poke.ready(),
+            refund.ready(),
+            subscribe.ready(),
+            webhook.ready(),
             ...enabledHooks.map(([, { ready }]) => ready),
             ...enabledWorkers.map(({ ready }) => ready),
           ]),

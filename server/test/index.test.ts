@@ -66,7 +66,7 @@ describe("server", () => {
     if (!created) throw new Error("missing server");
     const handle = await created;
 
-    await expect(handle.ready).resolves.toHaveLength(1 + enabled.length);
+    await expect(handle.ready).resolves.toHaveLength(7 + enabled.length);
     expect(mocks.api).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ business: true }));
     for (const [name, create] of Object.entries({ ...hooks, ...workers })) {
       expect(create).toHaveBeenCalledTimes(enabled.includes(name) ? 1 : 0);

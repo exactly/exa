@@ -12,10 +12,11 @@ const mocks = vi.hoisted(() => ({
   close: vi.fn<() => Promise<void>>(),
   enqueue: vi.fn<(data: { contact?: string; from: string; id: string; text: string }) => Promise<void>>(),
   on: vi.fn<(event: string, listener: (error: unknown) => void) => void>(),
+  ready: vi.fn<() => Promise<void>>(),
 }));
 
 vi.mock("../../workers/chat/queue", () => ({
-  default: () => ({ close: mocks.close, enqueue: mocks.enqueue }),
+  default: () => ({ close: mocks.close, enqueue: mocks.enqueue, ready: mocks.ready }),
 }));
 
 const redis = { on: mocks.on } as unknown as Redis;
@@ -30,6 +31,7 @@ describe("chat hook", () => {
 
   beforeEach(async () => {
     mocks.close.mockReset().mockResolvedValue();
+    mocks.ready.mockReset().mockResolvedValue();
     mocks.enqueue.mockReset().mockResolvedValue();
     mocks.on.mockReset();
     chatHook = createChatHook({

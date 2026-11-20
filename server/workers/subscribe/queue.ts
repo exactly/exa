@@ -8,6 +8,7 @@ export default function queue(redis: Redis) {
   const instance = createQueue<Job>(name, attempts, redis);
   return {
     close: () => instance.close(),
+    ready: () => instance.ready(),
     enqueue: (account: Address) => instance.enqueue({ account }, account),
   };
 }

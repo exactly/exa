@@ -31,6 +31,7 @@ import type * as C from "@exactly/common/generated/chain";
 
 const allow = {
   close: vi.fn<ReturnType<typeof createAllow>["close"]>(),
+  ready: vi.fn<ReturnType<typeof createAllow>["ready"]>(),
   enqueue: vi.fn<ReturnType<typeof createAllow>["enqueue"]>(),
 };
 const pandaConfig = { key: "panda", url: "https://panda.test" };

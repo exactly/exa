@@ -64,6 +64,7 @@ const walletExtensionKey = createSecretKey(Buffer.from(WALLET_EXTENSION_SECRET, 
 const auth = createAuth(database, authSecret);
 const credit = {
   close: vi.fn<ReturnType<typeof createCredit>["close"]>().mockResolvedValue(),
+  ready: vi.fn<() => Promise<void>>().mockResolvedValue(),
   enqueue: vi.fn<ReturnType<typeof createCredit>["enqueue"]>(),
 };
 const panda = createPanda({

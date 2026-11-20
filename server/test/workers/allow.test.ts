@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => ({
   enqueuePoke: vi.fn<ReturnType<typeof createPoke>["enqueue"]>(),
   exaSend: vi.fn(),
   firewall: vi.fn<(address: string | undefined) => string | undefined>(),
+  readyPoke: vi.fn<ReturnType<typeof createPoke>["ready"]>(),
   wallet: vi.fn(),
 }));
 
@@ -93,7 +94,9 @@ afterAll(async () => {
 beforeEach(async () => {
   vi.restoreAllMocks();
   mocks.closePoke.mockReset().mockResolvedValue();
-  mocks.createPoke.mockReset().mockReturnValue({ close: mocks.closePoke, enqueue: mocks.enqueuePoke });
+  mocks.createPoke
+    .mockReset()
+    .mockReturnValue({ close: mocks.closePoke, enqueue: mocks.enqueuePoke, ready: mocks.readyPoke });
   mocks.enqueuePoke.mockReset().mockResolvedValue();
   mocks.exaSend.mockReset().mockResolvedValue({});
   mocks.firewall.mockReset().mockImplementation((address) => address);

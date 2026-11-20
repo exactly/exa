@@ -9,7 +9,7 @@ import { own } from "../supervise";
 import type { Span } from "@sentry/core";
 import type * as BullMQ from "bullmq";
 
-export default function worker<Job extends { sentryBaggage?: string; sentryTrace?: string }, Ready = void>({
+export default function worker<Job extends { sentryBaggage?: string; sentryTrace?: string }, Ready = unknown>({
   attempts,
   bullmq,
   failed,

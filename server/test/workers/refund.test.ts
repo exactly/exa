@@ -80,6 +80,7 @@ const webhooks = new Map<string, unknown>();
 const hook = vi.hoisted(() => ({
   close: vi.fn<ReturnType<typeof createHook>["close"]>().mockResolvedValue(),
   enqueue: vi.fn<ReturnType<typeof createHook>["enqueue"]>(),
+  ready: vi.fn<() => Promise<void>>().mockResolvedValue(),
 }));
 const slot = keccak256(
   encodeAbiParameters(
@@ -1347,6 +1348,7 @@ vi.mock("../../utils/panda", async (importOriginal) => {
 vi.mock("../../workers/hook/queue", () => ({
   default: () => ({
     close: () => Promise.resolve(hook.close()),
+    ready: () => Promise.resolve(hook.ready()),
     enqueue: (...args: Parameters<ReturnType<typeof createHook>["enqueue"]>) => Promise.resolve(hook.enqueue(...args)),
   }),
 }));

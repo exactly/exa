@@ -21,6 +21,7 @@ export default function queue<Job extends Trace>(
   });
   return {
     close: () => instance.close(),
+    ready: (): Promise<unknown> => instance.waitUntilReady(),
     async enqueue(data: Omit<Job, keyof Trace>, jobId: string, spanName: string = name) {
       await startSpan(
         { name: spanName, op: "queue.publish", attributes: { "messaging.destination.name": name } },

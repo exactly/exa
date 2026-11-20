@@ -123,6 +123,7 @@ export default function worker({
       },
       name,
       ready: Promise.all([
+        hook.ready(),
         wallet.getDelegation({ address: refunder.address }),
         wallet.readContract({
           address: refunderContract,
@@ -130,7 +131,7 @@ export default function worker({
           args: [keccak256(toHex("KEEPER_ROLE")), refunder.address],
           abi: refunderAbi,
         }),
-      ]).then(async ([delegation, keeper]) => {
+      ]).then(async ([, delegation, keeper]) => {
         if (!keeper) throw new Error("refunder is not keeper");
         if (delegation === simple7702AccountAddress) return;
         const authorization = await wallet.signAuthorization({

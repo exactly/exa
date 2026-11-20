@@ -30,6 +30,7 @@ export default function worker({ allower, bullmq }: { allower: LocalAccount; bul
         });
       },
       name,
+      ready: poke.ready(),
       async process(job) {
         await wallet(allower).exaSend(
           { name: "firewall.allow", op: "exa.firewall", attributes: { account: job.data.account } },

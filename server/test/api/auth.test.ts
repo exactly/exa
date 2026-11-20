@@ -56,6 +56,7 @@ const business = "https://business.sandbox.exactly.app";
 const unregistered = "https://corporate.exactly.app";
 const subscribe = {
   close: vi.fn<ReturnType<typeof createSubscribe>["close"]>().mockResolvedValue(),
+  ready: vi.fn<() => Promise<void>>().mockResolvedValue(),
   enqueue: vi.fn<ReturnType<typeof createSubscribe>["enqueue"]>().mockResolvedValue(),
 };
 const createCredential = createCredentialFactory({

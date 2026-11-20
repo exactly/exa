@@ -7,6 +7,7 @@ export default function queue(bullmq: Redis) {
   const instance = createQueue<Job>(name, attempts, bullmq);
   return {
     close: () => instance.close(),
+    ready: () => instance.ready(),
     async enqueue(account: Job["account"], jobId: string = account) {
       await instance.enqueue({ account }, jobId);
     },

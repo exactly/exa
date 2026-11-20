@@ -28,6 +28,7 @@ const alchemy = createAlchemy("webhooks");
 const onesignal = createOnesignal("onesignal");
 const poke = {
   close: vi.fn<ReturnType<typeof createPoke>["close"]>().mockResolvedValue(),
+  ready: vi.fn<() => Promise<void>>().mockResolvedValue(),
   enqueue: vi.fn<ReturnType<typeof createPoke>["enqueue"]>().mockResolvedValue(),
 };
 

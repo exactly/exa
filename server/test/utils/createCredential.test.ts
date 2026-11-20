@@ -81,7 +81,11 @@ function request() {
         database,
         sardine: createSardine("sardine", "https://api.sardine.ai"),
         segment,
-        subscribe: { close: vi.fn<() => Promise<void>>().mockResolvedValue(), enqueue },
+        subscribe: {
+          close: vi.fn<() => Promise<void>>().mockResolvedValue(),
+          ready: vi.fn<() => Promise<void>>().mockResolvedValue(),
+          enqueue,
+        },
       })(c, credentialId);
       return c.body(null);
     })
