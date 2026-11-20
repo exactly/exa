@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Platform } from "react-native";
+import { AppState, Platform } from "react-native";
 
 import { selectionAsync } from "expo-haptics";
+import { useNavigation } from "expo-router";
 import Head from "expo-router/head";
 import { TabSlot, TabTrigger, useTabsWithTriggers } from "expo-router/ui";
 
@@ -17,6 +18,7 @@ import { CreditCard } from "../../../generated/icons/CreditCard";
 import { History } from "../../../generated/icons/History";
 import { Home } from "../../../generated/icons/Home";
 import reportError from "../../../utils/reportError";
+import { reload } from "../../../utils/update";
 import useInsets from "../../../utils/useInsets";
 import usePendingOperations from "../../../utils/usePendingOperations";
 import { emitTabPress } from "../../../utils/useTabPress";
@@ -72,6 +74,21 @@ export default function HomeLayout() {
   const [height, setHeight] = useState(0);
   const [width, setWidth] = useState(0);
   const focused = tabs.findIndex(({ name }) => name === state.routes[state.index]?.name);
+  const navigation = useNavigation();
+  useEffect(() => {
+    let left: number | undefined;
+    const subscription = AppState.addEventListener("change", (status) => {
+      if (status !== "active") {
+        left ??= Date.now();
+        return;
+      }
+      if (left !== undefined && Date.now() - left >= 60_000 && navigation.isFocused()) reload().catch(reportError);
+      left = undefined;
+    });
+    return () => {
+      subscription.remove();
+    };
+  }, [navigation]);
   return (
     <>
       {Platform.OS === "web" && (
@@ -129,7 +146,11 @@ export default function HomeLayout() {
                     style={{ flex: 1 }}
                     onPress={() => {
                       selectionAsync().catch(reportError);
-                      emitTabPress(name);
+                      (index === focused ? reload() : Promise.resolve(false))
+                        .then((reloaded) => {
+                          if (!reloaded) emitTabPress(name);
+                        })
+                        .catch(reportError);
                     }}
                   >
                     <TabItem

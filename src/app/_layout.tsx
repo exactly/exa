@@ -20,7 +20,7 @@ import {
   useUnstableGlobalHref,
 } from "expo-router";
 import type { Href } from "expo-router";
-import { channel, checkForUpdateAsync, fetchUpdateAsync, reloadAsync } from "expo-updates";
+import { channel } from "expo-updates";
 
 import { sdk } from "@farcaster/miniapp-sdk";
 import {
@@ -60,6 +60,7 @@ import queryClient, { hydrated, isServer } from "../utils/queryClient";
 import reportError, { classifyError } from "../utils/reportError";
 import { page } from "../utils/segment";
 import { origin } from "../utils/server";
+import { check, launch, reload, track } from "../utils/update";
 import exaConfig from "../utils/wagmi/exa";
 import ownerConfig, { getConnector as getOwnerConnector } from "../utils/wagmi/owner";
 
@@ -219,21 +220,8 @@ export default wrap(function RootLayout() {
       })
       .catch(reportError);
     if (__DEV__) return;
-    let shouldReload = false;
     const subscription = AppState.addEventListener("change", (state) => {
-      if (state === "active") {
-        if (shouldReload) {
-          reloadAsync().catch(reportError);
-          return;
-        }
-        checkForUpdateAsync()
-          .then(async ({ isAvailable, isRollBackToEmbedded }) => {
-            if (!isAvailable && !isRollBackToEmbedded) return;
-            await fetchUpdateAsync();
-            shouldReload = true;
-          })
-          .catch((error: unknown) => reportError(error, { level: "info" }));
-      }
+      if (state === "active") check().catch(reportError);
     });
     return () => {
       subscription.remove();
@@ -259,11 +247,16 @@ export default wrap(function RootLayout() {
                 <ErrorBoundary
                   onError={() => {
                     SplashScreen.hideAsync().catch(reportError);
+                    check().catch(reportError);
                   }}
                   fallback={(data) => (
                     <Error
                       resetError={() => {
-                        data.resetError();
+                        reload()
+                          .then((reloaded) => {
+                            if (!reloaded) data.resetError();
+                          })
+                          .catch(reportError);
                       }}
                     />
                   )}
@@ -326,26 +319,33 @@ function Navigator() {
       .catch(reportError);
   }, [authenticated, intercom, router, support]);
   useEffect(() => {
-    if (href) page();
+    if (!href) return;
+    track(href);
+    page();
   }, [href]);
   useEffect(() => {
     if (!ready) return;
-    if (isMiniApp) {
-      sdk.actions
-        .ready(
-          // @ts-expect-error ready takes no arguments
-          proxy({
-            getAddress: () => getConnection(exaConfig).address,
-            hasCard: () =>
-              queryClient
-                .fetchQuery({ queryKey: ["card", "details"], staleTime: 3000 })
-                .then((card) => !!card)
-                .catch(() => undefined),
-          }),
-        )
-        .catch(reportError);
-    }
-    SplashScreen.hideAsync().catch(reportError);
+    launch
+      .then((reloaded) => {
+        if (reloaded) return;
+        if (isMiniApp) {
+          sdk.actions
+            .ready(
+              // @ts-expect-error ready takes no arguments
+              proxy({
+                getAddress: () => getConnection(exaConfig).address,
+                hasCard: () =>
+                  queryClient
+                    .fetchQuery({ queryKey: ["card", "details"], staleTime: 3000 })
+                    .then((card) => !!card)
+                    .catch(() => undefined),
+              }),
+            )
+            .catch(reportError);
+        }
+        SplashScreen.hideAsync().catch(reportError);
+      })
+      .catch(reportError);
   }, [ready, isMiniApp]);
   return (
     <>
