@@ -59,6 +59,12 @@ export default function networkOptions(account: Address | undefined, chainId: nu
                 : targets.filter((_, index) => preview.allowed[index]),
             lifi: tokens !== undefined,
             timestamp: preview.timestamp,
+            balances: Object.fromEntries([
+              [zeroAddress, preview.balance],
+              ...preview.markets.map(
+                ({ asset }, index) => [asset.toLowerCase(), preview.balances[index] ?? 0n] as const,
+              ),
+            ]) as Record<Address, bigint>,
             ...(contracts && {
               markets: withPreviews(
                 decodeFunctionResult({ abi: previewerAbi, functionName: "exactly", data: preview.exactly }),
