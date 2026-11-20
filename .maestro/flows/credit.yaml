@@ -12,6 +12,8 @@ env:
 - runFlow: ../subflows/verifyIdentity.yaml
 - tapOn: Card
 - tapOn: Card details
+- assertVisible: Activate your new Exa Card
+- waitForAnimationToEnd
 - runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Accept and enable card } }
 - tapOn: Accept and enable card
 - assertVisible: Manually add your card to Apple Pay & Google Pay to make contactless payments.
