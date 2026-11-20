@@ -1,6 +1,7 @@
 # mobile app (`app`)
 
 - **stack**: react native, expo, tamagui, tanstack query.
+- **ux first**: the app is where every layer reaches the user. each tap answers at once, each wait shows what is happening, each screen leaves the user sure of what happened and what comes next, and updates apply as soon as no flow is open, never mid-flow.
 - **architecture**: smart components (screens) vs dumb components (ui only). complex logic in one place is preferred - easier to reason about the whole thing.
 - **styling**: tamagui tokens preferred. no manual dark mode logic.
 - **data**: tanstack query is the single source of truth - including ui state (e.g., `["settings", "sensitive"]`). **no `useEffect` for data fetching**. side effects like navigation setup, cleanup, and third-party sdk init are acceptable.

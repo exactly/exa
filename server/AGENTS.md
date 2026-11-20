@@ -1,6 +1,7 @@
 # server (`server`)
 
 - **stack**: hono, node.js, drizzle orm, postgres.
+- **ux first**: users feel the server through the app. latency, error codes the app can explain, idempotent retries and events that land fast are ux.
 - **api**: schema-first (openapi via `hono-openapi`). validation via valibot middleware. always use `satisfies InferOutput<typeof Schema>` on responses for compile-time validation.
 - **validators**: use `hono-openapi/valibot` for api routes with openapi docs. use `@hono/valibot-validator` for internal webhooks/hooks without openapi.
 - **db**: drizzle schema is truth. the client is created once at startup and passed in.

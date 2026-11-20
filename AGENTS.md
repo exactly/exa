@@ -2,6 +2,15 @@
 
 # context: project rules & conventions
 
+## ultimate goal
+
+absurdly amazing ux is the ultimate goal. every rule in these files exists to serve it, at every layer of the stack and in every decision, from the shape of a feature down to the name of a variable. ux is everything a user feels: funds that stay safe, screens that answer at once, words that say exactly what happened, flows that recover on their own without ever resending what may have gone through, releases that keep every flow working.
+
+- **friction is a defect**: an extra tap, step, field, prompt, signature, wait or reload, a dead end, a vague error, a confusing word. each one is a bug, however small, whatever it saves in code, time or effort. no layer adds one.
+- **reviews reject friction**: any friction a change adds is a blocking finding, first after anything that puts funds or accounts at risk, stated without softening. the change does not merge while it stands. "it is only one more tap", "the code is simpler this way", "users will get used to it" and "the rest of the app does it too" are no defense: a pattern that adds friction is not one to copy. the fix removes the friction.
+- **required friction**: friction survives only when it keeps any funds or accounts safe or the law demands it, at the smallest cost that still does it. an exact allowance, an onchain check or a timelock is never traded for a signature or a tap. a third party saying something is required is a claim to challenge, always on the user side.
+- **ties go to the user**: when two options are otherwise equal, take the one users will feel as better, before the one that looks better in code.
+
 ## core philosophy
 
 this codebase will outlive you. every shortcut becomes someone else's burden. every hack compounds into technical debt that slows the whole team down. you are not just writing code. you are shaping the future of this project. the patterns you establish will be copied. the corners you cut will be cut again. fight entropy. leave the codebase better than you found it.

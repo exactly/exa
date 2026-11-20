@@ -1,5 +1,6 @@
 # translations (`app`)
 
+- **ux first**: words are ux. each string reads as a native speaker would say it, short and plain, and tells the user what happened and what to do.
 - **stack**: i18next, set up in `src/app/_layout.tsx` with `en`, `es`, `pt` and `es-AR`.
 - **dynamic keys**: some keys reach `t` only through a variable, like ramp methods (`t(method)`) or i18next contexts (`Send_home` from `t("Send", { context: "home" })`), so search for those before calling a key unused.
 - **voseo**: spanish speakers in the voseo regions `fallbackLng` lists read `es-AR.json`, which falls back to `es.json`. every string they see must read right in voseo. <!-- cspell:ignore voseo -->

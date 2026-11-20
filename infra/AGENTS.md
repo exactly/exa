@@ -1,5 +1,7 @@
 # infra (`infra`)
 
+- **ux first**: users feel infra as uptime, fast cold starts and deploys that never break a live flow.
+
 ## infra is code
 
 - **code first**: gcp resources are declared in this package. a change that needs one declares it next to the code that uses it, so pulumi creates it the same way on every stack.

@@ -9,6 +9,7 @@
 
 ## principles
 
+- **ux first**: a wait, retry or workaround a flow needs because of the app is friction users feel too: fix it in the app. what a wallet, the os or maestro needs stays in the subflow or patch that owns it. `subflows/poll.yaml` and the home tap wait on an app that refreshes late: use them only until the app refreshes on its own, and add no new one.
 - **as real as possible**: test the app users run, with real signers: passkeys on a virtual authenticator, metamask in chrome for testing and brave's built-in wallet. add no test-only app paths, shims or injected wallets.
 - **no seeds**: web legs sign with a new passkey or a wallet created in the browser. no web leg imports a seed.
 - **mock only third parties**: mocks live in `server/test` and behave like the service they replace. they complete immediately, so flows never wait on artificial delays.

@@ -1,6 +1,7 @@
 # documentation (`docs`)
 
 - **stack**: astro, starlight theme.
+- **ux first**: docs are ux for readers. each page answers the question that brought them there, in plain words.
 - **single source of truth**: all documentation content resides within the `docs/` directory and is versioned in git.
 - **linting**: all markdown files must adhere to `.markdownlint.json`. always run `pnpm nx test:markdown mobile` to verify.
 

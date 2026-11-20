@@ -1,6 +1,7 @@
 # contracts (`contracts`)
 
 - **stack**: solidity, foundry.
+- **ux first**: users feel the contracts as funds that stay safe, low gas, fewer signatures and reverts the app can explain.
 
 ## key files
 
