@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import chain from "@exactly/common/generated/chain";
+import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 import { borrowLimit, withdrawLimit } from "@exactly/lib";
 
 import { balancesOptions } from "./lifi";
@@ -38,6 +39,9 @@ export default function useAsset(address?: Address) {
     firstMaturity,
     available,
     borrowAvailable,
+    maxInstallments: market
+      ? Math.min(MAX_INSTALLMENTS, market.fixedPools.filter(({ maturity }) => maturity >= firstMaturity).length)
+      : MAX_INSTALLMENTS,
     externalAsset,
     queryKey,
     isFetching: isMarketsFetching || isBalancesFetching,

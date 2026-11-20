@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 
 import { marketUSDCAddress } from "@exactly/common/generated/chain";
-import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
+import maxCardInstallments from "@exactly/common/maxCardInstallments";
 import {
   fixedRate,
   fixedUtilization,
@@ -21,9 +21,10 @@ export default function useInstallmentRates(amount?: bigint) {
   const now = Number(timestamp);
   return useMemo(() => {
     if (!market || amount === undefined) return;
+    const max = maxCardInstallments(market.maxFuturePools);
     if (amount <= 0n) {
       const installments = [];
-      for (let count = 1; count <= MAX_INSTALLMENTS; count++) {
+      for (let count = 1; count <= max; count++) {
         installments.push({ count, payments: Array.from<bigint>({ length: count }).fill(0n), rate: 0n, total: 0n });
       }
       return { installments, firstMaturity };
@@ -38,7 +39,7 @@ export default function useInstallmentRates(amount?: bigint) {
     if (assets === undefined) return;
     if (assets === 0n) {
       const installments = [];
-      for (let count = 1; count <= MAX_INSTALLMENTS; count++) {
+      for (let count = 1; count <= max; count++) {
         installments.push({ count, payments: undefined, rate: 0n, total: 0n });
       }
       return { installments, firstMaturity };
@@ -47,7 +48,7 @@ export default function useInstallmentRates(amount?: bigint) {
     const marketUtilization = globalUtilization(assets, totalFloatingBorrowAssets, floatingBackupBorrowed);
     try {
       const installments = [];
-      for (let count = 1; count <= MAX_INSTALLMENTS; count++) {
+      for (let count = 1; count <= max; count++) {
         if (count === 1) {
           const pool = fixedPools.find(
             ({ maturity }) => maturity >= firstMaturity && maturity < firstMaturity + MATURITY_INTERVAL,

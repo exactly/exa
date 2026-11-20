@@ -27,8 +27,9 @@ export default function Installments() {
   const router = useRouter();
   const insets = useInsets();
   const { t } = useTranslation();
-  const { market, amount, installments } = parse(Loan, useLocalSearchParams());
-  const { market: asset, markets } = useAsset(market);
+  const { market, amount, installments: count } = parse(Loan, useLocalSearchParams());
+  const { market: asset, markets, maxInstallments } = useAsset(market);
+  const installments = count && count <= maxInstallments ? count : undefined;
 
   if (!market || !amount || (markets && !asset)) return <Redirect href="/loan" />;
   return (
