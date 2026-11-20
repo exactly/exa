@@ -21,6 +21,7 @@ const mocks = {
   api: vi.fn<(config: Record<string, unknown>) => Hook>(),
   bridge: vi.fn<(key: string, url: string) => object>(),
   drizzle: vi.fn<() => typeof database>(),
+  events: { close: vi.fn<() => Promise<void>>(), ready: Promise.resolve() },
   intercom: vi.fn<(key: string) => typeof intercom>(),
   manteca: vi.fn<(key: string, url: string) => object>(),
   panda: vi.fn<(config: { key: string; url: string }) => object>(),
@@ -29,6 +30,8 @@ const mocks = {
   sardine: vi.fn<(key: string, url: string) => object>(),
   secret: vi.fn<(name: string, secrets: object) => Promise<string>>(),
   segment: vi.fn<(key: string) => typeof segment>(),
+  listen: vi.fn<(pool: unknown) => { close: () => Promise<void>; ready: Promise<void> }>(),
+  publisher: vi.fn<(value: unknown) => unknown>(),
   supervise: vi.fn<(name: string, created: Promise<Handle>) => void>(),
   walletExtension: vi.fn<(secret: string) => object>(),
 };
@@ -46,6 +49,9 @@ beforeEach(() => {
   });
   mocks.bridge.mockReset().mockReturnValue(bridge);
   mocks.drizzle.mockReset().mockReturnValue(database);
+  mocks.events.close.mockReset().mockResolvedValue();
+  mocks.listen.mockReset().mockReturnValue(mocks.events);
+  mocks.publisher.mockReset().mockImplementation((value) => value);
   mocks.intercom.mockReset().mockReturnValue(intercom);
   mocks.manteca.mockReset().mockReturnValue(manteca);
   mocks.panda.mockReset().mockReturnValue(panda);
@@ -58,6 +64,11 @@ beforeEach(() => {
   mocks.walletExtension.mockReset().mockReturnValue(walletExtension);
   vi.doMock("drizzle-orm/node-postgres", () => ({ drizzle: mocks.drizzle }));
   vi.doMock("../../api", () => ({ default: mocks.api }));
+  vi.doMock("../../utils/events", async (importOriginal) => ({
+    ...(await importOriginal<object>()),
+    listen: mocks.listen,
+    publisher: mocks.publisher,
+  }));
   vi.doMock("../../supervise", async (importOriginal) => ({
     ...(await importOriginal<typeof Supervise>()),
     default: mocks.supervise,
@@ -128,11 +139,14 @@ describe("api bin", () => {
     if (!(redis instanceof Redis)) throw new Error("missing redis");
     expect(redis.options.maxRetriesPerRequest).toBe(20);
     expect(mocks.supervise).toHaveBeenCalledExactlyOnceWith("api", created);
+    expect(mocks.publisher).toHaveBeenCalledExactlyOnceWith(database);
+    expect(mocks.listen).toHaveBeenCalledExactlyOnceWith(database.$client);
     const response = await handle.app.request("/api");
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ status: "ok" });
 
     await handle.close();
+    expect(mocks.events.close).toHaveBeenCalledOnce();
     expect(database.$client.end).toHaveBeenCalledOnce();
     expect(segment.close).toHaveBeenCalledOnce();
     await expect(redis.ping()).rejects.toThrow("Connection is closed.");
