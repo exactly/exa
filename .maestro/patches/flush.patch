@@ -1,0 +1,28 @@
+From 4914b9f7a2ee156da5a9efcaee933008521d3afc Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Fri, 20 Nov 2026 12:39:33 +0000
+Subject: [PATCH] fix: flush unary Android driver responses once
+
+grpc 1.60 stops flushing unary response headers on their own, so each
+driver reply leaves the device in one write instead of a lone headers
+frame that waits for a delayed ack before its data.
+---
+ gradle/libs.versions.toml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
+index f1c4b5e..75b797e 100644
+--- a/gradle/libs.versions.toml
++++ b/gradle/libs.versions.toml
+@@ -27,7 +27,7 @@ googleProtobuf = "3.21.9"
+ googleProtobufPlugin = "0.9.4"
+ googleTruth = "1.4.2"
+ graaljs = "24.2.0"
+-grpc = "1.50.2"
++grpc = "1.60.2"
+ grpcKotlinStub = "1.4.1"
+ imageComparison = "4.4.0"
+ hiddenapibypass = "4.3"
+-- 
+2.43.0
+
