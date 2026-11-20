@@ -8,7 +8,7 @@ import chain from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 import { floatingDepositRates, WAD, withdrawLimit } from "@exactly/lib";
 
-import { balancesOptions } from "./lifi";
+import { balancesOptions, lifiTokensOptions } from "./lifi";
 import useAccount from "./useAccount";
 import useMarkets from "./useMarkets";
 
@@ -56,6 +56,7 @@ export default function usePortfolio(options?: {
   const network = options?.chainId ?? chain.id;
   const {
     markets,
+    balances: walletBalances,
     supportedAssets,
     rateSnapshot,
     timestamp,
@@ -63,6 +64,7 @@ export default function usePortfolio(options?: {
   } = useMarkets(undefined, network);
 
   const { data: balances, isLoading: isBalancesPending } = useQuery(balancesOptions(account));
+  const { data: lifiTokens } = useQuery(lifiTokensOptions);
 
   const portfolio = useMemo(() => {
     if (!markets) return { depositMarkets: [], balanceUSD: 0n, collateralUSD: 0n };
@@ -129,16 +131,25 @@ export default function usePortfolio(options?: {
   }, [markets, network]);
 
   const externalAssets = useMemo<ExternalAsset[]>(() => {
-    const tokens = balances?.[network] ?? [];
-    if (!markets || tokens.length === 0) return [];
+    if (!markets) return [];
     const marketAddresses = new Set(markets.map(({ market }) => market.toLowerCase()));
-    return tokens
+    const held = (balances?.[network] ?? [])
       .filter((token) => !marketAddresses.has(token.address.toLowerCase()))
-      .flatMap((token) => {
-        const asset = toExternalAsset(token);
-        return asset ? [asset] : [];
+      .map((token) => {
+        const amount = walletBalances?.[token.address.toLowerCase() as ViemAddress];
+        return amount === undefined ? token : { ...token, amount };
       });
-  }, [balances, markets, network]);
+    const listed = new Set(held.map(({ address }) => address.toLowerCase()));
+    const arrived = Object.entries(walletBalances ?? {}).flatMap(([address, amount]) => {
+      if (amount === 0n || listed.has(address)) return [];
+      const token = lifiTokens?.find((t) => (t.chainId as number) === network && t.address.toLowerCase() === address);
+      return token ? [{ ...token, amount }] : [];
+    });
+    return [...held, ...arrived].flatMap((token) => {
+      const asset = toExternalAsset(token);
+      return asset ? [asset] : [];
+    });
+  }, [balances, lifiTokens, markets, network, walletBalances]);
 
   const crossChainAssets = useMemo<ExternalAsset[]>(() => {
     if (!balances) return [];
