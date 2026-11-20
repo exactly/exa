@@ -130,7 +130,9 @@ export function isUnlinked(error: unknown) {
 
 export const origin = Platform.OS === "web" && !isServer ? window.location.origin : `https://${domain}`;
 
-const api = hc<ExaAPI>(new URL(origin).hostname === "localhost" ? "http://localhost:3000/api" : `${origin}/api`, {
+export const apiURL = new URL(origin).hostname === "localhost" ? "http://localhost:3000/api" : `${origin}/api`;
+
+const api = hc<ExaAPI>(apiURL, {
   init: { credentials: "include" },
   fetch: async (input: Request | string | URL, init?: RequestInit) => {
     const headers = new Headers(init?.headers);
@@ -572,6 +574,10 @@ export async function getStatementActivity(maturity: number) {
 }
 
 let authenticating: Promise<void> | undefined;
+export function authenticated() {
+  return safeParse(Auth, queryClient.getQueryData(["auth"])).success;
+}
+
 export async function auth() {
   if (authenticating) return authenticating;
   if (safeParse(Auth, queryClient.getQueryData<number | undefined>(["auth"])).success) return;
