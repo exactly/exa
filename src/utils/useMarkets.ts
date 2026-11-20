@@ -30,6 +30,7 @@ export default function useMarkets(
   const nextMaturity = now - (now % MATURITY_INTERVAL) + MATURITY_INTERVAL;
   return {
     markets,
+    balances: result.data?.balances,
     supportedAssets,
     rateSnapshot: result.data?.snapshot,
     floatingAssetsAverage: result.data?.floatingAssetsAverage,
