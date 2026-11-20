@@ -1,5 +1,29 @@
 # @exactly/server
 
+## 0.6.0
+
+### Minor Changes
+
+- [#2071](https://github.com/exactly/exa/pull/2071) [`777c9c7`](https://github.com/exactly/exa/commit/777c9c7ce7c5af424859cfcba5b49c1715704696) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 👔 delay account deploys until gas is affordable
+
+### Patch Changes
+
+- [#1935](https://github.com/exactly/exa/pull/1935) [`3239c3e`](https://github.com/exactly/exa/commit/3239c3e13bde53b23f2ad0b7d9d51aa43f4444be) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 report exhausted jobs in their trace
+
+- [#1936](https://github.com/exactly/exa/pull/1936) [`471040a`](https://github.com/exactly/exa/commit/471040a9c1fd9a84be53fe94180f929230dbb57f) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 avoid new kyc during account sync
+
+- [#1935](https://github.com/exactly/exa/pull/1935) [`6b43ec9`](https://github.com/exactly/exa/commit/6b43ec9f90680feee2d23f767194bdf1861f9a7c) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 report workers stuck before ready
+
+- [#2066](https://github.com/exactly/exa/pull/2066) [`403b0df`](https://github.com/exactly/exa/commit/403b0df56167fc968a72e21253c6b11b7826071e) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🧵 wait for queues before ready
+
+- [#1935](https://github.com/exactly/exa/pull/1935) [`b7f03d6`](https://github.com/exactly/exa/commit/b7f03d6a91342b71bb3156b9ec9d32e854f0cddc) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 keep worker errors before ready as breadcrumbs
+
+- [#1936](https://github.com/exactly/exa/pull/1936) [`6a036c4`](https://github.com/exactly/exa/commit/6a036c42beb83257f0113bb5c1be8f7b62f70bfa) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 tolerate persona account sync delay
+
+- [#1935](https://github.com/exactly/exa/pull/1935) [`fb5330b`](https://github.com/exactly/exa/commit/fb5330ba9f59cab51563dfb49a5a4dd6bf914715) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 report worker errors once ready
+
+- [#1935](https://github.com/exactly/exa/pull/1935) [`4fa2568`](https://github.com/exactly/exa/commit/4fa25686dad6ddd3d2fee3d64093bd60b8156e21) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 📈 tag worker spans with messaging system
+
 ## 0.5.2
 
 ### Patch Changes

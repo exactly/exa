@@ -1,5 +1,16 @@
 # @exactly/mobile
 
+## 1.2.60
+
+### Patch Changes
+
+- [#2064](https://github.com/exactly/exa/pull/2064) [`13d24cf`](https://github.com/exactly/exa/commit/13d24cf2b383115b105ead42fa29dd017411ea7e) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 fall back on unsupported provider method
+
+- [#2042](https://github.com/exactly/exa/pull/2042) [`b3ae66e`](https://github.com/exactly/exa/commit/b3ae66e591108287241c399d0ceeff447d31f771) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 switch owner chain before signing
+
+- Updated dependencies [[`3239c3e`](https://github.com/exactly/exa/commit/3239c3e13bde53b23f2ad0b7d9d51aa43f4444be), [`471040a`](https://github.com/exactly/exa/commit/471040a9c1fd9a84be53fe94180f929230dbb57f), [`777c9c7`](https://github.com/exactly/exa/commit/777c9c7ce7c5af424859cfcba5b49c1715704696), [`6b43ec9`](https://github.com/exactly/exa/commit/6b43ec9f90680feee2d23f767194bdf1861f9a7c), [`403b0df`](https://github.com/exactly/exa/commit/403b0df56167fc968a72e21253c6b11b7826071e), [`b7f03d6`](https://github.com/exactly/exa/commit/b7f03d6a91342b71bb3156b9ec9d32e854f0cddc), [`6a036c4`](https://github.com/exactly/exa/commit/6a036c42beb83257f0113bb5c1be8f7b62f70bfa), [`fb5330b`](https://github.com/exactly/exa/commit/fb5330ba9f59cab51563dfb49a5a4dd6bf914715), [`4fa2568`](https://github.com/exactly/exa/commit/4fa25686dad6ddd3d2fee3d64093bd60b8156e21)]:
+  - @exactly/server@0.6.0
+
 ## 1.2.59
 
 ### Patch Changes
