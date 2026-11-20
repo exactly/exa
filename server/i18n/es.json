@@ -12,6 +12,7 @@
   "Payment due soon": "Vencimiento próximo",
   "Refund processed": "Reembolso procesado",
   "Transaction at {{merchantName}} for {{amount}} rejected: {{reason}}": "Transacción en {{merchantName}} por {{amount}} rechazada: {{reason}}",
+  "We received your {{amount}} {{asset}} transfer.": "Recibimos tu transferencia de {{amount}} {{asset}}.",
   "Withdraw completed": "Retiro completado",
   "Withdrawal in progress": "Retiro en curso",
   "Your card is now in credit mode": "Tu tarjeta ahora está en modo crédito",
