@@ -14,7 +14,7 @@ import { useBytecode } from "wagmi";
 
 import chain, { marketUSDCAddress } from "@exactly/common/generated/chain";
 import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
-import { borrowLimit, healthFactor, WAD, withdrawLimit } from "@exactly/lib";
+import { healthFactor, WAD } from "@exactly/lib";
 
 import ArrivalSheet from "./ArrivalSheet";
 import CardStatus from "./CardStatus";
@@ -38,6 +38,7 @@ import reportError from "../../utils/reportError";
 import { activityOptions, cardModeMutationOptions, refreshActivity } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import useBusiness from "../../utils/useBusiness";
+import useCardFunds from "../../utils/useCardFunds";
 import useCardLimit from "../../utils/useCardLimit";
 import useDebts from "../../utils/useDebts";
 import useDeposits from "../../utils/useDeposits";
@@ -104,7 +105,7 @@ export default function Home() {
     chainId: chain.id,
     query: { enabled: !!account },
   });
-  const { portfolio, averageRate, allAssets, totalBalanceUSD } = usePortfolio({ deposits: useDeposits() });
+  const { averageRate, allAssets, totalBalanceUSD } = usePortfolio({ deposits: useDeposits() });
 
   const { data: activity } = useInfiniteQuery({ ...activityOptions, select: ({ pages }) => pages.flat() });
   const {
@@ -112,6 +113,7 @@ export default function Home() {
     proposals: { refetch: refetchPendingProposals },
   } = usePendingOperations();
   const { markets } = useMarkets();
+  const funds = useCardFunds();
   const { approved: isKYCApproved, status: kycStatus, isFetched: isKYCFetched } = useKYC();
   const { data: card, refetch: refetchCard } = useQuery<CardDetails>({
     queryKey: ["card", "details"],
@@ -298,8 +300,8 @@ export default function Home() {
               <View paddingHorizontal="s4" gap="s5">
                 {card && (
                   <CardStatus
-                    collateral={portfolio.collateralUSD}
-                    creditLimit={markets ? borrowLimit(markets, marketUSDCAddress) : 0n}
+                    collateral={funds.collateral}
+                    creditLimit={funds.credit}
                     spotlightRef={spotlightRef}
                     mode={card.mode}
                     onCardPress={() => {
@@ -333,7 +335,7 @@ export default function Home() {
                     onSpendingLimitInfoPress={() => {
                       setSpendingLimitSheetOpen(true);
                     }}
-                    spendingLimit={markets ? withdrawLimit(markets, marketUSDCAddress) : 0n}
+                    spendingLimit={funds.spending}
                   />
                 )}
                 {card?.productId === PLATINUM_PRODUCT_ID && (
