@@ -1,0 +1,59 @@
+From 7bd0cb2d3fc828bfcaa58b837f7c06291d76bbea Mon Sep 17 00:00:00 2001
+From: guillermo dieguez <dev@guillermodieguez.com>
+Date: Fri, 20 Nov 2026 16:21:28 -0300
+Subject: [PATCH] fix: query the iOS status bar once per view hierarchy
+
+Every view hierarchy checks that SpringBoard has a status bar and then resolves the same query again to snapshot it. Each resolution takes about 25 ms on a simulator, so the status bar costs as much as the app's own snapshot, and flows read thousands of hierarchies.
+
+The handler now snapshots the status bar directly while the last read of an app found one. It checks that the status bar exists first after a read without one and whenever SpringBoard is in front, where the status bar query can come up empty and a direct snapshot would wait for it.
+---
+ .../Routes/Handlers/ViewHierarchyHandler.swift      | 13 ++++++++++---
+ 1 file changed, 10 insertions(+), 3 deletions(-)
+
+diff --git a/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ViewHierarchyHandler.swift b/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ViewHierarchyHandler.swift
+index 4db6a78..1b932de 100644
+--- a/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ViewHierarchyHandler.swift
++++ b/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ViewHierarchyHandler.swift
+@@ -9,6 +9,7 @@ struct ViewHierarchyHandler: HTTPHandler {
+     private let springboardApplication = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+     private let snapshotMaxDepth = 60
+     private static var deviceFrame: CGRect?
++    private static var statusBarShown = false
+ 
+     private let logger = Logger(
+         subsystem: Bundle.main.bundleIdentifier!,
+@@ -57,6 +58,9 @@ struct ViewHierarchyHandler: HTTPHandler {
+         let appHierarchy = try getHierarchyWithFallback(foregroundApp)
+         await SystemPermissionHelper.handleSystemPermissionAlertIfNeeded(appHierarchy: appHierarchy, foregroundApp: foregroundApp)
+                 
++        if foregroundApp.bundleID == RunningApp.springboardBundleId {
++            Self.statusBarShown = false
++        }
+         let statusBars = logger.measure(message: "Fetch status bar hierarchy") {
+             fullStatusBars(springboardApplication)
+         } ?? []
+@@ -250,15 +254,18 @@ struct ViewHierarchyHandler: HTTPHandler {
+     }
+     
+     func fullStatusBars(_ element: XCUIApplication) -> [AXElement]? {
+-        guard element.statusBars.firstMatch.exists else {
++        let statusBar = element.statusBars.firstMatch
++        guard Self.statusBarShown || statusBar.exists else {
+             return nil
+         }
+         
+-        guard let statusBar = try? elementHierarchy(xcuiElement: element.statusBars.firstMatch) else {
++        guard let hierarchy = try? elementHierarchy(xcuiElement: statusBar) else {
++            Self.statusBarShown = false
+             return nil
+         }
+ 
+-        return [statusBar]
++        Self.statusBarShown = true
++        return [hierarchy]
+     }
+     
+     /// Fetches the Safari WebView hierarchy for iOS 26+ where SFSafariViewController
+-- 
+2.54.0 (Apple Git-157)
+
