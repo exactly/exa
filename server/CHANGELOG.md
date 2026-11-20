@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.5.2
+
+### Patch Changes
+
+- [#2068](https://github.com/exactly/exa/pull/2068) [`1cf45d6`](https://github.com/exactly/exa/commit/1cf45d650e1eb7de8276aff2ce925a05c3bafba4) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚑️ accept proposals from factory accounts
+
 ## 0.5.1
 
 ### Patch Changes
