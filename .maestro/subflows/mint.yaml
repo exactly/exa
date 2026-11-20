@@ -5,6 +5,4 @@ appId: ${APP_ID ?? "app.exactly"}
 - evalScript: ${output.portfolioBefore = output.portfolio}
 - runFlow: getAccount.yaml
 - runScript: { file: ../dist/mint.js }
-- runFlow:
-    file: poll.yaml
-    env: { until: "Math.round((output.portfolio - output.portfolioBefore) * 100) === output.usd * 100" }
+- runFlow: { file: ../subflows/readPortfolio.yaml, env: { total: "${output.portfolioBefore + output.usd}" } }
