@@ -1,4 +1,4 @@
-From c81b13169e0dbcf92568cbf36c61061657c6f69c Mon Sep 17 00:00:00 2001
+From cf42876775d8a174d3426ed515d2788a2660723e Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Thu, 19 Nov 2026 23:41:27 +0000
 Subject: [PATCH] fix: read the screen instead of waiting in notVisible and
@@ -6,20 +6,20 @@ Subject: [PATCH] fix: read the screen instead of waiting in notVisible and
 
 Both commands look for an element on each pass of their loop, and gave that lookup 500 ms to find it. When the element is missing, which is the reason scrollUntilVisible scrolls, every pass polled the hierarchy for the full 500 ms before it could swipe. A miss also read the hierarchy once more, only to attach it to an error that both commands discard.
 
-scrollUntilVisible keeps the 500 ms lookup on its first pass, for content that shows up right after the previous command, and then reads the screen once per pass: the loop retries until its own timeout, so an element that shows up later is still seen after the next swipe. notVisible keeps its 500 ms lookup, so the element still has to stay missing for 500 ms before the wait ends. Neither builds the discarded error anymore.
+scrollUntilVisible gives its first pass a 150 ms lookup, for content that shows up right after the previous command, and then reads the screen once per pass: the loop retries until its own timeout, so an element that shows up later is still seen after the next swipe. notVisible gives its lookup 150 ms, so the element still has to stay missing across hierarchy reads for 150 ms before the wait ends. Neither builds the discarded error anymore.
 ---
  .../main/java/maestro/orchestra/Orchestra.kt  | 32 +++++++++----------
  1 file changed, 16 insertions(+), 16 deletions(-)
 
 diff --git a/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt b/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
-index f1f3315..64c3b86 100644
+index ada7673..3ba6b11 100644
 --- a/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
 +++ b/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
-@@ -876,10 +876,12 @@ class Orchestra(
+@@ -875,10 +875,12 @@ class Orchestra(
          var retryCenterCount = 0
          val maxRetryCenterCount = 4 // for when the list is no longer scrollable (last element) but the element is visible
  
-+        var lookupTimeoutMs = 500L
++        var lookupTimeoutMs = 150L
          do {
              yield()
 -            try {
@@ -30,7 +30,7 @@ index f1f3315..64c3b86 100644
                  val visibility = element.getVisiblePercentage(deviceInfo.widthGrid, deviceInfo.heightGrid)
  
                  logger.info("Scrolling try count: $retryCenterCount, DeviceWidth: ${deviceInfo.widthGrid}, DeviceWidth: ${deviceInfo.heightGrid}")
-@@ -896,8 +898,8 @@ class Orchestra(
+@@ -895,8 +897,8 @@ class Orchestra(
                  } else if (visibility >= command.visibilityPercentageNormalized) {
                      return true
                  }
@@ -41,7 +41,7 @@ index f1f3315..64c3b86 100644
              }
              maestro.swipeFromCenter(
                  direction,
-@@ -1142,18 +1144,7 @@ class Orchestra(
+@@ -1141,18 +1143,7 @@ class Orchestra(
  
          condition.notVisible?.let {
              val disappeared = MaestroTimer.withTimeoutSuspend(adjustedToLatestInteraction(timeoutMs ?: optionalLookupTimeoutMs)) {
@@ -57,11 +57,11 @@ index f1f3315..64c3b86 100644
 -                    // Element was not visible, as we expected
 -                    true
 -                }
-+                if (findVisibleElement(it, 500L) != null) null else true
++                if (findVisibleElement(it, 150L) != null) null else true
              }
  
              if (disappeared != true) {
-@@ -1513,6 +1504,15 @@ class Orchestra(
+@@ -1497,6 +1488,15 @@ class Orchestra(
      }
  
  
@@ -78,5 +78,5 @@ index f1f3315..64c3b86 100644
          selector: ElementSelector,
          optional: Boolean,
 -- 
-2.43.0
+2.54.0 (Apple Git-157)
 
