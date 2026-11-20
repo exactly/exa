@@ -119,7 +119,7 @@ export default function Review() {
       for (let index = 0; index < (count ?? 0); index++) {
         const borrowAmount = singleInstallment ? amount : split?.amounts[index];
         const borrowMaturity = BigInt(Number(maturity) + index * MATURITY_INTERVAL);
-        if (!borrowAmount) return;
+        if (!borrowAmount) throw new Error("no installment amount");
         const data = encodeFunctionData({
           functionName: "propose",
           abi: [...upgradeableModularAccountAbi, ...exaPluginAbi],
