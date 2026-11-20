@@ -318,6 +318,7 @@ export default function TokenSelectModal({
                   keyExtractor={({ token, external }) => `${token.chainId}:${token.address}:${external}`}
                   showsVerticalScrollIndicator={false}
                   keyboardDismissMode="on-drag"
+                  keyboardShouldPersistTaps="handled"
                   ListFooterComponent={<Inset keyboard offset="s3_5" />}
                   windowSize={5}
                   ListEmptyComponent={() => (

@@ -63,6 +63,10 @@ export default function ModalSheet({
 const RequestCloseContext = createContext<(() => void) | undefined>(undefined);
 
 function SheetWindow({ children }: { children: React.ReactNode }) {
+  useLayoutEffect(() => {
+    Keyboard.dismiss();
+    return () => Keyboard.dismiss();
+  }, []);
   const content = <GestureHandlerRootView collapsable={false}>{children}</GestureHandlerRootView>;
   if (Platform.OS === "ios") {
     return <FullWindowOverlay>{content}</FullWindowOverlay>;
@@ -72,10 +76,6 @@ function SheetWindow({ children }: { children: React.ReactNode }) {
 
 function SheetDialog({ children }: { children: React.ReactNode }) {
   const requestClose = use(RequestCloseContext);
-  useLayoutEffect(() => {
-    Keyboard.dismiss();
-    return () => Keyboard.dismiss();
-  }, []);
   return (
     <Modal
       visible

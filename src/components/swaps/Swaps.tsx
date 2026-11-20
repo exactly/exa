@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Trans, useTranslation } from "react-i18next";
+import { Keyboard } from "react-native";
 import { LinearTransition } from "react-native-reanimated";
 
 import { selectionAsync } from "expo-haptics";
@@ -1053,6 +1054,7 @@ export default function Swaps() {
               ref={swapsScrollReference}
               showsVerticalScrollIndicator={false}
               keyboardDismissMode="on-drag"
+              keyboardShouldPersistTaps="handled"
               flex={1}
             >
               <View padded>
@@ -1154,6 +1156,7 @@ export default function Swaps() {
                         key={`${priced.token.chainId}:${priced.token.address}`}
                         token={priced.token}
                         onPress={() => {
+                          Keyboard.dismiss();
                           router.push({
                             pathname: "/asset",
                             params: {
