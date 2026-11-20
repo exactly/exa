@@ -9,9 +9,10 @@ import { useRouter } from "expo-router";
 
 import { useWindowDimensions } from "tamagui";
 
-import { sdk } from "@farcaster/miniapp-sdk";
+import { AddMiniApp, sdk } from "@farcaster/miniapp-sdk";
 import { TimeToFullDisplay } from "@sentry/react-native";
 import { useQuery } from "@tanstack/react-query";
+import { array, is, string } from "valibot";
 
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
 
@@ -114,7 +115,7 @@ export default function Auth() {
     dialog,
     isPending: loadingAuth,
   } = useAuth(() => {
-    if (isMiniApp) sdk.actions.addMiniApp().catch((error: unknown) => reportError(error, { level: "warning" }));
+    if (isMiniApp) addMiniApp(embeddingContext).catch(reportError);
   });
 
   const loading = loadingAuth || loadingContext || loadingOwner;
@@ -320,6 +321,17 @@ export default function Auth() {
       <TimeToFullDisplay record={stage !== undefined && measured} />
     </SafeView>
   );
+}
+
+async function addMiniApp(host: EmbeddingContext | undefined) {
+  try {
+    const capabilities = await sdk.getCapabilities().catch(() => undefined);
+    if (!is(array(string()), capabilities) || !capabilities.includes("actions.addMiniApp")) return;
+    await sdk.actions.addMiniApp();
+  } catch (error) {
+    if (error instanceof AddMiniApp.RejectedByUser) return;
+    reportError(error, { level: "warning", tags: { host } });
+  }
 }
 
 export type Page = {
