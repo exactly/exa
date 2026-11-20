@@ -62,6 +62,12 @@ export default function networkOptions(account: Address | undefined, chainId: nu
               .flatMap(({ asset, symbol }) => [asset.toLowerCase(), ...(symbol === "WETH" ? [zeroAddress] : [])]),
             lifi: tokens !== undefined,
             timestamp: preview.timestamp,
+            balances: Object.fromEntries([
+              [zeroAddress, preview.balance],
+              ...preview.markets.map(
+                ({ asset }, index) => [asset.toLowerCase(), preview.balances[index] ?? 0n] as const,
+              ),
+            ]) as Record<Address, bigint>,
             ...(contracts && {
               markets: withPreviews(
                 decodeFunctionResult({ abi: previewerAbi, functionName: "exactly", data: preview.exactly }),
