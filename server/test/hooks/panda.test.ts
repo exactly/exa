@@ -72,6 +72,7 @@ import { MATURITY_INTERVAL } from "@exactly/lib";
 import { proposalManager } from "@exactly/plugin/deploy.json";
 
 import database, { cards, credentials, transactions } from "../../database";
+import { borrows } from "../../database/indexer";
 import createPandaHook from "../../hooks/panda";
 import t, { f } from "../../i18n";
 import remember, { limit, key as liquidity } from "../../utils/liquidity";
@@ -86,6 +87,7 @@ import wallet from "../../utils/wallet";
 import createHookQueue from "../../workers/hook/queue";
 import createRefund from "../../workers/refund/queue";
 import anvilClient from "../anvilClient";
+import listen from "../events";
 
 import type { Job as Hook } from "../../workers/hook/job";
 import type { Job as Refund } from "../../workers/refund/job";
@@ -121,6 +123,8 @@ const dependencies = {
 };
 const pandaHook = createPandaHook(dependencies);
 const app = pandaHook.app;
+
+afterAll(() => pandaHook.close());
 
 vi.mock("drizzle-orm/node-postgres", async (importOriginal) => {
   const original = await importOriginal<{ drizzle: typeof Drizzle }>();
@@ -228,6 +232,7 @@ describe("card operations", () => {
 
       it("fails when no issuer checker trusts the issuer", async () => {
         const hook = createPandaHook({ ...dependencies, issuer: privateKeyToAccount(generatePrivateKey()) });
+        onTestFinished(() => hook.close());
         await hook.ready;
 
         const response = await testClient(hook.app).index.$post({
@@ -252,6 +257,7 @@ describe("card operations", () => {
       it("authorizes and collects with previous issuer inside its window", async () => {
         await rotate();
         const hook = createPandaHook(dependencies);
+        onTestFinished(() => hook.close());
         await hook.ready;
         await database
           .insert(cards)
@@ -305,6 +311,7 @@ describe("card operations", () => {
           functionName: "prevIssuerWindow",
         });
         const hook = createPandaHook(dependencies);
+        onTestFinished(() => hook.close());
         await hook.ready;
         const authorizedAt = new Date().toISOString();
         vi.useFakeTimers({ now: Number(timestamp + window + 1n) * 1000, toFake: ["Date"] });
@@ -993,6 +1000,7 @@ describe("card operations", () => {
         await database
           .insert(cards)
           .values([{ id: "credits", credentialId: "cred", tenant: "OP", lastFour: "7890", mode: 1 }]);
+        const events = listen(account);
 
         const response = await appClient.index.$post({
           ...authorization,
@@ -1015,6 +1023,11 @@ describe("card operations", () => {
 
         expect(usdcToCollector(purchaseReceipt)).toBe(BigInt(amount * 1e4));
         expect(response.status).toBe(200);
+        await vi.waitFor(() => expect(events).toHaveBeenCalledTimes(2), { timeout: 30_000 });
+        expect(events).toHaveBeenNthCalledWith(2, "card");
+        await expect(
+          database.select({ id: borrows.id }).from(borrows).where(eq(borrows.hash, purchaseReceipt.transactionHash)),
+        ).resolves.toHaveLength(1);
       });
 
       it("clears with transaction update", async () => {
@@ -2022,7 +2035,7 @@ describe("card operations", () => {
       const client = testClient(hook.app);
 
       beforeAll(() => hook.ready);
-      afterAll(() => queued.close());
+      afterAll(() => Promise.all([queued.close(), hook.close()]));
 
       it("skips panda signatures of base program cards", async () => {
         const amount = 2000;
@@ -3452,6 +3465,7 @@ describe("plugin 1.0.0", () => {
       readContract({ ...parameters, args: [[...factories.versions, ...factories.versions]] }),
     );
     const hook = createPandaHook(dependencies);
+    onTestFinished(() => hook.close());
     await hook.ready;
 
     const { status } = await testClient(hook.app).index.$post({
@@ -5022,6 +5036,7 @@ describe("partial", () => {
     ];
     const reject = () => Promise.reject(failures.shift() ?? new Error("unexpected collection"));
     const hook = createPandaHook(dependencies);
+    onTestFinished(() => hook.close());
     await hook.ready;
     const { calls, results } = vi.mocked(wallet).mock;
     vi.spyOn(keeper, "exaSend").mockImplementationOnce(reject);
@@ -5066,6 +5081,7 @@ describe("partial", () => {
       { abi: exaPluginAbi, functionName: "collectDebit", args: [] },
     );
     const hook = createPandaHook(dependencies);
+    onTestFinished(() => hook.close());
     await hook.ready;
     const { calls, results } = vi.mocked(wallet).mock;
     const send = vi
@@ -5558,6 +5574,7 @@ describe("card notification", () => {
 
 describe("card updated", () => {
   it("deletes canceled card", async () => {
+    const events = listen(account);
     const id = crypto.randomUUID();
     await database.insert(cards).values([{ id, credentialId: "cred", tenant: "OP", lastFour: "7392" }]);
 
@@ -5580,6 +5597,7 @@ describe("card updated", () => {
       properties: { cardId: id, source: null },
     });
     expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account, tenant: "OP" }, cardUpdated.json.id);
+    expect(events).toHaveBeenCalledExactlyOnceWith("card");
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -6073,6 +6091,7 @@ describe("concurrency", () => {
 
   describe("push notifications", () => {
     it("sends notification when the declined transaction is created", async () => {
+      const events = listen(account);
       const sendPushNotificationSpy = sendPushNotificationMock;
       const txId = "insufficient-liquidity-notification-test";
 
@@ -6097,6 +6116,7 @@ describe("concurrency", () => {
 
       expect(response.status).toBe(557);
       expect(sendPushNotificationSpy).not.toHaveBeenCalled();
+      expect(events).not.toHaveBeenCalled();
 
       await appClient.index.$post({
         ...authorization,
@@ -6118,6 +6138,7 @@ describe("concurrency", () => {
       });
 
       await vi.waitFor(() => expect(sendPushNotificationSpy).toHaveBeenCalled());
+      expect(events).toHaveBeenCalledExactlyOnceWith("card");
       expect(sendPushNotificationSpy).toHaveBeenCalledExactlyOnceWith({
         userId: account,
         headings: t("Card •••• {{lastFour}} purchase rejected", { lastFour: "1234" }),
@@ -6770,6 +6791,7 @@ describe("webhooks", () => {
   });
 
   it("enqueues user updated webhooks", async () => {
+    const events = listen(account);
     const response = await appClient.index.$post({
       ...userUpdated,
       json: { ...userUpdated.json, body: { ...userUpdated.json.body, id: "cred" } },
@@ -6779,6 +6801,7 @@ describe("webhooks", () => {
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
     expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
     expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account, tenant: "OP" }, userUpdated.json.id);
+    expect(events).toHaveBeenCalledExactlyOnceWith("kyc");
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -6788,7 +6811,7 @@ describe("webhooks", () => {
     const client = testClient(hook.app);
 
     beforeAll(() => hook.ready);
-    afterAll(() => queued.close());
+    afterAll(() => Promise.all([queued.close(), hook.close()]));
 
     it("enqueues user updated webhooks of base program users", async () => {
       const id = "user-updated-base-program";

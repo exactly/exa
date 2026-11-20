@@ -26,6 +26,7 @@ import createOnesignal from "../../utils/onesignal";
 import createPersona from "../../utils/persona";
 import createBridge from "../../utils/ramps/bridge";
 import createSegment from "../../utils/segment";
+import listen from "../events";
 
 const bridgeConfig = { key: "bridge", url: "https://bridge.test" };
 const personaConfig = { key: "persona", url: "https://persona.test" };
@@ -211,6 +212,7 @@ describe("bridge hook", () => {
   });
 
   it("sends push notification on payment_submitted virtual account", async () => {
+    const events = listen(account);
     vi.spyOn(segment, "track").mockReturnValue();
     const sendPushNotification = sendPushNotificationMock;
     const response = await appClient.index.$post({
@@ -227,6 +229,7 @@ describe("bridge hook", () => {
       idempotencyKey: v5("https://exact.ly/bridge-virtual-account/evt_123", v5.URL),
       topic: "bridge-deposit/deposit_123",
     });
+    expect(events).toHaveBeenCalledExactlyOnceWith("ramp");
   });
 
   it("stacks payment_submitted push without deposit_id", async () => {

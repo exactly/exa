@@ -23,6 +23,17 @@ describe("listen", () => {
     await listener.close();
   });
 
+  it("passes the payload of a custom channel", async () => {
+    const sync = vi.fn((_payload?: string) => Promise.resolve());
+    const listener = listen(pool, sync, undefined, "custom");
+
+    await listener.ready;
+    await pool.query("select pg_notify('custom', 'hello')");
+    await vi.waitFor(() => expect(sync).toHaveBeenCalledWith("hello"));
+    expect(sync.mock.calls[0]?.[0]).toBeUndefined();
+    await listener.close();
+  });
+
   it("captures notification sync failures", async () => {
     const error = new Error("sync");
     const sync = vi
