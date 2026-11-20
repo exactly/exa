@@ -22,6 +22,7 @@ import createOnesignal from "../../utils/onesignal";
 import publicClient from "../../utils/publicClient";
 import createManteca from "../../utils/ramps/manteca";
 import createSegment from "../../utils/segment";
+import listen from "../events";
 
 const provider = { key: "manteca", url: "https://manteca.test" };
 const manteca = createManteca(provider.key, provider.url);
@@ -1106,6 +1107,7 @@ describe("manteca hook", () => {
 
   describe("when a user onboarding is updated", () => {
     it("tracks and notifies when user is active and identity validation is completed", async () => {
+      const events = listen(account);
       vi.spyOn(segment, "track").mockReturnValue();
       const sendPushNotification = sendPushNotificationMock;
       const payload = {
@@ -1140,6 +1142,7 @@ describe("manteca hook", () => {
         contents: t("Your fiat onramp account has been activated"),
         idempotencyKey: v5("https://exact.ly/manteca-user/user123/active", v5.URL),
       });
+      expect(events).toHaveBeenCalledExactlyOnceWith("ramp");
     });
 
     it("captures onboarding notification errors", async () => {

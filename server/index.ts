@@ -25,6 +25,7 @@ import supervise, { own } from "./supervise";
 import createAlchemy from "./utils/alchemy";
 import androidFingerprints from "./utils/android/fingerprints";
 import appOrigin, { origins, related } from "./utils/appOrigin";
+import { close as drain, listen, publisher } from "./utils/events";
 import createIntercom from "./utils/intercom";
 import createMaturity from "./utils/maturity";
 import createOnesignal from "./utils/onesignal";
@@ -86,6 +87,8 @@ const sardine = createSardine(
 );
 const segment = createSegment(parse(pipe(string("segment"), nonEmpty("segment")), env.SEGMENT_WRITE_KEY));
 const subscribe = createSubscribe(redis);
+publisher(database);
+const events = listen(database.$client);
 const walletExtension = createWalletExtension(
   parse(pipe(string("wallet"), nonEmpty("wallet")), env.WALLET_EXTENSION_SECRET),
 );
@@ -512,8 +515,10 @@ export const close = supervise(
       own(
         {
           app,
+          drain,
           ready: Promise.all([
             api.ready,
+            events.ready,
             ...enabledHooks.map(([, { ready }]) => ready),
             ...enabledWorkers.map(({ ready }) => ready),
           ]),
@@ -527,6 +532,7 @@ export const close = supervise(
         () => segment.close(),
         () => subscribe.close(),
         () => webhook.close(),
+        () => events.close(),
       ),
       () => database.$client.end(),
       closeRedis,

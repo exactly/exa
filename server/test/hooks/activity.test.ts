@@ -15,6 +15,7 @@ import {
   hexToBytes,
   padHex,
   parseEther,
+  toHex,
   zeroAddress,
   zeroHash,
   type Address,
@@ -43,6 +44,7 @@ import redis, { bullmq } from "../../utils/redis";
 import { name as pokeName } from "../../workers/poke/job";
 import createPokeQueue from "../../workers/poke/queue";
 import anvilClient from "../anvilClient";
+import listen from "../events";
 
 import type { Job as Poke } from "../../workers/poke/job";
 import type * as C from "@exactly/common/generated/chain";
@@ -73,6 +75,7 @@ const appClient = {
 };
 
 beforeAll(() => activityHook.ready);
+afterAll(() => activityHook.close());
 
 describe("address activity", () => {
   let owner: PrivateKeyAccount;
@@ -119,7 +122,7 @@ describe("address activity", () => {
   it("reports activity on networks without a factory", async () => {
     const current = api();
     current.getWebhooks.mockResolvedValue([webhook("zora", "ZORA_MAINNET")]); // cspell:ignore zora
-    const hook = createHook(current);
+    const hook = testHook(current);
     await hook.ready;
 
     const response = await deliver(hook.app, payload("zora", "ZORA_MAINNET"), "zora-key");
@@ -135,6 +138,7 @@ describe("address activity", () => {
 
   it("ignores transfers to unknown accounts", async () => {
     const sendPushNotification = sendPushNotificationMock;
+    const events = listen(activityPayload.json.event.activity[0].toAddress);
 
     const response = await appClient.index.$post({
       ...activityPayload,
@@ -147,6 +151,7 @@ describe("address activity", () => {
     expect(response.status).toBe(200);
     expect(poke.enqueue).not.toHaveBeenCalled();
     expect(sendPushNotification).not.toHaveBeenCalled();
+    expect(events).not.toHaveBeenCalled();
   });
 
   it("omits the formatted amount when value is 0", async () => {
@@ -398,7 +403,7 @@ describe("address activity", () => {
 
     beforeAll(() => hook.ready);
 
-    afterAll(() => Promise.all([queue.close(), queued.close()]));
+    afterAll(() => Promise.all([queue.close(), queued.close(), hook.close()]));
 
     it("publishes the base program user of the account", async () => {
       const id = `${anvil.id}-${account}-${ETH}`;
@@ -605,6 +610,7 @@ describe("address activity", () => {
 
   it("doesn't send a notification for market shares", async () => {
     const sendPushNotification = sendPushNotificationMock;
+    const events = listen(account);
 
     const response = await appClient.index.$post({
       ...activityPayload,
@@ -625,7 +631,35 @@ describe("address activity", () => {
 
     expect(sendPushNotification).not.toHaveBeenCalled();
     expect(setUser).toHaveBeenCalledWith({ id: account });
+    expect(events).toHaveBeenCalledExactlyOnceWith("activity");
     expect(response.status).toBe(200);
+  });
+
+  it("sends the activity again once the indexer has the block", async () => {
+    const events = listen(account);
+    const block = await anvilClient.getBlockNumber();
+
+    const response = await appClient.index.$post({
+      ...activityPayload,
+      json: {
+        ...activityPayload.json,
+        event: {
+          ...activityPayload.json.event,
+          activity: [
+            {
+              ...activityPayload.json.event.activity[1],
+              blockNum: toHex(block),
+              toAddress: account,
+              rawContract: { address: marketWETHAddress, rawValue: "0x1" },
+            },
+          ],
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await vi.waitFor(() => expect(events).toHaveBeenCalledTimes(2), { timeout: 10_000 });
+    expect(events).toHaveBeenCalledWith("activity");
   });
 
   describe("lifi token filter", () => {
@@ -903,7 +937,7 @@ describe("webhook authentication", () => {
   it("accepts signatures bound to an owned webhook and network", async () => {
     const current = api();
     current.getWebhooks.mockResolvedValue([webhook("activity")]);
-    const hook = createHook(current);
+    const hook = testHook(current);
     await hook.ready;
 
     const response = await deliver(hook.app, payload("activity", "ANVIL"), "activity-key");
@@ -920,7 +954,7 @@ describe("webhook authentication", () => {
       webhook("other-network", "OTHER"),
       webhook("activity"),
     ]);
-    const hook = createHook(current);
+    const hook = testHook(current);
     await hook.ready;
 
     const rejected = await deliver(hook.app, payload("inactive", "ANVIL"), "inactive-key");
@@ -936,7 +970,7 @@ describe("webhook authentication", () => {
     vi.setSystemTime(1000);
     const current = api();
     current.getWebhooks.mockResolvedValueOnce([webhook("old")]).mockResolvedValueOnce([webhook("old"), webhook("new")]);
-    const hook = createHook(current);
+    const hook = testHook(current);
     await hook.ready;
     vi.setSystemTime(2000);
 
@@ -952,7 +986,7 @@ describe("webhook authentication", () => {
     const current = api();
     const refresh = Promise.withResolvers<Webhook[]>();
     current.getWebhooks.mockResolvedValueOnce([webhook("old")]).mockReturnValueOnce(refresh.promise);
-    const hook = createHook(current);
+    const hook = testHook(current);
     await hook.ready;
     vi.setSystemTime(2000);
 
@@ -970,7 +1004,7 @@ describe("webhook authentication", () => {
   it("uses the short refresh cache after an invalid delivery", async () => {
     const current = api();
     current.getWebhooks.mockResolvedValue([webhook("activity")]);
-    const hook = createHook(current);
+    const hook = testHook(current);
     await hook.ready;
 
     const first = await deliver(hook.app, payload("unknown", "ANVIL"), "unknown-key");
@@ -986,7 +1020,7 @@ describe("webhook authentication", () => {
     vi.setSystemTime(1000);
     const current = api();
     current.getWebhooks.mockResolvedValue([webhook("activity")]);
-    const hook = createHook(current);
+    const hook = testHook(current);
     await hook.ready;
     vi.setSystemTime(2000);
 
@@ -1003,7 +1037,7 @@ describe("webhook authentication", () => {
     vi.setSystemTime(1000);
     const current = api();
     current.getWebhooks.mockResolvedValue([webhook("activity")]);
-    const hook = createHook(current);
+    const hook = testHook(current);
     await hook.ready;
     vi.setSystemTime(2000);
 
@@ -1015,7 +1049,7 @@ describe("webhook authentication", () => {
 
   it("rejects malformed and unidentified payloads", async () => {
     const current = api();
-    const hook = createHook(current);
+    const hook = testHook(current);
     await hook.ready;
 
     const malformed = await deliver(hook.app, "{", "key");
@@ -1031,7 +1065,7 @@ describe("webhook authentication", () => {
     const error = new Error("alchemy failed");
     current.getWebhooks.mockRejectedValueOnce(error);
 
-    await expect(createHook(current).ready).rejects.toBe(error);
+    await expect(testHook(current).ready).rejects.toBe(error);
   });
 });
 
@@ -1135,6 +1169,12 @@ function createHook(current = alchemy, queue: ReturnType<typeof createPokeQueue>
     poke: queue,
     redis,
   });
+}
+
+function testHook(current = alchemy) {
+  const hook = createHook(current);
+  onTestFinished(() => hook.close());
+  return hook;
 }
 
 function api() {
