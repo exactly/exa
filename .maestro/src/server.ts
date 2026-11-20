@@ -6,7 +6,7 @@ import { erc20Abi, ethAddress, keccak256, toBytes, toHex, zeroAddress, zeroHash,
 import { publicKeyToAddress } from "viem/accounts";
 import { parseUnits } from "viem/utils";
 
-import { readContract } from "./anvil";
+import anvil, { readContract } from "./anvil";
 
 export function activity(asset: Address, toAddress: Address, value: number, hash: Hash = zeroHash, network?: string) {
   const payload = JSON.stringify({
@@ -20,6 +20,7 @@ export function activity(asset: Address, toAddress: Address, value: number, hash
           toAddress,
           value,
           hash,
+          blockNum: anvil("eth_blockNumber", [], network),
           fromAddress: zeroAddress,
           category: asset === ethAddress ? "external" : "erc20",
           rawContract: {
