@@ -370,8 +370,8 @@ importers:
         specifier: ^1.1.1
         version: 1.1.1(@farcaster/miniapp-sdk@0.2.3(typescript@5.9.3)(zod@4.6.7))(@wagmi/core@3.6.6(@tanstack/query-core@5.95.2)(@types/react@19.2.14)(react@19.2.0)(typescript@5.9.3)(use-sync-external-store@1.6.0(react@19.2.0))(viem@2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7)))(viem@2.57.7(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.6.7))
       '@intercom/intercom-react-native':
-        specifier: ^9.8.0
-        version: 9.8.0(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)
+        specifier: ^10.10.0
+        version: 10.10.0(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)
       '@intercom/messenger-js-sdk':
         specifier: ^0.0.18
         version: 0.0.18
@@ -4118,8 +4118,8 @@ packages:
       '@types/node':
         optional: true
 
-  '@intercom/intercom-react-native@9.8.0':
-    resolution: {integrity: sha512-JryqKMcJyVCiHEqvETd9wRG9UwwRRD3VdXCATtL+a7bsCjpquBlqsEQFs6pcMX9f3U9OM8VHeEIx2b+Hq2/0+Q==}
+  '@intercom/intercom-react-native@10.10.0':
+    resolution: {integrity: sha512-av77lm4q9t1LxExzANajNEhgxWDMpSRO1O6Bj95K6DQGYBlXeLvnWK+/d/ZVbHHWtTQ6U6OlMCLvc+zcavcdvA==}
     engines: {node: '>=18'}
     peerDependencies:
       react: '*'
@@ -20678,7 +20678,7 @@ snapshots:
     optionalDependencies:
       '@types/node': 25.5.0
 
-  '@intercom/intercom-react-native@9.8.0(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)':
+  '@intercom/intercom-react-native@10.10.0(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)':
     dependencies:
       react: 19.2.0
       react-native: 0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10)

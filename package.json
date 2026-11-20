@@ -43,7 +43,7 @@
     "@expo/metro-runtime": "~55.0.6",
     "@farcaster/miniapp-sdk": "^0.2.3",
     "@farcaster/miniapp-wagmi-connector": "^1.1.1",
-    "@intercom/intercom-react-native": "^9.8.0",
+    "@intercom/intercom-react-native": "^10.10.0",
     "@intercom/messenger-js-sdk": "^0.0.18",
     "@lifi/sdk": "3.7.7",
     "@peculiar/asn1-ecc": "^2.6.1",
