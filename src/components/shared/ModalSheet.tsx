@@ -29,6 +29,11 @@ export default function ModalSheet({
   open: boolean;
   scrollsUnderInset?: boolean;
 }) {
+  useLayoutEffect(() => {
+    if (Platform.OS === "web" || !open) return;
+    Keyboard.dismiss();
+    return () => Keyboard.dismiss();
+  }, [open]);
   return (
     <RequestCloseContext value={dismissible ? onClose : undefined}>
       <Sheet
@@ -72,10 +77,6 @@ function SheetWindow({ children }: { children: React.ReactNode }) {
 
 function SheetDialog({ children }: { children: React.ReactNode }) {
   const requestClose = use(RequestCloseContext);
-  useLayoutEffect(() => {
-    Keyboard.dismiss();
-    return () => Keyboard.dismiss();
-  }, []);
   return (
     <Modal
       visible

@@ -164,7 +164,12 @@ export default function AssetSelectSheet({
               </YStack>
             )}
           </View>
-          <ScrollView flex={1} showsVerticalScrollIndicator={false} keyboardDismissMode="on-drag">
+          <ScrollView
+            flex={1}
+            showsVerticalScrollIndicator={false}
+            keyboardDismissMode="on-drag"
+            keyboardShouldPersistTaps="handled"
+          >
             <YStack gap="s4">
               {filteredGroups.map((group) => (
                 <YStack key={group.chain.id} gap="s4">

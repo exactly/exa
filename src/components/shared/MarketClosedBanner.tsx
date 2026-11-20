@@ -1,5 +1,6 @@
 import React from "react";
 import { Trans } from "react-i18next";
+import { Keyboard } from "react-native";
 import { FadeIn, FadeOut } from "react-native-reanimated";
 
 import AnimatedView from "./AnimatedView";
@@ -33,6 +34,7 @@ export default function MarketClosedBanner({ open }: { open: boolean }) {
                 color="uiNeutralPrimary"
                 cursor="pointer"
                 onPress={() => {
+                  Keyboard.dismiss();
                   presentArticle("17155255").catch(reportError);
                 }}
               />
