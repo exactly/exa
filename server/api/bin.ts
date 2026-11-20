@@ -8,6 +8,7 @@ import { array, optional, parse, picklist, pipe, string, transform } from "valib
 import api from ".";
 import * as schema from "../database/schema";
 import supervise, { own } from "../supervise";
+import { close as drain, listen, publisher } from "../utils/events";
 import createIntercom from "../utils/intercom";
 import createPanda from "../utils/panda";
 import createPax from "../utils/pax";
@@ -81,6 +82,8 @@ supervise(
       segment,
       walletExtension,
     ]) => {
+      publisher(database);
+      const events = listen(database.$client);
       const { app, ready } = api({
         authSecret,
         bridge,
@@ -99,7 +102,9 @@ supervise(
         walletExtension,
       });
       return own(
-        { app: new Hono().route("/api", app), ready },
+        own({ app: new Hono().route("/api", app), drain, ready: Promise.all([ready, events.ready]) }, () =>
+          events.close(),
+        ),
         () => database.$client.end(),
         () => secrets.close(),
         () => segment.close(),

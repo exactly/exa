@@ -129,6 +129,23 @@ describe("supervise", () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 
+  it("drains open streams after it stops accepting connections", async () => {
+    const closed = Promise.withResolvers<boolean>();
+    mocks.serverClose.mockReset().mockImplementation((listener) => {
+      closed.promise.then(() => listener()).catch(listener);
+    });
+    const drain = vi.fn(() => closed.resolve(true));
+    superviseApp({ ...createHandle(), drain });
+    await vi.waitFor(() => expect(serve).toHaveBeenCalledOnce());
+
+    signal("SIGTERM");
+    await vi.waitFor(() => expect(mocks.exit).toHaveBeenCalledExactlyOnceWith(0));
+
+    expect(drain).toHaveBeenCalledOnce();
+    expect(mocks.serverClose.mock.invocationCallOrder[0]).toBeLessThan(drain.mock.invocationCallOrder[0] ?? 0);
+    expect(drain.mock.invocationCallOrder[0]).toBeLessThan(mocks.close.mock.invocationCallOrder[0] ?? 0);
+  });
+
   it.each([
     ["service", new ServiceError("Panda", 400, '{"message":"void card"}'), ["{{ default }}", "Panda400", "void card"]],
     [
@@ -431,5 +448,6 @@ function serverError(error: Error) {
 type Handle = {
   check?: boolean;
   close(): Promise<void>;
+  drain?(): void;
   ready: Promise<unknown>;
 };
