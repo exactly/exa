@@ -47,6 +47,7 @@ export default function supervise<App extends Hono | undefined = undefined>(
         if (!active?.listening) return handle.close();
         return new Promise<void>((resolve, reject) => {
           active.close((error) => (error ? reject(error) : resolve()));
+          handle.drain?.();
         }).finally(() => handle.close());
       })
       .catch((error: unknown) => {
@@ -98,5 +99,6 @@ type Handle<App extends Hono | undefined = undefined> = {
   app?: App;
   check?: boolean;
   close(): Promise<unknown>;
+  drain?(): void;
   ready: Promise<unknown>;
 };

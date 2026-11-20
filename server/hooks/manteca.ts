@@ -27,6 +27,7 @@ import { Address } from "@exactly/common/validation";
 
 import { credentials } from "../database/schema";
 import t, { f } from "../i18n";
+import { emit } from "../utils/events";
 import findOperation from "../utils/findOperation";
 import {
   ErrorCodes,
@@ -256,6 +257,7 @@ export default function hook({
         captureException(new Error("credential not found"), { level: "error", contexts: { details: { account } } });
         return c.json({ code: "credential not found" }, 200);
       }
+      emit(account, "ramp");
 
       switch (payload.event) {
         case "DEPOSIT_DETECTED":
