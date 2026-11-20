@@ -38,6 +38,7 @@ import { isPromoted } from "../../utils/promo";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { setCardStatus, type CardDetails } from "../../utils/server";
+import useCardInstallments from "../../utils/useCardInstallments";
 import AnimatedView from "../shared/AnimatedView";
 import Switch from "../shared/Switch";
 import Text from "../shared/Text";
@@ -281,7 +282,7 @@ function PayModeToggle({
 }) {
   const { t } = useTranslation();
   const theme = useTheme();
-  const { data: lastInstallments } = useQuery<number>({ queryKey: ["settings", "installments"] });
+  const { last: lastInstallments } = useCardInstallments();
   const isDebit = mode === 0;
   const [width, setWidth] = useState(0);
   const neutral = theme.uiNeutralSecondary.val;
@@ -358,13 +359,13 @@ function PayModeToggle({
           onPress={() => {
             selectionAsync().catch(reportError);
             if (mode > 0) onInstallmentsPress();
-            else onModeChange(lastInstallments ?? 1);
+            else onModeChange(lastInstallments);
           }}
         >
           <XStack alignItems="center" justifyContent="center" gap="s2" flex={1}>
             <CalendarDays size={16} color={laterColor} />
             <Text headline emphasized style={{ color: laterColor }} maxFontSizeMultiplier={1}>
-              {t("Later in {{count}}", { count: mode > 0 ? mode : (lastInstallments ?? 1) })}
+              {t("Later in {{count}}", { count: mode > 0 ? mode : lastInstallments })}
             </Text>
           </XStack>
         </Pressable>

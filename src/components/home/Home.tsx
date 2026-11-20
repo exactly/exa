@@ -45,6 +45,7 @@ import reportError from "../../utils/reportError";
 import { cardModeMutationOptions } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import useBusiness from "../../utils/useBusiness";
+import useCardInstallments from "../../utils/useCardInstallments";
 import useCardLimit from "../../utils/useCardLimit";
 import useIsBusiness from "../../utils/useIsBusiness";
 import useKYC from "../../utils/useKYC";
@@ -146,7 +147,7 @@ export default function Home() {
     processing: cardLimitProcessing,
   } = useCardLimit(card?.limit.amount);
   const { data: spotlightShown } = useQuery<boolean>({ queryKey: ["settings", "installments-spotlight"] });
-  const { data: lastInstallments } = useQuery<number>({ queryKey: ["settings", "installments"] });
+  const { last: lastInstallments } = useCardInstallments();
   const { data: promoSeen } = useQuery<boolean>({ queryKey: ["settings", "promo-seen", PROMO.id] });
   const { data: stocksIntroShown } = useQuery<boolean>({ queryKey: ["settings", "stocks-intro-shown"] });
   const { data: country } = useQuery<string>({ queryKey: ["user", "country"] });
@@ -190,10 +191,10 @@ export default function Home() {
     const inNowMode = card.mode === 0;
     if (inNowMode && !manualRepaymentAcknowledged) {
       pendingSheetOpenRef.current = true;
-      handleModeChange(lastInstallments ?? 1);
+      handleModeChange(lastInstallments);
       return;
     }
-    if (inNowMode) handleModeChange(lastInstallments ?? 1);
+    if (inNowMode) handleModeChange(lastInstallments);
     setInstallmentsSheetOpen(true);
   }
   function openStocks() {
