@@ -32,9 +32,9 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow:
     when: { true: "${!pay}" }
     commands:
-      - inputText: not-a-real-name.eth
+      - inputText: x.eth
       - extendedWaitUntil: { visible: No address found.*, timeout: 15000 }
-      - eraseText: 19
+      - eraseText: 5
       - inputText: "0xdead"
       - eraseText: 6
       - inputText: ${to}
