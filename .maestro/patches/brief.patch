@@ -1,22 +1,22 @@
-From 4a7201ecdabb0211d758d7d5557567dd8936fff1 Mon Sep 17 00:00:00 2001
+From f03f5c83c101ae3780072b325bcc870d26fda210 Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Thu, 19 Nov 2026 23:54:24 +0000
-Subject: [PATCH] fix: hold iOS taps for 50 ms
+Subject: [PATCH] fix: lift iOS taps right after touching down
 
-Every iOS tap holds the finger down for 100 ms before lifting it, which is longer than a person's tap and adds to every tap a flow makes. Holding for 50 ms still registers as a tap in UIKit and React Native, and swipes keep their 100 ms start.
+Every iOS tap holds the finger down for 100 ms before lifting it, which is longer than a person's tap and adds to every tap a flow makes. Lifting right after the touch down still registers as a tap in UIKit and React Native, and swipes keep their 100 ms start.
 ---
  .../maestro-driver-iosUITests/Routes/XCTest/EventRecord.swift  | 3 ++-
  1 file changed, 2 insertions(+), 1 deletion(-)
 
 diff --git a/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/XCTest/EventRecord.swift b/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/XCTest/EventRecord.swift
-index b743739..6abbd99 100644
+index b743739..fed48b1 100644
 --- a/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/XCTest/EventRecord.swift
 +++ b/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/XCTest/EventRecord.swift
 @@ -5,6 +5,7 @@ import UIKit
  final class EventRecord: NSObject {
      let eventRecord: NSObject
      static let defaultTapDuration = 0.1
-+    static let tapDuration = 0.05
++    static let tapDuration = 0.0
  
      enum Style: String {
          case singeFinger = "Single-Finger Touch Action"
@@ -30,5 +30,5 @@ index b743739..6abbd99 100644
          return add(path)
      }
 -- 
-2.43.0
+2.54.0 (Apple Git-157)
 
