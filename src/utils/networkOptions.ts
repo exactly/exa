@@ -37,7 +37,17 @@ export default function networkOptions(account: Address | undefined, chainId: nu
             ),
           ];
           const contracts = chains.get(chainId);
-          const preview = await readContract(exaConfig, {
+          const {
+            markets,
+            exactly,
+            snapshot,
+            timestamp,
+            floatingAssetsAverage,
+            proposalManager,
+            allowed,
+            balance,
+            balances,
+          } = await readContract(exaConfig, {
             chainId,
             abi: appPreviewerAbi,
             address: previewerAddress,
@@ -54,21 +64,23 @@ export default function networkOptions(account: Address | undefined, chainId: nu
           });
           return {
             allowlist:
-              preview.proposalManager.proposalManager === zeroAddress
-                ? null
-                : targets.filter((_, index) => preview.allowed[index]),
+              proposalManager.proposalManager === zeroAddress ? null : targets.filter((_, index) => allowed[index]),
             lifi: tokens !== undefined,
-            timestamp: preview.timestamp,
+            timestamp,
+            balances: Object.fromEntries([
+              [zeroAddress, balance],
+              ...markets.map(({ asset }, index) => [asset.toLowerCase(), balances[index] ?? 0n] as const),
+            ]) as Record<Address, bigint>,
             ...(contracts && {
               markets: withPreviews(
-                decodeFunctionResult({ abi: previewerAbi, functionName: "exactly", data: preview.exactly }),
-                preview.markets,
+                decodeFunctionResult({ abi: previewerAbi, functionName: "exactly", data: exactly }),
+                markets,
               ).map((market) => ({ ...market, chainId })),
               snapshot:
-                preview.snapshot === "0x"
+                snapshot === "0x"
                   ? undefined
-                  : decodeFunctionResult({ abi: ratePreviewerAbi, functionName: "snapshot", data: preview.snapshot }),
-              floatingAssetsAverage: preview.floatingAssetsAverage,
+                  : decodeFunctionResult({ abi: ratePreviewerAbi, functionName: "snapshot", data: snapshot }),
+              floatingAssetsAverage,
             }),
           };
         }
