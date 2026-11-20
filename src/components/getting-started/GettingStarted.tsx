@@ -147,7 +147,7 @@ export default function GettingStarted() {
                                 chain: chain.name,
                               })
                             : t(
-                                "Your Exa Card only works with funds on this network. Deposits on other networks won’t count until they’re bridged.",
+                                "Your Exa Card works with collateral on every supported network. Deposits on other networks won’t count until they’re bridged.",
                               ),
                         action: t("Learn more about collateral"),
                         onPress: () => {
@@ -194,11 +194,11 @@ function CurrentStep({ id, approved }: { approved: boolean; id: "add-funds" | "c
           {addFunds
             ? approved
               ? t(
-                  "Bank transfers arrive as USDC automatically. Digital assets need to be sent on {{chain}}. Deposits on other networks won’t count until they’re bridged.",
+                  "Bank transfers arrive as USDC automatically. Digital assets need to be sent on {{chain}}. Deposits on unsupported networks won’t count until they’re bridged.",
                   { chain: chain.name },
                 )
               : t(
-                  "Your Exa Card only works with funds on this network. Deposits on other networks won’t count until they’re bridged.",
+                  "Your Exa Card works with collateral on every supported network. Deposits on other networks won’t count until they’re bridged.",
                 )
             : t(
                 "Verifying your identity grants you access to our onchain Exa Card, enabling you to easily spend your digital assets. You must be 18 or older to get the card.",
