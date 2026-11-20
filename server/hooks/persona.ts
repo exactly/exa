@@ -36,6 +36,7 @@ import { CLASSIC_PRODUCT_ID } from "@exactly/common/panda";
 import { Address } from "@exactly/common/validation";
 
 import { cards, credentials } from "../database/schema";
+import { emit } from "../utils/events";
 import { home, homeFirst, pandaUser } from "../utils/panda";
 import {
   ADDRESS_TEMPLATE,
@@ -317,7 +318,7 @@ export default function hook({
           .getInquiryById(inquiryId)
           .then((r) => r.data.attributes);
         const credential = await database.query.credentials.findFirst({
-          columns: { otherPandaId: true, pandaId: true },
+          columns: { account: true, otherPandaId: true, pandaId: true },
           where: eq(credentials.id, referenceId),
           with: {
             cards: {
@@ -379,6 +380,7 @@ export default function hook({
               }),
           ),
         );
+        emit(parse(Address, credential.account), "kyc");
         return c.json({ code: "ok" }, 200);
       }
       if (payload.template === "manteca") {
@@ -487,6 +489,7 @@ export default function hook({
               productId: CLASSIC_PRODUCT_ID,
             },
           ]);
+          emit(account, "kyc");
           return c.json({ code: "ok" }, 200);
         } catch (error) {
           if (
@@ -656,6 +659,7 @@ export default function hook({
         .catch((error: unknown) => {
           captureException(error, { level: "fatal", extra: { referenceId } });
         });
+      if (account.success) emit(account.output, "kyc");
 
       return c.json({ id }, 200);
     },

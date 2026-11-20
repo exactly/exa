@@ -6,6 +6,7 @@ import { Redis } from "ioredis";
 import * as schema from "../../database/schema";
 import supervise, { own } from "../../supervise";
 import createAlchemy from "../../utils/alchemy";
+import { publisher } from "../../utils/events";
 import createOnesignal from "../../utils/onesignal";
 import createPersona from "../../utils/persona";
 import createManteca from "../../utils/ramps/manteca";
@@ -21,7 +22,7 @@ supervise(
   Promise.all([
     secret("block-alchemy-webhooks-key", secrets).then((key) => createAlchemy(key)),
     secret("block-alchemy-block-key", secrets),
-    secret("block-postgres-url", secrets).then((url) => drizzle(url, { schema })),
+    secret("block-postgres-url", secrets).then((url) => publisher(drizzle(url, { schema }))),
     signer("executor", kms),
     Promise.all([secret("block-manteca-api-key", secrets), secret("manteca-api-url", secrets)]).then(([key, url]) =>
       createManteca(key, url),
