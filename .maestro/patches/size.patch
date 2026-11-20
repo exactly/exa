@@ -1,0 +1,67 @@
+From ff7e01bc43971399bd4f76f3ffd2f67934603694 Mon Sep 17 00:00:00 2001
+From: guillermo dieguez <dev@guillermodieguez.com>
+Date: Fri, 20 Nov 2026 09:08:53 -0300
+Subject: [PATCH] fix: cache iOS device info until the orientation or app
+ changes
+
+Every view hierarchy read asks the runner for device info first, about a thousand times in a long flow, and each round trip takes about 4 ms on a simulator. The runner already caches the screen size per app and orientation, so the driver now keeps the last answer and asks again only after it sets the orientation, launches or stops an app, or opens a link.
+---
+ maestro-client/src/main/java/maestro/drivers/IOSDriver.kt | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt b/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt
+index 01a1492..6c0b290 100644
+--- a/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt
+@@ -77,6 +77,7 @@ class IOSDriver(
+ ) : Driver {
+ 
+     private var untouched = false
++    private var deviceInfo: DeviceInfo? = null
+ 
+     private val metrics = metricsProvider.withPrefix("maestro.driver").withTags(mapOf("platform" to "ios", "deviceId" to iosDevice.deviceId).filterValues { it != null }.mapValues { it.value!! })
+ 
+@@ -115,7 +116,7 @@ class IOSDriver(
+ 
+     override fun deviceInfo(): DeviceInfo {
+         return metrics.measured("operation", mapOf("command" to "deviceInfo")) {
+-            runDeviceCall("deviceInfo") { iosDevice.deviceInfo().toCommonDeviceInfo() }
++            deviceInfo ?: runDeviceCall("deviceInfo") { iosDevice.deviceInfo().toCommonDeviceInfo() }.also { deviceInfo = it }
+         }
+     }
+ 
+@@ -126,6 +127,7 @@ class IOSDriver(
+         metrics.measured("operation", mapOf("command" to "launchApp", "appId" to appId)) {
+             iosDevice.launch(appId, launchArguments)
+             untouched = false
++            deviceInfo = null
+             this.appId = appId
+         }
+     }
+@@ -134,6 +136,7 @@ class IOSDriver(
+         metrics.measured("operation", mapOf("command" to "stopApp", "appId" to appId)) {
+             iosDevice.stop(appId)
+             untouched = false
++            deviceInfo = null
+         }
+     }
+ 
+@@ -450,6 +453,7 @@ class IOSDriver(
+         metrics.measured("operation", mapOf("command" to "openLink", "appId" to appId.toString(), "autoVerify" to autoVerify.toString(), "browser" to browser.toString())) {
+             iosDevice.openLink(link).expect {}
+             untouched = false
++            deviceInfo = null
+         }
+     }
+ 
+@@ -462,6 +466,7 @@ class IOSDriver(
+     override fun setOrientation(orientation: DeviceOrientation) {
+         metrics.measured("operation", mapOf("command" to "setOrientation")) {
+             runDeviceCall("setOrientation") { iosDevice.setOrientation(orientation.camelCaseName) }
++            deviceInfo = null
+         }
+     }
+ 
+-- 
+2.54.0 (Apple Git-157)
+
