@@ -37,27 +37,40 @@ export default function networkOptions(account: Address | undefined, chainId: nu
             ),
           ];
           const contracts = chains.get(chainId);
-          const { markets, exactly, snapshot, timestamp, floatingAssetsAverage, proposalManager, allowed } =
-            await readContract(exaConfig, {
-              chainId,
-              abi: appPreviewerAbi,
-              address: previewerAddress,
-              functionName: "preview",
-              args: [
-                account,
-                contracts?.auditor ?? zeroAddress,
-                contracts?.previewer ?? zeroAddress,
-                contracts?.ratePreviewer ?? zeroAddress,
-                contracts?.marketUSDC ?? zeroAddress,
-                targets,
-              ],
-              stateOverride: [{ address: previewerAddress, code: appPreviewerDeployedCode }],
-            });
+          const {
+            markets,
+            exactly,
+            snapshot,
+            timestamp,
+            floatingAssetsAverage,
+            proposalManager,
+            allowed,
+            balance,
+            balances,
+          } = await readContract(exaConfig, {
+            chainId,
+            abi: appPreviewerAbi,
+            address: previewerAddress,
+            functionName: "preview",
+            args: [
+              account,
+              contracts?.auditor ?? zeroAddress,
+              contracts?.previewer ?? zeroAddress,
+              contracts?.ratePreviewer ?? zeroAddress,
+              contracts?.marketUSDC ?? zeroAddress,
+              targets,
+            ],
+            stateOverride: [{ address: previewerAddress, code: appPreviewerDeployedCode }],
+          });
           return {
             allowlist:
               proposalManager.proposalManager === zeroAddress ? null : targets.filter((_, index) => allowed[index]),
             lifi: tokens !== undefined,
             timestamp,
+            balances: Object.fromEntries([
+              [zeroAddress, balance],
+              ...markets.map(({ asset }, index) => [asset.toLowerCase(), balances[index] ?? 0n] as const),
+            ]) as Record<Address, bigint>,
             ...(contracts && {
               markets: withPreviews(
                 decodeFunctionResult({ abi: previewerAbi, functionName: "exactly", data: exactly }),
