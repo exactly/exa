@@ -1,0 +1,39 @@
+From 68c8ad58fecd42bb38f21b1789d70e8f22227da2 Mon Sep 17 00:00:00 2001
+From: guillermo dieguez <dev@guillermodieguez.com>
+Date: Fri, 20 Nov 2026 00:21:29 -0300
+Subject: [PATCH] fix: read the iOS device frame once per runner
+
+every view hierarchy request resolves springboard again only to read its frame, which costs about 11 ms on a simulator, and a flow reads the hierarchy several times per command.
+
+the frame is the screen in portrait dimensions, as the orientation check below it already relies on, so it does not change while the runner lives. the handler keeps the first non-empty frame and reads it from there.
+---
+ .../Routes/Handlers/ViewHierarchyHandler.swift              | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ViewHierarchyHandler.swift b/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ViewHierarchyHandler.swift
+index 7b16cca..4db6a78 100644
+--- a/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ViewHierarchyHandler.swift
++++ b/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ViewHierarchyHandler.swift
+@@ -8,6 +8,7 @@ struct ViewHierarchyHandler: HTTPHandler {
+ 
+     private let springboardApplication = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+     private let snapshotMaxDepth = 60
++    private static var deviceFrame: CGRect?
+ 
+     private let logger = Logger(
+         subsystem: Bundle.main.bundleIdentifier!,
+@@ -65,7 +66,10 @@ struct ViewHierarchyHandler: HTTPHandler {
+             getSafariWebViewHierarchy()
+         }
+ 
+-        let deviceFrame = springboardApplication.frame
++        let deviceFrame = Self.deviceFrame ?? springboardApplication.frame
++        if !deviceFrame.isEmpty {
++            Self.deviceFrame = deviceFrame
++        }
+         let deviceAxFrame = [
+             "X": Double(deviceFrame.minX),
+             "Y": Double(deviceFrame.minY),
+-- 
+2.54.0 (Apple Git-157)
+
