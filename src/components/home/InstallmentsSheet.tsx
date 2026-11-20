@@ -8,13 +8,12 @@ import { useRouter } from "expo-router";
 
 import { View, XStack, YStack } from "tamagui";
 
-import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
-
 import { Info } from "../../generated/icons/Info";
 import { X } from "../../generated/icons/X";
 import { presentArticle } from "../../utils/intercom";
 import { getPromoMonths, isPromoActive, isPromoted } from "../../utils/promo";
 import reportError from "../../utils/reportError";
+import useCardInstallments from "../../utils/useCardInstallments";
 import useInstallmentRates from "../../utils/useInstallmentRates";
 import IconButton from "../shared/IconButton";
 import ModalSheet from "../shared/ModalSheet";
@@ -48,6 +47,7 @@ export default function InstallmentsSheet({
   const [kept, setKept] = useState(latest);
   if (latest && latest !== kept) setKept(latest);
   const rates = open ? latest : kept;
+  const { max } = useCardInstallments();
   const [width, setWidth] = useState(0);
   const handleLayout = useCallback((event: { nativeEvent: { layout: { width: number } } }) => {
     setWidth(event.nativeEvent.layout.width);
@@ -55,8 +55,9 @@ export default function InstallmentsSheet({
   const perPage = Math.max(1, Math.floor((width - 2 * PADDING + GAP) / (CARD_SIZE + GAP)));
   const pageWidth = perPage * (CARD_SIZE + GAP);
   const pages: number[][] = [];
-  for (let index = 0; index < INSTALLMENTS.length; index += perPage) {
-    pages.push(INSTALLMENTS.slice(index, index + perPage));
+  const installments = Array.from({ length: max }, (_, index) => index + 1);
+  for (let index = 0; index < installments.length; index += perPage) {
+    pages.push(installments.slice(index, index + perPage));
   }
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
@@ -113,7 +114,7 @@ export default function InstallmentsSheet({
                   height={CARD_SIZE}
                   style={{ width: width - PADDING - GAP, marginLeft: PADDING, overflow: "visible" }}
                   data={pages}
-                  defaultIndex={Math.floor((Math.max(mode, 1) - 1) / perPage)}
+                  defaultIndex={Math.min(Math.floor((Math.max(mode, 1) - 1) / perPage), pages.length - 1)}
                   loop={false}
                   overscrollEnabled={false}
                   renderItem={({ item: page }) => (
@@ -223,4 +224,3 @@ export default function InstallmentsSheet({
 const CARD_SIZE = 104;
 const GAP = 8;
 const PADDING = 16;
-const INSTALLMENTS = Array.from({ length: MAX_INSTALLMENTS }, (_, index) => index + 1);

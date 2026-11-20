@@ -4,14 +4,13 @@ import { Pressable } from "react-native";
 
 import { XStack, YStack } from "tamagui";
 
-import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
-
 import { CalendarDays } from "../../generated/icons/CalendarDays";
 import { ExternalLink } from "../../generated/icons/ExternalLink";
 import { X } from "../../generated/icons/X";
 import { Zap } from "../../generated/icons/Zap";
 import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
+import useCardInstallments from "../../utils/useCardInstallments";
 import IconButton from "../shared/IconButton";
 import ModalSheet from "../shared/ModalSheet";
 import Button from "../shared/StyledButton";
@@ -19,6 +18,7 @@ import Text from "../shared/Text";
 
 export default function PayModeSheet({ onClose, open }: { onClose: () => void; open: boolean }) {
   const { t } = useTranslation();
+  const { max } = useCardInstallments();
   return (
     <ModalSheet open={open} onClose={onClose} disableDrag>
       <YStack gap="s7" borderTopLeftRadius="r5" borderTopRightRadius="r5" backgroundColor="backgroundSoft">
@@ -92,7 +92,7 @@ export default function PayModeSheet({ onClose, open }: { onClose: () => void; o
               <Text subHeadline secondary textAlign="center">
                 {t(
                   "Pay without selling your crypto. Use it as collateral to unlock a credit limit and split purchases into up to {{max}} installments.",
-                  { max: MAX_INSTALLMENTS },
+                  { max },
                 )}
               </Text>
             </YStack>
