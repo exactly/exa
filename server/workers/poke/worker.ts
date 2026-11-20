@@ -179,6 +179,7 @@ export default function worker({
         const notAllowed = `NotAllowed(${job.data.account})`;
         const pending: Address[] = [];
         let poked = false;
+        let moved = false;
         for (const [index, { asset, balance }] of balances.entries()) {
           if (hasETH && asset === WETH) continue;
           if (balance === 0n) {
@@ -210,6 +211,7 @@ export default function worker({
           }
           if (reason === MARKET_FROZEN) continue;
           if (!receipt) {
+            if (reason === NO_BALANCE) moved = true;
             pending.push(asset);
             continue;
           }
@@ -228,7 +230,7 @@ export default function worker({
           }
         }
         const users = [job.data.pandaId, job.data.otherPandaId].flatMap((user) => (user ? [user] : []));
-        if (poked && users.length > 0) {
+        if ((poked || moved) && users.length > 0) {
           await remember(bullmq, users, job.data.account, chain.id).catch((error: unknown) =>
             captureException(error, { level: "warning", tags: { chainId: chain.id } }),
           );
