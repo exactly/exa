@@ -1,0 +1,42 @@
+From 8a032dc4c9a1da7fe9decc9a869ba63028f5cfa6 Mon Sep 17 00:00:00 2001
+From: guillermo dieguez <dev@guillermodieguez.com>
+Date: Fri, 20 Nov 2026 19:32:55 -0300
+Subject: [PATCH] fix: hold long presses for two seconds
+
+longPressOn holds the finger down for three seconds on iOS and Android. Gesture recognizers fire well before that, UIKit's long press after half a second, so every long press spends most of its time held after it has already registered.
+
+Both drivers now hold for two seconds, which still covers long presses that wait for more than a second, such as hold-to-confirm buttons.
+---
+ maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt | 2 +-
+ maestro-client/src/main/java/maestro/drivers/IOSDriver.kt     | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt b/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
+index 1f44467..8822e67 100644
+--- a/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
+@@ -281,7 +281,7 @@ class AndroidDriver(
+ 
+     override fun longPress(point: Point) {
+         metrics.measured("operation", mapOf("command" to "longPress")) {
+-            shell("input swipe ${point.x} ${point.y} ${point.x} ${point.y} 3000")
++            shell("input swipe ${point.x} ${point.y} ${point.x} ${point.y} 2000")
+         }
+     }
+ 
+diff --git a/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt b/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt
+index 4b2355f..4988d98 100644
+--- a/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt
+@@ -169,7 +169,7 @@ class IOSDriver(
+ 
+     override fun longPress(point: Point) {
+         metrics.measured("operation", mapOf("command" to "longPress")) {
+-            runDeviceCall("longPress") { iosDevice.longPress(point.x, point.y, 3000) }
++            runDeviceCall("longPress") { iosDevice.longPress(point.x, point.y, 2000) }
+         }
+     }
+ 
+-- 
+2.54.0 (Apple Git-157)
+
