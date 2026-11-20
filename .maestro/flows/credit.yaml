@@ -48,6 +48,12 @@ env:
     while: { true: "${output.deposited !== 1500 && Date.now() < output.deadline}" }
     commands: [{ runScript: { file: ../dist/deposited.js, env: { account: "${output.account}", network: Anvil2 } } }]
 - assertTrue: ${output.deposited === 1500}
+- tapOn: Home
+- runFlow: { file: ../subflows/scrollTo.yaml, env: { element: Credit limit, center: true } }
+- extendedWaitUntil:
+    visible: { text: '[1-9],\d{3}\.\d{2}', rightOf: Credit limit }
+    timeout: 30000
+- tapOn: Home
 - runScript:
     file: ../dist/purchase.js
     env: { merchant: Electronics, amount: "899.99", mode: "1", credentialId: "${output.credential}" }
