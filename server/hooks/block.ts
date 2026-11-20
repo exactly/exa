@@ -110,6 +110,8 @@ export default function hook({
     return mutex;
   }
 
+  const initialized = new Set<string>();
+  const foreign = new Map<string, number>();
   let emitters: Promise<Set<Address>> | undefined;
   function proposalEmitters() {
     emitters ??= discoverEmitters(chainId).catch((error: unknown) => {
@@ -249,13 +251,22 @@ export default function hook({
               .findMany({ columns: { account: true }, where: inArray(credentials.account, accounts) })
               .then((rows) => new Set(rows.map(({ account }) => account)))
           : new Set<string>();
-      const known = new Set([
-        ...credentialed,
-        ...(await initializedAccounts(
-          accounts.filter((account) => !credentialed.has(account)),
-          number,
-        )),
-      ]);
+      const now = Date.now();
+      for (const [account, expiry] of foreign) if (expiry <= now) foreign.delete(account);
+      const uncached = accounts.filter(
+        (account) => !credentialed.has(account) && !initialized.has(account) && !foreign.has(account),
+      );
+      const lookups = await initializedAccounts(uncached, number);
+      for (const lookup of lookups) {
+        if (lookup.status === "rejected") continue;
+        for (const account of lookup.value.batch) {
+          if (lookup.value.found.has(account)) initialized.add(account);
+          else foreign.set(account, now + FOREIGN_TTL);
+        }
+      }
+      const failed = lookups.find((lookup) => lookup.status === "rejected");
+      if (failed) throw failed.reason;
+      const known = new Set(accounts.filter((account) => credentialed.has(account) || initialized.has(account)));
       const unknown = accounts.filter((account) => !known.has(account));
       if (unknown.length > 0) getActiveSpan()?.setAttribute("exa.unknown", unknown);
       const proposalsByAccount = new Map(proposed.entries().filter(([account]) => known.has(account)));
@@ -803,21 +814,31 @@ const legacyEmitters: Partial<Record<number, { factories: Address[]; plugins: Ad
   },
 };
 
+const LOOKUP_BATCH = 100;
+const FOREIGN_TTL = 5 * 60_000;
+
 async function initializedAccounts(accounts: string[], blockNumber?: number) {
   if (accounts.length === 0) return [];
   const toBlock = blockNumber === undefined ? undefined : BigInt(blockNumber);
   if (toBlock !== undefined && (await publicClient.getBlockNumber({ cacheTime: 0 })) < toBlock) {
     throw new Error("rpc behind block");
   }
-  const logs = await publicClient.getLogs({
-    address: [...validFactories],
-    event: getAbiItem({ abi: exaAccountFactoryAbi, name: "ExaAccountInitialized" }),
-    args: { account: accounts.map((account) => v.parse(Address, account)) },
-    toBlock: toBlock ?? "latest",
-    fromBlock: 0n,
-    strict: true,
-  });
-  return logs.map(({ args }) => args.account);
+  const batches = Array.from({ length: Math.ceil(accounts.length / LOOKUP_BATCH) }, (_, index) =>
+    accounts.slice(index * LOOKUP_BATCH, (index + 1) * LOOKUP_BATCH),
+  );
+  return Promise.allSettled(
+    batches.map(async (batch) => {
+      const logs = await publicClient.getLogs({
+        address: [...validFactories],
+        event: getAbiItem({ abi: exaAccountFactoryAbi, name: "ExaAccountInitialized" }),
+        args: { account: batch.map((account) => v.parse(Address, account)) },
+        toBlock: toBlock ?? "latest",
+        fromBlock: 0n,
+        strict: true,
+      });
+      return { batch, found: new Set<string>(logs.map(({ args }) => args.account)) };
+    }),
+  );
 }
 
 function discoverEmitters(chainId: number) {
