@@ -1847,31 +1847,160 @@ describe("legacy withdraw", () => {
     return payload;
   }
 
+  async function proposedAtHead(account: Address) {
+    const payload = await payloadAtHead(1n, withdrawAccount);
+    payload.json.event.data.block.logs = [proposedLog(account)];
+    return payload;
+  }
+
+  function proposedLog(account: Address) {
+    const proposed = getAbiItem({ abi: proposalManagerAbi, name: "Proposed" });
+    return {
+      topics: encodeEventTopics({
+        abi: [proposed],
+        args: { account, nonce: 0n, market: withdrawMarket },
+      }) as [Hex, ...Hex[]],
+      data: encodeAbiParameters(
+        proposed.inputs.filter(({ indexed }) => !indexed),
+        [ProposalType.Withdraw, 1n, encodeAbiParameters([{ type: "address" }], [account]), 1n],
+      ),
+      account: { address: proposalManagerAddress },
+    };
+  }
+
   it("schedules proposals from factory accounts without credentials", async () => {
     const account = await createFactoryAccount();
-    const proposed = getAbiItem({ abi: proposalManagerAbi, name: "Proposed" });
     const payload = await payloadAtHead(1n, account);
-    payload.json.event.data.block.logs = [
-      {
-        topics: encodeEventTopics({
-          abi: [proposed],
-          args: { account, nonce: 0n, market: withdrawMarket },
-        }) as [Hex, ...Hex[]],
-        data: encodeAbiParameters(
-          proposed.inputs.filter(({ indexed }) => !indexed),
-          [ProposalType.Withdraw, 1n, encodeAbiParameters([{ type: "address" }], [account]), 1n],
-        ),
-        account: { address: proposalManagerAddress },
-      },
-    ];
+    payload.json.event.data.block.logs = [proposedLog(account)];
     const zadd = spyZadd();
+    const setAttribute = spySetAttribute();
 
     const response = await appClient.index.$post(payload);
 
     expect(response.status).toBe(200);
-    expect(zadd.mock.calls.filter(([key, , member]) => key === "proposals" && member.includes(account))).toHaveLength(
-      1,
-    );
+    expect(zadd.mock.calls.filter((call) => call[0] === "proposals" && call[2].includes(account))).toHaveLength(1);
+    expect(setAttribute).not.toHaveBeenCalledWith("exa.unknown", expect.anything());
+    expect(capturedFor(account)).toEqual([]);
+  });
+
+  it("looks up each factory account once", async () => {
+    const account = await createFactoryAccount();
+    const lookups = vi.spyOn(publicClient, "getLogs");
+    const zadd = spyZadd();
+    const setAttribute = spySetAttribute();
+
+    const first = await appClient.index.$post(await payloadAtHead(1_100_000n, account));
+    const second = await appClient.index.$post(await payloadAtHead(1_200_000n, account));
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(lookups.mock.calls.filter(([parameters]) => inspect(parameters?.args).includes(account))).toHaveLength(1);
+    expect(
+      zadd.mock.calls
+        .filter(([key, , member]) => key === "withdraw" && member.includes(account))
+        .map((call) => deserialize<{ amount: bigint }>(call[2]).amount),
+    ).toStrictEqual([1_100_000n, 1_200_000n]);
+    expect(setAttribute).not.toHaveBeenCalledWith("exa.unknown", expect.anything());
+  });
+
+  it("keeps settled batches when another batch fails", async () => {
+    const account = await createFactoryAccount();
+    const accounts = [account, ...Array.from({ length: 100 }, () => privateKeyToAccount(generatePrivateKey()).address)];
+    const payload = await payloadAtHead(1n, withdrawAccount);
+    payload.json.event.data.block.logs = accounts.map((address) => proposedLog(address));
+    const original = publicClient.getLogs.bind(publicClient);
+    const lookups = vi
+      .spyOn(publicClient, "getLogs")
+      .mockImplementation((parameters) =>
+        inspect(parameters?.args).includes(account) ? original(parameters) : Promise.reject(new Error("rpc failure")),
+      );
+
+    const zadd = spyZadd();
+    const setAttribute = spySetAttribute();
+
+    const failed = await appClient.index.$post(payload);
+    const queuedOnFailure = zadd.mock.calls.filter((call) => call[0] === "proposals" && call[2].includes(account));
+    lookups.mockClear();
+    lookups.mockImplementation(original);
+    const retried = await appClient.index.$post(payload);
+
+    expect(failed.status).toBe(500);
+    expect(queuedOnFailure).toEqual([]);
+    expect(retried.status).toBe(200);
+    expect(lookups.mock.calls.map(([parameters]) => parameters?.args)).toEqual([{ account: accounts.slice(100) }]);
+    expect(zadd.mock.calls.filter((call) => call[0] === "proposals" && call[2].includes(account))).toHaveLength(1);
+    expect(
+      zadd.mock.calls.filter((call) => accounts.slice(1).some((foreign) => call[2].includes(foreign))),
+    ).toStrictEqual([]);
+    expect(setAttribute.mock.calls.filter(([key]) => key === "exa.unknown")).toEqual([
+      ["exa.unknown", accounts.slice(1)],
+    ]);
+  });
+
+  it("looks up each foreign account once", async () => {
+    const account = privateKeyToAccount(generatePrivateKey()).address;
+    const lookups = vi.spyOn(publicClient, "getLogs");
+    const zadd = spyZadd();
+    const setAttribute = spySetAttribute();
+
+    const first = await appClient.index.$post(await proposedAtHead(account));
+    const second = await appClient.index.$post(await proposedAtHead(account));
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(lookups.mock.calls.filter(([parameters]) => inspect(parameters?.args).includes(account))).toHaveLength(1);
+    expect(zadd.mock.calls.filter((call) => call[2].includes(account))).toStrictEqual([]);
+    expect(setAttribute.mock.calls.filter(([key]) => key === "exa.unknown")).toEqual([
+      ["exa.unknown", [account]],
+      ["exa.unknown", [account]],
+    ]);
+    expect(capturedFor(account)).toEqual([]);
+  });
+
+  it("looks up a foreign account again after a while", async () => {
+    const account = privateKeyToAccount(generatePrivateKey()).address;
+    const lookups = vi.spyOn(publicClient, "getLogs");
+    const zadd = spyZadd();
+    const setAttribute = spySetAttribute();
+
+    const first = await appClient.index.$post(await proposedAtHead(account));
+    vi.spyOn(Date, "now").mockReturnValue(Date.now() + 5 * 60_000);
+    const second = await appClient.index.$post(await proposedAtHead(account));
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(lookups.mock.calls.filter(([parameters]) => inspect(parameters?.args).includes(account))).toHaveLength(2);
+    expect(zadd.mock.calls.filter((call) => call[2].includes(account))).toStrictEqual([]);
+    expect(setAttribute.mock.calls.filter(([key]) => key === "exa.unknown")).toEqual([
+      ["exa.unknown", [account]],
+      ["exa.unknown", [account]],
+    ]);
+    expect(capturedFor(account)).toEqual([]);
+  });
+
+  it("looks up every account in batches", async () => {
+    const account = await createFactoryAccount();
+    const accounts = [...Array.from({ length: 100 }, () => privateKeyToAccount(generatePrivateKey()).address), account];
+    const payload = await payloadAtHead(1n, withdrawAccount);
+    payload.json.event.data.block.logs = accounts.map((address) => proposedLog(address));
+    const lookups = vi.spyOn(publicClient, "getLogs");
+    const zadd = spyZadd();
+    const setAttribute = spySetAttribute();
+
+    const response = await appClient.index.$post(payload);
+
+    expect(response.status).toBe(200);
+    expect(lookups.mock.calls.map(([parameters]) => parameters?.args)).toEqual([
+      { account: accounts.slice(0, 100) },
+      { account: [account] },
+    ]);
+    expect(zadd.mock.calls.filter((call) => call[0] === "proposals" && call[2].includes(account))).toHaveLength(1);
+    expect(
+      zadd.mock.calls.filter((call) => accounts.slice(0, 100).some((foreign) => call[2].includes(foreign))),
+    ).toStrictEqual([]);
+    expect(setAttribute.mock.calls.filter(([key]) => key === "exa.unknown")).toEqual([
+      ["exa.unknown", accounts.slice(0, 100)],
+    ]);
   });
 
   it("schedules withdrawals from factory accounts without a block number", async () => {
@@ -1879,6 +2008,7 @@ describe("legacy withdraw", () => {
     const payload = legacyPayload(1_312_500n, account);
     const { number: _, ...block } = payload.json.event.data.block;
     const zadd = spyZadd();
+    const setAttribute = spySetAttribute();
 
     const response = await appClient.index.$post({
       ...payload,
@@ -1887,6 +2017,8 @@ describe("legacy withdraw", () => {
 
     expect(response.status).toBe(200);
     expect(zadd.mock.calls.filter((call) => call[0] === "withdraw" && call[2].includes(account))).toHaveLength(1);
+    expect(setAttribute).not.toHaveBeenCalledWith("exa.unknown", expect.anything());
+    expect(capturedFor(account)).toEqual([]);
   });
 
   it("fails without queueing when the rpc is behind the block", async () => {
@@ -1904,18 +2036,14 @@ describe("legacy withdraw", () => {
   it("schedules withdrawals from factory accounts without credentials", async () => {
     const account = await createFactoryAccount();
     const zadd = spyZadd();
-    const setAttribute = vi.fn();
-    vi.mocked(getActiveSpan).mockReturnValue({ setAttribute } as unknown as ReturnType<typeof getActiveSpan>);
-    onTestFinished(() => {
-      vi.mocked(getActiveSpan).mockReset();
-    });
+    const setAttribute = spySetAttribute();
 
     const response = await appClient.index.$post(await payloadAtHead(1_250_000n, account));
 
     expect(response.status).toBe(200);
-    expect(zadd.mock.calls.filter(([key, , member]) => key === "withdraw" && member.includes(account))).toHaveLength(1);
+    expect(zadd.mock.calls.filter((call) => call[0] === "withdraw" && call[2].includes(account))).toHaveLength(1);
     expect(setAttribute).not.toHaveBeenCalledWith("exa.unknown", expect.anything());
-    expect(vi.mocked(captureException).mock.calls.filter((call) => inspect(call).includes(account))).toEqual([]);
+    expect(capturedFor(account)).toEqual([]);
   });
 
   it("fails without queueing when credentials lookup fails", async () => {
@@ -4066,4 +4194,17 @@ function blockPayloadWith(logs: { account: { address: Address }; data: Hex; topi
       },
     },
   };
+}
+
+function spySetAttribute() {
+  const setAttribute = vi.fn();
+  vi.mocked(getActiveSpan).mockReturnValue({ setAttribute } as unknown as ReturnType<typeof getActiveSpan>);
+  onTestFinished(() => {
+    vi.mocked(getActiveSpan).mockReset();
+  });
+  return setAttribute;
+}
+
+function capturedFor(account: Address) {
+  return vi.mocked(captureException).mock.calls.filter((call) => inspect(call, { depth: Infinity }).includes(account));
 }
