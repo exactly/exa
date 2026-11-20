@@ -14,35 +14,35 @@ appId: ${APP_ID ?? "app.exactly"}
 - tapOn: ACH
 - tapOn: Continue
 - tapOn: Enter beneficiary's full name
-- inputText: Test User
+- inputText: Ann
 - tapOn: Enter address
-- inputText: 123 Test St
+- inputText: 1 Elm
 - pressKey: enter
 - tapOn: Enter city
-- inputText: Brooklyn
+- inputText: Rye
 - pressKey: enter
 - swipe: { from: City, direction: UP }
 - tapOn: Select country
 - tapOn: Search
-- inputText: united st
+- inputText: of am
 - pressKey: enter
 - tapOn: United States of America
 - tapOn: Select state
 - tapOn: Search
-- inputText: york
+- inputText: yo
 - pressKey: enter
 - tapOn: New York
 - tapOn: Enter zip code
-- inputText: "11201"
+- inputText: "10580"
 - pressKey: enter
 - tapOn: Continue
 - tapOn: Enter beneficiary's account number
-- inputText: "123456789"
+- inputText: "1234"
 - tapOn: Enter beneficiary's routing number
 - inputText: "021000021"
 - pressKey: enter
 - tapOn: Enter bank name
-- inputText: Test Bank
+- inputText: Bank
 - pressKey: enter
 - tapOn: Continue
 - assertVisible: How much do you want to send?
@@ -61,7 +61,7 @@ appId: ${APP_ID ?? "app.exactly"}
       account: "${output.account}"
       amount: "69"
       beneficiary: >-
-        { "currency": "USD", "accountOwnerName": "Test User", "accountNumber": "123456789", "routingNumber": "021000021",
-        "bankName": "Test Bank", "address": { "streetLine1": "123 Test St", "city": "Brooklyn", "state": "NY",
-        "postalCode": "11201", "country": "USA" }, "rail": "ach" }
+        { "currency": "USD", "accountOwnerName": "Ann", "accountNumber": "1234", "routingNumber": "021000021",
+        "bankName": "Bank", "address": { "streetLine1": "1 Elm", "city": "Rye", "state": "NY",
+        "postalCode": "10580", "country": "USA" }, "rail": "ach" }
 - tapOn: Close
