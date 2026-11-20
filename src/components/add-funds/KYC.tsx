@@ -41,6 +41,7 @@ export default function KYC() {
     directionKey,
   ]);
   const update = !!storedTokens && kycCode !== "missing fields";
+  const undocumented = kycCode === "no document";
 
   const { mutateAsync: handleContinue, isPending } = useMutation({
     mutationKey: ["kyc", "complete", provider],
@@ -114,14 +115,18 @@ export default function KYC() {
                     {update
                       ? isAddress
                         ? t("Your address needs to be verified")
-                        : t("Your ID needs to be updated")
+                        : undocumented
+                          ? t("Verify your identity")
+                          : t("Your ID needs to be updated")
                       : t("We need more information about you")}
                   </Text>
                   <Text color="uiNeutralPlaceholder" footnote textAlign="center">
                     {update
                       ? isAddress
                         ? t("There was an issue with your address. Please update your information to continue.")
-                        : t("There was an issue with your tax ID. Please update your information to continue.")
+                        : undocumented
+                          ? t("We need a passport, national ID or driver’s license. Please verify one to continue.")
+                          : t("There was an issue with your tax ID. Please update your information to continue.")
                       : t("You’ll be able to add funds soon.")}
                   </Text>
                 </YStack>
@@ -132,7 +137,11 @@ export default function KYC() {
         {isBridge ? <BridgeDisclaimer /> : <MantecaDisclaimer />}
         <Button onPress={handlePress} primary disabled={isPending} loading={isPending}>
           <Button.Text>
-            {isPending ? t("Starting...") : update ? t("Update information") : t("Continue verification")}
+            {isPending
+              ? t("Starting...")
+              : update && !undocumented
+                ? t("Update information")
+                : t("Continue verification")}
           </Button.Text>
           <Button.Icon>
             <ArrowRight />
