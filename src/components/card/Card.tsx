@@ -22,6 +22,7 @@ import CardPIN from "./CardPIN";
 import ExaCard from "./exa-card/ExaCard";
 import SpendingLimits from "./SpendingLimits";
 import TimeoutSheet from "./TimeoutSheet";
+import Unavailable from "./Unavailable";
 import VerificationFailure from "./VerificationFailure";
 import { ChevronRight } from "../../generated/icons/ChevronRight";
 import { CircleHelp } from "../../generated/icons/CircleHelp";
@@ -81,6 +82,7 @@ export default function Card() {
   } = useTranslation();
   const [disclaimerShown, setDisclaimerShown] = useState(false);
   const [verificationFailureShown, setVerificationFailureShown] = useState(false);
+  const [unavailableShown, setUnavailableShown] = useState(false);
   const [freezeConfirmOpen, setFreezeConfirmOpen] = useState(false);
   const [signal, setSignal] = useState(0);
 
@@ -256,7 +258,11 @@ export default function Card() {
     submittedAt: generateSubmittedAt,
   } = useMutation({
     mutationKey: ["card", "create"],
-    retry: (_, error) => error instanceof APIError && error.code !== 504 && !error.text.includes("already created"),
+    retry: (_, error) =>
+      error instanceof APIError &&
+      error.code !== 504 &&
+      !error.text.includes("already created") &&
+      !error.text.includes("no panda user"),
     retryDelay: (failureCount, error) => (error instanceof APIError ? failureCount * 5000 : 1000),
     mutationFn: async () => {
       if (!credential) return;
@@ -278,6 +284,10 @@ export default function Card() {
         queryClient.setQueryData<boolean>(["settings", "card-support-contacted"], false);
         await queryClient.refetchQueries({ queryKey: ["card", "details"] });
         await queryClient.setQueryData(["card-details-open"], true);
+        return;
+      }
+      if (error.text.includes("no panda user")) {
+        setUnavailableShown(true);
         return;
       }
       reportError(error);
@@ -615,6 +625,12 @@ export default function Card() {
             setFreezeConfirmOpen(false);
             if (queryClient.isMutating({ mutationKey: ["card", "status"] })) return;
             changeCardStatus("FROZEN");
+          }}
+        />
+        <Unavailable
+          open={unavailableShown}
+          onClose={() => {
+            setUnavailableShown(false);
           }}
         />
         <TimeoutSheet
