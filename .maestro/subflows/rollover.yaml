@@ -21,9 +21,8 @@ appId: ${APP_ID ?? "app.exactly"}
 - runScript:
     file: ../dist/hookProposals.js
     env: { account: "${output.account}" }
-- runFlow:
-    file: ../subflows/tapWhileAria.yaml
-    env: { aria: Pending proposals, tap: Home }
+- tapOn: Home
+- runFlow: { file: ../subflows/waitWhileAria.yaml, env: { aria: Pending proposals } }
 - waitForAnimationToEnd
 - runFlow: { file: scrollTo.yaml, env: { element: "Upcoming payments", center: true } }
 - assertNotVisible: "${output.maturity}"
