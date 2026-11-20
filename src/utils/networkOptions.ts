@@ -61,7 +61,10 @@ export default function networkOptions(account: Address | undefined, chainId: nu
               ]),
             lifi: tokens !== undefined,
             timestamp: wallet.timestamp,
-            balance: wallet.balance,
+            balances: Object.fromEntries([
+              [zeroAddress, wallet.balance],
+              ...protocol.markets.map(({ market: { asset }, balance }) => [asset.toLowerCase(), balance] as const),
+            ]) as Record<Address, bigint>,
             ...(contracts && {
               markets: protocol.markets.map(({ market, isFrozen, nonCollateral }) => ({
                 ...market,
