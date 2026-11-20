@@ -1,0 +1,44 @@
+From ce890cb37c3b5222210f705deda48cacf0211651 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Fri, 20 Nov 2026 17:12:52 +0000
+Subject: [PATCH] fix: type each Android character once the field takes it
+
+Typing sleeps 75 ms after every character, about 3 s for a wallet
+address. The driver now waits for the text changed event of each key,
+up to the same 75 ms, so a field that takes the key moves on at once.
+---
+ .../java/dev/mobile/maestro/MaestroDriverService.kt   | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/maestro-android/src/androidTest/java/dev/mobile/maestro/MaestroDriverService.kt b/maestro-android/src/androidTest/java/dev/mobile/maestro/MaestroDriverService.kt
+index 18aff2d..68d415a 100644
+--- a/maestro-android/src/androidTest/java/dev/mobile/maestro/MaestroDriverService.kt
++++ b/maestro-android/src/androidTest/java/dev/mobile/maestro/MaestroDriverService.kt
+@@ -38,6 +38,7 @@ import android.view.KeyEvent.KEYCODE_SPACE
+ import android.view.KeyEvent.KEYCODE_STAR
+ import android.view.KeyEvent.META_SHIFT_LEFT_ON
+ import android.view.WindowManager
++import android.view.accessibility.AccessibilityEvent
+ import androidx.test.ext.junit.runners.AndroidJUnit4
+ import androidx.test.platform.app.InstrumentationRegistry
+ import androidx.test.uiautomator.Configurator
+@@ -327,8 +328,14 @@ class Service(
+         try {
+             Log.d("Maestro", "Inputting text")
+             request.text.forEach {
+-                setText(it.toString())
+-                Thread.sleep(75)
++                try {
++                    uiAutomation.executeAndWaitForEvent(
++                        { setText(it.toString()) },
++                        { event -> event.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED },
++                        75,
++                    )
++                } catch (_: TimeoutException) {
++                }
+             }
+ 
+             responseObserver.onNext(inputTextResponse { })
+-- 
+2.43.0
+
