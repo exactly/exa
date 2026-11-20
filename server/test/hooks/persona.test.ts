@@ -39,6 +39,7 @@ import { signer } from "../../utils/wallet";
 import { name as allowName } from "../../workers/allow/job";
 import createAllow from "../../workers/allow/queue";
 import allowWorker from "../../workers/allow/worker";
+import listen from "../events";
 import { finished, tip } from "../redis";
 
 import type * as C from "@exactly/common/generated/chain";
@@ -110,6 +111,7 @@ describe("with reference", () => {
   });
 
   it("creates a panda account", async () => {
+    const events = listen(account);
     vi.spyOn(panda, "createUser").mockResolvedValueOnce({ id: "pandaId" });
     vi.spyOn(sardine, "customer").mockResolvedValueOnce({ sessionKey: "test", status: "Success", level: "low" });
     vi.spyOn(persona, "addDocument").mockResolvedValueOnce({ data: { id: "doc_123" } });
@@ -161,6 +163,7 @@ describe("with reference", () => {
         },
       ]),
     );
+    expect(events).toHaveBeenCalledExactlyOnceWith("kyc");
     expect(response.status).toBe(200);
   });
 

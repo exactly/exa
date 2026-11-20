@@ -67,6 +67,7 @@ import t, { f } from "../i18n";
 import { headerValidator } from "../utils/alchemy";
 import appOrigin from "../utils/appOrigin";
 import ensClient from "../utils/ensClient";
+import { emit } from "../utils/events";
 import { refresh } from "../utils/liquidity";
 import listen from "../utils/listen";
 import publicClient, { alchemyClient } from "../utils/publicClient";
@@ -474,7 +475,10 @@ export default function hook({
         const message = serialize(proposal);
         getActiveSpan()?.setAttribute("messaging.message.body.size", Buffer.byteLength(message));
         const added = await redis.zadd("proposals", Number(proposal.unlock + proposal.nonce), message);
-        if (added) scheduleMessage(message);
+        if (added) {
+          scheduleMessage(message);
+          emit(proposal.account, "proposals");
+        }
         return added;
       },
     );
@@ -770,6 +774,7 @@ export default function hook({
               () =>
                 mutex.runExclusive(processProposal, -Number(nonce)).finally(() => {
                   if (!mutex.isLocked()) mutexes.delete(key);
+                  emit(account, "proposals");
                 }),
             );
           }),
@@ -885,6 +890,7 @@ export default function hook({
           }),
         ),
       )
+      .finally(() => emit(account, "proposals"))
       .catch((error: unknown) => {
         withScope((scope) => {
           scope.setUser({ id: account });
