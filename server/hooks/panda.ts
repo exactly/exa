@@ -61,6 +61,7 @@ import { MATURITY_INTERVAL, splitInstallments } from "@exactly/lib";
 
 import { cards, credentials, transactions } from "../database/schema";
 import t, { f } from "../i18n";
+import { emit } from "../utils/events";
 import remember, { key, limit, refresh } from "../utils/liquidity";
 import {
   collectors,
@@ -217,12 +218,16 @@ export default function hook({
               ? payload.body.userId
               : payload.body.card.userId
             : payload.body.id;
+        let account: Address | undefined;
         if (pandaId) {
           const user = await database.query.credentials.findFirst({
             columns: { account: true, pandaId: true },
             where: or(eq(credentials.pandaId, pandaId), eq(credentials.otherPandaId, pandaId)),
           });
-          if (user) setUser({ id: user.account });
+          if (user) {
+            account = v.parse(Address, user.account);
+            setUser({ id: account });
+          }
           if (payload.resource !== "card" || payload.action !== "notification") {
             if (!user) return c.json({ code: "user not found" }, 404);
             try {
@@ -267,6 +272,7 @@ export default function hook({
             }
           }
         }
+        if (account) emit(account, payload.resource === "user" ? "kyc" : "card");
         return c.json({ code: "ok" });
       }
 
@@ -666,6 +672,7 @@ export default function hook({
                 569 as UnofficialStatusCode,
               );
             }
+            emit(account, "card");
             return c.json({ code: "ok" });
           }
         // falls through
@@ -748,6 +755,7 @@ export default function hook({
                 569 as UnofficialStatusCode,
               );
             }
+            emit(account, "card");
             return c.json({ code: "ok" });
           }
           if (payload.body.spend.amount < 0) {
@@ -773,6 +781,7 @@ export default function hook({
                 569 as UnofficialStatusCode,
               );
             }
+            emit(account, "card");
             return c.json({ code: "ok" });
           }
           if (payload.body.spend.status !== "pending" && payload.action !== "completed") return c.json({ code: "ok" });
@@ -1293,6 +1302,7 @@ export default function hook({
             const mutex = getMutex(account);
             if (payload.action === "created" || payload.action === "updated") mutex?.release();
             setContext("mutex", { locked: mutex?.isLocked() });
+            emit(account, "card");
           }
         }
         default:

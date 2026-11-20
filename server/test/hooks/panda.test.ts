@@ -85,6 +85,7 @@ import wallet from "../../utils/wallet";
 import createHookQueue from "../../workers/hook/queue";
 import createRefund from "../../workers/refund/queue";
 import anvilClient from "../anvilClient";
+import listen from "../events";
 
 import type { Job as Hook } from "../../workers/hook/job";
 import type { Job as Refund } from "../../workers/refund/job";
@@ -5542,6 +5543,7 @@ describe("card notification", () => {
 
 describe("card updated", () => {
   it("deletes canceled card", async () => {
+    const events = listen(account);
     const id = crypto.randomUUID();
     await database.insert(cards).values([{ id, credentialId: "cred", tenant: "OP", lastFour: "7392" }]);
 
@@ -5564,6 +5566,7 @@ describe("card updated", () => {
       properties: { cardId: id, source: null },
     });
     expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account, tenant: "OP" }, cardUpdated.json.id);
+    expect(events).toHaveBeenCalledExactlyOnceWith("card");
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -6057,6 +6060,7 @@ describe("concurrency", () => {
 
   describe("push notifications", () => {
     it("sends notification when the declined transaction is created", async () => {
+      const events = listen(account);
       const sendPushNotificationSpy = sendPushNotificationMock;
       const txId = "insufficient-liquidity-notification-test";
 
@@ -6081,6 +6085,7 @@ describe("concurrency", () => {
 
       expect(response.status).toBe(557);
       expect(sendPushNotificationSpy).not.toHaveBeenCalled();
+      expect(events).not.toHaveBeenCalled();
 
       await appClient.index.$post({
         ...authorization,
@@ -6102,6 +6107,7 @@ describe("concurrency", () => {
       });
 
       await vi.waitFor(() => expect(sendPushNotificationSpy).toHaveBeenCalled());
+      expect(events).toHaveBeenCalledExactlyOnceWith("card");
       expect(sendPushNotificationSpy).toHaveBeenCalledExactlyOnceWith({
         userId: account,
         headings: t("Card •••• {{lastFour}} purchase rejected", { lastFour: "1234" }),
@@ -6754,6 +6760,7 @@ describe("webhooks", () => {
   });
 
   it("enqueues user updated webhooks", async () => {
+    const events = listen(account);
     const response = await appClient.index.$post({
       ...userUpdated,
       json: { ...userUpdated.json, body: { ...userUpdated.json.body, id: "cred" } },
@@ -6763,6 +6770,7 @@ describe("webhooks", () => {
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
     expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account });
     expect(hookQueue.enqueue).toHaveBeenCalledExactlyOnceWith({ account, tenant: "OP" }, userUpdated.json.id);
+    expect(events).toHaveBeenCalledExactlyOnceWith("kyc");
     expect(captureException).not.toHaveBeenCalled();
   });
 
