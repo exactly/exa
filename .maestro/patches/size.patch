@@ -1,0 +1,142 @@
+From 405f176d0d7cf15a6b7a5e04df76c5882ab31837 Mon Sep 17 00:00:00 2001
+From: guillermo dieguez <dev@guillermodieguez.com>
+Date: Fri, 20 Nov 2026 09:08:53 -0300
+Subject: [PATCH] fix: cache iOS device info until the orientation or app
+ changes
+
+Every view hierarchy read asks the runner for device info first, about a thousand times in a long flow, and each round trip takes about 4 ms on a simulator. The runner already caches the screen size per app and orientation, so the driver now keeps the last answer and drops it before it sets the orientation, launches or stops an app, or opens a link, so a call that fails drops it too.
+---
+ .../main/java/maestro/drivers/IOSDriver.kt    |  7 +++-
+ .../java/maestro/drivers/IOSDriverTest.kt     | 36 +++++++++++++++++--
+ 2 files changed, 40 insertions(+), 3 deletions(-)
+
+diff --git a/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt b/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt
+index 01a1492..b84f33d 100644
+--- a/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt
+@@ -77,6 +77,7 @@ class IOSDriver(
+ ) : Driver {
+ 
+     private var untouched = false
++    private var deviceInfo: DeviceInfo? = null
+ 
+     private val metrics = metricsProvider.withPrefix("maestro.driver").withTags(mapOf("platform" to "ios", "deviceId" to iosDevice.deviceId).filterValues { it != null }.mapValues { it.value!! })
+ 
+@@ -115,7 +116,7 @@ class IOSDriver(
+ 
+     override fun deviceInfo(): DeviceInfo {
+         return metrics.measured("operation", mapOf("command" to "deviceInfo")) {
+-            runDeviceCall("deviceInfo") { iosDevice.deviceInfo().toCommonDeviceInfo() }
++            deviceInfo ?: runDeviceCall("deviceInfo") { iosDevice.deviceInfo().toCommonDeviceInfo() }.also { deviceInfo = it }
+         }
+     }
+ 
+@@ -124,6 +125,7 @@ class IOSDriver(
+         launchArguments: Map<String, Any>,
+     ) {
+         metrics.measured("operation", mapOf("command" to "launchApp", "appId" to appId)) {
++            deviceInfo = null
+             iosDevice.launch(appId, launchArguments)
+             untouched = false
+             this.appId = appId
+@@ -132,6 +134,7 @@ class IOSDriver(
+ 
+     override fun stopApp(appId: String) {
+         metrics.measured("operation", mapOf("command" to "stopApp", "appId" to appId)) {
++            deviceInfo = null
+             iosDevice.stop(appId)
+             untouched = false
+         }
+@@ -448,6 +451,7 @@ class IOSDriver(
+ 
+     override fun openLink(link: String, appId: String?, autoVerify: Boolean, browser: Boolean) {
+         metrics.measured("operation", mapOf("command" to "openLink", "appId" to appId.toString(), "autoVerify" to autoVerify.toString(), "browser" to browser.toString())) {
++            deviceInfo = null
+             iosDevice.openLink(link).expect {}
+             untouched = false
+         }
+@@ -461,6 +465,7 @@ class IOSDriver(
+ 
+     override fun setOrientation(orientation: DeviceOrientation) {
+         metrics.measured("operation", mapOf("command" to "setOrientation")) {
++            deviceInfo = null
+             runDeviceCall("setOrientation") { iosDevice.setOrientation(orientation.camelCaseName) }
+         }
+     }
+diff --git a/maestro-client/src/test/java/maestro/drivers/IOSDriverTest.kt b/maestro-client/src/test/java/maestro/drivers/IOSDriverTest.kt
+index d6bad1e..c9f275e 100644
+--- a/maestro-client/src/test/java/maestro/drivers/IOSDriverTest.kt
++++ b/maestro-client/src/test/java/maestro/drivers/IOSDriverTest.kt
+@@ -1,5 +1,6 @@
+ package maestro.drivers
+ 
++import com.github.michaelbull.result.Ok
+ import com.google.common.truth.Truth.assertThat
+ import device.IOSDevice
+ import device.IOSScreenRecording
+@@ -10,6 +11,7 @@ import ios.IOSDeviceErrors
+ import maestro.utils.network.XCUITestServerError
+ import maestro.DeviceUnreachableException
+ import maestro.MaestroException
++import maestro.device.DeviceOrientation
+ import org.junit.jupiter.api.Test
+ import java.io.File
+ import xcuitest.crash.IOSCrashFileFinder
+@@ -84,7 +86,7 @@ class IOSDriverTest {
+     }
+ 
+     @Test
+-    fun `successful calls pass through unchanged`() {
++    fun `device info is read once until the screen can change`() {
+         val iosDevice = mockk<IOSDevice>(relaxed = true)
+         every { iosDevice.deviceInfo() } returns DeviceInfo(
+             widthPixels = 1170,
+@@ -92,14 +94,44 @@ class IOSDriverTest {
+             widthPoints = 390,
+             heightPoints = 844,
+         )
++        every { iosDevice.openLink(any()) } returns Ok(Unit)
+ 
+         val driver = IOSDriver(iosDevice)
+ 
++        repeat(3) { assertThat(driver.deviceInfo().widthGrid).isEqualTo(390) }
++        verify(exactly = 1) { iosDevice.deviceInfo() }
++
++        driver.setOrientation(DeviceOrientation.LANDSCAPE_LEFT)
++        driver.deviceInfo()
++        driver.launchApp("com.example.app", emptyMap())
++        driver.deviceInfo()
++        driver.stopApp("com.example.app")
++        driver.deviceInfo()
++        driver.openLink("https://example.com", null, autoVerify = false, browser = false)
++        driver.deviceInfo()
+         driver.deviceInfo()
++
++        verify(exactly = 5) { iosDevice.deviceInfo() }
++    }
++
++    @Test
++    fun `device info is read again after a rotation that fails`() {
++        val iosDevice = mockk<IOSDevice>(relaxed = true)
++        every { iosDevice.deviceInfo() } returns DeviceInfo(
++            widthPixels = 1170,
++            heightPixels = 2532,
++            widthPoints = 390,
++            heightPoints = 844,
++        )
++        every { iosDevice.setOrientation(any()) } throws IOSDeviceErrors.Unreachable("setOrientation", SocketTimeoutException())
++
++        val driver = IOSDriver(iosDevice)
++
+         driver.deviceInfo()
++        assertThrows<DeviceUnreachableException> { driver.setOrientation(DeviceOrientation.LANDSCAPE_LEFT) }
+         driver.deviceInfo()
+ 
+-        verify(exactly = 3) { iosDevice.deviceInfo() }
++        verify(exactly = 2) { iosDevice.deviceInfo() }
+     }
+ 
+     private fun findAppCrash(
+-- 
+2.43.0
+
