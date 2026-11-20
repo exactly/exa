@@ -1,0 +1,107 @@
+From dfcd5d9fa6f32409b34ee7b47c9c38dbeb0ef789 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Fri, 20 Nov 2026 00:30:57 +0000
+Subject: [PATCH] fix: raise the iOS runner deployment target to 15.0
+
+Xcode 27 supports iOS deployment targets from 15.0 and rejects the runner's 14.0, so the runner no longer builds with it. Raise it to 15.0, the lowest target Xcode 27 builds.
+---
+ .../project.pbxproj                           | 20 +++++++++----------
+ 1 file changed, 10 insertions(+), 10 deletions(-)
+
+diff --git a/maestro-ios-xctest-runner/maestro-driver-ios.xcodeproj/project.pbxproj b/maestro-ios-xctest-runner/maestro-driver-ios.xcodeproj/project.pbxproj
+index 7c18f27..9afed4c 100644
+--- a/maestro-ios-xctest-runner/maestro-driver-ios.xcodeproj/project.pbxproj
++++ b/maestro-ios-xctest-runner/maestro-driver-ios.xcodeproj/project.pbxproj
+@@ -1204,7 +1204,7 @@
+ 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+ 				GCC_WARN_UNUSED_FUNCTION = YES;
+ 				GCC_WARN_UNUSED_VARIABLE = YES;
+-				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
++				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+ 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+ 				MTL_FAST_MATH = YES;
+ 				ONLY_ACTIVE_ARCH = YES;
+@@ -1258,7 +1258,7 @@
+ 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+ 				GCC_WARN_UNUSED_FUNCTION = YES;
+ 				GCC_WARN_UNUSED_VARIABLE = YES;
+-				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
++				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+ 				MTL_ENABLE_DEBUG_INFO = NO;
+ 				MTL_FAST_MATH = YES;
+ 				SDKROOT = iphoneos;
+@@ -1283,7 +1283,7 @@
+ 				INFOPLIST_KEY_UIMainStoryboardFile = Main;
+ 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+ 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+-				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
++				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+ 				LD_RUNPATH_SEARCH_PATHS = (
+ 					"$(inherited)",
+ 					"@executable_path/Frameworks",
+@@ -1312,7 +1312,7 @@
+ 				INFOPLIST_KEY_UIMainStoryboardFile = Main;
+ 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+ 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+-				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
++				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+ 				LD_RUNPATH_SEARCH_PATHS = (
+ 					"$(inherited)",
+ 					"@executable_path/Frameworks",
+@@ -1391,7 +1391,7 @@
+ 					"$(SRCROOT)/maestro-driver-iosUITests/PrivateHeaders/XCTest",
+ 				);
+ 				INFOPLIST_FILE = "maestro-driver-iosTests/Info.plist";
+-				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
++				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+ 				LD_RUNPATH_SEARCH_PATHS = (
+ 					"$(inherited)",
+ 					"@executable_path/Frameworks",
+@@ -1422,7 +1422,7 @@
+ 				INFOPLIST_FILE = MaestroDriverLib/Info.plist;
+ 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+ 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+-				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
++				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+ 				LD_RUNPATH_SEARCH_PATHS = (
+ 					"$(inherited)",
+ 					"@executable_path/Frameworks",
+@@ -1453,7 +1453,7 @@
+ 				INFOPLIST_FILE = MaestroDriverLib/Info.plist;
+ 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+ 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+-				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
++				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+ 				LD_RUNPATH_SEARCH_PATHS = (
+ 					"$(inherited)",
+ 					"@executable_path/Frameworks",
+@@ -1475,7 +1475,7 @@
+ 				CODE_SIGN_STYLE = Automatic;
+ 				CURRENT_PROJECT_VERSION = 1;
+ 				GENERATE_INFOPLIST_FILE = YES;
+-				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
++				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+ 				LD_RUNPATH_SEARCH_PATHS = (
+ 					"$(inherited)",
+ 					"@executable_path/Frameworks",
+@@ -1497,7 +1497,7 @@
+ 				CODE_SIGN_STYLE = Automatic;
+ 				CURRENT_PROJECT_VERSION = 1;
+ 				GENERATE_INFOPLIST_FILE = YES;
+-				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
++				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+ 				LD_RUNPATH_SEARCH_PATHS = (
+ 					"$(inherited)",
+ 					"@executable_path/Frameworks",
+@@ -1526,7 +1526,7 @@
+ 					"$(SRCROOT)/maestro-driver-iosUITests/PrivateHeaders/XCTest",
+ 				);
+ 				INFOPLIST_FILE = "maestro-driver-iosTests/Info.plist";
+-				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
++				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+ 				LD_RUNPATH_SEARCH_PATHS = (
+ 					"$(inherited)",
+ 					"@executable_path/Frameworks",
+-- 
+2.43.0
+
