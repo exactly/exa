@@ -63,7 +63,6 @@ function proposalsOptions(account: Address | undefined, chainId: number) {
     queryKey: ["proposals", account, chainId],
     queryFn: account ? () => pendingProposals(account, chainId) : skipToken,
     gcTime: 0,
-    refetchInterval: 30_000,
   });
 }
 
