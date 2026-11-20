@@ -333,8 +333,8 @@ export default function AddCrypto() {
                 </XStack>
                 <Text subHeadline secondary>
                   {t(
-                    "Only {{assets}} on {{chain}} serve as collateral, earn yield while held, and increase your Exa Card credit limit.",
-                    { assets: supportedAssets.join(", "), chain: chain.name },
+                    "Only {{assets}} serve as collateral, earn yield while held, and increase your Exa Card credit limit.",
+                    { assets: supportedAssets.join(", ") },
                   )}
                 </Text>
               </EducationSheet>

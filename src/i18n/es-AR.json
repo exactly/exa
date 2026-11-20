@@ -118,7 +118,7 @@
   "Once you make a payment, you’ll see it here.": "Cuando realicés un pago, aparecerá acá.",
   "Only send assets on {{chain}}. Sending funds from other networks may cause permanent loss.": "Solo enviá activos en {{chain}}. Enviar fondos desde otras redes puede causar pérdida permanente.",
   "Only send {{crypto}} on {{network}}. Sending other assets or using other networks may cause permanent loss.": "Solo enviá {{crypto}} en {{network}}. Enviar otros activos o usar otras redes puede causar una pérdida permanente.",
-  "Only {{assets}} on {{chain}} serve as collateral, earn yield while held, and increase your Exa Card credit limit.": "Solo {{assets}} en {{chain}} sirven como colateral, generan rendimiento mientras los mantenés y aumentan el límite de crédito de tu Exa Card.",
+  "Only {{assets}} serve as collateral, earn yield while held, and increase your Exa Card credit limit.": "Solo {{assets}} sirven como colateral, generan rendimiento mientras los mantenés y aumentan el límite de crédito de tu Exa Card.",
   "Open your {{provider}} virtual account": "Abrí tu cuenta virtual de {{provider}}",
   "Pay later and hold your digital assets": "Pagá después y conservá tus activos digitales",
   "Pay in 1, 2, or 3 installments at 0% interest on Exa Card purchases up to {{limit}}, through {{promoEnd}}. Interest is reimbursed in early {{refund}}.": "Pagá en 1, 2 o 3 cuotas al 0% de interés en compras con Exa Card de hasta {{limit}}, hasta fin de {{promoEnd}}. El interés se reembolsa a principios de {{refund}}.",
