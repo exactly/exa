@@ -27,6 +27,8 @@ import { Address, Hash, Hex } from "@exactly/common/validation";
 import { credentials } from "../database/schema";
 import t, { f } from "../i18n";
 import { activityChain, activityUrl } from "../utils/alchemy";
+import { emit } from "../utils/events";
+import indexed from "../utils/indexed";
 import publicClient from "../utils/publicClient";
 import validatorHook from "../utils/validatorHook";
 import verifySignature from "../utils/verifySignature";
@@ -37,6 +39,7 @@ import type createOnesignal from "../utils/onesignal";
 import type createPoke from "../workers/poke/queue";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Redis } from "ioredis";
+import type { Pool } from "pg";
 
 const ETH = v.parse(Address, "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
 const WETH = v.parse(Address, wethAddress);
@@ -52,11 +55,12 @@ export default function hook({
   redis,
 }: {
   alchemy: ReturnType<typeof createAlchemy>;
-  database: NodePgDatabase<typeof schema>;
+  database: NodePgDatabase<typeof schema> & { $client: Pool };
   onesignal: ReturnType<typeof createOnesignal>;
   poke: ReturnType<typeof createPoke>;
   redis: Redis;
 }) {
+  const indexer = indexed(database.$client);
   let entries = new Map<string, { network: string; signingKey: string }>();
   let refreshed = 0;
   let refreshing: Promise<void> | undefined;
@@ -92,6 +96,7 @@ export default function hook({
           activity: v.array(
             v.intersect([
               v.object({
+                blockNum: v.optional(Hex),
                 hash: Hash,
                 fromAddress: Address,
                 toAddress: Address,
@@ -260,10 +265,20 @@ export default function hook({
           }),
         ),
       );
+      for (const account of new Set(transfers.map(({ toAddress }) => toAddress))) {
+        if (!accounts[account]) continue;
+        emit(account, "activity");
+        const block = transfers.reduce(
+          (latest, { toAddress, blockNum }) =>
+            toAddress === account && blockNum && hexToBigInt(blockNum) > latest ? hexToBigInt(blockNum) : latest,
+          0n,
+        );
+        if (block > 0n) indexer.after(`${chain.id}:${account}`, chain.id, block, () => emit(account, "activity"));
+      }
       return c.json({});
     },
   );
-  return { app, ready: refresh(false) };
+  return { app, ready: Promise.all([refresh(false), indexer.ready]), close: () => indexer.close() };
 
   function valid(identity: v.InferOutput<typeof Identity>, signature: string | undefined, payload: ArrayBuffer) {
     const entry = entries.get(identity.webhookId);

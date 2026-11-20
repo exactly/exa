@@ -93,6 +93,7 @@ import revertFingerprint from "../../utils/revertFingerprint";
 import ServiceError from "../../utils/ServiceError";
 import wallet from "../../utils/wallet";
 import anvilClient from "../anvilClient";
+import listen from "../events";
 
 import type * as sentry from "@sentry/node";
 
@@ -659,6 +660,7 @@ describe("proposal", () => {
     afterEach(() => vi.useRealTimers());
 
     it("executes the proposal", async () => {
+      const events = listen(bobAccount);
       const sendPushNotification = sendPushNotificationMock.mockResolvedValue({});
       vi.spyOn(ensClient, "getEnsName").mockResolvedValue(null);
       const getSettlements = vi.spyOn(manteca, "getSettlements").mockResolvedValueOnce({ ARS: settlement });
@@ -683,6 +685,7 @@ describe("proposal", () => {
         hasExpectedTransfers(receipts, [{ receiver: getAddress(padHex("0x69", { size: 20 })), amount: 3_000_000n }]),
       ).toBe(true);
       expect(removed).toStrictEqual([1]);
+      await vi.waitFor(() => expect(events).toHaveBeenNthCalledWith(2, "proposals"));
       expect(getSettlements).toHaveBeenCalledOnce();
       expect(getPaymentLock).not.toHaveBeenCalled();
       expect(setExtra).not.toHaveBeenCalledWith("exa.ignore", true);
@@ -2265,6 +2268,7 @@ describe("legacy withdraw", () => {
 
   it("sends withdraw notification when keeper returns receipt", async () => {
     const setUser = await spyScopeSetUser();
+    const events = listen(withdrawAccount);
     const amount = 1_375_000n;
     const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
     const removals = waitForRemovals([match]);
@@ -2303,6 +2307,7 @@ describe("legacy withdraw", () => {
     expect(vi.mocked(captureException).mock.calls.filter((call) => match.capture(call))).toEqual([]);
     expect(refresh).toHaveBeenCalledWith(database, redis, withdrawAccount, chain.id);
     expect(setUser).toHaveBeenCalledWith({ id: withdrawAccount });
+    await vi.waitFor(() => expect(events).toHaveBeenCalledExactlyOnceWith("proposals"));
   });
 
   it("sends withdraw notification with shortened receiver when ens is missing", async () => {
