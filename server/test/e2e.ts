@@ -33,11 +33,12 @@ import process, { env } from "node:process";
 import { setTimeout } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { parse } from "valibot";
-import { getAddress, keccak256, padHex, slice, toBytes, type Address } from "viem";
+import { erc20Abi, getAddress, keccak256, padHex, slice, toBytes, toHex, zeroAddress, type Address } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { describe, expect, it, vi } from "vitest";
 
 import domain from "@exactly/common/domain";
+import { exaPreviewerAbi, exaPreviewerAddress } from "@exactly/common/generated/chain";
 import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 import { Hash } from "@exactly/common/validation";
 
@@ -55,6 +56,7 @@ import {
   PANDA_BUSINESS_CHECKBOX_TEMPLATE,
   PANDA_TEMPLATE,
 } from "../utils/persona";
+import publicClient from "../utils/publicClient";
 import createSardine from "../utils/sardine";
 import createSegment from "../utils/segment";
 import ServiceError from "../utils/ServiceError";
@@ -91,10 +93,51 @@ describe("e2e", () => {
       const panda = createPanda({ key: "panda", url: "https://panda.test" });
       const sardine = createSardine("sardine", "https://sardine.test");
       const segment = createSegment("segment");
+      const poke = pokeWorker({ bullmq, onesignal, poker: privateKeyToAccount(padHex("0xb0b")), segment });
+      poke.queue.on("completed", ({ data: { account } }) => {
+        publicClient
+          .readContract({ address: exaPreviewerAddress, functionName: "assets", abi: exaPreviewerAbi })
+          .then((assets) =>
+            publicClient.getContractEvents({
+              address: assets.map(({ market }) => market),
+              abi: erc20Abi,
+              eventName: "Transfer",
+              args: { from: zeroAddress, to: account },
+              fromBlock: "earliest",
+            }),
+          )
+          .then(async (logs) => {
+            if (logs.length === 0) return;
+            const body = JSON.stringify({
+              type: "ADDRESS_ACTIVITY",
+              webhookId: "activity",
+              event: {
+                network: "ANVIL",
+                activity: logs.map(({ address, args: { value }, blockNumber, transactionHash }) => ({
+                  blockNum: toHex(blockNumber),
+                  category: "erc20",
+                  fromAddress: zeroAddress,
+                  toAddress: account,
+                  hash: transactionHash,
+                  rawContract: { address, rawValue: toHex(value ?? 0n) },
+                })),
+              },
+            });
+            await app.request("/hooks/activity", {
+              method: "POST",
+              headers: {
+                "content-type": "application/json",
+                "x-alchemy-signature": crypto.createHmac("sha256", "activity").update(body).digest("hex"),
+              },
+              body,
+            });
+          })
+          .catch(() => undefined);
+      });
       const workers = [
         allowWorker({ allower: privateKeyToAccount(padHex("0xa11")), bullmq, database }),
         creditWorker({ bullmq, database, onesignal }),
-        pokeWorker({ bullmq, onesignal, poker: privateKeyToAccount(padHex("0xb0b")), segment }),
+        poke,
         refundWorker({
           bullmq,
           database,
