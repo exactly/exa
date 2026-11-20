@@ -5,9 +5,7 @@ import { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 
 import { AnimatePresence, XStack, YStack } from "tamagui";
 
-import { marketUSDCAddress } from "@exactly/common/generated/chain";
 import { BASE_PRODUCT_ID, CLASSIC_PRODUCT_ID, PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
-import { borrowLimit, withdrawLimit } from "@exactly/lib";
 
 import CorporateCard from "../../../assets/images/card-corporate.svg";
 import BaseCard from "../../../assets/images/card-signature-base.svg";
@@ -16,7 +14,7 @@ import Card from "../../../assets/images/card.svg";
 import { Loader } from "../../../generated/icons/Loader";
 import { LockKeyhole } from "../../../generated/icons/LockKeyhole";
 import { Snowflake } from "../../../generated/icons/Snowflake";
-import useMarkets from "../../../utils/useMarkets";
+import useCardFunds from "../../../utils/useCardFunds";
 import AnimatedView from "../../shared/AnimatedView";
 import Text from "../../shared/Text";
 import View from "../../shared/View";
@@ -34,7 +32,7 @@ export default function CardContents({
   productId?: string;
   revealing: boolean;
 }) {
-  const { markets } = useMarkets();
+  const { credit, spending } = useCardFunds();
   const {
     t,
     i18n: { language },
@@ -71,7 +69,7 @@ export default function CardContents({
               transform="translateX(0px) enter:translateX(-100px) exit:translateX(-100px)"
             >
               <Text sensitive color="white" title maxFontSizeMultiplier={1} numberOfLines={1}>
-                {`$${(markets ? Number(borrowLimit(markets, marketUSDCAddress)) / 1e6 : 0).toLocaleString(language, {
+                {`$${(Number(credit) / 1e6).toLocaleString(language, {
                   style: "decimal",
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
@@ -91,7 +89,7 @@ export default function CardContents({
               transform="translateX(0px) enter:translateX(100px) exit:translateX(100px)"
             >
               <Text sensitive color="white" title maxFontSizeMultiplier={1} numberOfLines={1}>
-                {`$${(markets ? Number(withdrawLimit(markets, marketUSDCAddress)) / 1e6 : 0).toLocaleString(language, {
+                {`$${(Number(spending) / 1e6).toLocaleString(language, {
                   style: "decimal",
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
