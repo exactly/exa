@@ -374,7 +374,7 @@ export default function Card() {
                     revealing={isRevealing || isGeneratingCard || beginKYC.isPending}
                     frozen={displayStatus === "FROZEN"}
                     onPress={() => {
-                      if (isRevealing || beginKYC.isPending) return;
+                      if (queryClient.isMutating({ mutationKey: ["card", "reveal"] }) || beginKYC.isPending) return;
                       if (isGeneratingCard) {
                         refetchCard()
                           .then(({ data, error }) => {
@@ -401,7 +401,7 @@ export default function Card() {
                       justifyContent="space-between"
                       cursor="pointer"
                       onPress={() => {
-                        if (isRevealing || beginKYC.isPending) return;
+                        if (queryClient.isMutating({ mutationKey: ["card", "reveal"] }) || beginKYC.isPending) return;
                         selectionAsync().catch(reportError);
                         revealCard().catch(reportError);
                       }}
