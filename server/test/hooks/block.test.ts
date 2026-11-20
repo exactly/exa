@@ -1826,6 +1826,98 @@ describe("legacy withdraw", () => {
     expect(sendPushNotificationMock).not.toHaveBeenCalledWith(expect.objectContaining({ userId: unknownAccount }));
   });
 
+  async function createFactoryAccount() {
+    const owner = privateKeyToAccount(generatePrivateKey());
+    const account = deriveAddress(exaAccountFactoryAddress, { x: padHex(owner.address), y: zeroHash });
+    await keeper.exaSend(
+      { name: "create account", op: "exa.account" },
+      {
+        address: exaAccountFactoryAddress,
+        abi: exaAccountFactoryAbi,
+        functionName: "createAccount",
+        args: [0n, [{ x: hexToBigInt(owner.address), y: 0n }]],
+      },
+    );
+    return account;
+  }
+
+  async function payloadAtHead(amount: bigint, account: Address) {
+    const payload = legacyPayload(amount, account);
+    payload.json.event.data.block.number = Number(await publicClient.getBlockNumber({ cacheTime: 0 }));
+    return payload;
+  }
+
+  it("schedules proposals from factory accounts without credentials", async () => {
+    const account = await createFactoryAccount();
+    const proposed = getAbiItem({ abi: proposalManagerAbi, name: "Proposed" });
+    const payload = await payloadAtHead(1n, account);
+    payload.json.event.data.block.logs = [
+      {
+        topics: encodeEventTopics({
+          abi: [proposed],
+          args: { account, nonce: 0n, market: withdrawMarket },
+        }) as [Hex, ...Hex[]],
+        data: encodeAbiParameters(
+          proposed.inputs.filter(({ indexed }) => !indexed),
+          [ProposalType.Withdraw, 1n, encodeAbiParameters([{ type: "address" }], [account]), 1n],
+        ),
+        account: { address: proposalManagerAddress },
+      },
+    ];
+    const zadd = spyZadd();
+
+    const response = await appClient.index.$post(payload);
+
+    expect(response.status).toBe(200);
+    expect(zadd.mock.calls.filter(([key, , member]) => key === "proposals" && member.includes(account))).toHaveLength(
+      1,
+    );
+  });
+
+  it("schedules withdrawals from factory accounts without a block number", async () => {
+    const account = await createFactoryAccount();
+    const payload = legacyPayload(1_312_500n, account);
+    const { number: _, ...block } = payload.json.event.data.block;
+    const zadd = spyZadd();
+
+    const response = await appClient.index.$post({
+      ...payload,
+      json: { ...payload.json, event: { ...payload.json.event, data: { ...payload.json.event.data, block } } },
+    });
+
+    expect(response.status).toBe(200);
+    expect(zadd.mock.calls.filter((call) => call[0] === "withdraw" && call[2].includes(account))).toHaveLength(1);
+  });
+
+  it("fails without queueing when the rpc is behind the block", async () => {
+    const account = await createFactoryAccount();
+    const payload = await payloadAtHead(1_375_000n, account);
+    payload.json.event.data.block.number += 1000;
+    const zadd = spyZadd();
+
+    const response = await appClient.index.$post(payload);
+
+    expect(response.status).toBe(500);
+    expect(zadd.mock.calls.filter((call) => call[2].includes(account))).toEqual([]);
+  });
+
+  it("schedules withdrawals from factory accounts without credentials", async () => {
+    const account = await createFactoryAccount();
+    const zadd = spyZadd();
+    const setAttribute = vi.fn();
+    vi.mocked(getActiveSpan).mockReturnValue({ setAttribute } as unknown as ReturnType<typeof getActiveSpan>);
+    onTestFinished(() => {
+      vi.mocked(getActiveSpan).mockReset();
+    });
+
+    const response = await appClient.index.$post(await payloadAtHead(1_250_000n, account));
+
+    expect(response.status).toBe(200);
+    expect(zadd.mock.calls.filter(([key, , member]) => key === "withdraw" && member.includes(account))).toHaveLength(1);
+    expect(setAttribute).not.toHaveBeenCalledWith("exa.unknown", expect.anything());
+    expect(vi.mocked(captureException).mock.calls.filter((call) => inspect(call).includes(account))).toEqual([]);
+  });
+
   it("fails without queueing when credentials lookup fails", async () => {
     const amount = 1_125_000n;
     vi.spyOn(database.query.credentials, "findMany").mockReturnValueOnce(

@@ -172,7 +172,7 @@ export default function hook({
     ),
     async (c) => {
       getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "alchemy.block");
-      const { timestamp, logs } = c.req.valid("json").event.data.block;
+      const { number, timestamp, logs } = c.req.valid("json").event.data.block;
 
       if (logs.length === 0) {
         setExtra("exa.ignore", true);
@@ -243,12 +243,19 @@ export default function hook({
           ?.map(({ topics, data }) => decodeEventLog({ topics, data, abi: legacyExaPluginAbi })) ?? [];
 
       const accounts = [...new Set([...proposed.keys(), ...withdraws.map(({ args }) => args.account)])];
-      const known =
+      const credentialed =
         accounts.length > 0
           ? await database.query.credentials
               .findMany({ columns: { account: true }, where: inArray(credentials.account, accounts) })
               .then((rows) => new Set(rows.map(({ account }) => account)))
           : new Set<string>();
+      const known = new Set([
+        ...credentialed,
+        ...(await initializedAccounts(
+          accounts.filter((account) => !credentialed.has(account)),
+          number,
+        )),
+      ]);
       const unknown = accounts.filter((account) => !known.has(account));
       if (unknown.length > 0) getActiveSpan()?.setAttribute("exa.unknown", unknown);
       const proposalsByAccount = new Map(proposed.entries().filter(([account]) => known.has(account)));
@@ -795,6 +802,23 @@ const legacyEmitters: Partial<Record<number, { factories: Address[]; plugins: Ad
     ),
   },
 };
+
+async function initializedAccounts(accounts: string[], blockNumber?: number) {
+  if (accounts.length === 0) return [];
+  const toBlock = blockNumber === undefined ? undefined : BigInt(blockNumber);
+  if (toBlock !== undefined && (await publicClient.getBlockNumber({ cacheTime: 0 })) < toBlock) {
+    throw new Error("rpc behind block");
+  }
+  const logs = await publicClient.getLogs({
+    address: [...validFactories],
+    event: getAbiItem({ abi: exaAccountFactoryAbi, name: "ExaAccountInitialized" }),
+    args: { account: accounts.map((account) => v.parse(Address, account)) },
+    toBlock: toBlock ?? "latest",
+    fromBlock: 0n,
+    strict: true,
+  });
+  return logs.map(({ args }) => args.account);
+}
 
 function discoverEmitters(chainId: number) {
   const legacy = legacyEmitters[chainId] ?? { factories: [], plugins: [] };
