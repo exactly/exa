@@ -1,0 +1,71 @@
+From 7b4a1beeca86de0f77bf1e009adc903bd241e095 Mon Sep 17 00:00:00 2001
+From: guillermo dieguez <dev@guillermodieguez.com>
+Date: Fri, 20 Nov 2026 09:10:04 -0300
+Subject: [PATCH] fix: type the rest of the iOS text once the first character
+ shows
+
+Typing waits 500 ms after the first character, so iOS does not drop the characters that follow it. The runner now waits until the focused field shows a new value and two screenshots in a row match, which takes about 250 ms, and never more than 500 ms. Without a focused field it waits the full 500 ms as before.
+---
+ .../Routes/Helpers/TextInputHelper.swift      | 24 +++++++++++++++++--
+ 1 file changed, 22 insertions(+), 2 deletions(-)
+
+diff --git a/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Helpers/TextInputHelper.swift b/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Helpers/TextInputHelper.swift
+index fff96e9..3db7595 100644
+--- a/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Helpers/TextInputHelper.swift
++++ b/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Helpers/TextInputHelper.swift
+@@ -1,3 +1,4 @@
++import CryptoKit
+ import Foundation
+ import os
+ import XCTest
+@@ -12,6 +13,7 @@ struct TextInputHelper {
+     private enum Constants {
+         static let typingFrequency = 30
+         static let slowInputCharactersCount = 1
++        static let firstCharacterTimeout: TimeInterval = 0.5
+     }
+     
+     static func waitUntilKeyboardIsPresented() async {
+@@ -23,19 +25,37 @@ struct TextInputHelper {
+         }
+     }
+ 
++    private static func waitUntilSettled(_ field: XCUIElement, from before: String?, until deadline: Date) async {
++        guard let before else {
++            try? await Task.sleep(nanoseconds: UInt64(max(0, deadline.timeIntervalSinceNow) * 1_000_000_000))
++            return
++        }
++        while Date() < deadline, field.exists, (try? field.snapshot())?.value as? String ?? "" == before {
++            try? await Task.sleep(nanoseconds: 20_000_000)
++        }
++        var previous = SHA256.hash(data: XCUIScreen.main.screenshot().pngRepresentation)
++        while Date() < deadline {
++            let current = SHA256.hash(data: XCUIScreen.main.screenshot().pngRepresentation)
++            if current == previous { return }
++            previous = current
++        }
++    }
++
+     static func inputText(_ text: String) async throws {
+         // due to different keyboard input listener events (i.e. autocorrection or hardware keyboard connection)
+         // characters after the first on are often skipped, so we'll input it with lower typing frequency
+         let firstCharacter = String(text.prefix(Constants.slowInputCharactersCount))
+         logger.info("first character: \(firstCharacter)")
++        let app = RunningApp.getForegroundApp() ?? XCUIApplication(bundleIdentifier: RunningApp.springboardBundleId)
++        let field = app.descendants(matching: .any).matching(NSPredicate(format: "hasKeyboardFocus == true")).firstMatch
++        let before = field.exists ? (try? field.snapshot())?.value as? String ?? "" : nil
+         var eventPath = PointerEventPath.pathForTextInput()
+         eventPath.type(text: firstCharacter, typingSpeed: 1)
+         let eventRecord = EventRecord(orientation: ScreenSizeHelper.currentInterfaceOrientation())
+         _ = eventRecord.add(eventPath)
+         try await RunnerDaemonProxy().synthesize(eventRecord: eventRecord)
+         
+-        // wait 500 ms before dispatching next input text request to avoid iOS dropping characters
+-        try await Task.sleep(nanoseconds: UInt64(1_000_000_000 * 0.5))
++        await waitUntilSettled(field, from: before, until: Date().addingTimeInterval(Constants.firstCharacterTimeout))
+         
+         if (text.count > Constants.slowInputCharactersCount) {
+             let remainingText = String(text.suffix(text.count - Constants.slowInputCharactersCount))
+-- 
+2.43.0
+
