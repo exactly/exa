@@ -1,6 +1,6 @@
 # maestro patches (`e2e`)
 
-- **build**: `build.sh` fetches maestro at the tag it pins, applies `*.patch` in name order and installs the cli into `../build/`. a patch may build on one before it (`disabled.patch`, `steady.patch`, `windows.patch`, `wire.patch`, `world.patch`, `xinput.patch`, `yield.patch` and `zap.patch` do). the build compiles the android driver when it finds an android sdk and the ios driver on macos with xcode, and keeps the prebuilt one elsewhere, so eas caches maestro per platform and main publishes the macos build, which carries both.
+- **build**: `build.sh` fetches maestro at the tag it pins, applies `*.patch` in name order and installs the cli into `../build/`. a patch may build on one before it (`disabled.patch`, `reuse.patch`, `steady.patch`, `windows.patch`, `wire.patch`, `world.patch`, `xinput.patch`, `yield.patch` and `zap.patch` do). the build compiles the android driver when it finds an android sdk and the ios driver on macos with xcode, and keeps the prebuilt one elsewhere, so eas caches maestro per platform and main publishes the macos build, which carries both.
 - **maestro gaps only**: patch maestro for a maestro bug or a missing capability, never to work around the app or a flow.
 - **fit for upstream**: each patch could land upstream as a pr: no app-specific code, no code comments, nothing that drifts further from upstream.
 - **wait for the real signal**: patched commands wait for the event they depend on. no retries, no sleeps.

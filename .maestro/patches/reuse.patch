@@ -1,0 +1,234 @@
+From 43f6429106d776c4789084b2ff7ca65b559bff76 Mon Sep 17 00:00:00 2001
+From: guillermo dieguez <dev@guillermodieguez.com>
+Date: Fri, 20 Nov 2026 09:08:43 -0300
+Subject: [PATCH] fix: reuse the last iOS screenshot when nothing touched the
+ screen
+
+A screen static check that follows a view hierarchy read, such as the one an assertion makes before the next tap, takes two screenshots even though the previous check captured the screen a few hundred milliseconds before and nothing has touched it since. Each screenshot costs about 60 ms on a simulator.
+
+The driver now tells the runner whether a command that can change the screen ran since its last check: a tap, a swipe, typing, a key, an app launch or stop, a link, or a permission change. When nothing did, the runner compares the new screenshot against its last one if that one is less than a second old. Any of those commands still makes the next check take two.
+---
+ .../src/main/java/maestro/drivers/IOSDriver.kt   | 16 +++++++++++++++-
+ .../src/main/kotlin/device/IOSDevice.kt          |  2 +-
+ .../src/main/kotlin/device/SimctlIOSDevice.kt    |  2 +-
+ .../main/kotlin/xcuitest/XCTestDriverClient.kt   |  8 +++++---
+ .../Routes/Handlers/ScreenDiffHandler.swift      |  4 +++-
+ maestro-ios/src/main/java/ios/LocalIOSDevice.kt  |  4 ++--
+ .../java/ios/devicectl/DeviceControlIOSDevice.kt |  2 +-
+ .../src/main/java/ios/xctest/XCTestIOSDevice.kt  |  4 ++--
+ 8 files changed, 30 insertions(+), 12 deletions(-)
+
+diff --git a/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt b/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt
+index 62c48e0..01a1492 100644
+--- a/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt
+@@ -76,6 +76,8 @@ class IOSDriver(
+     private val terminationFinder: IOSAppTerminationFinder = IOSAppTerminationFinder(),
+ ) : Driver {
+ 
++    private var untouched = false
++
+     private val metrics = metricsProvider.withPrefix("maestro.driver").withTags(mapOf("platform" to "ios", "deviceId" to iosDevice.deviceId).filterValues { it != null }.mapValues { it.value!! })
+ 
+     private var appId: String? = null
+@@ -123,6 +125,7 @@ class IOSDriver(
+     ) {
+         metrics.measured("operation", mapOf("command" to "launchApp", "appId" to appId)) {
+             iosDevice.launch(appId, launchArguments)
++            untouched = false
+             this.appId = appId
+         }
+     }
+@@ -130,6 +133,7 @@ class IOSDriver(
+     override fun stopApp(appId: String) {
+         metrics.measured("operation", mapOf("command" to "stopApp", "appId" to appId)) {
+             iosDevice.stop(appId)
++            untouched = false
+         }
+     }
+ 
+@@ -143,12 +147,14 @@ class IOSDriver(
+     override fun clearAppState(appId: String) {
+         metrics.measured("operation", mapOf("command" to "clearAppState", "appId" to appId)) {
+             iosDevice.clearAppState(appId)
++            untouched = false
+         }
+     }
+ 
+     override fun clearKeychain() {
+         metrics.measured("operation", mapOf("command" to "clearKeychain")) {
+             iosDevice.clearKeychain().expect {}
++            untouched = false
+         }
+     }
+ 
+@@ -443,6 +449,7 @@ class IOSDriver(
+     override fun openLink(link: String, appId: String?, autoVerify: Boolean, browser: Boolean) {
+         metrics.measured("operation", mapOf("command" to "openLink", "appId" to appId.toString(), "autoVerify" to autoVerify.toString(), "browser" to browser.toString())) {
+             iosDevice.openLink(link).expect {}
++            untouched = false
+         }
+     }
+ 
+@@ -544,12 +551,14 @@ class IOSDriver(
+     override fun enrollBiometrics(backupEligibility: Boolean) {
+         metrics.measured("operation", mapOf("command" to "enrollBiometrics")) {
+             iosDevice.enrollBiometrics()
++            untouched = false
+         }
+     }
+ 
+     override fun matchBiometrics() {
+         metrics.measured("operation", mapOf("command" to "matchBiometrics")) {
+             iosDevice.matchBiometrics()
++            untouched = false
+         }
+     }
+ 
+@@ -566,6 +575,7 @@ class IOSDriver(
+                     "Extension .${namedSource.extension} is not yet supported for add media"
+                 )
+             iosDevice.addMedia(namedSource.path)
++            untouched = false
+         }
+     }
+ 
+@@ -649,7 +659,7 @@ class IOSDriver(
+     }
+ 
+     private fun isScreenStatic(): Boolean {
+-        return runDeviceCall("isScreenStatic") { iosDevice.isScreenStatic() }
++        return runDeviceCall("isScreenStatic") { iosDevice.isScreenStatic(untouched) }.also { untouched = true }
+     }
+ 
+     private fun <T> runDeviceCall(callName: String, call: () -> T): T {
+@@ -685,6 +695,8 @@ class IOSDriver(
+                 message = "Maestro driver timed out during $callName call with: ${timeoutException.errorMessage}",
+                 debugMessage = debugMessage
+             )
++        } finally {
++            if (callName !in READS) untouched = false
+         }
+     }
+ 
+@@ -693,6 +705,8 @@ class IOSDriver(
+ 
+         private val LOGGER = LoggerFactory.getLogger(IOSDevice::class.java)
+ 
++        private val READS = setOf("deviceInfo", "snapshot", "isKeyboardVisible", "takeScreenshot", "isScreenStatic", "isDarkModeEnabled")
++
+         private const val ELEMENT_TYPE_CHECKBOX = 12
+         private const val ELEMENT_TYPE_SWITCH = 40
+         private const val ELEMENT_TYPE_TOGGLE = 41
+diff --git a/maestro-ios-driver/src/main/kotlin/device/IOSDevice.kt b/maestro-ios-driver/src/main/kotlin/device/IOSDevice.kt
+index a56f70d..b831e8d 100644
+--- a/maestro-ios-driver/src/main/kotlin/device/IOSDevice.kt
++++ b/maestro-ios-driver/src/main/kotlin/device/IOSDevice.kt
+@@ -156,7 +156,7 @@ interface IOSDevice : AutoCloseable {
+     /**
+      * @return false if 2 consequent screenshots are equal, true if screen is static
+      */
+-    fun isScreenStatic(): Boolean
++    fun isScreenStatic(untouched: Boolean): Boolean
+ 
+     fun setPermissions(id: String, permissions: Map<String, String>)
+ 
+diff --git a/maestro-ios-driver/src/main/kotlin/device/SimctlIOSDevice.kt b/maestro-ios-driver/src/main/kotlin/device/SimctlIOSDevice.kt
+index f5b3f06..88d3c87 100644
+--- a/maestro-ios-driver/src/main/kotlin/device/SimctlIOSDevice.kt
++++ b/maestro-ios-driver/src/main/kotlin/device/SimctlIOSDevice.kt
+@@ -178,7 +178,7 @@ class SimctlIOSDevice(
+         TODO("Not yet implemented")
+     }
+ 
+-    override fun isScreenStatic(): Boolean {
++    override fun isScreenStatic(untouched: Boolean): Boolean {
+         TODO("Not yet implemented")
+     }
+ 
+diff --git a/maestro-ios-driver/src/main/kotlin/xcuitest/XCTestDriverClient.kt b/maestro-ios-driver/src/main/kotlin/xcuitest/XCTestDriverClient.kt
+index 103ed16..c4de5aa 100644
+--- a/maestro-ios-driver/src/main/kotlin/xcuitest/XCTestDriverClient.kt
++++ b/maestro-ios-driver/src/main/kotlin/xcuitest/XCTestDriverClient.kt
+@@ -111,9 +111,11 @@ class XCTestDriverClient(
+         return mapper.readValue(response, KeyboardInfoResponse::class.java)
+     }
+ 
+-    fun isScreenStatic(): IsScreenStaticResponse {
+-        val responseString = executeJsonRequest("isScreenStatic")
+-        return mapper.readValue(responseString, IsScreenStaticResponse::class.java)
++    fun isScreenStatic(untouched: Boolean): IsScreenStaticResponse {
++        val url = client.xctestAPIBuilder("isScreenStatic")
++            .addQueryParameter("untouched", untouched.toString())
++            .build()
++        return mapper.readValue(executeJsonRequest(url), IsScreenStaticResponse::class.java)
+     }
+ 
+     fun runningAppId(appIds: Set<String>): GetRunningAppIdResponse {
+diff --git a/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ScreenDiffHandler.swift b/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ScreenDiffHandler.swift
+index 2b5ffcb..b6a16b1 100644
+--- a/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ScreenDiffHandler.swift
++++ b/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ScreenDiffHandler.swift
+@@ -12,12 +12,14 @@ struct IsScreenStaticHandler: HTTPHandler {
+     )
+     
+     private static let maxReuseInterval: TimeInterval = 0.1
++    private static let maxUntouchedInterval: TimeInterval = 1
+     private static var previous: (hash: SHA256.Digest, takenAt: Date)?
+ 
+     func handleRequest(_ request: FlyingFox.HTTPRequest) async throws -> FlyingFox.HTTPResponse {
+         do {
+             let hash1: SHA256.Digest
+-            if let previous = Self.previous, Date().timeIntervalSince(previous.takenAt) < Self.maxReuseInterval {
++            let maxInterval = request.query["untouched"] == "true" ? Self.maxUntouchedInterval : Self.maxReuseInterval
++            if let previous = Self.previous, Date().timeIntervalSince(previous.takenAt) < maxInterval {
+                 hash1 = previous.hash
+             } else {
+                 hash1 = SHA256.hash(data: XCUIScreen.main.screenshot().pngRepresentation)
+diff --git a/maestro-ios/src/main/java/ios/LocalIOSDevice.kt b/maestro-ios/src/main/java/ios/LocalIOSDevice.kt
+index dc5b4e5..a23c544 100644
+--- a/maestro-ios/src/main/java/ios/LocalIOSDevice.kt
++++ b/maestro-ios/src/main/java/ios/LocalIOSDevice.kt
+@@ -151,8 +151,8 @@ class LocalIOSDevice(
+         xcTestDevice.close()
+     }
+ 
+-    override fun isScreenStatic(): Boolean {
+-        return xcTestDevice.isScreenStatic()
++    override fun isScreenStatic(untouched: Boolean): Boolean {
++        return xcTestDevice.isScreenStatic(untouched)
+     }
+ 
+     override fun setPermissions(id: String, permissions: Map<String, String>) {
+diff --git a/maestro-ios/src/main/java/ios/devicectl/DeviceControlIOSDevice.kt b/maestro-ios/src/main/java/ios/devicectl/DeviceControlIOSDevice.kt
+index 0bfbf24..7858e4f 100644
+--- a/maestro-ios/src/main/java/ios/devicectl/DeviceControlIOSDevice.kt
++++ b/maestro-ios/src/main/java/ios/devicectl/DeviceControlIOSDevice.kt
+@@ -107,7 +107,7 @@ class DeviceControlIOSDevice(override val deviceId: String) : IOSDevice {
+         TODO("Not yet implemented")
+     }
+ 
+-    override fun isScreenStatic(): Boolean {
++    override fun isScreenStatic(untouched: Boolean): Boolean {
+         TODO("Not yet implemented")
+     }
+ 
+diff --git a/maestro-ios/src/main/java/ios/xctest/XCTestIOSDevice.kt b/maestro-ios/src/main/java/ios/xctest/XCTestIOSDevice.kt
+index 779a018..2fcb63b 100644
+--- a/maestro-ios/src/main/java/ios/xctest/XCTestIOSDevice.kt
++++ b/maestro-ios/src/main/java/ios/xctest/XCTestIOSDevice.kt
+@@ -205,9 +205,9 @@ class XCTestIOSDevice(
+         client.close()
+     }
+ 
+-    override fun isScreenStatic(): Boolean {
++    override fun isScreenStatic(untouched: Boolean): Boolean {
+         return execute {
+-            val isScreenStatic = client.isScreenStatic().isScreenStatic
++            val isScreenStatic = client.isScreenStatic(untouched).isScreenStatic
+             isScreenStatic
+         }
+     }
+-- 
+2.54.0 (Apple Git-157)
+
