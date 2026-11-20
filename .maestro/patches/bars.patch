@@ -1,0 +1,36 @@
+From 6c17f03284b8f91c2ca065f539bd33c97a7110d5 Mon Sep 17 00:00:00 2001
+From: guillermo dieguez <dev@guillermodieguez.com>
+Date: Fri, 20 Nov 2026 00:21:29 -0300
+Subject: [PATCH] fix: snapshot the iOS status bar instead of failing the
+ runner
+
+every view hierarchy request resolves springboard's status bars by index to snapshot them. resolving by index records a test failure instead of throwing when an element goes away during the query, which happens while an app launches or terminates, and that failure ends the runner: the flow fails with the device unreachable during viewHierarchy.
+
+the handler snapshots the first status bar instead. snapshot throws, so a status bar that goes away after the existence check is left out of that hierarchy, as a missing one already is, and the runner keeps going. springboard shows one status bar, so the hierarchy stays the same.
+---
+ .../Routes/Handlers/ViewHierarchyHandler.swift            | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ViewHierarchyHandler.swift b/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ViewHierarchyHandler.swift
+index 1561f4d..7b16cca 100644
+--- a/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ViewHierarchyHandler.swift
++++ b/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ViewHierarchyHandler.swift
+@@ -250,11 +250,11 @@ struct ViewHierarchyHandler: HTTPHandler {
+             return nil
+         }
+         
+-        let snapshots = try? element.statusBars.allElementsBoundByIndex.compactMap{ (statusBar) in
+-            try elementHierarchy(xcuiElement: statusBar)
++        guard let statusBar = try? elementHierarchy(xcuiElement: element.statusBars.firstMatch) else {
++            return nil
+         }
+-        
+-        return snapshots
++
++        return [statusBar]
+     }
+     
+     /// Fetches the Safari WebView hierarchy for iOS 26+ where SFSafariViewController
+-- 
+2.54.0 (Apple Git-157)
+
