@@ -526,6 +526,30 @@ describe("poke worker", () => {
     expect(captures()).toStrictEqual([]);
   });
 
+  it("refreshes liquidity when another poker deposits first", async () => {
+    const deposit = parseEther("2");
+    const pandaId = `poke-${account}`;
+    await mint(token, account, deposit);
+    await jobFinished({ ...request, assets: [token], pandaId });
+    await bullmq.del(key(pandaId));
+    const readContract = publicClient.readContract;
+    vi.spyOn(publicClient, "readContract").mockImplementation((parameters) =>
+      parameters.functionName === "balanceOf" && owns(parameters)
+        ? Promise.resolve(deposit)
+        : readContract(parameters as never),
+    );
+
+    await jobFinished({ ...request, assets: [token], pandaId });
+
+    const positions = deserialize<{ floatingDepositAssets: bigint; market: string }[]>(
+      (await bullmq.hget(key(pandaId), String(chain.id))) ?? "[]",
+    );
+    expect(
+      Number(positions.find(({ market }) => market === marketWETHAddress)?.floatingDepositAssets) / 1e18,
+    ).toBeCloseTo(Number(deposit) / 1e18, 9);
+    expect(captures()).toStrictEqual([]);
+  });
+
   it("captures liquidity refresh failures", async () => {
     const error = new Error("redis down");
     await anvilClient.setBalance({ address: account, value: parseEther("5") });
