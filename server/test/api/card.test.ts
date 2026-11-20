@@ -29,6 +29,8 @@ import chain, {
   exaAccountFactoryAbi,
   exaAccountFactoryAddress,
   exaPluginAbi,
+  marketAbi,
+  marketUSDCAddress,
   marketWETHAddress,
   wethAddress,
 } from "@exactly/common/generated/chain";
@@ -44,6 +46,7 @@ import authSecret from "../../utils/authSecret";
 import createPanda from "../../utils/panda";
 import createPax from "../../utils/pax";
 import createPersona from "../../utils/persona";
+import publicClient from "../../utils/publicClient";
 import createSardine from "../../utils/sardine";
 import createSegment from "../../utils/segment";
 import ServiceError from "../../utils/ServiceError";
@@ -295,6 +298,78 @@ describe("authenticated", () => {
 
     expect(response.status).toBe(404);
     await expect(response.json()).resolves.toStrictEqual({ code: "no card" });
+  });
+
+  it("returns 400 when the mode exceeds the market pools", async () => {
+    const credentialId = "mode-over-pools";
+    await database.insert(credentials).values({
+      id: credentialId,
+      publicKey: new Uint8Array(),
+      account: padHex("0x40d1", { size: 20 }),
+      factory: exaAccountFactoryAddress,
+      pandaId: credentialId,
+    });
+    await database.insert(cards).values({ id: credentialId, credentialId, tenant: "OP", lastFour: "1003" });
+    const max =
+      (await publicClient.readContract({
+        address: marketUSDCAddress,
+        abi: marketAbi,
+        functionName: "maxFuturePools",
+      })) - 1;
+
+    const response = await appClient.index.$patch({
+      // @ts-expect-error - bad hono patch type
+      header: { "test-credential-id": credentialId },
+      json: { mode: max + 1 },
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toStrictEqual({ code: "too many installments", max });
+    await expect(
+      database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, credentialId) }),
+    ).resolves.toStrictEqual({ mode: 0 });
+  });
+
+  it("sets the mode up to the market pools and back to debit", async () => {
+    const credentialId = "mode-at-pools";
+    await database.insert(credentials).values({
+      id: credentialId,
+      publicKey: new Uint8Array(),
+      account: padHex("0x40d2", { size: 20 }),
+      factory: exaAccountFactoryAddress,
+      pandaId: credentialId,
+    });
+    await database.insert(cards).values({ id: credentialId, credentialId, tenant: "OP", lastFour: "1004" });
+    const max =
+      (await publicClient.readContract({
+        address: marketUSDCAddress,
+        abi: marketAbi,
+        functionName: "maxFuturePools",
+      })) - 1;
+
+    const installments = await appClient.index.$patch({
+      // @ts-expect-error - bad hono patch type
+      header: { "test-credential-id": credentialId },
+      json: { mode: max },
+    });
+
+    expect(installments.status).toBe(200);
+    await expect(installments.json()).resolves.toStrictEqual({ mode: max });
+    await expect(
+      database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, credentialId) }),
+    ).resolves.toStrictEqual({ mode: max });
+
+    const debit = await appClient.index.$patch({
+      // @ts-expect-error - bad hono patch type
+      header: { "test-credential-id": credentialId },
+      json: { mode: 0 },
+    });
+
+    expect(debit.status).toBe(200);
+    await expect(debit.json()).resolves.toStrictEqual({ mode: 0 });
+    await expect(
+      database.query.cards.findFirst({ columns: { mode: true }, where: eq(cards.id, credentialId) }),
+    ).resolves.toStrictEqual({ mode: 0 });
   });
 
   it("returns 404 no card and deletes a card canceled on panda", async () => {

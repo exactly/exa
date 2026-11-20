@@ -35,8 +35,9 @@ import { isAddressEqual } from "viem";
 import { base } from "viem/chains";
 import { createSiweMessage, parseSiweMessage, verifySiweMessage } from "viem/siwe";
 
-import chain, { isBase } from "@exactly/common/generated/chain";
+import chain, { isBase, marketAbi, marketUSDCAddress } from "@exactly/common/generated/chain";
 import MAX_INSTALLMENTS from "@exactly/common/MAX_INSTALLMENTS";
+import maxCardInstallments from "@exactly/common/maxCardInstallments";
 import { BASE_PRODUCT_ID, CLASSIC_PRODUCT_ID, PLATINUM_PRODUCT_ID, SIGNATURE_PRODUCT_ID } from "@exactly/common/panda";
 import { business } from "@exactly/common/tenants";
 import { Address, Base64URL, Hex } from "@exactly/common/validation";
@@ -772,6 +773,10 @@ Update the card status, installments mode, or PIN, or submit a signed challenge 
 - FROZEN: The card is frozen and cannot be used but may be active in the future.
 - DELETED: The card is deleted and cannot be used permanently.
 
+**Updating the installments mode**
+
+\`mode\` 0 pays purchases with debit, and 1 or more splits each purchase into that many installments, up to one less than the USDC market's future pools. A higher mode returns \`{ "code": "too many installments", "max": <max> }\` with HTTP 400.
+
 **Updating the card PIN**
 
 1. **Encrypt the PIN**: Format and encrypt the PIN using the session secret.
@@ -834,6 +839,7 @@ async function encryptPIN(pin: string) {
                     object({ code: literal("bad signature") }),
                     object({ code: literal("already set"), mode: number() }),
                     object({ code: literal("already set"), status: picklist(["ACTIVE", "DELETED", "FROZEN"]) }),
+                    object({ code: literal("too many installments"), max: number() }),
                     object({ code: literal("weak pin") }),
                   ]),
                   { errorMode: "ignore" },
@@ -891,6 +897,16 @@ async function encryptPIN(pin: string) {
               case "mode": {
                 const { mode } = patch;
                 if (card.mode === mode) return c.json({ code: "already set", mode }, 400);
+                if (mode > 0) {
+                  const max = maxCardInstallments(
+                    await publicClient.readContract({
+                      address: marketUSDCAddress,
+                      abi: marketAbi,
+                      functionName: "maxFuturePools",
+                    }),
+                  );
+                  if (mode > max) return c.json({ code: "too many installments", max }, 400);
+                }
                 await database.update(cards).set({ mode }).where(eq(cards.id, card.id));
                 return c.json({ mode } satisfies InferOutput<typeof UpdatedCardResponse>, 200);
               }
