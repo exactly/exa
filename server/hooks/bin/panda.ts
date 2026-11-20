@@ -5,6 +5,7 @@ import { Redis } from "ioredis";
 
 import * as schema from "../../database/schema";
 import supervise, { own } from "../../supervise";
+import { publisher } from "../../utils/events";
 import createOnesignal from "../../utils/onesignal";
 import createPanda from "../../utils/panda";
 import createSardine from "../../utils/sardine";
@@ -21,7 +22,7 @@ const secrets = new SecretManagerServiceClient();
 supervise(
   "panda",
   Promise.all([
-    secret("panda-postgres-url", secrets).then((url) => drizzle(url, { schema })),
+    secret("panda-postgres-url", secrets).then((url) => publisher(drizzle(url, { schema }))),
     signer("issuer", kms),
     secret("panda-onesignal-api-key", secrets).then((key) => createOnesignal(key)),
     Promise.all([secret("panda-panda-api-key", secrets), secret("panda-api-url", secrets)]).then(([key, url]) =>
