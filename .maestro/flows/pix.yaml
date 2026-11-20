@@ -25,7 +25,7 @@ env:
 - tapOn: Close
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
-- tapOn: Send
+- tapOn: { text: Send, enabled: true }
 - tapOn: Bank transfers
 - tapOn: Reals via PIX
 - tapOn: Scan QR code
