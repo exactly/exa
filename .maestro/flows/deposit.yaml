@@ -45,11 +45,13 @@ env:
     file: ../dist/bridge.js
     env: { network: Anvil2, after: "${output.block}", to: "${output.deposit}", amount: "100" }
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
-- runFlow:
-    file: ../subflows/poll.yaml
-    env:
-      deposit: ${output.deposit}
-      until: Math.round((output.portfolio - output.portfolioBefore) * 100) === 10050 && output.deposited === 99.5
+- tapOn: Home
+- runFlow: { file: ../subflows/readPortfolio.yaml, env: { total: "${output.portfolioBefore + 100.5}" } }
+- evalScript: ${output.deadline = Date.now() + 60000}
+- repeat:
+    while: { true: "${output.deposited !== 99.5 && Date.now() < output.deadline}" }
+    commands: [{ runScript: { file: ../dist/deposited.js, env: { account: "${output.deposit}" } } }]
+- assertTrue: ${output.deposited === 99.5}
 - runFlow:
     file: ../subflows/mint.yaml
     env: { asset: USDC, to: "${output.account}", amount: "420" }
@@ -79,10 +81,9 @@ env:
     env: { account: "${output.account}" }
 - assertVisible: Swap USDC for EXA
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
-- runFlow:
-    file: ../subflows/tapWhileAria.yaml
-    env: { aria: Pending proposals, tap: Home }
-- runFlow: ../subflows/readPortfolio.yaml
+- tapOn: Home
+- runFlow: { file: ../subflows/waitWhileAria.yaml, env: { aria: Pending proposals } }
+- runFlow: { file: ../subflows/readPortfolio.yaml, env: { except: "${output.portfolioBefore}" } }
 - assertTrue: ${output.portfolioBefore - output.portfolio > 0 && output.portfolioBefore - output.portfolio < 1}
 - runFlow: ../subflows/switchWallet.yaml
 - runFlow: ../subflows/storeCoverage.yaml

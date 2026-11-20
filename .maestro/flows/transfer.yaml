@@ -16,4 +16,5 @@ env:
 - assertVisible: { id: "0x000000000000000000000000000000000000bEEF" }
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
+- tapOn: Home
 - runFlow: ../subflows/storeCoverage.yaml
