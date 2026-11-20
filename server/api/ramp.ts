@@ -12,6 +12,7 @@ import {
   parse,
   picklist,
   pipe,
+  safeParse,
   string,
   union,
   url,
@@ -31,7 +32,15 @@ import { canRetry } from "./kyc";
 import { credentials } from "../database/schema";
 import findOperation from "../utils/findOperation";
 import { BusinessApplicationError } from "../utils/panda";
-import { ADDRESS_TEMPLATE, isMissingOrNull, MANTECA_TEMPLATE_EXTRA_FIELDS, PANDA_TEMPLATE } from "../utils/persona";
+import {
+  ADDRESS_TEMPLATE,
+  IdClassToBridge,
+  IdentificationClasses,
+  isMissingOrNull,
+  MANTECA_TEMPLATE_EXTRA_FIELDS,
+  MANTECA_TEMPLATE_WITH_ID_CLASS,
+  PANDA_TEMPLATE,
+} from "../utils/persona";
 import * as Bridge from "../utils/ramps/bridge";
 import * as Manteca from "../utils/ramps/manteca";
 import ServiceError from "../utils/ServiceError";
@@ -402,7 +411,13 @@ export default function route({
               );
             } catch (error) {
               if (error instanceof BusinessApplicationError) return c.json({ code: error.code }, 400);
-              if (!(error instanceof Error && error.message === Bridge.ErrorCodes.MISSING_FIELDS)) {
+              if (
+                !(
+                  error instanceof Error &&
+                  (error.message === Bridge.ErrorCodes.MISSING_FIELDS ||
+                    error.message === Bridge.ErrorCodes.NO_DOCUMENT)
+                )
+              ) {
                 captureException(error, { level: "error", contexts: { credential } });
               }
               if (error instanceof ServiceError && error.status === 422)
@@ -422,6 +437,45 @@ export default function route({
                       ADDRESS_TEMPLATE,
                       persona,
                       await persona.getInquiry(credentialId, ADDRESS_TEMPLATE),
+                    );
+                    return c.json({ code: error.message, inquiryId, sessionToken }, 400);
+                  }
+                  case Bridge.ErrorCodes.NO_DOCUMENT: {
+                    const inquiry = await persona.getLatestInquiry(credentialId, MANTECA_TEMPLATE_WITH_ID_CLASS);
+                    if (inquiry?.attributes.status === "completed" || inquiry?.attributes.status === "needs_review") {
+                      return c.json({ code: "pending" }, 200);
+                    }
+                    const idClass = safeParse(
+                      picklist(IdentificationClasses),
+                      inquiry?.attributes.fields?.["selected-id-class-1"],
+                    );
+                    captureException(error, {
+                      level: "warning",
+                      fingerprint: ["{{ default }}", "no document"],
+                      contexts: {
+                        credential,
+                        inquiry: { id: inquiry?.id, status: inquiry?.attributes.status, idClass: idClass.output },
+                      },
+                    });
+                    if (
+                      inquiry?.attributes.status === "approved" &&
+                      idClass.success &&
+                      IdClassToBridge[idClass.output]
+                    ) {
+                      return c.json({ code: "pending" }, 200);
+                    }
+                    if (
+                      inquiry?.attributes.status === "declined" ||
+                      (inquiry?.attributes.status === "failed" &&
+                        !(await canRetry(credentialId, MANTECA_TEMPLATE_WITH_ID_CLASS, persona)))
+                    ) {
+                      return c.json({ code: "failed" }, 400);
+                    }
+                    const { inquiryId, sessionToken } = await getOrCreateInquiry(
+                      credentialId,
+                      MANTECA_TEMPLATE_WITH_ID_CLASS,
+                      persona,
+                      inquiry,
                     );
                     return c.json({ code: error.message, inquiryId, sessionToken }, 400);
                   }

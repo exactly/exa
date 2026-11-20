@@ -1077,19 +1077,6 @@ export default function bridge(key: string, url: string) {
       throw new ValiError(result.issues);
     }
     const countryCode = account.attributes["country-code"];
-    const requirements = safeParse(Persona.BridgeRequirements, account);
-    if (requirements.success && !persona.getDocumentForBridge(requirements.output.attributes.fields.documents.value)) {
-      captureException(new Error("bridge not found identification class"), {
-        contexts: {
-          bridge: {
-            credentialId: params.credentialId,
-            idClasses: requirements.output.attributes.fields.documents.value.map(({ value }) => value.id_class.value),
-          },
-        },
-        level: "warning",
-      });
-      return { onramp: { currencies: [] }, offramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
-    }
     if (countryCode && !alpha2ToAlpha3(countryCode)) throw new Error(ErrorCodes.NO_COUNTRY_ALPHA3);
     if (countryCode === "US" && !account.attributes["social-security-number"]) {
       throw new Error(ErrorCodes.NO_SOCIAL_SECURITY_NUMBER);

@@ -1460,6 +1460,244 @@ describe("ramp api", () => {
         expect(persona.createInquiry).toHaveBeenCalledTimes(1);
       });
 
+      it.each([
+        ["expired", undefined],
+        ["approved", "wp"],
+        ["approved", undefined],
+      ] as const)(
+        "returns 400 with an id class inquiry for no document when latest is %s with %s",
+        async (status, idClass) => {
+          vi.spyOn(bridge, "onboarding").mockRejectedValue(new Error(bridge.ErrorCodes.NO_DOCUMENT));
+          vi.spyOn(persona, "getLatestInquiry").mockResolvedValue({
+            id: "inq_doc_old",
+            type: "inquiry" as const,
+            attributes: { status, "reference-id": "ramp-test", fields: { "selected-id-class-1": idClass } },
+          });
+          vi.spyOn(persona, "createInquiry").mockResolvedValue({
+            data: {
+              id: "inq_doc_new",
+              type: "inquiry" as const,
+              attributes: { status: "created" as const, "reference-id": "ramp-test" },
+            },
+          });
+          vi.spyOn(persona, "resumeInquiry").mockImplementation((id) =>
+            Promise.resolve({ data: { id, type: "inquiry" as const }, meta: { "session-token": "token_doc" } }),
+          );
+
+          const response = await appClient.index.$post(
+            { json: { provider: "bridge", acceptedTermsId: "terms_123" } },
+            { headers: { "test-credential-id": "ramp-test" } },
+          );
+
+          expect(response.status).toBe(400);
+          await expect(response.json()).resolves.toStrictEqual({
+            code: "no document",
+            inquiryId: status === "expired" ? "inq_doc_old" : "inq_doc_new",
+            sessionToken: "token_doc",
+          });
+          expect(persona.getLatestInquiry).toHaveBeenCalledWith("ramp-test", persona.MANTECA_TEMPLATE_WITH_ID_CLASS);
+          expect(persona.createInquiry).toHaveBeenCalledTimes(status === "expired" ? 0 : 1);
+          expect(captureException).toHaveBeenCalledExactlyOnceWith(
+            ...noDocumentCapture({ id: "inq_doc_old", status, idClass }),
+          );
+        },
+      );
+
+      it.each(["completed", "needs_review"] as const)(
+        "returns pending for no document when id class inquiry is %s",
+        async (status) => {
+          vi.spyOn(bridge, "onboarding").mockRejectedValue(new Error(bridge.ErrorCodes.NO_DOCUMENT));
+          vi.spyOn(persona, "getLatestInquiry").mockResolvedValue({
+            id: "inq_doc_done",
+            type: "inquiry" as const,
+            attributes: { status, "reference-id": "ramp-test" },
+          });
+          vi.spyOn(persona, "createInquiry");
+          vi.spyOn(persona, "resumeInquiry");
+
+          const response = await appClient.index.$post(
+            { json: { provider: "bridge", acceptedTermsId: "terms_123" } },
+            { headers: { "test-credential-id": "ramp-test" } },
+          );
+
+          expect(response.status).toBe(200);
+          await expect(response.json()).resolves.toStrictEqual({ code: "pending" });
+          expect(persona.createInquiry).not.toHaveBeenCalled();
+          expect(persona.resumeInquiry).not.toHaveBeenCalled();
+          expect(captureException).not.toHaveBeenCalled();
+        },
+      );
+
+      it("returns pending for no document when id class inquiry is approved with a bridge class", async () => {
+        vi.spyOn(bridge, "onboarding").mockRejectedValue(new Error(bridge.ErrorCodes.NO_DOCUMENT));
+        vi.spyOn(persona, "getLatestInquiry").mockResolvedValue({
+          id: "inq_doc_approved",
+          type: "inquiry" as const,
+          attributes: {
+            status: "approved" as const,
+            "reference-id": "ramp-test",
+            fields: { "selected-id-class-1": "pp" },
+          },
+        });
+        vi.spyOn(persona, "createInquiry");
+        vi.spyOn(persona, "resumeInquiry");
+
+        const response = await appClient.index.$post(
+          { json: { provider: "bridge", acceptedTermsId: "terms_123" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({ code: "pending" });
+        expect(persona.createInquiry).not.toHaveBeenCalled();
+        expect(persona.resumeInquiry).not.toHaveBeenCalled();
+        expect(captureException).toHaveBeenCalledExactlyOnceWith(
+          ...noDocumentCapture({ id: "inq_doc_approved", status: "approved", idClass: "pp" }),
+        );
+      });
+
+      it("returns 400 with new id class inquiry for no document when none exists", async () => {
+        vi.spyOn(bridge, "onboarding").mockRejectedValue(new Error(bridge.ErrorCodes.NO_DOCUMENT));
+        vi.spyOn(persona, "getLatestInquiry").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
+        vi.spyOn(persona, "getFailedInquiries");
+        vi.spyOn(persona, "createInquiry").mockResolvedValue({
+          data: {
+            id: "inq_doc_first",
+            type: "inquiry" as const,
+            attributes: { status: "created" as const, "reference-id": "ramp-test" },
+          },
+        });
+        vi.spyOn(persona, "resumeInquiry").mockResolvedValue({
+          data: { id: "inq_doc_first", type: "inquiry" as const },
+          meta: { "session-token": "token_doc_first" },
+        });
+
+        const response = await appClient.index.$post(
+          { json: { provider: "bridge", acceptedTermsId: "terms_123" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "no document",
+          inquiryId: "inq_doc_first",
+          sessionToken: "token_doc_first",
+        });
+        expect(persona.getLatestInquiry).toHaveBeenCalledExactlyOnceWith(
+          "ramp-test",
+          persona.MANTECA_TEMPLATE_WITH_ID_CLASS,
+        );
+        expect(persona.getFailedInquiries).not.toHaveBeenCalled();
+        expect(persona.createInquiry).toHaveBeenCalledExactlyOnceWith(
+          "ramp-test",
+          persona.MANTECA_TEMPLATE_WITH_ID_CLASS,
+        );
+        expect(persona.resumeInquiry).toHaveBeenCalledExactlyOnceWith("inq_doc_first");
+        expect(captureException).toHaveBeenCalledExactlyOnceWith(
+          ...noDocumentCapture({ id: undefined, status: undefined, idClass: undefined }),
+        );
+      });
+
+      it("returns failed for no document when id class inquiry is declined", async () => {
+        vi.spyOn(bridge, "onboarding").mockRejectedValue(new Error(bridge.ErrorCodes.NO_DOCUMENT));
+        vi.spyOn(persona, "getLatestInquiry").mockResolvedValue({
+          id: "inq_doc_declined",
+          type: "inquiry" as const,
+          attributes: { status: "declined" as const, "reference-id": "ramp-test" },
+        });
+        const createInquiry = vi.spyOn(persona, "createInquiry");
+
+        const response = await appClient.index.$post(
+          { json: { provider: "bridge", acceptedTermsId: "terms_123" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code: "failed" });
+        expect(createInquiry).not.toHaveBeenCalled();
+        expect(captureException).toHaveBeenCalledExactlyOnceWith(
+          ...noDocumentCapture({ id: "inq_doc_declined", status: "declined", idClass: undefined }),
+        );
+      });
+
+      it("returns 400 with new id class inquiry for no document when failed inquiries are below the limit", async () => {
+        const failed = {
+          id: "inq_doc_failed",
+          type: "inquiry" as const,
+          attributes: { status: "failed" as const, "reference-id": "ramp-test" },
+        };
+        vi.spyOn(bridge, "onboarding").mockRejectedValue(new Error(bridge.ErrorCodes.NO_DOCUMENT));
+        vi.spyOn(persona, "getLatestInquiry").mockResolvedValue(failed);
+        vi.spyOn(persona, "getFailedInquiries").mockResolvedValue([failed]);
+        vi.spyOn(persona, "createInquiry").mockResolvedValue({
+          data: {
+            id: "inq_doc_retry",
+            type: "inquiry" as const,
+            attributes: { status: "created" as const, "reference-id": "ramp-test" },
+          },
+        });
+        vi.spyOn(persona, "resumeInquiry").mockResolvedValue({
+          data: { id: "inq_doc_retry", type: "inquiry" as const },
+          meta: { "session-token": "token_doc_retry" },
+        });
+
+        const response = await appClient.index.$post(
+          { json: { provider: "bridge", acceptedTermsId: "terms_123" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({
+          code: "no document",
+          inquiryId: "inq_doc_retry",
+          sessionToken: "token_doc_retry",
+        });
+        expect(persona.getFailedInquiries).toHaveBeenCalledExactlyOnceWith(
+          "ramp-test",
+          persona.MANTECA_TEMPLATE_WITH_ID_CLASS,
+          3,
+        );
+        expect(persona.createInquiry).toHaveBeenCalledExactlyOnceWith(
+          "ramp-test",
+          persona.MANTECA_TEMPLATE_WITH_ID_CLASS,
+        );
+        expect(persona.resumeInquiry).toHaveBeenCalledExactlyOnceWith("inq_doc_retry");
+        expect(captureException).toHaveBeenCalledExactlyOnceWith(
+          ...noDocumentCapture({ id: "inq_doc_failed", status: "failed", idClass: undefined }),
+        );
+      });
+
+      it("returns failed for no document when failed id class inquiries reach the limit", async () => {
+        const failed = {
+          id: "inq_doc_failed",
+          type: "inquiry" as const,
+          attributes: { status: "failed" as const, "reference-id": "ramp-test" },
+        };
+        vi.spyOn(bridge, "onboarding").mockRejectedValue(new Error(bridge.ErrorCodes.NO_DOCUMENT));
+        vi.spyOn(persona, "getLatestInquiry").mockResolvedValue(failed);
+        vi.spyOn(persona, "getFailedInquiries").mockResolvedValue([failed, failed, failed]);
+        vi.spyOn(persona, "createInquiry");
+        vi.spyOn(persona, "resumeInquiry");
+
+        const response = await appClient.index.$post(
+          { json: { provider: "bridge", acceptedTermsId: "terms_123" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code: "failed" });
+        expect(persona.getFailedInquiries).toHaveBeenCalledExactlyOnceWith(
+          "ramp-test",
+          persona.MANTECA_TEMPLATE_WITH_ID_CLASS,
+          3,
+        );
+        expect(persona.createInquiry).not.toHaveBeenCalled();
+        expect(persona.resumeInquiry).not.toHaveBeenCalled();
+        expect(captureException).toHaveBeenCalledExactlyOnceWith(
+          ...noDocumentCapture({ id: "inq_doc_failed", status: "failed", idClass: undefined }),
+        );
+      });
+
       it.each(["approved", "failed"] as const)(
         "returns 400 with new basic inquiry for missing fields when latest is %s",
         async (status) => {
@@ -2799,3 +3037,14 @@ const foreignAccount = {
     },
   },
 };
+
+function noDocumentCapture(inquiry: { id?: string; idClass?: string; status?: string }) {
+  return [
+    new Error("no document"),
+    {
+      level: "warning",
+      fingerprint: ["{{ default }}", "no document"],
+      contexts: { credential: expect.objectContaining({ account: expect.any(String) as unknown }) as unknown, inquiry },
+    },
+  ] as const;
+}
