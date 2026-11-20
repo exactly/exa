@@ -32,6 +32,5 @@ appId: ${APP_ID ?? "app.exactly"}
       amount: "${amount}"
       receiver: "${receiver ?? output.account}"
 - tapOn: Close
-- runFlow:
-    file: ../subflows/tapWhileAria.yaml
-    env: { aria: Pending proposals, tap: Home }
+- tapOn: Home
+- runFlow: { file: ../subflows/waitWhileAria.yaml, env: { aria: Pending proposals } }

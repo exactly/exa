@@ -144,8 +144,8 @@ appId: ${APP_ID ?? "app.exactly"}
     commands:
       - assertVisible: ${asset} on ${destination}
       - runFlow: { file: tapAria.yaml, env: { aria: Close } }
+- runFlow: { file: waitWhileAria.yaml, env: { aria: Pending proposals } }
 - runFlow:
-    file: ../subflows/tapWhileAria.yaml
-    env: { aria: Pending proposals, tap: Home }
-- runFlow: ../subflows/readPortfolio.yaml
+    file: readPortfolio.yaml
+    env: { total: "${!destination && amount !== 'max' && (!pay || pay === asset) ? output.portfolioBefore - Number(amount) : ''}" }
 - assertTrue: ${!!destination || amount === "max" || output.portfolioBefore - output.portfolio === Number(amount) || (!!pay && pay !== asset && output.portfolioBefore - output.portfolio > Number(amount))}
