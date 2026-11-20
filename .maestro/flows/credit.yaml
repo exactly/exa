@@ -43,11 +43,11 @@ env:
 - assertVisible: 1 installment selected
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
 - runScript: { file: ../dist/mint.js, env: { asset: USDC, to: "${output.account}", amount: "1500", network: Anvil2 } }
-- runScript: { file: ../dist/deposited.js, env: { account: "${output.account}", network: Anvil2 } }
+- evalScript: ${output.deadline = Date.now() + 60000; output.deposited = undefined}
 - repeat:
-    times: 20
-    while: { true: "${output.deposited !== 1500}" }
+    while: { true: "${output.deposited !== 1500 && Date.now() < output.deadline}" }
     commands: [{ runScript: { file: ../dist/deposited.js, env: { account: "${output.account}", network: Anvil2 } } }]
+- assertTrue: ${output.deposited === 1500}
 - runScript:
     file: ../dist/purchase.js
     env: { merchant: Electronics, amount: "899.99", mode: "1", credentialId: "${output.credential}" }
