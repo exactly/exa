@@ -3,6 +3,7 @@ import { get as assert, create } from "react-native-passkeys";
 
 import { sdk } from "@farcaster/miniapp-sdk";
 import { base64URLStringToBuffer } from "@simplewebauthn/browser";
+import { onlineManager, type MutationCacheNotifyEvent, type QueryCacheNotifyEvent } from "@tanstack/react-query";
 import { getConnection, signMessage, watchConnection } from "@wagmi/core";
 import { hc, parseResponse, type InferRequestType, type InferResponseType } from "hono/client";
 import { check, number, object, parse, picklist, pipe, safeParse, string, ValiError } from "valibot";
@@ -123,7 +124,8 @@ export function isUnlinked(error: unknown) {
 
 export const origin = Platform.OS === "web" && !isServer ? window.location.origin : `https://${domain}`;
 
-const api = hc<ExaAPI>(new URL(origin).hostname === "localhost" ? "http://localhost:3000/api" : `${origin}/api`, {
+const base = new URL(origin).hostname === "localhost" ? "http://localhost:3000/api" : `${origin}/api`;
+const api = hc<ExaAPI>(base, {
   init: { credentials: "include" },
   fetch: async (input: Request | string | URL, init?: RequestInit) => {
     const headers = new Headers(init?.headers);
@@ -142,6 +144,62 @@ const api = hc<ExaAPI>(new URL(origin).hostname === "localhost" ? "http://localh
     return response;
   },
 });
+
+if (!isServer) {
+  onlineManager.setEventListener((setOnline) => {
+    let active = true;
+    let probe: AbortController | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const ping = () => {
+      if (probe) return;
+      clearTimeout(timer);
+      const controller = new AbortController();
+      probe = controller;
+      const timeout = setTimeout(() => controller.abort(), 10_000);
+      fetch(base, { method: "HEAD", mode: "no-cors", cache: "no-store", signal: controller.signal })
+        .then(
+          () => true,
+          () => false,
+        )
+        .then((online) => {
+          clearTimeout(timeout);
+          probe = undefined;
+          if (!active) return;
+          setOnline(online);
+          if (!online && AppState.currentState === "active") timer = setTimeout(ping, 3000);
+        })
+        .catch(reportError);
+    };
+    const fail = (event: MutationCacheNotifyEvent | QueryCacheNotifyEvent) => {
+      if (!onlineManager.isOnline() || event.type !== "updated") return;
+      if (event.action.type !== "failed" && event.action.type !== "error") return;
+      if (classifyError(event.action.error).network !== undefined) ping();
+    };
+    const queries = queryClient.getQueryCache().subscribe(fail);
+    const mutations = queryClient.getMutationCache().subscribe(fail);
+    const app = AppState.addEventListener("change", (state) => {
+      if (state !== "active") clearTimeout(timer);
+      else if (!onlineManager.isOnline()) ping();
+    });
+    if (Platform.OS === "web") {
+      window.addEventListener("online", ping);
+      window.addEventListener("offline", ping);
+    }
+    if (!onlineManager.isOnline()) ping();
+    return () => {
+      active = false;
+      probe?.abort();
+      clearTimeout(timer);
+      queries();
+      mutations();
+      app.remove();
+      if (Platform.OS === "web") {
+        window.removeEventListener("online", ping);
+        window.removeEventListener("offline", ping);
+      }
+    };
+  });
+}
 
 async function getCard(sessionid?: string) {
   await auth();

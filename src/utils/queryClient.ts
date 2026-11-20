@@ -64,7 +64,10 @@ const queryClient = new QueryClient({
       reportError(error);
     },
   }),
-  defaultOptions: { queries: { queryKeyHashFn: hashFn, structuralSharing } },
+  defaultOptions: {
+    mutations: { networkMode: "always" },
+    queries: { networkMode: "always", refetchOnReconnect: true, queryKeyHashFn: hashFn, structuralSharing },
+  },
 });
 
 export const hydrated =
