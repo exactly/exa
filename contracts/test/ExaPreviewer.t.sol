@@ -20,8 +20,10 @@ import { ExaAccountFactory } from "../src/ExaAccountFactory.sol";
 import { ExaPlugin } from "../src/ExaPlugin.sol";
 import {
   Asset,
+  Discovery,
   ExaPreviewer,
   ICollectableMarket,
+  IDiscoverableFactory,
   IProposalManager,
   MarketPreview,
   PendingProposal,
@@ -150,6 +152,30 @@ contract ExaPreviewerTest is ForkTest {
   }
 
   // solhint-disable func-name-mixedcase
+
+  function test_discover_returnsDeployedPluginsAndIssuerCheckers() external view {
+    IDiscoverableFactory[] memory factories = new IDiscoverableFactory[](3);
+    factories[0] = IDiscoverableFactory(address(0x666));
+    factories[1] = IDiscoverableFactory(address(factory));
+    factories[2] = IDiscoverableFactory(address(0x777));
+
+    Discovery memory discovery = previewer.discover(factories);
+    assertEq(discovery.plugins.length, 1);
+    assertEq(discovery.plugins[0], address(exaPlugin));
+    assertEq(discovery.issuerCheckers.length, 1);
+    assertEq(discovery.issuerCheckers[0], address(issuerChecker));
+    assertEq(discovery.auditor, address(auditor));
+    assertEq(discovery.exaUSDC, address(exaUSDC));
+    assertEq(discovery.usdc, address(usdc));
+    assertEq(discovery.firewall, address(0));
+  }
+
+  function test_discover_returnsFirewall() external {
+    address firewall = makeAddr("firewall");
+    vm.mockCall(address(auditor), abi.encodeWithSignature("firewall()"), abi.encode(firewall));
+
+    assertEq(previewer.discover(new IDiscoverableFactory[](0)).firewall, firewall);
+  }
 
   function test_utilizations_returns() external view {
     previewer.utilizations();
