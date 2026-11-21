@@ -226,12 +226,14 @@ export default function hook({
         return c.json({ code: "ok" }, 200);
       }
 
-      if (payload.data.userExternalId === undefined) {
-        captureException(new Error("invalid account address"), {
-          level: "error",
+      if (payload.data.userExternalId === undefined || payload.data.userExternalId.startsWith("Exactly-")) {
+        // TODO link merchant withdraws to the account by externalId
+        captureEvent({
+          message: "MantecaCompanyEvent",
+          level: "info",
           contexts: { details: { event: payload.event, ...payload.data } },
         });
-        return c.json({ code: "invalid account address" }, 200);
+        return c.json({ code: "ok" }, 200);
       }
 
       const rawAccount = `0x${payload.data.userExternalId}`;
