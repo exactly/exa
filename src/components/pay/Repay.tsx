@@ -11,13 +11,6 @@ import { digits, nonEmpty, parse, pipe, safeParse, string, transform } from "val
 import { ContractFunctionExecutionError, ContractFunctionRevertedError, encodeFunctionData, erc20Abi } from "viem";
 import { useBytecode, useReadContract, useSendCalls } from "wagmi";
 
-import chain, {
-  balancerVaultAddress,
-  integrationPreviewerAddress,
-  marketUSDCAddress,
-  swapperAddress,
-  usdcAddress,
-} from "@exactly/common/generated/chain";
 import { integrationPreviewerAbi, marketAbi } from "@exactly/common/generated/hooks";
 import ProposalType from "@exactly/common/ProposalType";
 import { Address } from "@exactly/common/validation";
@@ -33,11 +26,13 @@ import { ArrowLeft } from "../../generated/icons/ArrowLeft";
 import { ChevronRight } from "../../generated/icons/ChevronRight";
 import { Coins } from "../../generated/icons/Coins";
 import { getRoute, getRouteFrom } from "../../utils/lifi";
+import { network } from "../../utils/networkOptions";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useInsets from "../../utils/useInsets";
+import useNetwork from "../../utils/useNetwork";
 import usePortfolio from "../../utils/usePortfolio";
 import useSimulateProposal, { useProposalPreview } from "../../utils/useSimulateProposal";
 import useSingleMutation from "../../utils/useSingleMutation";
@@ -57,8 +52,11 @@ export default function Repay() {
   } = useTranslation();
   const { address: account } = useAccount();
   const router = useRouter();
-  const { assets } = usePortfolio({ sortBy: "usdcFirst" });
-  const { market: exaUSDC, timestamp } = useAsset(marketUSDCAddress);
+  const chainId = useNetwork();
+  const { balancerVault, integrationPreviewer, marketUSDC, swapper } = network(chainId);
+  const { assets } = usePortfolio({ chainId, sortBy: "usdcFirst" });
+  const { market: exaUSDC, timestamp } = useAsset(marketUSDC, chainId);
+  const usdc = exaUSDC?.asset;
   const [enableSimulations, setEnableSimulations] = useState(true);
   const [assetSelectionOpen, setAssetSelectionOpen] = useState(false);
   const [denyExchanges, addDeniedExchange] = useReducer(
@@ -84,7 +82,7 @@ export default function Repay() {
     available: externalAssetAvailable,
     isFetching: isFetchingAsset,
     queryKey: assetQueryKey,
-  } = useAsset(selectedAsset.address);
+  } = useAsset(selectedAsset.address, chainId);
   const [displayValues, setDisplayValues] = useState<{
     amount: number;
     asset?: Address;
@@ -93,8 +91,8 @@ export default function Repay() {
     usdAmount: number;
   }>({ amount: 0, repayAssets: 0n, usdAmount: 0 });
   const { mutateAsync: mutateSendCalls } = useSendCalls();
-  const { data: bytecode } = useBytecode({ address: account, chainId: chain.id, query: { enabled: !!account } });
-  const withUSDC = selectedAsset.address === (marketUSDCAddress as Address);
+  const { data: bytecode } = useBytecode({ address: account, chainId, query: { enabled: !!account } });
+  const withUSDC = selectedAsset.address === marketUSDC;
   const mode = selectedAsset.address
     ? selectedAsset.external
       ? "external"
@@ -113,18 +111,15 @@ export default function Repay() {
   }, [maturityQuery]);
 
   const { data: fixedRepaySnapshot } = useReadContract({
-    address: integrationPreviewerAddress,
-    chainId: chain.id,
+    address: integrationPreviewer,
+    chainId,
     abi: integrationPreviewerAbi,
     functionName: "fixedRepaySnapshot",
-    args: account ? [account, marketUSDCAddress, maturity ?? 0n] : undefined,
+    args: account ? [account, marketUSDC, maturity ?? 0n] : undefined,
     query: { enabled: !!account && !!bytecode && !!maturity },
   });
 
-  const { delay: proposalDelay, isLoading: isProposalDelayLoading } = useProposalPreview({
-    account,
-    chainId: chain.id,
-  });
+  const { delay: proposalDelay, isLoading: isProposalDelayLoading } = useProposalPreview({ account, chainId });
   const simulationTimestamp = proposalDelay === undefined ? undefined : Number(timestamp) + Number(proposalDelay);
 
   const borrow = exaUSDC?.fixedBorrowPositions.find((b) => b.maturity === maturity);
@@ -147,13 +142,13 @@ export default function Repay() {
     repayMarket && selectedAsset.address && !selectedAsset.external ? repayMarket.floatingDepositAssets : 0n;
 
   const { data: balancerUSDCBalance } = useReadContract({
-    address: usdcAddress,
-    chainId: chain.id,
+    address: usdc,
+    chainId,
     abi: erc20Abi,
     functionName: "balanceOf",
-    args: balancerVaultAddress ? [balancerVaultAddress] : undefined,
+    args: balancerVault ? [balancerVault] : undefined,
     query: {
-      enabled: !!account && !!bytecode && !!balancerVaultAddress,
+      enabled: !!account && !!bytecode && !!balancerVault,
       select: (data) => (data * (WAD * 990n)) / 1000n / WAD,
       refetchInterval: 20_000,
     },
@@ -163,6 +158,8 @@ export default function Repay() {
     queryKey: [
       "lifi",
       "routeFrom",
+      chainId,
+      usdc,
       mode,
       account,
       selectedAsset.address,
@@ -173,10 +170,12 @@ export default function Repay() {
     queryFn: () => {
       switch (mode) {
         case "crossRepay":
-          if (!account || !repayMarket || !repayMarketAvailable) throw new Error("implementation error");
+          if (!account || !usdc || !repayMarket || !repayMarketAvailable) throw new Error("implementation error");
           return getRouteFrom({
+            fromChainId: chainId,
+            toChainId: chainId,
             fromTokenAddress: repayMarket.asset,
-            toTokenAddress: usdcAddress,
+            toTokenAddress: usdc,
             fromAmount: repayMarketAvailable,
             fromAddress: account,
             toAddress: account,
@@ -184,11 +183,13 @@ export default function Repay() {
           });
         case "external":
           if (!externalAssetAvailable) throw new Error("no external asset available");
-          if (!account || !selectedAsset.address) throw new Error("implementation error");
+          if (!account || !usdc || !selectedAsset.address) throw new Error("implementation error");
           if (!externalAsset) throw new Error("not external asset");
           return getRouteFrom({
+            fromChainId: chainId,
+            toChainId: chainId,
             fromTokenAddress: selectedAsset.address,
-            toTokenAddress: usdcAddress,
+            toTokenAddress: usdc,
             fromAmount: externalAssetAvailable,
             fromAddress: account,
             toAddress: account,
@@ -235,16 +236,27 @@ export default function Repay() {
     isPending: isRoutePending,
     isFetching: isRouteFetching,
   } = useQuery({
-    queryKey: ["lifi", "route", mode, account, selectedAsset.address, repayMarket, denyExchanges, maxRepay],
+    queryKey: [
+      "lifi",
+      "route",
+      chainId,
+      usdc,
+      mode,
+      account,
+      selectedAsset.address,
+      repayMarket,
+      denyExchanges,
+      maxRepay,
+    ],
     queryFn: () => {
       if (!maxRepay) throw new Error("no max repay");
       switch (mode) {
         case "crossRepay":
-          if (!account || !repayMarket) throw new Error("implementation error");
-          return getRoute(repayMarket.asset, usdcAddress, maxRepay, account, account, denyExchanges);
+          if (!account || !usdc || !repayMarket) throw new Error("implementation error");
+          return getRoute(chainId, repayMarket.asset, usdc, maxRepay, account, account, denyExchanges);
         case "external":
-          if (!account || !selectedAsset.address) throw new Error("implementation error");
-          return getRoute(selectedAsset.address, usdcAddress, maxRepay, account, account, denyExchanges);
+          if (!account || !usdc || !selectedAsset.address) throw new Error("implementation error");
+          return getRoute(chainId, selectedAsset.address, usdc, maxRepay, account, account, denyExchanges);
         default:
           throw new Error("implementation error");
       }
@@ -261,7 +273,7 @@ export default function Repay() {
     isPending: isSimulatingRepay,
   } = useSimulateProposal({
     account,
-    chainId: chain.id,
+    chainId,
     amount: maxRepay,
     market: selectedAsset.address,
     proposalType: ProposalType.RepayAtMaturity,
@@ -276,11 +288,11 @@ export default function Repay() {
     isPending: isSimulatingCrossRepay,
   } = useSimulateProposal({
     account,
-    chainId: chain.id,
+    chainId,
     amount: maxAmountIn,
     market: selectedAsset.address,
     proposalType: ProposalType.CrossRepayAtMaturity,
-    marketOut: marketUSDCAddress,
+    marketOut: marketUSDC,
     maturity,
     positionAssets,
     maxRepay,
@@ -318,8 +330,9 @@ export default function Repay() {
         }
       })();
       const { id } = await mutateSendCalls({
-        chainId: chain.id,
+        chainId,
         calls: [call],
+        capabilities: { spend: { amount, token: repayMarket.market } },
       });
       const { status } = await waitForCallsStatus(exa, { id });
       if (status === "failure") throw new Error("failed to repay");
@@ -366,29 +379,31 @@ export default function Repay() {
       if (!route.fromAmount) throw new Error("no route from amount");
       if (!positionAssets) throw new Error("no position assets");
       if (!maxRepay) throw new Error("no max repay");
+      if (!usdc) throw new Error("no usdc");
       const { id } = await mutateSendCalls({
-        chainId: chain.id,
+        chainId,
         calls: [
           {
             to: selectedAsset.address,
             abi: erc20Abi,
             functionName: "approve",
-            args: [swapperAddress, route.fromAmount],
+            args: [swapper, route.fromAmount],
           },
-          { to: swapperAddress, data: route.data },
+          { to: swapper, data: route.data },
           {
-            to: usdcAddress,
+            to: usdc,
             abi: erc20Abi,
             functionName: "approve",
-            args: [marketUSDCAddress, maxRepay],
+            args: [marketUSDC, maxRepay],
           },
           {
-            to: marketUSDCAddress,
+            to: marketUSDC,
             functionName: "repayAtMaturity",
             abi: marketAbi,
             args: [maturity, positionAssets, maxRepay, account],
           },
         ],
+        capabilities: { spend: { amount: route.fromAmount, token: selectedAsset.address } },
       });
       const { status } = await waitForCallsStatus(exa, { id });
       if (status === "failure") throw new Error("failed to repay with external asset");
@@ -758,6 +773,7 @@ export default function Repay() {
             </YStack>
           </View>
           <AssetSelectionSheet
+            chainId={chainId}
             onAssetSelected={handleAssetSelect}
             open={assetSelectionOpen}
             onClose={() => {
@@ -788,6 +804,7 @@ export default function Repay() {
   if (isSuccess && displayValues.repayAssets)
     return (
       <Success
+        chainId={chainId}
         maturity={maturity}
         timestamp={timestamp}
         amount={displayValues.amount}
