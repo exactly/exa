@@ -1,0 +1,38 @@
+From 91d3dba1c564396faf65c07d9af71ef2af6060bc Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Sat, 21 Nov 2026 00:15:23 +0000
+Subject: [PATCH] fix: give taps 300 ms to change the screen before settling
+
+Settling right after a tap can read the old screen twice before the app reacts, so the next command runs against the screen the tap was leaving. A tap that has not changed the hierarchy yet now keeps settling until it does or 300 ms pass. A tap that asks for no settle wait keeps skipping it.
+---
+ maestro-client/src/main/java/maestro/Maestro.kt | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/maestro-client/src/main/java/maestro/Maestro.kt b/maestro-client/src/main/java/maestro/Maestro.kt
+index 8257761..f353874 100644
+--- a/maestro-client/src/main/java/maestro/Maestro.kt
++++ b/maestro-client/src/main/java/maestro/Maestro.kt
+@@ -431,7 +431,11 @@ class Maestro(
+             } else {
+                 runInterruptible(Dispatchers.IO) { driver.tap(Point(x, y)) }
+             }
+-            val hierarchyAfterTap = waitForAppToSettle(waitToSettleTimeoutMs = waitToSettleTimeoutMs)
++            val reactionDeadline = System.currentTimeMillis() + if (waitToSettleTimeoutMs == 0) 0L else TAP_REACTION_TIMEOUT_MS
++            var hierarchyAfterTap = waitForAppToSettle(waitToSettleTimeoutMs = waitToSettleTimeoutMs)
++            while (hierarchyAfterTap == hierarchyBeforeTap && System.currentTimeMillis() < reactionDeadline) {
++                hierarchyAfterTap = waitForAppToSettle(hierarchyAfterTap, waitToSettleTimeoutMs = waitToSettleTimeoutMs)
++            }
+ 
+             if (hierarchyAfterTap == null || hierarchyBeforeTap != hierarchyAfterTap) {
+                 LOGGER.info("Something has changed in the UI judging by view hierarchy. Proceed.")
+@@ -818,6 +822,7 @@ class Maestro(
+         // two budgets aligned when tuning either.
+         private const val ELEMENT_STABILITY_TIMEOUT_MS: Long = 3000
+         private const val ELEMENT_STABILITY_POLL_INTERVAL_MS: Long = 100
++        private const val TAP_REACTION_TIMEOUT_MS = 300L
+ 
+         fun ios(driver: Driver, openDriver: Boolean = true): Maestro {
+             if (openDriver) {
+-- 
+2.43.0
+
