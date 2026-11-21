@@ -1,0 +1,40 @@
+From 171ad5f02048593bacd0e92eedd51090999c2944 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Fri, 20 Nov 2026 21:24:49 +0000
+Subject: [PATCH] fix: hold long presses for 2 s
+
+Long presses held the touch for 3 s on both platforms, several times the long-press threshold of Android and iOS. Hold for 2 s, still past both thresholds and long enough for press-and-hold controls that need more than a second, which cuts a second from every long press.
+---
+ maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt | 2 +-
+ maestro-client/src/main/java/maestro/drivers/IOSDriver.kt     | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt b/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
+index 04e1110..685aa44 100644
+--- a/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
+@@ -281,7 +281,7 @@ class AndroidDriver(
+ 
+     override fun longPress(point: Point) {
+         metrics.measured("operation", mapOf("command" to "longPress")) {
+-            shell("input swipe ${point.x} ${point.y} ${point.x} ${point.y} 3000")
++            shell("input swipe ${point.x} ${point.y} ${point.x} ${point.y} 2000")
+         }
+     }
+ 
+diff --git a/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt b/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt
+index 62c48e0..daa2ef0 100644
+--- a/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/IOSDriver.kt
+@@ -160,7 +160,7 @@ class IOSDriver(
+ 
+     override fun longPress(point: Point) {
+         metrics.measured("operation", mapOf("command" to "longPress")) {
+-            runDeviceCall("longPress") { iosDevice.longPress(point.x, point.y, 3000) }
++            runDeviceCall("longPress") { iosDevice.longPress(point.x, point.y, 2000) }
+         }
+     }
+ 
+-- 
+2.43.0
+
