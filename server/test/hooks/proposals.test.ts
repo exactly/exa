@@ -6,6 +6,7 @@ import "../mocks/wallet";
 import { captureException, startSpan } from "@sentry/node";
 import { deserialize, serialize } from "@wagmi/core";
 import { and, eq, sql } from "drizzle-orm";
+import { v5 } from "uuid";
 import { parse } from "valibot";
 import {
   concatHex,
@@ -178,7 +179,9 @@ describe("indexer source", () => {
     advanced.resolve(true);
     cursor.mockRestore();
     await target.setAutomine(true);
-    await expect(target.waitForTransactionReceipt({ hash })).resolves.toMatchObject({ status: "success" });
+    const receipt = await target.waitForTransactionReceipt({ hash });
+    expect(receipt.status).toBe("success");
+    const [proposed] = parseEventLogs({ abi: proposalManagerAbi, eventName: "Proposed", logs: receipt.logs });
 
     await vi.waitUntil(
       async () =>
@@ -200,6 +203,7 @@ describe("indexer source", () => {
             symbol: "USDC",
             recipient: shortenHex(receiver),
           }),
+          idempotencyKey: v5(`https://exact.ly/proposal/${anvil2.id}/${account}/${proposed?.args.nonce}`, v5.URL),
         });
       },
       { timeout: 30_000, interval: 200 },
