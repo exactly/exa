@@ -46,6 +46,7 @@ import { cardModeMutationOptions } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
 import useBusiness from "../../utils/useBusiness";
 import useCardLimit from "../../utils/useCardLimit";
+import useDeposits from "../../utils/useDeposits";
 import useIsBusiness from "../../utils/useIsBusiness";
 import useKYC from "../../utils/useKYC";
 import useMarkets from "../../utils/useMarkets";
@@ -110,12 +111,7 @@ export default function Home() {
     chainId: chain.id,
     query: { enabled: !!account },
   });
-  const {
-    portfolio: { collateralUSD },
-    averageRate,
-    allAssets,
-    totalBalanceUSD,
-  } = usePortfolio();
+  const { portfolio, averageRate, allAssets, totalBalanceUSD } = usePortfolio({ deposits: useDeposits() });
 
   const { refetch: refetchPendingProposals } = useReadContract({
     abi: exaPreviewerAbi,
@@ -227,6 +223,7 @@ export default function Home() {
       business ? queryClient.invalidateQueries({ queryKey: ["kyc", "panda-business"], exact: true }) : undefined,
       revalidateUnsupported(),
       account ? refetchMarkets() : undefined,
+      queryClient.refetchQueries({ queryKey: ["network"], type: "active" }),
       account ? refetchBytecode() : undefined,
       account && bytecode ? refetchPendingProposals() : undefined,
     ]);
@@ -323,7 +320,7 @@ export default function Home() {
               <View paddingHorizontal="s4" gap="s5">
                 {card && (
                   <CardStatus
-                    collateral={collateralUSD}
+                    collateral={portfolio.collateralUSD}
                     creditLimit={markets ? borrowLimit(markets, marketUSDCAddress) : 0n}
                     spotlightRef={spotlightRef}
                     mode={card.mode}
