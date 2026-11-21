@@ -1,26 +1,58 @@
-import { ponder } from "ponder:registry";
+import { and, eq } from "ponder";
+import { ponder, type Context } from "ponder:registry";
 import {
   accounts,
   borrows,
+  bridges,
   collectors,
   delays,
   deposits,
   exaPlugins,
   executions,
+  liquidations,
+  markets,
   plugins,
   proposalManagers,
   proposals,
   repays,
+  swaps,
+  tokens,
   withdraws,
 } from "ponder:schema";
-import { decodeFunctionData, getAbiItem, isAddressEqual, numberToHex, toFunctionSelector, type Hex } from "viem";
+import {
+  BaseError,
+  CallExecutionError,
+  ContractFunctionRevertedError,
+  ContractFunctionZeroDataError,
+  decodeFunctionData,
+  erc20Abi,
+  erc20Abi_bytes32,
+  getAbiItem,
+  hexToString,
+  isAddressEqual,
+  numberToHex,
+  parseEventLogs,
+  toFunctionSelector,
+  zeroAddress,
+  type Hex,
+} from "viem";
+import { entryPoint06Abi, entryPoint06Address } from "viem/account-abstraction";
 
 import deriveAddress from "@exactly/common/deriveAddress";
-import { exaPluginAbi, factories } from "@exactly/common/generated/chain";
+import exaChain, {
+  alchemyChains,
+  auditorAbi,
+  chains,
+  exaPluginAbi,
+  factories,
+  marketAbi,
+} from "@exactly/common/generated/chain";
 
 const executeProposalAbi = [getAbiItem({ abi: exaPluginAbi, name: "executeProposal" })] as const;
 const executeProposal = toFunctionSelector(executeProposalAbi[0]);
 const legacyWithdraw = toFunctionSelector("withdraw()");
+const integrator = "exa_app";
+const native = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 
 ponder.on("ExaAccountFactory:ExaAccountInitialized", async ({ event, context }) => {
   await context.db.insert(accounts).values({
@@ -101,6 +133,24 @@ ponder.on("ProposalManager:DelaySet", async ({ event, context }) => {
     .onConflictDoUpdate({ delay: event.args.delay });
 });
 
+ponder.on("Auditor:MarketListed", async ({ event, context }) => {
+  const [asset, symbol] = await Promise.all([
+    context.client.readContract({ address: event.args.market, abi: marketAbi, functionName: "asset" }),
+    context.client.readContract({ address: event.args.market, abi: marketAbi, functionName: "symbol" }),
+  ]);
+  const metadata = { asset, symbol: symbol.slice(3), decimals: event.args.decimals };
+  await context.db
+    .insert(markets)
+    .values({ chainId: context.chain.id, address: event.args.market, ...metadata })
+    .onConflictDoUpdate(metadata);
+});
+
+ponder.on("Auditor:PriceFeedSet", async ({ event, context }) => {
+  const key = { chainId: context.chain.id, address: event.args.market };
+  if (!(await context.db.find(markets, key))) return; // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
+  await context.db.update(markets, key).set({ priceFeed: event.args.priceFeed });
+});
+
 ponder.on("Market:Deposit", async ({ event, context }) => {
   if (!(await context.db.find(accounts, { chainId: context.chain.id, address: event.args.owner }))) return; // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
   await context.db.insert(deposits).values({
@@ -109,6 +159,7 @@ ponder.on("Market:Deposit", async ({ event, context }) => {
     caller: event.args.caller,
     market: event.log.address,
     assets: event.args.assets,
+    usdPrice: await usdPrice(context, event.log.address),
   });
 });
 
@@ -131,6 +182,7 @@ ponder.on("Market:Withdraw", async ({ event, context }) => {
     receiver: event.args.receiver,
     market: event.log.address,
     assets: event.args.assets,
+    usdPrice: await usdPrice(context, event.log.address),
     proposalManager: input.startsWith(legacyWithdraw) ? event.args.receiver : (proposal?.proposalManager ?? null),
     nonce: proposal?.nonce ?? null,
   });
@@ -146,6 +198,7 @@ ponder.on("Market:BorrowAtMaturity", async ({ event, context }) => {
     market: event.log.address,
     maturity: event.args.maturity,
     assets: event.args.assets,
+    usdPrice: await usdPrice(context, event.log.address),
     fee: event.args.fee,
   });
 });
@@ -159,6 +212,7 @@ ponder.on("Market:RepayAtMaturity", async ({ event, context }) => {
     market: event.log.address,
     maturity: event.args.maturity,
     assets: event.args.assets,
+    usdPrice: await usdPrice(context, event.log.address),
     positionAssets: event.args.positionAssets,
   });
 });
@@ -188,6 +242,173 @@ ponder.on("ProposalManager:ProposalNonceSet", async ({ event, context }) => {
     .values({ ...key, ...execution })
     .onConflictDoUpdate(execution);
 });
+
+ponder.on("Market:Liquidate", async ({ event, context }) => {
+  if (!(await context.db.find(accounts, { chainId: context.chain.id, address: event.args.borrower }))) return; // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
+  await context.db.insert(liquidations).values({
+    ...log(event, context),
+    account: event.args.borrower,
+    liquidator: event.args.receiver,
+    market: event.log.address,
+    assets: event.args.assets,
+    lendersAssets: event.args.lendersAssets,
+    seizeMarket: event.args.seizeMarket,
+    seizedAssets: event.args.seizedAssets,
+    usdPrice: await usdPrice(context, event.log.address),
+    seizeUsdPrice: await usdPrice(context, event.args.seizeMarket),
+  });
+});
+
+ponder.on("Swapper:LiFiGenericSwapCompleted", async ({ event, context }) => {
+  if (event.args.integrator !== integrator) return;
+  if (!(await context.db.find(accounts, { chainId: context.chain.id, address: event.args.receiver }))) return; // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
+  const [fromUsdPrice, toUsdPrice] = await Promise.all([
+    assetPrice(context, event.args.fromAssetId),
+    assetPrice(context, event.args.toAssetId),
+    token(context, event.args.fromAssetId),
+    token(context, event.args.toAssetId),
+  ]);
+  await context.db.insert(swaps).values({
+    ...log(event, context),
+    account: event.args.receiver,
+    transactionId: event.args.transactionId,
+    fromAsset: event.args.fromAssetId,
+    toAsset: event.args.toAssetId,
+    fromAmount: event.args.fromAmount,
+    toAmount: event.args.toAmount,
+    fromUsdPrice,
+    toUsdPrice,
+  });
+});
+
+ponder.on("Swapper:LiFiTransferStarted", async ({ event, context }) => {
+  const { bridgeData } = event.args;
+  if (bridgeData.integrator !== integrator) return;
+  const [account, usd] = await Promise.all([
+    sender(context, event.transaction, event.log, bridgeData.sendingAssetId),
+    assetPrice(context, bridgeData.sendingAssetId),
+    token(context, bridgeData.sendingAssetId),
+  ]);
+  await context.db.insert(bridges).values({
+    ...log(event, context),
+    account,
+    transactionId: bridgeData.transactionId,
+    bridge: bridgeData.bridge,
+    asset: bridgeData.sendingAssetId,
+    amount: bridgeData.minAmount,
+    receiver: bridgeData.receiver,
+    destinationChainId: bridgeData.destinationChainId,
+    usdPrice: usd,
+  });
+});
+
+async function sender(
+  context: Context,
+  { hash, to }: { hash: Hex; to: Hex | null },
+  { address, logIndex }: { address: Hex; logIndex: number },
+  asset: Hex,
+) {
+  if (!chains.has(context.chain.id)) return null;
+  const { logs } = await context.client.getTransactionReceipt({ hash });
+  const operations = parseEventLogs({
+    abi: entryPoint06Abi,
+    eventName: "UserOperationEvent",
+    logs: logs.filter((entry) => isAddressEqual(entry.address, entryPoint06Address)),
+  });
+  const operation = operations.find((userOperation) => userOperation.logIndex > logIndex);
+  const floor = Math.max(
+    -1,
+    ...operations.map((userOperation) => userOperation.logIndex).filter((index) => index < logIndex),
+  );
+  const candidates = [
+    ...(operation ? [operation.args.sender] : []),
+    ...(to ? [to] : []),
+    ...parseEventLogs({
+      abi: erc20Abi,
+      eventName: "Transfer",
+      logs: logs.filter((entry) => isAddressEqual(entry.address, asset)),
+      args: { to: address },
+    })
+      .filter((transfer) => transfer.logIndex > floor && transfer.logIndex < logIndex)
+      .map(({ args }) => args.from),
+  ];
+  for (const candidate of candidates) {
+    if (await context.db.find(accounts, { chainId: context.chain.id, address: candidate })) return candidate; // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
+  }
+  return null;
+}
+
+async function usdPrice(context: Context, market: Hex) {
+  const found = await context.db.find(markets, { chainId: context.chain.id, address: market }); // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
+  const auditor = chains.get(context.chain.id)?.auditor;
+  if (!found?.priceFeed || !auditor) return null;
+  return context.client
+    .readContract({ address: auditor, abi: auditorAbi, functionName: "assetPrice", args: [found.priceFeed] })
+    .catch(fallback(() => null));
+}
+
+function fallback<T>(value: () => T) {
+  return (error: unknown) => {
+    const found =
+      error instanceof BaseError &&
+      error.walk(
+        (cause) =>
+          cause instanceof ContractFunctionRevertedError ||
+          cause instanceof ContractFunctionZeroDataError ||
+          cause instanceof CallExecutionError,
+      );
+    if (found === false || found instanceof CallExecutionError) throw error;
+    return value();
+  };
+}
+
+async function assetPrice(context: Context, asset: Hex) {
+  const [market] = await context.db.sql
+    .select({ address: markets.address })
+    .from(markets)
+    .where(
+      and(
+        eq(markets.chainId, context.chain.id),
+        asset === zeroAddress || asset.toLowerCase() === native
+          ? eq(markets.symbol, "WETH")
+          : eq(markets.asset, asset.toLowerCase() as Hex),
+      ),
+    )
+    .limit(1);
+  return market ? usdPrice(context, market.address) : null;
+}
+
+async function token(context: Context, address: Hex) {
+  const key = { chainId: context.chain.id, address };
+  if (await context.db.find(tokens, key)) return; // eslint-disable-line unicorn/no-array-method-this-argument -- ponder store
+  if (address === zeroAddress || address.toLowerCase() === native) {
+    const network = context.chain.id === exaChain.id ? exaChain : alchemyChains.get(context.chain.id);
+    if (!network?.nativeCurrency) throw new Error(`unknown chain ${context.chain.id}`);
+    const { symbol, decimals } = network.nativeCurrency;
+    await context.db
+      .insert(tokens)
+      .values({ ...key, symbol, decimals })
+      .onConflictDoNothing();
+    return;
+  }
+  const [symbol, decimals] = await Promise.all([
+    context.client
+      .readContract({ address, abi: erc20Abi, functionName: "symbol" })
+      .catch(
+        fallback(() =>
+          context.client
+            .readContract({ address, abi: erc20Abi_bytes32, functionName: "symbol" })
+            .then((value) => hexToString(value, { size: 32 })),
+        ),
+      )
+      .catch(fallback(() => address)),
+    context.client.readContract({ address, abi: erc20Abi, functionName: "decimals" }).catch(fallback(() => 18)),
+  ]);
+  await context.db
+    .insert(tokens)
+    .values({ ...key, symbol, decimals })
+    .onConflictDoNothing();
+}
 
 function log(
   {

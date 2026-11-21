@@ -28,9 +28,11 @@ export default function RepayActivity({ item }: { item: Extract<ActivityItem, { 
           <Text primary body emphasized textAlign="center">
             {t("Debt payment")}
           </Text>
-          <Text title primary color="uiErrorSecondary">
-            {`$${usdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-          </Text>
+          {usdAmount !== undefined && (
+            <Text title primary color="uiErrorSecondary">
+              {`$${usdAmount.toLocaleString(language, { style: "decimal", minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+            </Text>
+          )}
           <XStack gap="s3" alignItems="center">
             <Text emphasized subHeadline color="uiNeutralSecondary">
               {amount.toLocaleString(language, { maximumFractionDigits: 8, minimumFractionDigits: 0 })}
