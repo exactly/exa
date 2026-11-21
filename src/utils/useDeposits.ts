@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 
 import { useQueries, type UseQueryResult } from "@tanstack/react-query";
 
@@ -12,7 +12,12 @@ import type { ProtocolAsset } from "./usePortfolio";
 
 export default function useDeposits() {
   const { address: account } = useAccount();
-  const previews = useQueries({ queries: remotes.map((chainId) => networkOptions(account, chainId)), combine });
+  const previews = useQueries({
+    queries: (chains.has(chain.id) ? [...chains.keys()].filter((id) => id !== chain.id) : []).map((chainId) =>
+      networkOptions(account, chainId),
+    ),
+    combine: useCallback(<T>(results: UseQueryResult<T>[]) => results.map(({ data }) => data), []),
+  });
   return useMemo<ProtocolAsset[]>(
     () =>
       previews.flatMap((data) => {
@@ -31,9 +36,3 @@ export default function useDeposits() {
     [previews],
   );
 }
-
-function combine<T>(results: UseQueryResult<T>[]) {
-  return results.map(({ data }) => data);
-}
-
-const remotes = chains.has(chain.id) ? [...chains.keys()].filter((id) => id !== chain.id) : [];
