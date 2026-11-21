@@ -6,6 +6,7 @@ import { env } from "node:process";
 import {
   array,
   boolean,
+  fallback,
   flatten,
   literal,
   looseObject,
@@ -275,7 +276,7 @@ export default function persona(key: string, url: string) {
     return data;
   }
   // eslint-disable-next-line unicorn/consistent-function-scoping
-  function getDocumentForBridge(documents: InferOutput<typeof AccountBasicFields>["documents"]["value"]) {
+  function getDocumentForBridge<T extends { id_class: { value: string } }>(documents: { value: T }[]): T | undefined {
     const classDocuments = documents.filter(({ value: { id_class } }) => {
       const result = safeParse(picklist(IdentificationClasses), id_class.value);
       return result.success && IdClassToBridge[result.output];
@@ -430,6 +431,8 @@ export const Document = object({
     "front-photo": nullable(File),
     "selfie-photo": nullable(File),
     "id-class": string(),
+    "name-first": optional(nullable(string())),
+    "name-last": optional(nullable(string())),
   }),
 });
 
@@ -573,7 +576,28 @@ const CardLimitAccount = object({
   id: string(),
   type: literal("account"),
   attributes: object({
-    fields: object({ card_limit_usd: optional(object({ value: nullable(pipe(number(), minValue(1))) })) }),
+    "country-code": nullish(string()),
+    "name-first": nullish(string()),
+    "name-last": nullish(string()),
+    fields: object({
+      card_limit_usd: optional(object({ value: nullable(pipe(number(), minValue(1))) })),
+      documents: fallback(
+        optional(
+          object({
+            value: array(
+              object({
+                value: object({
+                  id_class: object({ value: string() }),
+                  id_document_id: object({ value: string() }),
+                  id_issuing_country: object({ value: string() }),
+                }),
+              }),
+            ),
+          }),
+        ),
+        undefined, // eslint-disable-line unicorn/no-useless-undefined
+      ),
+    }),
   }),
 });
 

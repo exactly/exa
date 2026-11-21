@@ -1,4 +1,4 @@
-// cspell:ignore cust midmarket sepa spei iban COBADEFFXXX Anytown Joao Zdestination Adestination GABCDEFGHIJKLMNOPQRSTUVWXYZSTELLARDESTINATION
+// cspell:ignore cust midmarket sepa spei iban COBADEFFXXX Anytown Joao Zdestination Adestination GABCDEFGHIJKLMNOPQRSTUVWXYZSTELLARDESTINATION Xiaoming Dawen Zeng Zhang Иван Abudula Aili Xiao Юрій Шевченко Shevchenko Тверская التحرير المصري شارع محمد Shar Tahrir Yurii Москва Moskva Tverskaia Corrientes Piso Masry Shaka MULLER José Müller
 import "../mocks/sentry";
 
 import { captureException, setContext } from "@sentry/core";
@@ -3368,6 +3368,158 @@ describe("bridge utils", () => {
         residential_address: { subdivision?: string };
       };
       expect(address.subdivision).toBeUndefined();
+    });
+
+    it.each([
+      { first: "小明", last: "吕", issuer: "CN", transliterated: { first: "Xiaoming", last: "Lyu" } },
+      { first: "大文", last: "曾", issuer: "CN", transliterated: { first: "Dawen", last: "Zeng" } },
+      { first: "Иван", last: "张", issuer: "CN", transliterated: { first: "Ivan", last: "Zhang" } },
+      { first: "阿卜杜拉·艾力", last: "吕", issuer: "CN", transliterated: { first: "Abudula Aili", last: "Lyu" } },
+      {
+        first: "太郎",
+        last: "山田",
+        issuer: "JP",
+        document: { first: "TARO", last: "YAMADA" },
+        transliterated: { first: "TARO", last: "YAMADA" },
+      },
+      {
+        first: "大文",
+        last: "陳",
+        issuer: "HK",
+        document: { first: "TAI MAN", last: "CHAN" },
+        transliterated: { first: "TAI MAN", last: "CHAN" },
+      },
+      { first: "محمد", last: "المصري", issuer: "EG", transliterated: { first: "Mohamed", last: "El-Masry" } },
+      { first: "Юрій", last: "Шевченко", issuer: "UA", transliterated: { first: "Yurii", last: "Shevchenko" } },
+      { first: "José", last: "Müller", issuer: "AR", document: { first: "JOSE", last: "MULLER" }, transliterated: {} },
+    ])("transliterates names $first $last from $issuer", async ({ first, last, issuer, document, transliterated }) => {
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
+        ...enabledPersonaAccount,
+        attributes: {
+          ...enabledPersonaAccount.attributes,
+          fields: {
+            ...enabledPersonaAccount.attributes.fields,
+            name: { value: { first: { value: first }, middle: { value: null }, last: { value: last } } },
+            documents: { value: [{ value: { ...identityDocument, id_issuing_country: { value: issuer } } }] },
+          },
+        },
+      });
+      vi.spyOn(persona, "getDocument").mockResolvedValueOnce({
+        ...documentResponse,
+        attributes: { ...documentResponse.attributes, "name-first": document?.first, "name-last": document?.last },
+      });
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce({ ok: true, blob: () => Promise.resolve(new Blob(["front"])) } as Response)
+        .mockResolvedValueOnce({ ok: true, blob: () => Promise.resolve(new Blob(["back"])) } as Response)
+        .mockResolvedValueOnce(fetchResponse({ id: "cust-new", status: "not_started" }));
+
+      await bridge.onboarding({
+        accountType: "consumer",
+        credentialId: "cred-1",
+        customerId: null,
+        acceptedTermsId: "terms-1",
+      });
+
+      const body = JSON.parse(fetchSpy.mock.calls[2]?.[1]?.body as string) as Record<string, unknown>;
+      expect(body).toMatchObject({ first_name: first, last_name: last });
+      expect(body.transliterated_first_name).toBe(transliterated.first);
+      expect(body.transliterated_last_name).toBe(transliterated.last);
+      expect(body.transliterated_residential_address).toBeUndefined();
+      expect(captureException).not.toHaveBeenCalled();
+      await expect(
+        database.query.credentials.findFirst({ columns: { bridgeId: true }, where: eq(credentials.id, "cred-1") }),
+      ).resolves.toStrictEqual({ bridgeId: "cust-new" });
+    });
+
+    it.each([
+      {
+        country: "RU",
+        alpha3: "RUS",
+        address: { street1: "ул. Тверская, д. 7", street2: null, city: "Москва", postal: "125009" },
+        postalCode: "125009",
+        transliterated: { street_line_1: "ul. Tverskaia, d. 7", postal_code: "125009", country: "RUS", city: "Moskva" },
+      },
+      {
+        country: "EG",
+        alpha3: "EGY",
+        address: { street1: "شارع التحرير ١٢", street2: "شقة ٥", city: "Cairo", postal: "١١٥١١" },
+        postalCode: "11511",
+        transliterated: {
+          street_line_1: "Shar El-Tahrir 12",
+          street_line_2: "Shaka 5",
+          postal_code: "11511",
+          country: "EGY",
+          city: "Cairo",
+        },
+      },
+      {
+        country: "EG",
+        alpha3: "EGY",
+        address: { street1: "12 Tahrir St", street2: null, city: "Cairo", postal: "\u200F١١٥ ١١" },
+        postalCode: "11511",
+        transliterated: undefined,
+      },
+      {
+        country: "EG",
+        alpha3: "EGY",
+        address: { street1: "شارع التحرير ١٢", street2: null, city: "Cairo", postal: "\u{11DE0}1511" },
+        postalCode: "\u{11DE0}1511",
+        transliterated: {
+          street_line_1: "Shar El-Tahrir 12",
+          postal_code: "\u{11DE0}1511",
+          country: "EGY",
+          city: "Cairo",
+        },
+      },
+      {
+        country: "AR",
+        alpha3: "ARG",
+        address: { street1: "Av. Corrientes 1234", street2: "Piso 3", city: "Buenos Aires", postal: "1000" },
+        postalCode: "1000",
+        transliterated: undefined,
+      },
+    ])("transliterates address from $country", async ({ country, alpha3, address, postalCode, transliterated }) => {
+      vi.spyOn(persona, "getAccount").mockResolvedValueOnce({
+        ...enabledPersonaAccount,
+        attributes: {
+          ...enabledPersonaAccount.attributes,
+          "country-code": country,
+          "address-street-1": address.street1,
+          "address-street-2": address.street2,
+          "address-city": address.city,
+          "address-postal-code": address.postal,
+        },
+      });
+      vi.spyOn(persona, "getDocument").mockResolvedValueOnce(documentResponse);
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce({ ok: true, blob: () => Promise.resolve(new Blob(["front"])) } as Response)
+        .mockResolvedValueOnce({ ok: true, blob: () => Promise.resolve(new Blob(["back"])) } as Response)
+        .mockResolvedValueOnce(fetchResponse({ id: "cust-new", status: "not_started" }));
+
+      await bridge.onboarding({
+        accountType: "consumer",
+        credentialId: "cred-1",
+        customerId: null,
+        acceptedTermsId: "terms-1",
+      });
+
+      const body = JSON.parse(fetchSpy.mock.calls[2]?.[1]?.body as string) as Record<string, unknown>;
+      expect(body.residential_address).toStrictEqual({
+        street_line_1: address.street1,
+        ...(address.street2 && { street_line_2: address.street2 }),
+        postal_code: postalCode,
+        country: alpha3,
+        city: address.city,
+      });
+      expect(body.transliterated_residential_address).toStrictEqual(transliterated);
+      expect(body.transliterated_first_name).toBeUndefined();
+      expect(body.transliterated_last_name).toBeUndefined();
+      expect(captureException).not.toHaveBeenCalled();
+      await expect(
+        database.query.credentials.findFirst({ columns: { bridgeId: true }, where: eq(credentials.id, "cred-1") }),
+      ).resolves.toStrictEqual({ bridgeId: "cust-new" });
     });
 
     it("includes spei endorsement for MX country", async () => {

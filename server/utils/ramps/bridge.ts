@@ -43,6 +43,7 @@ import chain from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import { credentials } from "../../database/schema";
+import { latinAddress, latinName, normalizePostalCode } from "../identity";
 import { BusinessApplicationError } from "../panda";
 import * as Persona from "../persona";
 import ServiceError from "../ServiceError";
@@ -1482,21 +1483,47 @@ export default function bridge(key: string, url: string) {
             issuing_country: "USA",
           });
         }
+        const address = {
+          street1: personaAccount.attributes["address-street-1"],
+          street2: personaAccount.attributes["address-street-2"] ?? undefined,
+          postalCode: normalizePostalCode(personaAccount.attributes["address-postal-code"]),
+          city: personaAccount.attributes["address-city"],
+        };
+        const subdivision = countryCode === "US" ? personaAccount.attributes["address-subdivision"] : undefined;
+        const romanizedName = latinName(
+          {
+            first: personaAccount.attributes.fields.name.value.first.value,
+            last: personaAccount.attributes.fields.name.value.last.value,
+          },
+          validDocument.id_issuing_country.value,
+          { first: identityDocument.attributes["name-first"], last: identityDocument.attributes["name-last"] },
+        );
+        const romanizedAddress = latinAddress(address, countryCode);
         const idempotencyKey = crypto.randomUUID();
         const customer = await createCustomer(
           {
             type: "individual",
             first_name: personaAccount.attributes.fields.name.value.first.value,
             last_name: personaAccount.attributes.fields.name.value.last.value,
+            transliterated_first_name: romanizedName?.first,
+            transliterated_last_name: romanizedName?.last,
             email: personaAccount.attributes["email-address"],
             phone: personaAccount.attributes.fields.phone_number.value,
             residential_address: {
-              street_line_1: personaAccount.attributes["address-street-1"],
-              street_line_2: personaAccount.attributes["address-street-2"] ?? undefined,
-              postal_code: personaAccount.attributes["address-postal-code"],
-              subdivision: countryCode === "US" ? personaAccount.attributes["address-subdivision"] : undefined,
+              street_line_1: address.street1,
+              street_line_2: address.street2,
+              postal_code: address.postalCode,
+              subdivision,
               country,
-              city: personaAccount.attributes["address-city"],
+              city: address.city,
+            },
+            transliterated_residential_address: romanizedAddress && {
+              street_line_1: romanizedAddress.street1,
+              street_line_2: romanizedAddress.street2,
+              postal_code: romanizedAddress.postalCode,
+              subdivision,
+              country,
+              city: romanizedAddress.city,
             },
             birth_date: personaAccount.attributes.fields.birthdate.value,
             signed_agreement_id: params.acceptedTermsId,

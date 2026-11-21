@@ -43,6 +43,7 @@ import { Address, Base64URL, Hex } from "@exactly/common/validation";
 
 import { cards, credentials } from "../database/schema";
 import { origin } from "../utils/appOrigin";
+import { cardName, latin } from "../utils/identity";
 import { partner } from "../utils/panda";
 import publicClient from "../utils/publicClient";
 import ServiceError from "../utils/ServiceError";
@@ -641,24 +642,48 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
                     });
                     return orphan;
                   } else {
+                    const profile = await persona
+                      .getAccount(credentialId, "cardLimit")
+                      .catch((error: unknown): undefined => {
+                        captureException(error, {
+                          level: "error",
+                          contexts: { details: { credentialId, scope: "cardLimit" } },
+                        });
+                      });
+                    const name =
+                      profile?.attributes["name-first"] && profile.attributes["name-last"]
+                        ? { first: profile.attributes["name-first"], last: profile.attributes["name-last"] }
+                        : undefined;
+                    const identity =
+                      name && !(latin(name.first) && latin(name.last))
+                        ? persona.getDocumentForBridge(profile?.attributes.fields.documents?.value ?? [])
+                        : undefined;
+                    const document =
+                      identity === undefined
+                        ? undefined
+                        : await persona
+                            .getDocument(identity.id_document_id.value)
+                            .then(({ attributes }) => ({
+                              first: attributes["name-first"],
+                              last: attributes["name-last"],
+                            }))
+                            .catch((error: unknown): undefined => {
+                              captureException(error, { level: "warning", contexts: { details: { credentialId } } });
+                            });
                     return panda.createCard(
                       pandaId,
                       productId,
-                      await persona
-                        .getAccount(credentialId, "cardLimit")
-                        .then((profile) =>
-                          profile?.attributes.fields.card_limit_usd?.value == null
-                            ? undefined
-                            : profile.attributes.fields.card_limit_usd.value * 100,
-                        )
-                        .catch((error: unknown): undefined => {
-                          captureException(error, {
-                            level: "error",
-                            contexts: { details: { credentialId, scope: "cardLimit" } },
-                          });
-                        }),
+                      profile?.attributes.fields.card_limit_usd?.value == null
+                        ? undefined
+                        : profile.attributes.fields.card_limit_usd.value * 100,
                       undefined,
                       credential.source,
+                      name &&
+                        cardName(
+                          name,
+                          identity?.id_issuing_country.value ?? profile?.attributes["country-code"] ?? "",
+                          document,
+                        ),
                     );
                   }
                 });
