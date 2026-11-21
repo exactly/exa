@@ -699,7 +699,7 @@ export default function Swaps() {
       : undefined;
   const deficit = routed ? routedSwap?.shortfall : undefined;
   const insufficientGas = !!deficit;
-  const { sendCalls } = useSend(fromChain, routed ? routedSwap?.spend : undefined);
+  const { sendCalls } = useSend(fromChain, { spend: routed ? routedSwap?.spend : undefined });
 
   const duration =
     route &&

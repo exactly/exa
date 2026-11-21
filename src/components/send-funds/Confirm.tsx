@@ -524,7 +524,7 @@ export default function Confirm() {
     refetchInterval: deficit ? quoteValidity / 3 : false,
     notifyOnChangeProps: [],
   });
-  const { sendCalls, submitted } = useSend(payChain, spend);
+  const { sendCalls, submitted } = useSend(payChain, { spend });
   const {
     mutate: send,
     data: receipt,

@@ -8,10 +8,8 @@ import { toast } from "@tamagui/toast";
 import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
-import { waitForCallsStatus } from "@wagmi/core/actions";
 import { safeParse } from "valibot";
 import { encodeFunctionData, formatUnits } from "viem";
-import { useSendCalls } from "wagmi";
 
 import chain, { marketUSDCAddress } from "@exactly/common/generated/chain";
 import ProposalType from "@exactly/common/ProposalType";
@@ -32,6 +30,7 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { APIError, getRampQuote, listExternalAccounts } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
+import useSend from "../../utils/useSend";
 import useSimulateProposal from "../../utils/useSimulateProposal";
 import useSingleMutation from "../../utils/useSingleMutation";
 import exa from "../../utils/wagmi/exa";
@@ -102,18 +101,18 @@ export default function Review() {
     enabled: !!userAddress && !!depositAddress && !!usdcAmount,
   });
 
-  const { mutateAsync: mutateSendCalls } = useSendCalls();
+  const { sendCalls, submitted } = useSend(chain.id, {
+    key: ["withdraw", userAddress, currencyString, contactString, String(amount)],
+  });
   const transfer = useSingleMutation({
     mutationFn: async () => {
-      if (!proposeSimulation) throw new Error("propose not ready");
-      const { address: to, abi, functionName, args } = proposeSimulation;
-      const { id } = await mutateSendCalls({
-        chainId: chain.id,
-        calls: [{ to, data: encodeFunctionData({ abi, functionName, args }) }],
-      });
-      const result = await waitForCallsStatus(exa, { id });
-      if (result.status === "failure") throw new Error("transaction failed");
-      return result.receipts?.[0]?.transactionHash;
+      if (!submitted && !proposeSimulation) throw new Error("propose not ready");
+      const receipt = await sendCalls(
+        submitted || !proposeSimulation
+          ? []
+          : [{ to: proposeSimulation.address, data: encodeFunctionData(proposeSimulation) }],
+      );
+      return receipt?.transactionHash;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["activity"] }).catch(reportError);
@@ -349,9 +348,9 @@ export default function Review() {
             transfer.mutate();
           }}
           primary
-          disabled={!proposeSimulation || !recipientValid || !meetsMinimum || missingTransfer}
+          disabled={!submitted && (!proposeSimulation || !recipientValid || !meetsMinimum || missingTransfer)}
         >
-          <Button.Text>{t("Confirm and send")}</Button.Text>
+          <Button.Text>{submitted ? t("Check status") : t("Confirm and send")}</Button.Text>
           <Button.Icon>
             <ArrowRight />
           </Button.Icon>
