@@ -32,16 +32,17 @@ import path from "node:path";
 import process, { env } from "node:process";
 import { setTimeout } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
+import { parse } from "valibot";
 import { getAddress, keccak256, padHex, slice, toBytes, type Address } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { describe, expect, it, vi } from "vitest";
 
 import domain from "@exactly/common/domain";
 import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
+import { Hash } from "@exactly/common/validation";
 
-import { chains } from "./anvil";
-import lifi from "./lifi";
 import database, { cards as cardsTable, credentials } from "../database";
+import mockfi from "../hooks/mockfi";
 import auth from "../middleware/auth";
 import createAlchemy from "../utils/alchemy";
 import appOrigin, { origins, related } from "../utils/appOrigin";
@@ -60,6 +61,7 @@ import ServiceError from "../utils/ServiceError";
 import allowWorker from "../workers/allow/worker";
 import creditWorker from "../workers/credit/worker";
 import hookWorker from "../workers/hook/worker";
+import mockfiWorker from "../workers/mockfi/worker";
 import pokeWorker from "../workers/poke/worker";
 import refundWorker from "../workers/refund/worker";
 import subscribeWorker from "../workers/subscribe/worker";
@@ -103,6 +105,14 @@ describe("e2e", () => {
           segment,
         }),
         hookWorker({ bullmq, database, panda }),
+        mockfiWorker({
+          bridger: privateKeyToAccount(
+            env.MOCKFI_PRIVATE_KEY ? parse(Hash, env.MOCKFI_PRIVATE_KEY) : keccak256(toBytes("e2e.ts")),
+          ),
+          bullmq,
+          database,
+          testnets: Boolean(env.MOCKFI_PRIVATE_KEY),
+        }),
         subscribeWorker({ alchemy: createAlchemy("webhooks"), bullmq, database }),
       ];
       async function deliver(inquiry: Inquiry, status: Inquiry["status"]) {
@@ -307,7 +317,7 @@ describe("e2e", () => {
             return c.json({ code: "ok" });
           });
           app.get("/e2e/session", auth(authSecret), (c) => c.json(c.req.valid("cookie")));
-          app.route("/e2e/lifi", lifi(chains));
+          app.route("/hooks/mockfi", mockfi({ database, testnets: Boolean(env.MOCKFI_PRIVATE_KEY) }).app);
           app.get("/e2e/credential", async (c) => {
             const credential = await database.query.credentials.findFirst({
               columns: { id: true },

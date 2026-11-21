@@ -14,7 +14,7 @@ import {
 import { deserialize, serialize } from "@wagmi/core";
 import { Mutex } from "async-mutex";
 import createDebug from "debug";
-import { eq, inArray } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { createHash } from "node:crypto";
 import { setTimeout } from "node:timers/promises";
@@ -31,6 +31,7 @@ import {
   ExecutionRevertedError,
   formatUnits,
   getAbiItem,
+  getAddress,
   isAddressEqual,
   parseEventLogs,
   toEventSelector,
@@ -43,11 +44,11 @@ import chain, {
   appPreviewerAbi,
   appPreviewerCode,
   auditorAbi,
+  chains,
   exaAccountFactoryAbi,
   exaPluginAbi,
   exaPluginAddress,
   exaPreviewerAbi,
-  exaPreviewerAddress,
   factories,
   marketAbi,
   marketUSDCAddress,
@@ -60,12 +61,14 @@ import revertReason from "@exactly/common/revertReason";
 import shortenHex from "@exactly/common/shortenHex";
 import { Address, Hash, Hex } from "@exactly/common/validation";
 
+import * as indexer from "../database/indexer";
 import { credentials } from "../database/schema";
 import t, { f } from "../i18n";
 import { headerValidator } from "../utils/alchemy";
 import appOrigin from "../utils/appOrigin";
 import ensClient from "../utils/ensClient";
-import publicClient from "../utils/publicClient";
+import listen from "../utils/listen";
+import publicClient, { alchemyClient } from "../utils/publicClient";
 import pay from "../utils/ramps/pay";
 import revertFingerprint from "../utils/revertFingerprint";
 import ServiceError from "../utils/ServiceError";
@@ -79,6 +82,7 @@ import type createPersona from "../utils/persona";
 import type createManteca from "../utils/ramps/manteca";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Redis } from "ioredis";
+import type { Pool } from "pg";
 
 const debug = createDebug("exa:block");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
@@ -86,41 +90,60 @@ Object.assign(debug, { inspectOpts: { depth: undefined } });
 export default function hook({
   alchemy,
   blockKey,
-  chainId = chain.id,
+  chainId: emitterChainId = chain.id,
   database,
   executor,
   manteca,
   onesignal,
   persona,
   redis,
+  source = "alchemy",
 }: {
   alchemy: ReturnType<typeof createAlchemy>;
   blockKey?: string;
   chainId?: number;
-  database: NodePgDatabase<typeof schema>;
+  database: NodePgDatabase<typeof schema> & { $client: Pool };
   executor: LocalAccount;
   manteca: ReturnType<typeof createManteca>;
   onesignal: ReturnType<typeof createOnesignal>;
   persona: ReturnType<typeof createPersona>;
   redis: Redis;
+  source?: "alchemy" | "indexer";
 }) {
   const wallet = createWallet(executor);
-  const mutexes = new Map<Address, Mutex>();
-  function createMutex(address: Address) {
+  const targets = new Map(
+    [...chains.values()].flatMap((network) => {
+      if (!network.smartAccount) return [];
+      const home = network.id === chain.id;
+      return [
+        [
+          network.id,
+          {
+            client: home ? publicClient : alchemyClient(network),
+            exaPreviewer: network.exaPreviewer,
+            wallet: home ? wallet : createWallet(executor, network),
+          },
+        ] as const,
+      ];
+    }),
+  );
+  const mutexes = new Map<string, Mutex>();
+  function createMutex(key: string) {
     const mutex = new Mutex();
-    mutexes.set(address, mutex);
+    mutexes.set(key, mutex);
     return mutex;
   }
 
   let emitters: Promise<Set<Address>> | undefined;
   function proposalEmitters() {
-    emitters ??= discoverEmitters(chainId).catch((error: unknown) => {
+    emitters ??= discoverEmitters(emitterChainId).catch((error: unknown) => {
       emitters = undefined;
       throw error;
     });
     return emitters;
   }
 
+  const listener = source === "indexer" ? listen(database.$client, sync) : undefined;
   if (!blockKey) debug("missing alchemy block key");
   const signingKeys = new Set(blockKey && [blockKey]);
   const ready = Promise.all([
@@ -140,6 +163,7 @@ export default function hook({
       if (signingKeys.size === 0) throw error;
       captureException(error, { level: "warning" });
     }),
+    listener?.ready,
   ]);
   const app = new Hono().post(
     "/",
@@ -449,6 +473,7 @@ export default function hook({
     const {
       account,
       amount,
+      chainId,
       data,
       id,
       market,
@@ -461,9 +486,12 @@ export default function hook({
       unlock,
     } = proposal;
     const bodySize = Buffer.byteLength(message);
+    const target = targets.get(chainId);
 
     const processProposal = () =>
       withScope((scope) => {
+        if (!target) throw new Error(`unsupported proposal chain ${chainId}`);
+        const { client, exaPreviewer, wallet: executorWallet } = target;
         scope.setUser({ id: account });
         scope.setContext("proposal", {
           account,
@@ -472,7 +500,7 @@ export default function hook({
           retryCount,
         });
         const skipNonce = async () =>
-          wallet.exaSend(
+          executorWallet.exaSend(
             { name: "exa.nonce", op: "exa.nonce", attributes: { account } },
             {
               address: account,
@@ -508,7 +536,7 @@ export default function hook({
             async () => {
               const receipt = await (proposalType === ProposalType.None
                 ? skipNonce()
-                : wallet.exaSend(
+                : executorWallet.exaSend(
                     { name: "exa.execute", op: "exa.execute", attributes: { account } },
                     {
                       address: account,
@@ -554,7 +582,7 @@ export default function hook({
 
               parent.setStatus({ code: SPAN_STATUS_OK });
               if (proposalType === ProposalType.Withdraw || proposalType === ProposalType.Redeem) {
-                if (market.toLowerCase() === marketWETHAddress.toLowerCase()) {
+                if (await isWETHMarket(chainId, market)) {
                   await skipNonce().catch((nonceError: unknown) => {
                     captureException(nonceError, {
                       level: "error",
@@ -587,8 +615,8 @@ export default function hook({
                   { name: "send withdraw notification", op: "notification.send", attributes: { account, receiver } },
                   () =>
                     Promise.all([
-                      publicClient.readContract({ address: market, abi: marketAbi, functionName: "decimals" }),
-                      publicClient.readContract({ address: market, abi: marketAbi, functionName: "symbol" }),
+                      client.readContract({ address: market, abi: marketAbi, functionName: "decimals" }),
+                      client.readContract({ address: market, abi: marketAbi, functionName: "symbol" }),
                       ensClient.getEnsName({ address: receiver }).catch(() => null),
                     ]).then(([decimals, symbol, ensName]) =>
                       onesignal.sendPushNotification({
@@ -605,7 +633,7 @@ export default function hook({
                                 symbol: symbol.slice(3),
                                 recipient: ensName ?? shortenHex(receiver),
                               }),
-                        idempotencyKey: v5(`https://exact.ly/proposal/${chain.id}/${account}/${nonce}`, v5.URL),
+                        idempotencyKey: v5(`https://exact.ly/proposal/${chainId}/${account}/${nonce}`, v5.URL),
                       }),
                     ),
                 ).catch((error: unknown) => captureException(error));
@@ -619,8 +647,8 @@ export default function hook({
                 parent.setStatus({ code: SPAN_STATUS_OK, message: "aborted" });
                 return redis.zrem("proposals", message);
               case "NotNext": {
-                const pendingProposals = await publicClient.readContract({
-                  address: exaPreviewerAddress,
+                const pendingProposals = await client.readContract({
+                  address: exaPreviewer,
                   functionName: "pendingProposals",
                   abi: exaPreviewerAbi,
                   args: [account],
@@ -633,6 +661,7 @@ export default function hook({
                       timestamp: Number(idle.proposal.timestamp),
                       nonce: idle.nonce,
                       account,
+                      chainId,
                       unlock: idle.unlock,
                       retryCount: retryCount + 1,
                     }),
@@ -644,8 +673,8 @@ export default function hook({
                 return redis.zrem("proposals", message);
               }
               case "Timelocked": {
-                const pendingProposals = await publicClient.readContract({
-                  address: exaPreviewerAddress,
+                const pendingProposals = await client.readContract({
+                  address: exaPreviewer,
                   functionName: "pendingProposals",
                   abi: exaPreviewerAbi,
                   args: [account],
@@ -653,7 +682,7 @@ export default function hook({
                 const pending = pendingProposals.find((queued) => queued.nonce === nonce);
                 let nextUnlock = pending?.unlock;
                 if (!nextUnlock) {
-                  const latest = await publicClient.getBlock();
+                  const latest = await client.getBlock();
                   nextUnlock = latest.timestamp + 1n;
                 }
                 await scheduleProposal({ ...proposal, retryCount: retryCount + 1, unlock: nextUnlock });
@@ -695,9 +724,16 @@ export default function hook({
         );
       });
 
-    setTimeout(Math.max(0, (Number(unlock) + 10) * 1000 - Date.now()))
+    (target?.client ?? publicClient)
+      .getBlock()
+      .then(({ timestamp: head }) =>
+        setTimeout(
+          Math.max(0, Math.min((Number(unlock) + 10) * 1000 - Date.now(), Number(unlock + 10n - head) * 1000)),
+        ),
+      )
       .then(() => {
-        const mutex = mutexes.get(account) ?? createMutex(account);
+        const key = `${chainId}:${account}`;
+        const mutex = mutexes.get(key) ?? createMutex(key);
         return continueTrace({ sentryTrace, baggage: sentryBaggage }, () =>
           withScope((scope) => {
             scope.setUser({ id: account });
@@ -709,7 +745,7 @@ export default function hook({
               },
               () =>
                 mutex.runExclusive(processProposal, -Number(nonce)).finally(() => {
-                  if (!mutex.isLocked()) mutexes.delete(account);
+                  if (!mutex.isLocked()) mutexes.delete(key);
                 }),
             );
           }),
@@ -832,7 +868,80 @@ export default function hook({
       });
   }
 
-  return { app, ready };
+  async function isWETHMarket(chainId: number, market: Address) {
+    if (chainId === chain.id) return market.toLowerCase() === marketWETHAddress.toLowerCase();
+    const [found] = await database
+      .select({ symbol: indexer.markets.symbol })
+      .from(indexer.markets)
+      .where(and(eq(indexer.markets.chainId, chainId), eq(indexer.markets.address, market.toLowerCase() as Address)));
+    return found?.symbol === "WETH";
+  }
+
+  async function sync() {
+    for (const chainId of targets.keys()) {
+      const key = `cursor:proposals:${chainId}`;
+      const cursor = await redis.get(key);
+      const rows = await database
+        .select({
+          account: indexer.proposals.account,
+          amount: indexer.proposals.amount,
+          data: indexer.proposals.data,
+          id: indexer.proposals.id,
+          market: indexer.proposals.market,
+          nonce: indexer.proposals.nonce,
+          proposalType: indexer.proposals.proposalType,
+          timestamp: indexer.proposals.timestamp,
+          unlock: indexer.proposals.unlock,
+          current: indexer.plugins.address,
+        })
+        .from(indexer.proposals)
+        .leftJoin(
+          indexer.plugins,
+          and(
+            eq(indexer.plugins.chainId, indexer.proposals.chainId),
+            eq(indexer.plugins.account, indexer.proposals.account),
+            isNull(indexer.plugins.uninstalled),
+            sql`exists (select 1 from ${indexer.exaPlugins} where ${indexer.exaPlugins.chainId} = ${indexer.plugins.chainId} and ${indexer.exaPlugins.address} = ${indexer.plugins.address})`,
+            sql`coalesce((select ${indexer.proposalManagers.address} from ${indexer.proposalManagers} where ${indexer.proposalManagers.chainId} = ${indexer.plugins.chainId} and ${indexer.proposalManagers.plugin} = ${indexer.plugins.address}), ${indexer.plugins.address}) = ${indexer.proposals.proposalManager}`,
+          ),
+        )
+        .where(
+          and(eq(indexer.proposals.chainId, chainId), cursor === null ? undefined : gt(indexer.proposals.id, cursor)),
+        )
+        .orderBy(asc(indexer.proposals.id));
+      const last = rows.at(-1);
+      if (cursor === null) {
+        await redis.set(key, last?.id ?? "");
+        continue;
+      }
+      for (const row of rows) {
+        if (!row.current) {
+          debug("ignored proposal %s of %s on %d", row.nonce, row.account, chainId);
+          continue;
+        }
+        await scheduleProposal(
+          v.parse(Proposal, {
+            account: getAddress(row.account),
+            amount: row.amount,
+            chainId,
+            data: row.data,
+            market: getAddress(row.market),
+            nonce: row.nonce,
+            proposalType: row.proposalType,
+            timestamp: Number(row.timestamp),
+            unlock: row.unlock,
+          }),
+        );
+      }
+      if (last) await redis.set(key, last.id);
+    }
+  }
+
+  return {
+    app,
+    ready,
+    close: () => listener?.close() ?? Promise.resolve(),
+  };
 }
 
 function reverted(error: unknown) {
@@ -983,6 +1092,7 @@ const Proposal = v.pipe(
   v.object({
     account: Address,
     amount: v.bigint(),
+    chainId: v.optional(v.number(), chain.id),
     data: Hex,
     market: Address,
     nonce: v.bigint(),

@@ -30,6 +30,7 @@ import Previewer from "@exactly/protocol/deployments/base/Previewer.json" with {
 import RatePreviewer from "@exactly/protocol/deployments/base/RatePreviewer.json" with { type: "json" };
 
 import alchemyNetworks from "./alchemy.json" with { type: "json" };
+import alchemyAPIKeys from "./alchemyAPIKeys";
 import factoryChainBlocks from "./factoryChains.json" with { type: "json" };
 import factoryVersion from "./factoryVersion.json" with { type: "json" };
 
@@ -82,6 +83,7 @@ export default defineConfig([
         project: "../contracts",
         include: [
           "AppPreviewer.sol/AppPreviewer.json",
+          "Depositor.sol/Depositor.json",
           "ExaAccountFactory.sol/ExaAccountFactory.json",
           "ExaPlugin.sol/ExaPlugin.json",
           "ExaPreviewer.sol/ExaPreviewer.json",
@@ -115,7 +117,7 @@ export default defineConfig([
                 .map((asset) => getAddress(loadDeployment(asset, true, id).address)),
             ]),
           );
-          const chainContracts = (chain ? sameSide.map(([{ id }]) => id) : [anvil.id, moonbeamDev.id]).map((id) => {
+          function contracts(id: number) {
             const exaPreviewer = loadBroadcast("ExaPreviewer", id).transactions[0]?.contractAddress;
             if (!exaPreviewer) throw new Error(`missing exaPreviewer on ${id}`);
             const webauthnOwnerPlugin = (
@@ -134,7 +136,12 @@ export default defineConfig([
                 webauthnOwnerPlugin: getAddress(webauthnOwnerPlugin),
               },
             ] as const;
-          });
+          }
+          const chainContracts = (chain ? sameSide.map(([{ id }]) => id) : [anvil.id, moonbeamDev.id]).map((id) =>
+            contracts(id),
+          );
+          const peerIds = chain ? [] : sameSide.map(([{ id }]) => id);
+          const peers = peerIds.map((id) => contracts(id));
           const networkConfig: Record<
             string,
             undefined | { network: string; slug: string; testnet?: boolean; webhooks?: boolean }
@@ -169,12 +176,25 @@ export default defineConfig([
             versions: deploy.factory.versions.map((v) => factory(v)),
             legacy: chain ? perChain(deploy.factory.legacy).map((address) => getAddress(address)) : [factory("legacy")],
           };
+          function mockfi(id: number | string) {
+            if (!chain || !testnet || !networkConfig[id]?.testnet) return;
+            const broadcast = loadBroadcast("Swapper", Number(id), undefined, false);
+            const create = broadcast?.transactions.find(({ contractName }) => contractName === "MockSwapper");
+            const receipt = broadcast?.receipts.find(({ transactionHash }) => transactionHash === create?.hash);
+            if (!create?.contractAddress || !receipt) return;
+            return { startBlock: Number(receipt.blockNumber), swapper: getAddress(create.contractAddress) };
+          }
           function chainFields(id: number | string) {
+            const deployed = mockfi(id);
+            const swapper =
+              id in deploy.accounts.swapper || id in factoryChainBlocks
+                ? getAddress(perChain(deploy.accounts.swapper, Number(id)))
+                : deployed?.swapper;
+            if (deployed && deployed.swapper !== swapper) throw new Error(`stale swapper ${id}`);
             return {
               ...(networkConfig[id]?.testnet && { testnet: true }),
-              ...((id in deploy.accounts.swapper || id in factoryChainBlocks) && {
-                swapper: getAddress(perChain(deploy.accounts.swapper, Number(id))),
-              }),
+              ...(swapper && { swapper }),
+              ...(deployed && { mockfi: { startBlock: deployed.startBlock } }),
             };
           }
           function fieldSource(id: number | string) {
@@ -189,9 +209,9 @@ export default defineConfig([
             if (!alchemy && !slug) return [];
             const alchemyNetwork = networkConfig[c.id]?.network;
             if (!alchemyNetwork) return [];
-            const url = chain
-              ? (alchemy?.http[0] ?? `https://${slug}.g.alchemy.com/v2`)
-              : anvil.rpcUrls.default.http[0];
+            const remote = alchemy?.http[0] ?? `https://${slug}.g.alchemy.com/v2`;
+            const local = peerIds.includes(c.id) ? `${remote}/${alchemyAPIKeys[c.id]}` : anvil.rpcUrls.default.http[0];
+            const url = chain ? remote : local;
             const name = Object.entries(chains).find(([, v]) => isDeepStrictEqual(v, { ...c, rpcUrls }))?.[0];
             if (!name && (c.formatters ?? c.serializers ?? c.fees)) throw new Error(`lossy chain ${c.id}`);
             return [
@@ -253,7 +273,8 @@ export default defineConfig([
                   Boolean(networkConfig[id].testnet) === testnet &&
                   (!testnet ||
                     sameSide.some(([current]) => current.id === id) ||
-                    factoryChains.some((current) => current.id === id))
+                    factoryChains.some((current) => current.id === id) ||
+                    mockfi(id))
                 : id === anvil.id || id === moonbeamDev.id
             )
               ? [[id, {}] as const]
@@ -302,6 +323,7 @@ export default defineConfig([
               }),
               ...Object.entries({
                 balancerVault: loadDeployment("Balancer2Vault", false)?.address,
+                depositor: loadBroadcast("Depositor", chainId, undefined, false)?.transactions[0]?.contractAddress,
                 exa: loadDeployment("EXA", false)?.address,
                 flashLoanAdapter: loadDeployment("FlashLoanAdapter", false)?.address,
               }).map(
@@ -321,7 +343,7 @@ export default defineConfig([
               `export const factories: Readonly<Record<"legacy" | "versions", readonly \`0x\${string}\`[]>> = ${JSON.stringify(factories)}`,
               `export const issuerCheckerPreviewerCode: \`0x\${string}\` = "${IssuerCheckerPreviewer.deployedBytecode.object}"`,
               `export const pricePreviewerCode: \`0x\${string}\` = "${PricePreviewer.bytecode.object}"`,
-              'type AlchemyChain = ((Chain & { smartAccount: true }) | (Omit<Chain, "nativeCurrency"> & { nativeCurrency?: Chain["nativeCurrency"]; smartAccount?: never })) & { alchemyNetwork: string; rpcUrls: { alchemy: { http: readonly [string] } }; swapper?: `0x${string}` }',
+              'type AlchemyChain = ((Chain & { smartAccount: true }) | (Omit<Chain, "nativeCurrency"> & { nativeCurrency?: Chain["nativeCurrency"]; smartAccount?: never })) & { alchemyNetwork: string; mockfi?: Readonly<{ startBlock: number }>; rpcUrls: { alchemy: { http: readonly [string] } }; swapper?: `0x${string}` }',
               ...(chain
                 ? [`const chain: AlchemyChain & { smartAccount: true; swapper: \`0x\${string}\` } = ${source}`]
                 : [
@@ -343,8 +365,9 @@ export default defineConfig([
                 .join(", ")}])`,
               `export const chains: ReadonlyMap<number, AlchemyChain & Readonly<Record<"auditor" | "exaPreviewer" | "previewer" | "ratePreviewer" | "swapper" | "webauthnOwnerPlugin", \`0x\${string}\`>>> = ${chainMap(chainContracts)}`,
               `export const factoryChains: ReadonlyMap<number, AlchemyChain & Readonly<{ startBlock: number; swapper: \`0x\${string}\` }>> = ${chainMap(factoryChains.map(({ id, startBlock }) => [id, { startBlock }] as const))}`,
+              `export const peers: ReadonlyMap<number, AlchemyChain & Readonly<Record<"auditor" | "exaPreviewer" | "previewer" | "ratePreviewer" | "swapper" | "webauthnOwnerPlugin", \`0x\${string}\`>>> = ${chainMap(peers)}`,
               `export const isBase: boolean = ${chainId === base.id || chainId === baseSepolia.id}`,
-              `export const lifiURL: string | undefined = ${JSON.stringify({ [anvil.id]: "http://localhost:3000/e2e/lifi/v1", [base.id]: "https://li.quest/v1", [optimism.id]: "https://li.quest/v1" }[chainId])}`,
+              `export const lifiURL: string = ${JSON.stringify(chainId === anvil.id ? "http://localhost:3000/hooks/mockfi/v1" : testnet ? "https://sandbox-mockfi-948982108490.us-west1.run.app/v1" : "https://li.quest/v1")}`,
               `export default chain as Chain & { alchemyNetwork: string; swapper: \`0x\${string}\`; smartAccount: true; contracts: { multicall3: { address: \`0x\${string}\` } }; rpcUrls: { alchemy: { http: readonly [string] } } }`,
             ].join("\n"),
           };
@@ -389,18 +412,33 @@ function loadDeployment<R extends boolean = true>(
   }
 }
 
-function loadBroadcast(script: string, id = chainId, root = "@exactly/plugin") {
-  return JSON.parse(
-    readFileSync(
-      `node_modules/${root}/broadcast/${script}.s.sol/${id === moonbeamDev.id ? anvil.id : id}/run-latest.json`,
-      "utf8",
-    ),
-  ) as { transactions: { contractAddress: string }[] };
+function loadBroadcast<R extends boolean = true>(
+  script: string,
+  id = chainId,
+  root = "@exactly/plugin",
+  required = true as R,
+): R extends true ? Broadcast : Broadcast | undefined {
+  try {
+    return JSON.parse(
+      readFileSync(
+        `node_modules/${root}/broadcast/${script}.s.sol/${id === moonbeamDev.id ? anvil.id : id}/run-latest.json`,
+        "utf8",
+      ),
+    ) as never;
+  } catch (error) {
+    if (!required) return undefined as never;
+    throw error;
+  }
 }
 
 function perChain<T>(values: Record<string, T> & { default: T }, id = chainId) {
   return values[id] ?? values.default;
 }
+
+type Broadcast = {
+  receipts: { blockNumber: string; transactionHash: string }[];
+  transactions: { contractAddress: string; contractName: null | string; hash: string }[];
+};
 
 type Deployment = {
   address: string;

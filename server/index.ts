@@ -10,7 +10,7 @@ import { array, nonEmpty, optional, parse, picklist, pipe, string, transform } f
 import { base } from "viem/chains";
 
 import domain from "@exactly/common/domain";
-import chain from "@exactly/common/generated/chain";
+import chain, { lifiURL } from "@exactly/common/generated/chain";
 import { tenantScript } from "@exactly/common/tenants";
 
 import createApi from "./api";
@@ -81,6 +81,7 @@ const subscribe = createSubscribe(redis);
 const walletExtension = createWalletExtension(
   parse(pipe(string("wallet"), nonEmpty("wallet")), env.WALLET_EXTENSION_SECRET),
 );
+const source = chain.testnet ? "indexer" : "alchemy";
 const hooks = {
   activity: () => createActivityHook({ alchemy, database, onesignal, poke, redis }),
   block: () =>
@@ -93,6 +94,7 @@ const hooks = {
       onesignal,
       persona,
       redis,
+      source,
     }),
   bridge: () =>
     createBridgeHook({
@@ -282,7 +284,7 @@ frontend.use(
       ],
       connectSrc: [
         "'self'",
-        "https://li.quest",
+        new URL(lifiURL).origin,
         "https://*.g.alchemy.com",
         "https://assets.smold.app",
         "https://assets.exactly.app",
@@ -515,6 +517,7 @@ export const close = supervise(
         },
         () => allow.close(),
         () => credit.close(),
+        ...enabledHooks.flatMap(([, hook]) => ("close" in hook ? [hook.close] : [])),
         ...enabledWorkers.map((worker) => () => worker.close()),
         () => poke.close(),
         () => refund.close(),

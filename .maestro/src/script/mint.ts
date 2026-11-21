@@ -14,7 +14,7 @@ if (!asset) throw new Error("missing asset");
 if (!to || !isHex(to)) throw new Error("bad to");
 if (!amount || Number.isNaN(Number(amount))) throw new Error("bad amount");
 
-const { ok, status, body } = http.get("http://localhost:3000/e2e/lifi/v1/tokens");
+const { ok, status, body } = http.get("http://localhost:3000/hooks/mockfi/v1/tokens");
 if (!ok) throw new Error(`${status} ${body}`);
 const token = (
   JSON.parse(body) as {
