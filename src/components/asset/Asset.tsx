@@ -38,6 +38,7 @@ import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAllowlists from "../../utils/useAllowlists";
+import { useNetworkMarkets } from "../../utils/useDeposits";
 import useInsets from "../../utils/useInsets";
 import usePortfolio from "../../utils/usePortfolio";
 import exaConfig from "../../utils/wagmi/exa";
@@ -77,6 +78,7 @@ export default function Asset() {
   const remote = params.success && params.output.chainId !== chain.id ? params.output.chainId : undefined;
   const { data: deployed } = useQuery(deployedOptions(account, remote));
   const { data: factory } = useQuery(deployedOptions(credential?.factory, remote));
+  const { markets: networkMarkets, loading: networkMarketsLoading } = useNetworkMarkets();
   const { data: market } = useQuery({
     ...statsOptions(params.success ? params.output.chainId : 0, params.success ? params.output.address : ""),
     enabled: params.success,
@@ -96,19 +98,26 @@ export default function Asset() {
     (candidate) =>
       (candidate.chainId as number) === chainId && candidate.address.toLowerCase() === address.toLowerCase(),
   );
-  const protocol =
-    chainId === chain.id
-      ? markets?.find(
-          (candidate) =>
-            candidate.market === params.output.market && candidate.asset.toLowerCase() === address.toLowerCase(),
-        )
-      : undefined;
+  const protocol = networkMarkets
+    .get(chainId)
+    ?.find(
+      (candidate) =>
+        candidate.market === params.output.market && candidate.asset.toLowerCase() === address.toLowerCase(),
+    );
   const external = protocol
     ? undefined
     : [...externalAssets, ...crossChainAssets].find(
         (asset) => asset.chainId === chainId && asset.address.toLowerCase() === address.toLowerCase(),
       );
-  if (tokens && markets && !isBalancesPending && !token && !protocol && !external) {
+  if (
+    tokens &&
+    markets &&
+    !isBalancesPending &&
+    !networkMarketsLoading.has(chainId) &&
+    !token &&
+    !protocol &&
+    !external
+  ) {
     return <Redirect href="/(main)/(home)" />;
   }
   const entry = token ?? external;
@@ -119,10 +128,11 @@ export default function Asset() {
   const symbol = protocol ? (protocol.symbol.slice(3) === "WETH" ? "ETH" : protocol.symbol.slice(3)) : entry?.symbol;
   const tradable = chainId !== chain.id || swappable(allowlists[chain.id], markets).has(address.toLowerCase());
   function trade(side: "fromToken" | "toToken", selected: Token) {
+    const wallet = side === "fromToken" ? !protocol : !protocol || chainId !== chain.id;
     queryClient.setQueryData<Swap>(["swap"], (old) =>
-      old && sameToken(selected, old[side]?.token) && old[side]?.external === !protocol
+      old && sameToken(selected, old[side]?.token) && old[side]?.external === wallet
         ? old
-        : { ...defaultSwap, [side]: { external: !protocol, token: selected } },
+        : { ...defaultSwap, [side]: { external: wallet, token: selected } },
     );
     if (navigation.getState()?.routes.some(({ name }) => name === "swaps/index")) router.dismissTo("/swaps");
     else router.push("/swaps");

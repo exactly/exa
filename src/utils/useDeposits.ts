@@ -17,12 +17,12 @@ export default function useDeposits() {
     () =>
       previews.flatMap((data) => {
         if (!data?.markets) return [];
-        const rates = data.snapshot ? floatingDepositRates(data.snapshot, Number(data.timestamp)) : [];
+        const floating = data.snapshot ? floatingDepositRates(data.snapshot, Number(data.timestamp)) : [];
         return data.markets
           .filter(({ floatingDepositAssets }) => floatingDepositAssets > 0n)
           .map((market) => ({
             ...market,
-            rate: rates.find(({ market: address }) => address === market.market)?.rate,
+            rate: floating.find(({ market: address }) => address === market.market)?.rate,
             symbol: market.symbol.slice(3) === "WETH" ? "ETH" : market.symbol.slice(3),
             type: "protocol" as const,
             usdValue: Number((market.floatingDepositAssets * market.usdPrice) / 10n ** BigInt(market.decimals)) / 1e18,
@@ -32,8 +32,25 @@ export default function useDeposits() {
   );
 }
 
+export function useNetworkMarkets() {
+  const { address: account } = useAccount();
+  const results = useQueries({ queries: ids.map((chainId) => networkOptions(account, chainId)), combine: status });
+  return useMemo(
+    () => ({
+      markets: new Map(ids.map((chainId, index) => [chainId, results[index]?.data?.markets] as const)),
+      loading: new Set(ids.filter((_, index) => results[index]?.isPending)),
+    }),
+    [results],
+  );
+}
+
 function combine<T>(results: UseQueryResult<T>[]) {
   return results.map(({ data }) => data);
 }
 
+function status<T>(results: UseQueryResult<T>[]) {
+  return results.map(({ data, isPending }) => ({ data, isPending }));
+}
+
 const remotes = chains.has(chain.id) ? [...chains.keys()].filter((id) => id !== chain.id) : [];
+const ids = [chain.id, ...remotes];
