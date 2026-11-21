@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "@tamagui/toast";
 
 import { useQuery } from "@tanstack/react-query";
-import { readContract, waitForCallsStatus } from "@wagmi/core/actions";
+import { readContract } from "@wagmi/core/actions";
 import {
   decodeErrorResult,
   encodeAbiParameters,
@@ -39,6 +39,7 @@ import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useSingleMutation from "../../utils/useSingleMutation";
 import exa from "../../utils/wagmi/exa";
+import waitForCalls from "../../utils/waitForCalls";
 
 import type { Credential } from "@exactly/common/validation";
 
@@ -161,7 +162,7 @@ export default function PluginUpgrade() {
         chainId: chain.id,
         calls: calls.map(({ target, data }) => ({ to: target, data })),
       });
-      const { status } = await waitForCallsStatus(exa, { id });
+      const { status } = await waitForCalls(id);
       if (status === "failure") throw new Error("failed to upgrade plugin");
       if (credential) await refetchInstalledPlugins();
     },

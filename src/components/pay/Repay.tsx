@@ -6,7 +6,6 @@ import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { ScrollView, Separator, XStack, YStack } from "tamagui";
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { waitForCallsStatus } from "@wagmi/core/actions";
 import { digits, nonEmpty, parse, pipe, safeParse, string, transform } from "valibot";
 import { ContractFunctionExecutionError, ContractFunctionRevertedError, encodeFunctionData, erc20Abi } from "viem";
 import { useBytecode, useReadContract, useSendCalls } from "wagmi";
@@ -42,7 +41,7 @@ import useInsets from "../../utils/useInsets";
 import usePortfolio from "../../utils/usePortfolio";
 import useSimulateProposal from "../../utils/useSimulateProposal";
 import useSingleMutation from "../../utils/useSingleMutation";
-import exa from "../../utils/wagmi/exa";
+import waitForCalls from "../../utils/waitForCalls";
 import AssetLogo from "../shared/AssetLogo";
 import Failure from "../shared/Failure";
 import IconButton from "../shared/IconButton";
@@ -320,7 +319,7 @@ export default function Repay() {
         chainId: chain.id,
         calls: [call],
       });
-      const { status } = await waitForCallsStatus(exa, { id });
+      const { status } = await waitForCalls(id);
       if (status === "failure") throw new Error("failed to repay");
     },
     onMutate() {
@@ -389,7 +388,7 @@ export default function Repay() {
           },
         ],
       });
-      const { status } = await waitForCallsStatus(exa, { id });
+      const { status } = await waitForCalls(id);
       if (status === "failure") throw new Error("failed to repay with external asset");
     },
     onMutate() {

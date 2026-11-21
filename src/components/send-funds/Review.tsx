@@ -8,7 +8,6 @@ import { toast } from "@tamagui/toast";
 import { ScrollView, Square, styled, useTheme, XStack, YStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
-import { waitForCallsStatus } from "@wagmi/core/actions";
 import { safeParse } from "valibot";
 import { encodeFunctionData, formatUnits } from "viem";
 import { useSendCalls } from "wagmi";
@@ -35,6 +34,7 @@ import useAccount from "../../utils/useAccount";
 import useSimulateProposal from "../../utils/useSimulateProposal";
 import useSingleMutation from "../../utils/useSingleMutation";
 import exa from "../../utils/wagmi/exa";
+import waitForCalls from "../../utils/waitForCalls";
 import AssetLogo from "../shared/AssetLogo";
 import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
@@ -111,7 +111,7 @@ export default function Review() {
         chainId: chain.id,
         calls: [{ to, data: encodeFunctionData({ abi, functionName, args }) }],
       });
-      const result = await waitForCallsStatus(exa, { id });
+      const result = await waitForCalls(id);
       if (result.status === "failure") throw new Error("transaction failed");
       return result.receipts?.[0]?.transactionHash;
     },
