@@ -39,7 +39,7 @@ import { createSiweMessage, parseSiweMessage, validateSiweMessage } from "viem/s
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
-import chain from "@exactly/common/generated/chain";
+import chain, { factories } from "@exactly/common/generated/chain";
 import rpId, { accepted } from "@exactly/common/rpId";
 import tenants from "@exactly/common/tenants";
 import { Address, Base64URL, Credential, Hex } from "@exactly/common/validation";
@@ -51,7 +51,6 @@ import decodePublicKey from "../../utils/decodePublicKey";
 import publicClient from "../../utils/publicClient";
 import { IpAddress } from "../../utils/sardine";
 import validatorHook from "../../utils/validatorHook";
-import validFactories from "../../utils/validFactories";
 
 import type * as schema from "../../database/schema";
 import type createCredentialFactory from "../../utils/createCredential";
@@ -403,7 +402,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
             ) {
               return c.json({ code: "bad authentication", legacy: "bad authentication" }, 400);
             }
-            if (factory && !validFactories.has(factory)) return c.json({ code: "bad factory" }, 400);
+            if (factory && !factories.versions.includes(factory)) return c.json({ code: "bad factory" }, 400);
             const result = await createCredential(c, assertion.id, {
               factory,
               source: headers?.["client-fid"],

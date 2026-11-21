@@ -1,11 +1,19 @@
 import * as infra from "@account-kit/infra";
 import { defineConfig } from "@wagmi/cli";
 import { foundry, react } from "@wagmi/cli/plugins";
-import { execSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import { env } from "node:process";
 import { isDeepStrictEqual } from "node:util";
-import { getAddress, type Abi, type Chain } from "viem";
+import {
+  encodeAbiParameters,
+  encodePacked,
+  getAddress,
+  getContractAddress,
+  keccak256,
+  slice,
+  type Abi,
+  type Chain,
+} from "viem";
 import * as chains from "viem/chains";
 import { anvil, base, baseSepolia, moonbeamDev, optimism, optimismSepolia } from "viem/chains";
 
@@ -22,6 +30,8 @@ import Previewer from "@exactly/protocol/deployments/base/Previewer.json" with {
 import RatePreviewer from "@exactly/protocol/deployments/base/RatePreviewer.json" with { type: "json" };
 
 import alchemyNetworks from "./alchemy.json" with { type: "json" };
+import factoryChainBlocks from "./factoryChains.json" with { type: "json" };
+import factoryVersion from "./factoryVersion.json" with { type: "json" };
 
 const chainId = Number(env.CHAIN_ID ?? String(env.EAS_BUILD_RUNNER === "eas-build" ? optimism.id : optimismSepolia.id));
 const networks = new Map<Chain, string>([
@@ -92,31 +102,87 @@ export default defineConfig([
             [optimism.id]: "optimism",
             [optimismSepolia.id]: "optimismSepolia",
           }[chainId];
+          const testnet =
+            chainId === anvil.id || Boolean([...networks.keys()].find(({ id }) => id === chainId)?.testnet);
+          const sameSide = [...networks].filter(([current]) => Boolean(current.testnet) === testnet);
           const markets = Object.fromEntries(
-            [...networks]
-              .filter(
-                ([{ testnet }]) =>
-                  Boolean(testnet) ===
-                  (chainId === anvil.id || Boolean([...networks.keys()].find(({ id }) => id === chainId)?.testnet)),
-              )
-              .map(([{ id }, network]) => [
-                id,
-                readdirSync(`node_modules/@exactly/protocol/deployments/${network}`)
-                  .flatMap((file) => /^Market([A-Za-z.]+)\.json$/.exec(file)?.[1] ?? [])
-                  .filter((asset) => asset !== "ETHRouter")
-                  .map((asset) => getAddress(loadDeployment(asset, true, id).address)),
-              ]),
+            sameSide.map(([{ id }, network]) => [
+              id,
+              readdirSync(`node_modules/@exactly/protocol/deployments/${network}`)
+                .flatMap((file) => /^Market([A-Za-z.]+)\.json$/.exec(file)?.[1] ?? [])
+                .filter((asset) => asset !== "ETHRouter")
+                .map((asset) => getAddress(loadDeployment(asset, true, id).address)),
+            ]),
           );
+          const chainContracts = (chain ? sameSide.map(([{ id }]) => id) : [anvil.id, moonbeamDev.id]).map((id) => {
+            const exaPreviewer = loadBroadcast("ExaPreviewer", id).transactions[0]?.contractAddress;
+            if (!exaPreviewer) throw new Error(`missing exaPreviewer on ${id}`);
+            return [
+              id,
+              {
+                auditor: getAddress(loadDeployment("Auditor", true, id).address),
+                exaPreviewer: getAddress(exaPreviewer),
+              },
+            ] as const;
+          });
           const stocks = Object.keys(deploy.proposalManager.allowlist[base.id])
             .filter((address) => address.slice(0, 5).toLowerCase() === "0xb20")
             .map((address) => address.toLowerCase());
           if (stocks.length === 0) throw new Error("missing stocks");
-          const slugs: Record<number, string | undefined> = alchemyNetworks;
+          const networkConfig: Record<
+            string,
+            undefined | { network: string; slug: string; testnet?: boolean; webhooks?: boolean }
+          > = alchemyNetworks;
+          const slugs = Object.fromEntries(
+            Object.entries(networkConfig).flatMap(([id, config]) => (config ? [[id, config.slug]] : [])),
+          ) as Record<number, string | undefined>;
+          const admin = getAddress(perChain(deploy.accounts.admin));
+          const create3Factory = getAddress(perChain(deploy.factory.create3));
+          const version = perChain(factoryVersion);
+          if (!deploy.factory.versions.includes(version)) throw new Error(`unlisted factory version ${version}`);
+          function factory(v: string) {
+            const salt = keccak256(encodeAbiParameters([{ type: "string" }, { type: "string" }], ["Exa Plugin", v]));
+            return getContractAddress({
+              from: getContractAddress({
+                opcode: "CREATE2",
+                from: testnet ? getAddress(perChain(deploy.factory.createx)) : create3Factory,
+                salt: testnet
+                  ? keccak256(
+                      encodeAbiParameters(
+                        [{ type: "address" }, { type: "bytes32" }],
+                        [admin, encodePacked(["address", "bytes1", "bytes11"], [admin, "0x00", slice(salt, 0, 11)])],
+                      ),
+                    )
+                  : keccak256(encodePacked(["address", "bytes32"], [admin, salt])),
+                bytecodeHash: "0x21c35dbe1b344a2488cf3321d6ce542f8e9f305544ff09e4993a62319a497c1f",
+              }),
+              nonce: 1n,
+            });
+          }
+          const factories = {
+            versions: deploy.factory.versions.map((v) => factory(v)),
+            legacy: perChain(deploy.factory.legacy).map((address) => getAddress(address)),
+          };
+          function chainFields(id: number | string) {
+            return {
+              ...(networkConfig[id]?.testnet && { testnet: true }),
+              ...((id in deploy.accounts.swapper || id in factoryChainBlocks) && {
+                swapper: getAddress(perChain(deploy.accounts.swapper, Number(id))),
+              }),
+            };
+          }
+          function fieldSource(id: number | string) {
+            return Object.entries(chainFields(id))
+              .map(([key, value]) => `, ${key}: ${JSON.stringify(value)}`)
+              .join("");
+          }
           const alchemyChains: { id: number; name?: string; source: string }[] = Object.values(infra).flatMap((c) => {
             if (typeof c !== "object" || !("rpcUrls" in c)) return [];
             const { alchemy, ...rpcUrls } = c.rpcUrls;
             const slug = slugs[c.id];
             if (!alchemy && !slug) return [];
+            const alchemyNetwork = networkConfig[c.id]?.network;
+            if (!alchemyNetwork) return [];
             const url = chain
               ? (alchemy?.http[0] ?? `https://${slug}.g.alchemy.com/v2`)
               : anvil.rpcUrls.default.http[0];
@@ -127,26 +193,41 @@ export default defineConfig([
                 id: c.id,
                 name,
                 source: name
-                  ? `{ ...${name}, smartAccount: true, rpcUrls: { ...${name}.rpcUrls, alchemy: { http: ["${url}"] } } }`
-                  : `defineChain(${JSON.stringify({ ...c, smartAccount: true, rpcUrls: { ...rpcUrls, alchemy: { http: [url] } } })})`,
+                  ? `{ ...${name}, smartAccount: true, rpcUrls: { ...${name}.rpcUrls, alchemy: { http: ["${url}"] } }, alchemyNetwork: "${alchemyNetwork}"${fieldSource(c.id)} }`
+                  : `defineChain(${JSON.stringify({ ...c, smartAccount: true, rpcUrls: { ...rpcUrls, alchemy: { http: [url] } }, alchemyNetwork, ...chainFields(c.id) })})`,
               },
             ];
           });
-          for (const [id, network] of Object.entries(alchemyNetworks)) {
+          for (const [id, network] of Object.entries(slugs)) {
             if (alchemyChains.some((c) => c.id === Number(id))) continue;
             const name = Object.entries(chains).find(([, c]) => c.id === Number(id))?.[0];
             const url = chain ? `https://${network}.g.alchemy.com/v2` : anvil.rpcUrls.default.http[0];
+            const alchemyNetwork = networkConfig[id]?.network;
+            if (!alchemyNetwork) throw new Error(`missing alchemy network ${id}`);
             alchemyChains.push({
               id: Number(id),
               name,
               source: name
-                ? `{ ...${name}, rpcUrls: { ...${name}.rpcUrls, alchemy: { http: ["${url}"] } } }`
+                ? `{ ...${name}, rpcUrls: { ...${name}.rpcUrls, alchemy: { http: ["${url}"] } }, alchemyNetwork: "${alchemyNetwork}"${fieldSource(id)} }`
                 : JSON.stringify({
                     id: Number(id),
                     name: network,
                     rpcUrls: { default: { http: [url] }, alchemy: { http: [url] } },
+                    alchemyNetwork,
+                    ...chainFields(id),
                   }),
             });
+          }
+          const factoryChains = Object.entries(factoryChainBlocks).flatMap(([key, startBlock]) => {
+            const id = Number(key);
+            if (id === anvil.id || id === moonbeamDev.id) return chain ? [] : [{ id, startBlock }];
+            const known = Object.values(chains).find((c) => c.id === id);
+            if (!known) throw new Error(`unknown factory chain ${id}`);
+            if (!alchemyChains.some((c) => c.id === id)) throw new Error(`missing alchemy chain ${id}`);
+            return chain && Boolean(known.testnet) === testnet ? [{ id, startBlock }] : [];
+          });
+          for (const [id] of chainContracts) {
+            if (!factoryChains.some((current) => current.id === id)) throw new Error(`missing factory chain ${id}`);
           }
           const allowlists: Record<string, Record<string, string>> = { ...deploy.proposalManager.allowlist };
           if (!chain) {
@@ -154,13 +235,38 @@ export default defineConfig([
               { id: anvil.id, source: "chain" },
               {
                 id: moonbeamDev.id,
-                source: `defineChain(${JSON.stringify({ ...moonbeamDev, name: "Anvil2", smartAccount: true, rpcUrls: { ...moonbeamDev.rpcUrls, alchemy: moonbeamDev.rpcUrls.default } })})`,
+                source: `defineChain(${JSON.stringify({ ...moonbeamDev, name: "Anvil2", smartAccount: true, rpcUrls: { ...moonbeamDev.rpcUrls, alchemy: moonbeamDev.rpcUrls.default }, alchemyNetwork: "ANVIL2", ...chainFields(moonbeamDev.id) })})`,
               },
             );
             allowlists[moonbeamDev.id] = { "0x345108DA76464B8115ABcDBf0E8C969c470aE02c": "USDC.e" };
           }
+          const activityChains = alchemyChains.flatMap(({ id }) =>
+            (
+              chain
+                ? networkConfig[id]?.webhooks &&
+                  Boolean(networkConfig[id].testnet) === testnet &&
+                  (!testnet ||
+                    sameSide.some(([current]) => current.id === id) ||
+                    factoryChains.some((current) => current.id === id))
+                : id === anvil.id || id === moonbeamDev.id
+            )
+              ? [[id, {}] as const]
+              : [],
+          );
+          for (const { id } of factoryChains) {
+            if (!activityChains.some(([current]) => current === id)) throw new Error(`missing activity chain ${id}`);
+          }
           const source = alchemyChains.find(({ id }) => id === chainId)?.source;
           if (chain && !source) throw new Error("missing alchemy chain");
+          function chainMap(entries: readonly (readonly [number, Record<string, unknown>])[]) {
+            return `new Map([${entries
+              .map(([id, fields]) => {
+                const s = id === chainId ? "chain" : alchemyChains.find((c) => c.id === id)?.source;
+                if (!s) throw new Error(`missing alchemy chain ${id}`);
+                return `[${id}, { ${s.startsWith("{") ? s.slice(1, -1).trim() : `...${s}`}, ${JSON.stringify(fields).slice(1, -1)} }]`;
+              })
+              .join(", ")}])`;
+          }
           return {
             imports: [
               'import { defineChain } from "viem"',
@@ -183,19 +289,8 @@ export default defineConfig([
                 usdc: loadDeployment("USDC").address,
                 weth: loadDeployment("WETH").address,
                 simple7702Account: "0x4Cd241E8d1510e30b2076397afc7508Ae59C66c9",
-                swapper:
-                  (deploy.accounts.swapper as Record<string, string>)[chainId] ?? deploy.accounts.swapper.default,
-                exaAccountFactory:
-                  chainId === base.id || chainId === baseSepolia.id || chainId === anvil.id
-                    ? /== return ==\n0: address (0x[\da-f]{40})/i.exec(
-                        execSync(`forge script -s 'getAddress()' script/ExaAccountFactory.s.sol --chain ${chainId}`, {
-                          env: { ...env, FOUNDRY_PROFILE: "tooling" },
-                          cwd: "../contracts",
-                          encoding: "utf8",
-                        }),
-                      )?.[1]
-                    : ({ [optimism.id]: "0x961EbA47650e2198A959Ef5f337E542df5E4F61b" }[chainId] ??
-                      "0xb29bAFff6E4fd67Cb6a56657237F66CcE468844D"),
+                swapper: perChain(deploy.accounts.swapper),
+                exaAccountFactory: factory(version),
               }).map(([key, address]) => {
                 if (!address) throw new Error(`missing ${key}`);
                 return `export const ${key}Address = "${getAddress(address)}" as const`;
@@ -219,26 +314,34 @@ export default defineConfig([
               )}`,
               `export const appPreviewerCode: \`0x\${string}\` = "${AppPreviewer.bytecode.object}"`,
               `export const exaPreviewerCode: \`0x\${string}\` = "${ExaPreviewer.bytecode.object}"`,
+              `export const factories: Readonly<Record<"legacy" | "versions", readonly \`0x\${string}\`[]>> = ${JSON.stringify(factories)}`,
               `export const pricePreviewerCode: \`0x\${string}\` = "${PricePreviewer.bytecode.object}"`,
               `export const stocks: ReadonlySet<string> = new Set(${JSON.stringify(stocks)})`,
-              'type AlchemyChain = ((Chain & { smartAccount: true }) | (Omit<Chain, "nativeCurrency"> & { nativeCurrency?: Chain["nativeCurrency"]; smartAccount?: never })) & { rpcUrls: { alchemy: { http: readonly [string] } } }',
+              'type AlchemyChain = ((Chain & { smartAccount: true }) | (Omit<Chain, "nativeCurrency"> & { nativeCurrency?: Chain["nativeCurrency"]; smartAccount?: never })) & { alchemyNetwork: string; rpcUrls: { alchemy: { http: readonly [string] } }; swapper?: `0x${string}` }',
               ...(chain
-                ? [`const chain: AlchemyChain & { smartAccount: true } = ${source}`]
+                ? [`const chain: AlchemyChain & { smartAccount: true; swapper: \`0x\${string}\` } = ${source}`]
                 : [
-                    "const chain = anvil as Chain as AlchemyChain & { smartAccount: true }",
+                    "const chain = anvil as Chain as AlchemyChain & { smartAccount: true; swapper: `0x${string}` }",
                     "chain.smartAccount = true",
                     "chain.testnet = true",
                     `chain.blockTime = ${optimism.blockTime}`,
                     `chain.rpcUrls.alchemy = { http: ["${anvil.rpcUrls.default.http[0]}"] }`,
+                    'chain.alchemyNetwork = "ANVIL"',
+                    ...Object.entries(chainFields(anvil.id)).map(
+                      ([key, value]) => `chain.${key} = ${JSON.stringify(value)}`,
+                    ),
                     `chain.contracts = { multicall3: { address: "${optimism.contracts.multicall3.address}" } }`,
                     'chain.blockExplorers = { default: { name: "Otterscan", url: "http://localhost:5100" } }',
                   ]),
+              `export const activityChains: ReadonlyMap<number, AlchemyChain> = ${chainMap(activityChains)}`,
               `export const alchemyChains: ReadonlyMap<number, AlchemyChain> = new Map<number, AlchemyChain>([${alchemyChains
                 .map(({ id, source: s }) => `[${id}, ${id === chainId ? "chain" : s}]`)
                 .join(", ")}])`,
+              `export const chains: ReadonlyMap<number, AlchemyChain & Readonly<Record<"auditor" | "exaPreviewer" | "swapper", \`0x\${string}\`>>> = ${chainMap(chainContracts)}`,
+              `export const factoryChains: ReadonlyMap<number, AlchemyChain & Readonly<{ startBlock: number; swapper: \`0x\${string}\` }>> = ${chainMap(factoryChains.map(({ id, startBlock }) => [id, { startBlock }] as const))}`,
               `export const isBase: boolean = ${chainId === base.id || chainId === baseSepolia.id}`,
               `export const lifiURL: string | undefined = ${JSON.stringify({ [anvil.id]: "http://localhost:3000/e2e/lifi/v1", [base.id]: "https://li.quest/v1", [optimism.id]: "https://li.quest/v1" }[chainId])}`,
-              `export default chain as Chain & { smartAccount: true; contracts: { multicall3: { address: \`0x\${string}\` } }; rpcUrls: { alchemy: { http: readonly [string] } } }`,
+              `export default chain as Chain & { alchemyNetwork: string; swapper: \`0x\${string}\`; smartAccount: true; contracts: { multicall3: { address: \`0x\${string}\` } }; rpcUrls: { alchemy: { http: readonly [string] } } }`,
             ].join("\n"),
           };
         },
@@ -252,23 +355,22 @@ function loadDeployment<R extends boolean = true>(
   required = true as R,
   id = chainId,
 ): R extends true ? Deployment : Deployment | undefined {
-  if (id === anvil.id) {
-    const address =
-      loadBroadcast("Protocol").transactions[
-        {
-          Auditor: 1,
-          Balancer2Vault: 23,
-          DebtManager: 24,
-          Firewall: 33,
-          MarketUSDC: 11,
-          MarketWETH: 18,
-          IntegrationPreviewer: 29,
-          Previewer: 28,
-          RatePreviewer: 30,
-          USDC: 9,
-          WETH: 16,
-        }[contract] ?? Infinity
-      ]?.contractAddress;
+  if (id === anvil.id || id === moonbeamDev.id) {
+    const address = loadBroadcast("Protocol", id).transactions[
+      {
+        Auditor: 1,
+        Balancer2Vault: 23,
+        DebtManager: 24,
+        Firewall: 33,
+        MarketUSDC: 11,
+        MarketWETH: 18,
+        IntegrationPreviewer: 29,
+        Previewer: 28,
+        RatePreviewer: 30,
+        USDC: 9,
+        WETH: 16,
+      }[contract] ?? Infinity
+    ]?.contractAddress;
     if (!address && required) throw new Error(`unknown contract: ${contract}`);
     return { address } as R extends true ? Deployment : Deployment | undefined;
   }
@@ -284,10 +386,17 @@ function loadDeployment<R extends boolean = true>(
   }
 }
 
-function loadBroadcast(script: string) {
+function loadBroadcast(script: string, id = chainId) {
   return JSON.parse(
-    readFileSync(`node_modules/@exactly/plugin/broadcast/${script}.s.sol/${chainId}/run-latest.json`, "utf8"),
+    readFileSync(
+      `node_modules/@exactly/plugin/broadcast/${script}.s.sol/${id === moonbeamDev.id ? anvil.id : id}/run-latest.json`,
+      "utf8",
+    ),
   ) as { transactions: { contractAddress: string }[] };
+}
+
+function perChain<T>(values: Record<string, T> & { default: T }, id = chainId) {
+  return values[id] ?? values.default;
 }
 
 type Deployment = {
