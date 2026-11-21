@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 
 import { useQueries, type UseQueryResult } from "@tanstack/react-query";
 
@@ -12,7 +12,10 @@ import type { ProtocolAsset } from "./usePortfolio";
 
 export default function useDeposits() {
   const { address: account } = useAccount();
-  const previews = useQueries({ queries: remotes.map((chainId) => networkOptions(account, chainId)), combine });
+  const previews = useQueries({
+    queries: remotes.map((chainId) => networkOptions(account, chainId)),
+    combine: useCallback(<T>(results: UseQueryResult<T>[]) => results.map(({ data }) => data), []),
+  });
   return useMemo<ProtocolAsset[]>(
     () =>
       previews.flatMap((data) => {
@@ -34,7 +37,13 @@ export default function useDeposits() {
 
 export function useNetworkMarkets() {
   const { address: account } = useAccount();
-  const results = useQueries({ queries: ids.map((chainId) => networkOptions(account, chainId)), combine: status });
+  const results = useQueries({
+    queries: ids.map((chainId) => networkOptions(account, chainId)),
+    combine: useCallback(
+      <T>(previews: UseQueryResult<T>[]) => previews.map(({ data, isPending }) => ({ data, isPending })),
+      [],
+    ),
+  });
   return useMemo(
     () => ({
       markets: new Map(ids.map((chainId, index) => [chainId, results[index]?.data?.markets] as const)),
@@ -42,14 +51,6 @@ export function useNetworkMarkets() {
     }),
     [results],
   );
-}
-
-function combine<T>(results: UseQueryResult<T>[]) {
-  return results.map(({ data }) => data);
-}
-
-function status<T>(results: UseQueryResult<T>[]) {
-  return results.map(({ data, isPending }) => ({ data, isPending }));
 }
 
 const remotes = chains.has(chain.id) ? [...chains.keys()].filter((id) => id !== chain.id) : [];
