@@ -1,8 +1,13 @@
 import { captureException } from "@sentry/node";
 
-import type { Pool } from "pg";
+import type { Notification, Pool } from "pg";
 
-export default function listen(pool: Pool, sync: () => Promise<unknown>, tags?: Record<string, string>) {
+export default function listen(
+  pool: Pool,
+  sync: (payload?: string) => Promise<unknown>,
+  tags?: Record<string, string>,
+  channel = "indexer_live_query",
+) {
   let closed = false;
   let drop: (() => void) | undefined;
   let timer: NodeJS.Timeout | undefined;
@@ -11,9 +16,9 @@ export default function listen(pool: Pool, sync: () => Promise<unknown>, tags?: 
   const capture = (error: unknown) => {
     captureException(error, { level: "error", tags });
   };
-  const schedule = () => {
+  const schedule = (notification?: Notification) => {
     if (closed) return;
-    syncing = syncing.then(sync).catch(capture);
+    syncing = syncing.then(() => sync(notification?.payload)).catch(capture);
   };
 
   async function connect() {
@@ -37,7 +42,7 @@ export default function listen(pool: Pool, sync: () => Promise<unknown>, tags?: 
       if (live && !closed) reconnect();
     });
     try {
-      await client.query(`LISTEN "indexer_live_query"`);
+      await client.query(`LISTEN "${channel}"`);
     } catch (error) {
       release(true);
       throw error;
@@ -47,15 +52,18 @@ export default function listen(pool: Pool, sync: () => Promise<unknown>, tags?: 
   }
 
   function reconnect() {
-    reconnecting = connect().then(schedule, (error: unknown) => {
-      capture(error);
-      if (!closed) timer = setTimeout(reconnect, 1000);
-    });
+    reconnecting = connect().then(
+      () => schedule(),
+      (error: unknown) => {
+        capture(error);
+        if (!closed) timer = setTimeout(reconnect, 1000);
+      },
+    );
   }
 
   const ready = connect().then(() => {
     if (closed) return;
-    syncing = syncing.then(sync);
+    syncing = syncing.then(() => sync());
     return syncing;
   });
   return {

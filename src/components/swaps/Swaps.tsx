@@ -529,7 +529,6 @@ export default function Swaps() {
     assetOut: crossChain ? neutralAsset : parse(Address, toToken?.token.address ?? zeroAddress),
     minAmountOut: crossChain ? 0n : (toAmount * (WAD * (1000n - SLIPPAGE_PERCENT))) / 1000n / WAD,
     route: route?.data,
-    poll: true,
     enabled:
       enableSimulations &&
       !!account &&

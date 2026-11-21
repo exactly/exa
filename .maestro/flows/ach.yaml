@@ -24,8 +24,7 @@ env:
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
-- evalScript: ${output.deadline = Date.now() + 60000}
-- runScript: { file: ../dist/deposited.js, env: { account: "${output.account}", network: Anvil2 } }
+- evalScript: ${output.deadline = Date.now() + 60000; output.deposited = undefined}
 - repeat:
     while: { true: "${output.deposited !== 100 && Date.now() < output.deadline}" }
     commands: [{ runScript: { file: ../dist/deposited.js, env: { account: "${output.account}", network: Anvil2 } } }]

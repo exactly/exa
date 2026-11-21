@@ -13,6 +13,7 @@ import { Address } from "@exactly/common/validation";
 
 import { credentials } from "../database/schema";
 import t, { f } from "../i18n";
+import { emit } from "../utils/events";
 import { BridgeCurrency, publicKey } from "../utils/ramps/bridge";
 import validatorHook from "../utils/validatorHook";
 
@@ -235,6 +236,7 @@ export default function hook({
       }
       const account = parse(Address, credential.account);
       setUser({ id: account });
+      emit(account, "ramp");
 
       switch (payload.event_type) {
         case "customer.updated.status_transitioned":
