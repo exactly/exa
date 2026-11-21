@@ -4,4 +4,5 @@ config:
   exa:disabled: [activity, api, block, bridge, business, chat, manteca, panda, persona]
   exa:domain: web.exactly.app
   exa:pokeMinimum: 1
+  exa:sponsorMinimum: 1
   exa:whatsappPhoneNumberId: "1287864854409817"
