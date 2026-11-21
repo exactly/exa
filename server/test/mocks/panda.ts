@@ -58,6 +58,7 @@ vi.mock("../../utils/panda", async (importOriginal) => {
   const module = await importOriginal<typeof PandaModule>();
   return {
     ...module,
+    signIssuerOp: vi.fn(module.signIssuerOp),
     default: (...parameters: Parameters<typeof module.default>) => {
       mock.set(module.default(...parameters));
       return panda;
