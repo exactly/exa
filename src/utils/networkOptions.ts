@@ -37,37 +37,38 @@ export default function networkOptions(account: Address | undefined, chainId: nu
             ),
           ];
           const contracts = chains.get(chainId);
-          const { markets, exactly, snapshot, timestamp, floatingAssetsAverage, proposalManager, allowed } =
-            await readContract(exaConfig, {
-              chainId,
-              abi: appPreviewerAbi,
-              address: previewerAddress,
-              functionName: "preview",
-              args: [
-                account,
-                contracts?.auditor ?? zeroAddress,
-                contracts?.previewer ?? zeroAddress,
-                contracts?.ratePreviewer ?? zeroAddress,
-                contracts?.marketUSDC ?? zeroAddress,
-                targets,
-              ],
-              stateOverride: [{ address: previewerAddress, code: appPreviewerDeployedCode }],
-            });
+          const preview = await readContract(exaConfig, {
+            chainId,
+            abi: appPreviewerAbi,
+            address: previewerAddress,
+            functionName: "preview",
+            args: [
+              account,
+              contracts?.auditor ?? zeroAddress,
+              contracts?.previewer ?? zeroAddress,
+              contracts?.ratePreviewer ?? zeroAddress,
+              contracts?.marketUSDC ?? zeroAddress,
+              targets,
+            ],
+            stateOverride: [{ address: previewerAddress, code: appPreviewerDeployedCode }],
+          });
           return {
             allowlist:
-              proposalManager.proposalManager === zeroAddress ? null : targets.filter((_, index) => allowed[index]),
+              preview.proposalManager.proposalManager === zeroAddress
+                ? null
+                : targets.filter((_, index) => preview.allowed[index]),
             lifi: tokens !== undefined,
-            timestamp,
+            timestamp: preview.timestamp,
             ...(contracts && {
               markets: withPreviews(
-                decodeFunctionResult({ abi: previewerAbi, functionName: "exactly", data: exactly }),
-                markets,
+                decodeFunctionResult({ abi: previewerAbi, functionName: "exactly", data: preview.exactly }),
+                preview.markets,
               ).map((market) => ({ ...market, chainId })),
               snapshot:
-                snapshot === "0x"
+                preview.snapshot === "0x"
                   ? undefined
-                  : decodeFunctionResult({ abi: ratePreviewerAbi, functionName: "snapshot", data: snapshot }),
-              floatingAssetsAverage,
+                  : decodeFunctionResult({ abi: ratePreviewerAbi, functionName: "snapshot", data: preview.snapshot }),
+              floatingAssetsAverage: preview.floatingAssetsAverage,
             }),
           };
         }
