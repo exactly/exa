@@ -1093,6 +1093,9 @@ importers:
       '@onesignal/node-onesignal':
         specifier: ^5.4.0
         version: 5.4.0
+      '@rainapi/rain-sdk':
+        specifier: 0.1.0-alpha.16
+        version: 0.1.0-alpha.16
       '@react-pdf/renderer':
         specifier: ^4.3.2
         version: 4.3.2(react@19.2.0)
@@ -5590,6 +5593,9 @@ packages:
     peerDependenciesMeta:
       '@types/react':
         optional: true
+
+  '@rainapi/rain-sdk@0.1.0-alpha.16':
+    resolution: {integrity: sha512-Ck4mfGi6Rx5coTHTbdH2xxLfK2FQDZfErIWQV6W2ms+nl9CsPn9z+cR3keqXRTwyEfhWuK+04XnlYn7UXDFaKw==}
 
   '@rari-capital/solmate@https://codeload.github.com/transmissions11/solmate/tar.gz/eaa7041378f9a6c12f943de08a6c41b31a9870fc':
     resolution: {gitHosted: true, integrity: sha512-IDkimq4MCCW59JG5wNc9rnNXYnoqPNeu+BI6d7TmQrn6b7w4Cyd17CF8Si8ch4ZTwboDGMpGmr4lo8PJ5pdNXA==, tarball: https://codeload.github.com/transmissions11/solmate/tar.gz/eaa7041378f9a6c12f943de08a6c41b31a9870fc}
@@ -22093,6 +22099,8 @@ snapshots:
       react: 19.2.0
     optionalDependencies:
       '@types/react': 19.2.14
+
+  '@rainapi/rain-sdk@0.1.0-alpha.16': {}
 
   '@rari-capital/solmate@https://codeload.github.com/transmissions11/solmate/tar.gz/eaa7041378f9a6c12f943de08a6c41b31a9870fc': {}
 
