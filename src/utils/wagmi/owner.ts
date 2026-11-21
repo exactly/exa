@@ -14,7 +14,21 @@ import publicClient from "../publicClient";
 
 const config = createConfig({
   chains: [chain, ...Object.values(chains)],
-  connectors: [miniAppConnector(), injected()],
+  connectors: [
+    (parameters) => {
+      const connector = miniAppConnector()(parameters);
+      return {
+        ...connector,
+        async isAuthorized(): Promise<boolean> {
+          return (
+            !config.connectors.some(({ id, uid }) => id !== connector.id && uid === config.state.current) &&
+            connector.isAuthorized()
+          );
+        },
+      };
+    },
+    injected(),
+  ],
   transports: {
     ...Object.fromEntries(Object.values(chains).map((c) => [c.id, http()])),
     ...Object.fromEntries(
