@@ -31,6 +31,7 @@ import { attempts, name, type Job } from "./job";
 import { cards, transactions } from "../../database/schema";
 import t, { f } from "../../i18n";
 import { own } from "../../supervise";
+import remember from "../../utils/liquidity";
 import revertFingerprint from "../../utils/revertFingerprint";
 import createWallet from "../../utils/wallet";
 import { name as hookName } from "../hook/job";
@@ -310,21 +311,24 @@ export default function worker({
                 });
                 if (tx?.cardId !== spend.cardId) throw new Error("transaction card mismatch");
               },
-              onReceipt: ({ blockNumber, status, transactionHash }) =>
-                status === "reverted"
-                  ? undefined
-                  : hook
-                      .enqueue(
-                        { account: job.data.account, receipt: { blockNumber: Number(blockNumber), transactionHash } },
-                        webhookId,
-                      )
-                      .catch((error: unknown) =>
-                        captureException(error, {
-                          level: "error",
-                          tags: { queue: hookName, job: hookName },
-                          extra: { id: webhookId },
-                        }),
-                      ),
+              onReceipt({ blockNumber, status, transactionHash }) {
+                if (status === "reverted") return;
+                remember(bullmq, spend.userId, account, chain.id).catch((error: unknown) =>
+                  captureException(error, { level: "warning", tags: { chainId: chain.id } }),
+                );
+                return hook
+                  .enqueue(
+                    { account: job.data.account, receipt: { blockNumber: Number(blockNumber), transactionHash } },
+                    webhookId,
+                  )
+                  .catch((error: unknown) =>
+                    captureException(error, {
+                      level: "error",
+                      tags: { queue: hookName, job: hookName },
+                      extra: { id: webhookId },
+                    }),
+                  );
+              },
             },
           )
           .catch((error: unknown) => {
