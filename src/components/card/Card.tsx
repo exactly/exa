@@ -20,6 +20,7 @@ import CardDisclaimer from "./CardDisclaimer";
 import CardFreezeSheet from "./CardFreezeSheet";
 import CardPIN from "./CardPIN";
 import ExaCard from "./exa-card/ExaCard";
+import RecoverySheet from "./RecoverySheet";
 import SpendingLimits from "./SpendingLimits";
 import TimeoutSheet from "./TimeoutSheet";
 import VerificationFailure from "./VerificationFailure";
@@ -81,6 +82,7 @@ export default function Card() {
   } = useTranslation();
   const [disclaimerShown, setDisclaimerShown] = useState(false);
   const [verificationFailureShown, setVerificationFailureShown] = useState(false);
+  const [recoveryShown, setRecoveryShown] = useState(false);
   const [freezeConfirmOpen, setFreezeConfirmOpen] = useState(false);
   const [signal, setSignal] = useState(0);
 
@@ -256,7 +258,8 @@ export default function Card() {
     submittedAt: generateSubmittedAt,
   } = useMutation({
     mutationKey: ["card", "create"],
-    retry: (_, error) => error instanceof APIError && error.code !== 504 && !error.text.includes("already created"),
+    retry: (_, error) =>
+      error instanceof APIError && error.code !== 409 && error.code !== 504 && !error.text.includes("already created"),
     retryDelay: (failureCount, error) => (error instanceof APIError ? failureCount * 5000 : 1000),
     mutationFn: async () => {
       if (!credential) return;
@@ -278,6 +281,10 @@ export default function Card() {
         queryClient.setQueryData<boolean>(["settings", "card-support-contacted"], false);
         await queryClient.refetchQueries({ queryKey: ["card", "details"] });
         await queryClient.setQueryData(["card-details-open"], true);
+        return;
+      }
+      if (error.code === 409) {
+        setRecoveryShown(true);
         return;
       }
       reportError(error);
@@ -598,6 +605,12 @@ export default function Card() {
           }}
           onClose={() => {
             setDisclaimerShown(false);
+          }}
+        />
+        <RecoverySheet
+          open={recoveryShown}
+          onClose={() => {
+            setRecoveryShown(false);
           }}
         />
         <VerificationFailure

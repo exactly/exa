@@ -561,7 +561,13 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
             description: "Conflict",
             content: {
               "application/json": {
-                schema: resolver(object({ code: literal("card limit reached") }), { errorMode: "ignore" }),
+                schema: resolver(
+                  union([
+                    object({ code: literal("card limit reached") }),
+                    object({ code: literal("card recovery required") }),
+                  ]),
+                  { errorMode: "ignore" },
+                ),
               },
             },
           },
@@ -625,43 +631,46 @@ This endpoint only accepts Wallet Extension bearer access. It does not accept \`
               }
               const productId =
                 chain.id === base.id && credential.source !== partner ? BASE_PRODUCT_ID : SIGNATURE_PRODUCT_ID;
-              const card = await panda
+              const orphans = await panda
                 .getCards(pandaId)
-                .then((pandaCards) => pandaCards.find(({ status }) => status === "active"))
-                .then(async (orphan) => {
-                  if (orphan) {
-                    captureException(new Error("orphan card adopted"), {
-                      level: "warning",
-                      fingerprint: ["orphan-card-adopted"],
-                      extra: {
-                        credentialId,
-                        pandaId,
-                        cardId: orphan.id,
-                      },
-                    });
-                    return orphan;
-                  } else {
-                    return panda.createCard(
-                      pandaId,
-                      productId,
-                      await persona
-                        .getAccount(credentialId, "cardLimit")
-                        .then((profile) =>
-                          profile?.attributes.fields.card_limit_usd?.value == null
-                            ? undefined
-                            : profile.attributes.fields.card_limit_usd.value * 100,
-                        )
-                        .catch((error: unknown): undefined => {
-                          captureException(error, {
-                            level: "error",
-                            contexts: { details: { credentialId, scope: "cardLimit" } },
-                          });
-                        }),
-                      undefined,
-                      credential.source,
-                    );
-                  }
+                .then((pandaCards) => pandaCards.filter(({ status }) => status === "active"));
+              if (orphans.length > 0 && chain.id === base.id) {
+                captureException(new Error("orphan card recovery required"), {
+                  level: "error",
+                  fingerprint: ["orphan-card-recovery"],
+                  extra: { credentialId, pandaId, cardIds: orphans.map(({ id }) => id) },
                 });
+                return c.json({ code: "card recovery required" }, 409);
+              }
+              const [orphan] = orphans;
+              if (orphan) {
+                captureException(new Error("orphan card adopted"), {
+                  level: "warning",
+                  fingerprint: ["orphan-card-adopted"],
+                  extra: { credentialId, pandaId, cardId: orphan.id },
+                });
+              }
+              const card =
+                orphan ??
+                (await panda.createCard(
+                  pandaId,
+                  productId,
+                  await persona
+                    .getAccount(credentialId, "cardLimit")
+                    .then((profile) =>
+                      profile?.attributes.fields.card_limit_usd?.value == null
+                        ? undefined
+                        : profile.attributes.fields.card_limit_usd.value * 100,
+                    )
+                    .catch((error: unknown): undefined => {
+                      captureException(error, {
+                        level: "error",
+                        contexts: { details: { credentialId, scope: "cardLimit" } },
+                      });
+                    }),
+                  undefined,
+                  credential.source,
+                ));
 
               await database
                 .insert(cards)

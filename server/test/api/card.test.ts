@@ -21,7 +21,7 @@ import { checksumAddress, hexToBigInt, padHex, parseEther, zeroAddress, zeroHash
 import { generatePrivateKey, privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { base, optimism } from "viem/chains";
 import { createSiweMessage, parseSiweMessage } from "viem/siwe";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
@@ -41,7 +41,7 @@ import database, { cards, credentials } from "../../database";
 import authenticate from "../../middleware/auth";
 import createAuth from "../../utils/auth";
 import authSecret from "../../utils/authSecret";
-import createPanda from "../../utils/panda";
+import createPanda, { partner } from "../../utils/panda";
 import createPax from "../../utils/pax";
 import createPersona from "../../utils/persona";
 import createSardine from "../../utils/sardine";
@@ -944,6 +944,56 @@ describe("authenticated", () => {
     ]);
   });
 
+  it("requires recovery on base instead of guessing the product of an existing panda card", async () => {
+    const defaultChainId = chain.id;
+    chain.id = base.id;
+    onTestFinished(() => {
+      chain.id = defaultChainId;
+    });
+    const credentialId = "orphan-recovery";
+    const first = "00000000-0000-4000-8000-0000000000d1";
+    const second = "00000000-0000-4000-8000-0000000000d2";
+    await database.insert(credentials).values({
+      id: credentialId,
+      publicKey: new Uint8Array(),
+      account: padHex("0x405a", { size: 20 }),
+      factory: exaAccountFactoryAddress,
+      pandaId: credentialId,
+    });
+
+    vi.spyOn(panda, "getApplicationStatus").mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
+    vi.spyOn(panda, "getCards").mockResolvedValueOnce([
+      { id: first, status: "active", last4: "4444", expirationMonth: "9", expirationYear: "2029" },
+      { id: second, status: "active", last4: "5555", expirationMonth: "9", expirationYear: "2029" },
+      {
+        id: "00000000-0000-4000-8000-0000000000d3",
+        status: "canceled",
+        last4: "6666",
+        expirationMonth: "9",
+        expirationYear: "2029",
+      },
+    ]);
+    const createCard = vi.spyOn(panda, "createCard");
+    const getAccount = vi.spyOn(persona, "getAccount");
+
+    const response = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toStrictEqual({ code: "card recovery required" });
+    expect(createCard).not.toHaveBeenCalled();
+    expect(getAccount).not.toHaveBeenCalled();
+    expect(credit.enqueue).not.toHaveBeenCalled();
+    expect(segment.track).not.toHaveBeenCalled();
+    await expect(
+      database.query.cards.findFirst({ where: eq(cards.credentialId, credentialId) }),
+    ).resolves.toBeUndefined();
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(Error) as Error, {
+      level: "error",
+      fingerprint: ["orphan-card-recovery"],
+      extra: { credentialId, pandaId: credentialId, cardIds: [first, second] },
+    });
+  });
+
   it("creates a new card when panda has only non-active cards", async () => {
     const credentialId = "orphan-nonactive";
     const createdId = "00000000-0000-4000-8000-0000000000bb";
@@ -1584,6 +1634,60 @@ describe("authenticated", () => {
         where: eq(cards.credentialId, "base-signature"),
       });
       expect(created?.productId).toBe(SIGNATURE_PRODUCT_ID);
+    });
+
+    it("does not persist the current default product when retrying after a partial failure", async () => {
+      chain.id = base.id;
+      const credentialId = "base-partial";
+      const cardId = "543c1771-beae-4f26-b662-44ea48b40ba3";
+      await database.insert(credentials).values([
+        {
+          id: credentialId,
+          publicKey: new Uint8Array(),
+          account: padHex("0xba54", { size: 20 }),
+          factory: exaAccountFactoryAddress,
+          pandaId: credentialId,
+          source: null,
+        },
+        {
+          id: "base-partial-conflict",
+          publicKey: new Uint8Array(),
+          account: padHex("0xba55", { size: 20 }),
+          factory: exaAccountFactoryAddress,
+        },
+      ]);
+      await database
+        .insert(cards)
+        .values({ id: cardId, credentialId: "base-partial-conflict", tenant: "OP", lastFour: "0000" });
+      vi.spyOn(panda, "getApplicationStatus").mockResolvedValue({ id: credentialId, applicationStatus: "approved" });
+      const createCard = vi
+        .spyOn(panda, "createCard")
+        .mockResolvedValueOnce({ ...cardTemplate, id: cardId, last4: "4083" });
+
+      const failed = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+
+      expect(failed.status).toBe(500);
+      expect(createCard).toHaveBeenCalledExactlyOnceWith(credentialId, BASE_PRODUCT_ID, undefined, undefined, null);
+
+      await database.delete(cards).where(eq(cards.id, cardId));
+      await database.update(credentials).set({ source: partner }).where(eq(credentials.id, credentialId));
+      vi.spyOn(panda, "getCards").mockResolvedValueOnce([
+        { id: cardId, status: "active", last4: "4083", expirationMonth: "9", expirationYear: "2029" },
+      ]);
+
+      const retried = await appClient.index.$post({ header: { "test-credential-id": credentialId } });
+
+      expect(retried.status).toBe(409);
+      await expect(retried.json()).resolves.toStrictEqual({ code: "card recovery required" });
+      expect(createCard).toHaveBeenCalledOnce();
+      await expect(
+        database.query.cards.findFirst({ where: eq(cards.credentialId, credentialId) }),
+      ).resolves.toBeUndefined();
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(Error) as Error, {
+        level: "error",
+        fingerprint: ["orphan-card-recovery"],
+        extra: { credentialId, pandaId: credentialId, cardIds: [cardId] },
+      });
     });
 
     it("rejects business credentials", async () => {
