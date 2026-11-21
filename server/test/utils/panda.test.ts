@@ -6,7 +6,6 @@ import { padHex } from "viem";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { usdcAddress } from "@exactly/common/generated/chain";
 import {
   CLASSIC_PRODUCT_ID,
   PHYSICAL_SIGNATURE_PRODUCT_ID,
@@ -21,13 +20,16 @@ import ServiceError from "../../utils/ServiceError";
 
 import type * as viem from "viem";
 
-const chainMock = vi.hoisted(() => ({ id: 0, testnet: true as boolean | undefined }));
+const chainMock = vi.hoisted(() => ({ id: 0, isBase: false, testnet: true as boolean | undefined }));
 
 vi.mock("@exactly/common/generated/chain", async (importOriginal) => ({
   ...(await importOriginal()),
   default: Object.assign(chainMock, baseSepolia, {
     rpcUrls: { ...baseSepolia.rpcUrls, alchemy: baseSepolia.rpcUrls.default },
   }),
+  get isBase() {
+    return chainMock.isBase;
+  },
 }));
 
 vi.mock("viem", async (importOriginal) => {
@@ -42,6 +44,73 @@ vi.mock("viem", async (importOriginal) => {
 });
 
 const panda = { ...Panda, ...createPanda({ key: "panda", url: "https://panda.test" }) };
+
+describe("programs", () => {
+  afterEach(() => {
+    chainMock.isBase = false;
+  });
+
+  it("serves only the home program without a base config", () => {
+    const client = createPanda({ key: "panda", url: "https://panda.test" });
+
+    expect(client.tenants()).toStrictEqual(["OP"]);
+    expect(client.program("OP")).toBe(client);
+    expect(() => client.program("BASE")).toThrow("no BASE program");
+    expect(client.issuing(Panda.partner)).toBe("OP");
+  });
+
+  it("routes base cards to the base program", async () => {
+    const client = createPanda(
+      { key: "panda", url: "https://panda.test" },
+      { key: "base", url: "https://base.panda.test" },
+    );
+    const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json({ nonce: "base" }));
+
+    expect(client.tenants()).toStrictEqual(["OP", "BASE"]);
+    expect(client.program("OP")).toBe(client);
+    expect(client.program("BASE")).not.toBe(client);
+    await expect(client.program("BASE").getNonce("user")).resolves.toStrictEqual({ nonce: "base" });
+    expect(fetch).toHaveBeenCalledOnce();
+    const [request, init] = fetch.mock.calls[0] ?? [];
+    expect(request).toBe("https://base.panda.test/issuing/users/user/signatures/generate-nonce");
+    expect(new Headers(init?.headers).get("api-key")).toBe("base");
+  });
+
+  it("issues partner cards on the base program", () => {
+    const client = createPanda(
+      { key: "panda", url: "https://panda.test" },
+      { key: "base", url: "https://base.panda.test" },
+    );
+
+    expect(client.issuing(Panda.partner)).toBe("BASE");
+    expect(client.issuing("other")).toBe("OP");
+    expect(client.issuing(null)).toBe("OP");
+  });
+
+  it("ignores the base config on base stacks", () => {
+    chainMock.isBase = true;
+    const client = createPanda(
+      { key: "panda", url: "https://panda.test" },
+      { key: "base", url: "https://base.panda.test" },
+    );
+
+    expect(client.tenants()).toStrictEqual(["BASE"]);
+    expect(client.program("BASE")).toBe(client);
+    expect(() => client.program("OP")).toThrow("no OP program");
+    expect(client.issuing(Panda.partner)).toBe("BASE");
+    expect(client.issuing(null)).toBe("BASE");
+    expect(Panda.home()).toBe("BASE");
+    expect(Panda.other()).toBe("OP");
+    expect(Panda.pandaUser({ pandaId: "home", otherPandaId: "other" }, "BASE")).toBe("home");
+  });
+
+  it("picks the user id of each program", () => {
+    expect(Panda.home()).toBe("OP");
+    expect(Panda.other()).toBe("BASE");
+    expect(Panda.pandaUser({ pandaId: "home", otherPandaId: "other" }, "OP")).toBe("home");
+    expect(Panda.pandaUser({ pandaId: "home", otherPandaId: "other" }, "BASE")).toBe("other");
+  });
+});
 
 describe("decline reasons", () => {
   it.each([
@@ -443,31 +512,17 @@ describe("business application", () => {
 describe("withdrawals", () => {
   const account = parse(Address, padHex("0xb0b", { size: 20 }));
 
-  it("requests testnet withdrawals", async () => {
-    chainMock.id = baseSepolia.id;
-    chainMock.testnet = true;
-    const parameters = [account, account, "100", account, 1, [1, 2], "0x1234"];
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json({ parameters }));
-
-    await expect(panda.getWithdrawal(100, account, account)).resolves.toStrictEqual({ parameters });
-    expect(fetchSpy).toHaveBeenCalledWith(
-      expect.stringContaining(
-        `/issuing/tenants/signatures/withdrawals?token=0x29684075a3C86ea11D9964BcAf0F956e801396bD&amount=100&recipientAddress=${account}&adminAddress=${account}&chainId=${baseSepolia.id}`,
-      ),
-      expect.objectContaining({ method: "GET" }),
-    );
-  });
-
-  it("requests mainnet withdrawals", async () => {
-    chainMock.id = base.id;
+  it("requests withdrawals on the given network", async () => {
+    chainMock.id = optimism.id;
     chainMock.testnet = false;
-    const parameters = [account, account, "100", account, 1, [1, 2], "0x1234"];
+    const token = parse(Address, padHex("0x70c", { size: 20 }));
+    const parameters = [account, token, "100", account, 1, [1, 2], "0x1234"];
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json({ parameters }));
 
-    await expect(panda.getWithdrawal(100, account, account)).resolves.toStrictEqual({ parameters });
+    await expect(panda.getWithdrawal(100, account, account, base.id, token)).resolves.toStrictEqual({ parameters });
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.stringContaining(
-        `/issuing/tenants/signatures/withdrawals?token=${parse(Address, usdcAddress)}&amount=100`,
+        `/issuing/tenants/signatures/withdrawals?token=${token}&amount=100&recipientAddress=${account}&adminAddress=${account}&chainId=${base.id}`,
       ),
       expect.objectContaining({ method: "GET" }),
     );
@@ -626,6 +681,31 @@ describe("create card", () => {
       }),
     );
     expect(new Headers(fetchSpy.mock.lastCall?.[1]?.headers).get("Api-Key")).toBe("panda");
+  });
+
+  it("sends partner card art from the base program on other chains", async () => {
+    chainMock.id = optimism.id;
+    const client = createPanda(
+      { key: "panda", url: "https://panda.test" },
+      { key: "base", url: "https://base.panda.test" },
+    );
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(card));
+
+    await expect(
+      client.program("BASE").createCard("user-id", SIGNATURE_PRODUCT_ID, 1_000_000, undefined, Panda.partner),
+    ).resolves.toStrictEqual(card);
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      "https://base.panda.test/issuing/users/user-id/cards",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          type: "virtual",
+          status: "active",
+          limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
+          configuration: { productId: SIGNATURE_PRODUCT_ID, virtualCardArt: "c4c03256d6764a8390f41b60561d27af" },
+        }),
+      }),
+    );
   });
 
   it("ships a us physical card with standard method", async () => {

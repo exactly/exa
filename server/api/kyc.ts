@@ -35,6 +35,7 @@ import { parseSiweMessage } from "viem/siwe";
 
 import accountInit from "@exactly/common/accountInit";
 import chain, {
+  chains,
   exaAccountFactoryAddress,
   exaPluginAddress,
   upgradeableModularAccountAbi,
@@ -44,7 +45,12 @@ import { Address, Hex } from "@exactly/common/validation";
 import { credentials, walletAddresses } from "../database/schema";
 import { origin } from "../utils/appOrigin";
 import decodePublicKey from "../utils/decodePublicKey";
-import { Application, UpdateApplicationRequest as ApplicationUpdate, BusinessApplicationError } from "../utils/panda";
+import {
+  Application,
+  UpdateApplicationRequest as ApplicationUpdate,
+  BusinessApplicationError,
+  home,
+} from "../utils/panda";
 import {
   BUSINESS_PANDA_REPRESENTATIVE_TEMPLATE,
   BUSINESS_TEMPLATE,
@@ -136,7 +142,16 @@ export default function route({
 
         const { credentialId } = c.req.valid("cookie");
         const credential = await database.query.credentials.findFirst({
-          columns: { id: true, account: true, pandaId: true, factory: true, publicKey: true, salt: true },
+          columns: {
+            id: true,
+            account: true,
+            otherPandaId: true,
+            pandaId: true,
+            factory: true,
+            publicKey: true,
+            salt: true,
+            source: true,
+          },
           where: eq(credentials.id, credentialId),
         });
         if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
@@ -146,7 +161,7 @@ export default function route({
         setContext("exa", { credential });
 
         if (scope === "panda-business") {
-          const application = await panda.getCompanyApplication(credentialId);
+          const application = await panda.program("BASE").getCompanyApplication(credentialId);
           if (!application) return c.json({ code: BadRequestCodes.NOT_STARTED }, 400);
           const status = application.applicationStatus ?? "unknown";
           let code = "processing";
@@ -218,7 +233,7 @@ export default function route({
           }
         }
 
-        if (scope === "basic" && credential.pandaId) {
+        if (scope === "basic" && panda.applicant(credential)) {
           if (c.req.valid("query").countryCode) {
             const unknownAccount = await persona.getUnknownAccount(credentialId).catch((error: unknown) => {
               captureException(error, { level: "error", contexts: { details: { credentialId, scope } } });
@@ -358,7 +373,7 @@ export default function route({
             return c.json({ code: BadRequestCodes.BAD_REQUEST, message: ["missing valid client IP address"] }, 400);
           }
           try {
-            let application = await panda.getCompanyApplication(credentialId);
+            let application = await panda.program("BASE").getCompanyApplication(credentialId);
             if (!application) {
               const inquiry = await persona.getInquiry(credentialId, BUSINESS_TEMPLATE);
               if (!inquiry) throw new BusinessApplicationError("business inquiry not started", "not started");
@@ -458,7 +473,7 @@ export default function route({
                 });
               const [owner] = owners;
               if (!owner) throw new BusinessApplicationError("business account is not complete", "processing");
-              application = await panda.createCompanyApplication(credentialId, {
+              application = await panda.program("BASE").createCompanyApplication(credentialId, {
                 name: fields.business_name,
                 address: {
                   line1: fields.street_1_2,
@@ -847,7 +862,7 @@ The admin should add a member using [addMember method](https://www.better-auth.c
 
         const { credentialId } = c.req.valid("cookie");
         const credential = await database.query.credentials.findFirst({
-          columns: { id: true, account: true, pandaId: true },
+          columns: { id: true, account: true, otherPandaId: true, pandaId: true },
           where: eq(credentials.id, credentialId),
         });
         if (!credential) return c.json({ code: "no credential" }, 500);
@@ -859,7 +874,7 @@ The admin should add a member using [addMember method](https://www.better-auth.c
         if (siweMessage.domain !== new URL(origin(c.req.raw)).host)
           return c.json({ code: "no permission", message: "invalid domain" }, 403);
 
-        if (siweMessage.chainId !== chain.id)
+        if (siweMessage.chainId !== chain.id && !(siweMessage.chainId && chains.has(siweMessage.chainId)))
           return c.json({ code: "bad chain", message: `expected ${chain.id} but got ${siweMessage.chainId}` }, 400);
 
         const { verify, ...body } = payload;
@@ -883,13 +898,19 @@ The admin should add a member using [addMember method](https://www.better-auth.c
           );
         }
 
-        if (credential.pandaId) return c.json({ code: BadRequestCodes.ALREADY_STARTED }, 409);
+        if (panda.applicant({ ...credential, source: member.organization.id })) {
+          return c.json({ code: BadRequestCodes.ALREADY_STARTED }, 409);
+        }
+        const tenant = panda.issuing(member.organization.id);
 
         try {
-          const application = await panda.submitApplication(body);
+          const application = await panda.program(tenant).submitApplication(body);
           await database
             .update(credentials)
-            .set({ pandaId: application.id, source: member.organization.id })
+            .set({
+              ...(tenant === home() ? { pandaId: application.id } : { otherPandaId: application.id }),
+              source: member.organization.id,
+            })
             .where(eq(credentials.id, credentialId));
           return c.json({ status: application.applicationStatus }, 200);
         } catch (error) {
@@ -947,17 +968,19 @@ The admin should add a member using [addMember method](https://www.better-auth.c
         const { credentialId } = c.req.valid("cookie");
         const payload = c.req.valid("json");
         const credential = await database.query.credentials.findFirst({
-          columns: { id: true, account: true, pandaId: true },
+          columns: { id: true, account: true, otherPandaId: true, pandaId: true, source: true },
           where: eq(credentials.id, credentialId),
         });
         if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
         setUser({ id: parse(Address, credential.account) });
         setContext("exa", { credential });
-        if (!credential.pandaId) {
+        const applicant = panda.applicant(credential);
+        if (!applicant) {
           return c.json({ code: BadRequestCodes.NOT_STARTED, legacy: BadRequestCodes.NOT_STARTED }, 400);
         }
+        const { tenant, pandaId } = applicant;
         try {
-          await panda.updateApplication(credential.pandaId, payload);
+          await panda.program(tenant).updateApplication(pandaId, payload);
         } catch (error) {
           if (error instanceof ServiceError && error.status === 400) {
             return c.json({ code: BadRequestCodes.BAD_REQUEST, message: [error.message] }, 400);
@@ -1005,16 +1028,18 @@ The admin should add a member using [addMember method](https://www.better-auth.c
       async (c) => {
         const { credentialId } = c.req.valid("cookie");
         const credential = await database.query.credentials.findFirst({
-          columns: { id: true, account: true, pandaId: true },
+          columns: { id: true, account: true, otherPandaId: true, pandaId: true, source: true },
           where: eq(credentials.id, credentialId),
         });
         if (!credential) return c.json({ code: "no credential", legacy: "no credential" }, 500);
         setUser({ id: parse(Address, credential.account) });
         setContext("exa", { credential });
-        if (!credential.pandaId) {
+        const applicant = panda.applicant(credential);
+        if (!applicant) {
           return c.json({ code: BadRequestCodes.NOT_STARTED, legacy: BadRequestCodes.NOT_STARTED }, 400);
         }
-        const status = await panda.getApplicationStatus(credential.pandaId);
+        const { tenant, pandaId } = applicant;
+        const status = await panda.program(tenant).getApplicationStatus(pandaId);
         return c.json(
           { code: "ok", legacy: "ok", status: status.applicationStatus, reason: status.applicationReason ?? "unknown" },
           200,

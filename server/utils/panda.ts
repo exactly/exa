@@ -41,11 +41,12 @@ import {
   type BaseIssue,
   type BaseSchema,
   type InferInput,
+  type InferOutput,
 } from "valibot";
 import { recoverTypedDataAddress, withRetry, type LocalAccount } from "viem";
-import { base, baseSepolia, optimismSepolia } from "viem/chains";
+import { anvil, base, baseSepolia, moonbeamDev, optimism, optimismSepolia } from "viem/chains";
 
-import chain, { issuerCheckerAddress, usdcAddress } from "@exactly/common/generated/chain";
+import chain, { isBase, issuerCheckerAddress } from "@exactly/common/generated/chain";
 import {
   BASE_PRODUCT_ID,
   CLASSIC_PRODUCT_ID,
@@ -57,8 +58,62 @@ import { Address, Hex } from "@exactly/common/validation";
 import { accounts, proposalManager } from "@exactly/plugin/deploy.json";
 
 import ServiceError from "./ServiceError";
+import { cards } from "../database/schema";
 
-export default function panda({ key, url }: { key: string; url: string }) {
+export const Tenant = picklist(cards.tenant.enumValues);
+export type Tenant = InferOutput<typeof Tenant>;
+
+export const home = (): Tenant => (isBase ? "BASE" : "OP");
+
+export const other = (): Tenant => (isBase ? "OP" : "BASE");
+
+export const served = (): Tenant[] => (isBase ? [home()] : [home(), other()]);
+
+export function programChain(tenant: Tenant) {
+  if (tenant === home()) return chain.id;
+  if (chain.id === anvil.id) return moonbeamDev.id;
+  if (tenant === "BASE") return chain.testnet ? baseSepolia.id : base.id;
+  return chain.testnet ? optimismSepolia.id : optimism.id;
+}
+
+export default function panda(config: { key: string; url: string }, baseConfig?: { key: string; url: string }) {
+  const remote = baseConfig && !isBase ? connect(baseConfig, () => base.id) : undefined;
+  return Object.assign(connect(config), {
+    tenants: (): Tenant[] => (remote ? [home(), other()] : [home()]),
+    issuing: (source?: null | string): Tenant => (remote && source === partner ? other() : home()),
+    applicant(credential: { otherPandaId: null | string; pandaId: null | string; source: null | string }) {
+      for (const tenant of new Set([this.issuing(credential.source), home()])) {
+        const pandaId = pandaUser(credential, tenant);
+        if (pandaId) return { tenant, pandaId };
+      }
+    },
+    program(this: ReturnType<typeof connect>, target: Tenant) {
+      if (target === home()) return this;
+      if (!remote) throw new Error(`no ${target} program`);
+      return remote;
+    },
+  });
+}
+
+export function pandaUser(credential: { otherPandaId: null | string; pandaId: null | string }, target: Tenant) {
+  return target === home() ? credential.pandaId : credential.otherPandaId;
+}
+
+export function homeFirst<T extends { tenant: Tenant }>(owned: readonly T[]) {
+  return owned.toSorted((a, b) => Number(b.tenant === home()) - Number(a.tenant === home()));
+}
+
+export function pickCard<T extends { tenant: Tenant }>(
+  credential: { otherPandaId: null | string; pandaId: null | string },
+  owned: readonly T[],
+) {
+  for (const card of homeFirst(owned)) {
+    const pandaId = pandaUser(credential, card.tenant);
+    if (pandaId) return { ...card, pandaId };
+  }
+}
+
+function connect({ key, url }: { key: string; url: string }, network = () => chain.id) {
   const client = new Client({
     apiKey: key,
     baseURL: `${url}/issuing`,
@@ -142,7 +197,7 @@ export default function panda({ key, url }: { key: string; url: string }) {
                   virtualCardArt:
                     chain.id === baseSepolia.id || chain.id === optimismSepolia.id
                       ? "0c515d7eb0a140fa8f938f8242b0780a"
-                      : chain.id === base.id && productId === SIGNATURE_PRODUCT_ID && source === partner
+                      : network() === base.id && productId === SIGNATURE_PRODUCT_ID && source === partner
                         ? "c4c03256d6764a8390f41b60561d27af"
                         : {
                             [BASE_PRODUCT_ID]: "79c1c868c3ae4b4dae2564295e75c357",
@@ -306,17 +361,17 @@ export default function panda({ key, url }: { key: string; url: string }) {
       client.get(`/webhooks/${id}`),
     );
   }
-  async function getWithdrawal(amount: number, recipient: Address, admin: Address) {
+  async function getWithdrawal(amount: number, recipient: Address, admin: Address, chainId: number, token: Address) {
     return await request(
       Withdrawal,
       "tenant",
       client.get("/tenants/signatures/withdrawals", {
         query: {
-          token: parse(Address, chain.testnet ? "0x29684075a3C86ea11D9964BcAf0F956e801396bD" : usdcAddress),
+          token,
           amount,
           recipientAddress: recipient,
           adminAddress: admin,
-          chainId: chain.id,
+          chainId,
         },
       }),
     );
