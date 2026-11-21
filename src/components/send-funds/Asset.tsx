@@ -26,6 +26,7 @@ import { presentArticle } from "../../utils/intercom";
 import { isSendable, isStock, lifiChainsOptions, lifiTokensOptions, reachOptions } from "../../utils/lifi";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
+import useAllowlists from "../../utils/useAllowlists";
 import useDeployments from "../../utils/useDeployments";
 import useInsets from "../../utils/useInsets";
 import usePortfolio, { type ExternalAsset } from "../../utils/usePortfolio";
@@ -60,6 +61,7 @@ export default function AssetSelection() {
   const { data: advanced } = useQuery<boolean>({ queryKey: ["settings", "advanced-mode"] });
   const { data: chains } = useQuery(lifiChainsOptions);
   const { data: reach, isError: reachFailed, refetch: refetchReach } = useQuery(reachOptions);
+  const allowlists = useAllowlists();
   const {
     data: tokens,
     isPending: isTokensPending,
@@ -190,7 +192,7 @@ export default function AssetSelection() {
       .filter(
         (token) =>
           ids.has(token.chainId) &&
-          (filter !== "stocks" || isStock(token)) &&
+          (filter !== "stocks" || isStock(allowlists, token)) &&
           !keys.has(`${token.chainId}:${token.address.toLowerCase()}`) &&
           (!search ||
             token.symbol.toLowerCase().includes(search) ||
@@ -211,7 +213,7 @@ export default function AssetSelection() {
       )
       .slice(0, 20)
       .map(({ token }) => token);
-  }, [advanced, chains, compatible, tokens, targets, filter, owned, search]);
+  }, [advanced, allowlists, chains, compatible, tokens, targets, filter, owned, search]);
 
   if (typeof receiver !== "string" || !receiver) return <Redirect href="/send-funds/receiver" />;
 
@@ -386,7 +388,10 @@ export default function AssetSelection() {
                   const chainName =
                     chains?.find((item) => item.id === chainId)?.name ?? alchemyChains.get(chainId)?.name ?? chain.name;
                   const sendable =
-                    !!advanced || asset.type !== "external" || chainId !== chain.id || isSendable(asset.address);
+                    !!advanced ||
+                    asset.type !== "external" ||
+                    chainId !== chain.id ||
+                    isSendable(allowlists[chain.id], asset.address);
                   return (
                     <Row
                       key={asset.type === "external" ? `${asset.chainId}:${asset.address}` : asset.market}
