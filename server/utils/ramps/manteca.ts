@@ -6,35 +6,47 @@ import {
   optional,
   parse,
   picklist,
+  pipe,
   safeParse,
   string,
+  uuid,
   type BaseIssue,
   type BaseSchema,
   type InferInput,
-  type InferOutput,
 } from "valibot";
-import { withRetry } from "viem";
+import {
+  concat,
+  InvalidParamsRpcError,
+  isAddressEqual,
+  isHash,
+  numberToHex,
+  parseEventLogs,
+  parseUnits,
+  stringToHex,
+  withRetry,
+  type Log,
+} from "viem";
+import { getUserOperationReceipt, UserOperationReceiptNotFoundError } from "viem/account-abstraction";
 import { optimism, optimismSepolia } from "viem/chains";
 
-import chain from "@exactly/common/generated/chain";
-import { Address } from "@exactly/common/validation";
+import chain, { marketAbi, marketUSDCAddress } from "@exactly/common/generated/chain";
+import { Address, type Hash } from "@exactly/common/validation";
 
 import { MantecaCountryCode } from "../persona";
+import publicClient from "../publicClient";
 import ServiceError from "../ServiceError";
 
 import type createPersona from "../persona";
-import type { AccountOutput } from "../persona";
 
 export const name = "manteca" as const;
 
 export default function manteca(key: string, url: string) {
-  let company: undefined | { expiry: number; response: Promise<InferOutput<typeof CompanyResponse>> };
   return {
     acceptTermsAndConditions,
     balances,
     convertBalanceToUsdc,
     createOrder,
-    executeQrPayment,
+    executeQRPayment,
     getDepositDetails,
     getLimits,
     getPaymentLock,
@@ -45,7 +57,7 @@ export default function manteca(key: string, url: string) {
     getSynthetic,
     getUser,
     initiateOnboarding,
-    lockQrPayment,
+    lockQRPayment,
     onboarding,
     uploadIdentityFile,
     withdrawBalance,
@@ -84,7 +96,7 @@ export default function manteca(key: string, url: string) {
   async function createOrder(order: InferInput<typeof Order>) {
     return await request(OrderResponse, "/crypto/v2/orders", {}, order, "POST", 10_000);
   }
-  async function executeQrPayment(qrCode: string, externalId: string) {
+  async function executeQRPayment(qrCode: string, externalId: string) {
     return await request(
       SyntheticResponse,
       "/crypto/v2/synthetics/qr-payment",
@@ -105,6 +117,7 @@ export default function manteca(key: string, url: string) {
       throw error;
     });
   }
+  // eslint-disable-next-line unicorn/consistent-function-scoping
   async function forwardFileToURL(sourceURL: string, destinationURL: string): Promise<void> {
     const abort = new AbortController();
     const timeout = setTimeout(() => {
@@ -158,7 +171,7 @@ export default function manteca(key: string, url: string) {
     return Nationality[result.output];
   }
   async function getPaymentLock(code: string) {
-    return await request(QrPaymentResponse, `/crypto/v2/payment-locks/${code}`, {}, undefined, "GET", 10_000).catch(
+    return await request(QRPaymentResponse, `/crypto/v2/payment-locks/${code}`, {}, undefined, "GET", 10_000).catch(
       (error: unknown) => {
         if (error instanceof ServiceError && error.status === 404) return;
         if (
@@ -271,23 +284,7 @@ export default function manteca(key: string, url: string) {
     return settlement;
   }
   async function getSettlements() {
-    if (!company || Date.now() >= company.expiry) {
-      const previous = company?.response;
-      company = {
-        expiry: Date.now() + 10 * 60_000,
-        response: request(CompanyResponse, "/crypto/v2/company", {}, undefined, "GET", 10_000).catch(
-          (error: unknown) => {
-            if (!previous) {
-              company = undefined;
-              throw error;
-            }
-            captureException(error, { level: "warning" });
-            return previous;
-          },
-        ),
-      };
-    }
-    const { banking } = await company.response;
+    const { banking } = await request(CompanyResponse, "/crypto/v2/company", {}, undefined, "GET", 10_000);
     const network = Supported[chain.id];
     return Object.fromEntries(
       Object.entries(SettlementEntity).flatMap(([asset, entity]) => {
@@ -346,8 +343,8 @@ export default function manteca(key: string, url: string) {
   function isDevelopment(): boolean {
     return DevelopmentChainIds.includes(chain.id as (typeof DevelopmentChainIds)[number]);
   }
-  async function lockQrPayment(lock: InferInput<typeof PaymentLock>) {
-    return await request(QrPaymentResponse, "/crypto/v2/payment-locks", {}, lock, "POST", 10_000).catch(
+  async function lockQRPayment(lock: InferInput<typeof PaymentLock>) {
+    return await request(QRPaymentResponse, "/crypto/v2/payment-locks", {}, lock, "POST", 10_000).catch(
       (error: unknown) => {
         if (error instanceof ServiceError && typeof error.cause === "string") {
           if (error.cause.includes(MantecaApiErrorCodes.INVALID_AMOUNT)) throw new Error(ErrorCodes.INVALID_AMOUNT);
@@ -587,12 +584,6 @@ export default function manteca(key: string, url: string) {
   }
 }
 
-export function nationalId(account: AccountOutput<"basic">) {
-  return account.attributes.fields.documents.value.find(
-    ({ value }) => value.id_class.value === "id" && value.id_issuing_country.value === "AR",
-  )?.value;
-}
-
 // #region schemas
 export const Currency = ["ARS", "BRL", "USD"] as const;
 const DevelopmentChainIds = [optimismSepolia.id] as const;
@@ -656,7 +647,7 @@ export const PaymentLock = object({
   sender: object({ legalIdNationality: string(), legalId: string(), name: string(), surname: string() }),
 });
 
-export const QrPaymentResponse = object({
+export const QRPaymentResponse = object({
   code: optional(string()),
   type: string(),
   companyId: string(),
@@ -883,7 +874,108 @@ export const UploadIdentityFileResponse = object({ url: string() });
 // #endregion schemas
 
 // #region utils
+export async function pay(
+  ramp: ReturnType<typeof manteca>,
+  persona: Pick<ReturnType<typeof createPersona>, "getAccount">,
+  credentialId: string,
+  {
+    userOpHash,
+    sender,
+    nonce,
+    success,
+    logs,
+    settlements,
+  }: {
+    logs: Log[];
+    nonce: bigint;
+    sender: Address;
+    settlements: Record<string, Address>;
+    success: boolean;
+    userOpHash: Hash;
+  },
+) {
+  if (!success) return { code: ErrorCodes.INVALID_PAYMENT };
+  const withdraws = parseEventLogs({ abi: marketAbi, eventName: "Withdraw", logs }).filter(
+    ({ address, args }) =>
+      isAddressEqual(address, marketUSDCAddress) &&
+      isAddressEqual(args.owner, sender) &&
+      Object.values(settlements).some((settlement) => isAddressEqual(settlement, args.receiver)),
+  );
+  const paid = withdraws.reduce((total, { args }) => total + args.assets, 0n);
+  const contexts = { payment: { account: sender, userOpHash, amount: String(paid) } };
+  const code = decodeNonceKey(nonce);
+  if (!code) {
+    if (paid > 0n) captureException(new Error("usdc sent to settlement without qr lock"), { level: "error", contexts });
+    return { code: ErrorCodes.INVALID_PAYMENT };
+  }
+  const lock = await ramp.getPaymentLock(code);
+  if (!lock) {
+    const synthetic = await ramp.getSynthetic(userOpHash);
+    if (synthetic) return synthetic;
+    if (paid > 0n) {
+      captureException(new Error("qr payment not executed"), {
+        level: "error",
+        contexts: { payment: { ...contexts.payment, cause: lock === null ? "expired" : "lock" } },
+      });
+    }
+    return { code: lock === null ? ErrorCodes.EXPIRED_LOCK : ErrorCodes.INVALID_PAYMENT };
+  }
+  const personaAccount = await persona.getAccount(credentialId, "basic");
+  const document = personaAccount?.attributes.fields.documents.value.find(
+    ({ value }) => value.id_class.value === "id" && value.id_issuing_country.value === "AR",
+  )?.value;
+  if (!document || !lock.sender || legalId(document.id_number.value) !== legalId(lock.sender.legalId)) {
+    if (paid > 0n) {
+      captureException(new Error("qr payment not executed"), {
+        level: "error",
+        contexts: { payment: { ...contexts.payment, cause: "payer", persona: personaAccount?.id } },
+      });
+    }
+    return { code: ErrorCodes.INVALID_PAYMENT };
+  }
+  const { [lock.paymentAsset]: receiver } = settlements;
+  if (!receiver) throw new Error(ErrorCodes.NOT_SUPPORTED_CURRENCY);
+  const assets = withdraws
+    .filter(({ args }) => isAddressEqual(args.receiver, receiver))
+    .reduce((total, { args }) => total + args.assets, 0n);
+  if (assets * 100n < parseUnits(lock.paymentAgainstAmount, 8)) {
+    if (paid > 0n) {
+      captureException(new Error("qr payment not executed"), {
+        level: "error",
+        contexts: {
+          payment: { ...contexts.payment, cause: "amount", assets: String(assets), lock: lock.paymentAgainstAmount },
+        },
+      });
+    }
+    return { code: ErrorCodes.INVALID_PAYMENT };
+  }
+  return await ramp.executeQRPayment(code, userOpHash);
+}
 
+export async function findOperation(hash: string | undefined) {
+  if (!hash || !isHash(hash)) return;
+  return await getUserOperationReceipt(publicClient, { hash }).catch((error: unknown) => {
+    if (error instanceof UserOperationReceiptNotFoundError || error instanceof InvalidParamsRpcError) return;
+    throw error;
+  });
+}
+
+export function encodeNonceKey(code: string) {
+  return concat([nonceKeyPrefix, `0x${parse(pipe(string(), uuid()), code).split("-").join("")}`]);
+}
+
+export function decodeNonceKey(nonce: bigint) {
+  const key = numberToHex(nonce >> 64n, { size: 24 });
+  if (!key.startsWith(nonceKeyPrefix)) return;
+  const id = key.slice(nonceKeyPrefix.length);
+  return `${id.slice(0, 8)}-${id.slice(8, 12)}-${id.slice(12, 16)}-${id.slice(16, 20)}-${id.slice(20)}`;
+}
+
+function legalId(value: string) {
+  return value.toLowerCase().replaceAll(/[.-]/g, "");
+}
+
+const nonceKeyPrefix = stringToHex("exa-qr\u0000\u0001");
 // #endregion utils
 
 export const ErrorCodes = {
