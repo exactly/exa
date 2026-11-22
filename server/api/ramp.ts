@@ -25,13 +25,11 @@ import {
 } from "valibot";
 import { isAddressEqual } from "viem";
 
-import * as nonceKey from "@exactly/common/nonceKey";
 import { business } from "@exactly/common/tenants";
 import { Address, Hash, Hex } from "@exactly/common/validation";
 
 import { canRetry } from "./kyc";
 import { credentials } from "../database/schema";
-import findOperation from "../utils/findOperation";
 import { BusinessApplicationError } from "../utils/panda";
 import {
   ADDRESS_TEMPLATE,
@@ -44,6 +42,7 @@ import {
   syncing,
 } from "../utils/persona";
 import * as Bridge from "../utils/ramps/bridge";
+import { decodeNonceKey, encodeNonceKey, findOperation } from "../utils/ramps/manteca";
 import * as Manteca from "../utils/ramps/manteca";
 import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
@@ -557,7 +556,7 @@ The locked payment charges \`amount\` USDC for \`assetAmount\` in \`asset\`, the
         responses: {
           200: {
             description: "Locked payment",
-            content: { "application/json": { schema: resolver(QrLock, { errorMode: "ignore" }) } },
+            content: { "application/json": { schema: resolver(QRLock, { errorMode: "ignore" }) } },
           },
           206: {
             description: "QR without amount",
@@ -614,10 +613,12 @@ The locked payment charges \`amount\` USDC for \`assetAmount\` in \`asset\`, the
           throw error;
         });
         if (!personaAccount) return c.json({ code: Manteca.ErrorCodes.NO_PERSONA_ACCOUNT }, 400);
-        const document = Manteca.nationalId(personaAccount);
+        const document = personaAccount.attributes.fields.documents.value.find(
+          ({ value }) => value.id_class.value === "id" && value.id_issuing_country.value === "AR",
+        )?.value;
         if (!document) return c.json({ code: Manteca.ErrorCodes.NO_DOCUMENT }, 400);
         try {
-          const lock = await manteca.lockQrPayment({
+          const lock = await manteca.lockQRPayment({
             paymentDestination: payment.qr,
             amount: payment.amount,
             against: "USDC",
@@ -637,14 +638,14 @@ The locked payment charges \`amount\` USDC for \`assetAmount\` in \`asset\`, the
           return c.json(
             {
               code: lock.code,
-              nonceKey: nonceKey.encode(lock.code),
+              nonceKey: encodeNonceKey(lock.code),
               amount: lock.paymentAgainstAmount,
               expireAt: lock.expireAt,
               recipient: lock.paymentRecipientName,
               receiver: await manteca.getSettlement(asset),
               asset,
               assetAmount: lock.paymentAssetAmount,
-            } satisfies InferOutput<typeof QrLock>,
+            } satisfies InferOutput<typeof QRLock>,
             200,
           );
         } catch (error) {
@@ -674,7 +675,7 @@ Returns the synthetic of the payment once the server executed it, \`FAILED\` whe
         responses: {
           200: {
             description: "Payment status",
-            content: { "application/json": { schema: resolver(QrPayment, { errorMode: "ignore" }) } },
+            content: { "application/json": { schema: resolver(QRPayment, { errorMode: "ignore" }) } },
           },
           400: {
             description: "Bad request",
@@ -715,15 +716,15 @@ Returns the synthetic of the payment once the server executed it, \`FAILED\` whe
         if (!operation || !isAddressEqual(operation.sender, account)) {
           return c.json({ code: ErrorCodes.PAYMENT_NOT_FOUND }, 404);
         }
-        const code = nonceKey.decode(BigInt(operation.nonce)); // eslint-disable-line @typescript-eslint/no-unnecessary-type-conversion -- viem keeps the rpc hex
+        const code = decodeNonceKey(BigInt(operation.nonce)); // eslint-disable-line @typescript-eslint/no-unnecessary-type-conversion -- viem keeps the rpc hex
         if (!code) return c.json({ code: ErrorCodes.PAYMENT_NOT_FOUND }, 404);
-        if (!operation.success) return c.json({ status: "FAILED" } satisfies InferOutput<typeof QrPayment>, 200);
+        if (!operation.success) return c.json({ status: "FAILED" } satisfies InferOutput<typeof QRPayment>, 200);
         const lock = await manteca.getPaymentLock(code);
         const synthetic = await manteca.getSynthetic(userOpHash);
         if (synthetic) {
-          return c.json({ id: synthetic.id, status: synthetic.status } satisfies InferOutput<typeof QrPayment>, 200);
+          return c.json({ id: synthetic.id, status: synthetic.status } satisfies InferOutput<typeof QRPayment>, 200);
         }
-        if (lock === null) return c.json({ status: "EXPIRED" } satisfies InferOutput<typeof QrPayment>, 200);
+        if (lock === null) return c.json({ status: "EXPIRED" } satisfies InferOutput<typeof QRPayment>, 200);
         return c.json({ code: ErrorCodes.PAYMENT_NOT_EXECUTED }, 404);
       },
     )
@@ -868,7 +869,7 @@ async function getOrCreateInquiry(
 
 type QuoteResponse = undefined | { buyRate: string; sellRate: string };
 
-const QrLock = object({
+const QRLock = object({
   code: string(),
   nonceKey: Hex,
   amount: string(),
@@ -879,7 +880,7 @@ const QrLock = object({
   assetAmount: string(),
 });
 
-const QrPayment = union([
+const QRPayment = union([
   object({ id: string(), status: picklist(Manteca.SyntheticStatus) }),
   object({ status: picklist(["EXPIRED", "FAILED"]) }),
 ]);
