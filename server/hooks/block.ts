@@ -71,7 +71,7 @@ import { emit } from "../utils/events";
 import { refresh } from "../utils/liquidity";
 import listen from "../utils/listen";
 import publicClient, { alchemyClient } from "../utils/publicClient";
-import pay from "../utils/ramps/pay";
+import { pay } from "../utils/ramps/manteca";
 import revertFingerprint from "../utils/revertFingerprint";
 import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
@@ -413,8 +413,9 @@ export default function hook({
                   if (!settled.some((p) => p.transaction?.hash === hash && isAddressEqual(p.args.owner, args.sender))) {
                     continue;
                   }
+                  const sender = v.parse(Address, args.sender);
                   const credential = await database.query.credentials.findFirst({
-                    where: eq(credentials.account, args.sender),
+                    where: eq(credentials.account, sender),
                     columns: { id: true },
                   });
                   if (!credential) continue;
@@ -422,7 +423,7 @@ export default function hook({
                   const start = operations[index - 1]?.logIndex ?? -1;
                   await pay(manteca, persona, credential.id, {
                     ...args,
-                    sender: v.parse(Address, args.sender),
+                    sender,
                     logs: receipt.logs.filter((log) => log.logIndex > start && log.logIndex < logIndex),
                   }).catch((error: unknown) => {
                     failures.push(error);

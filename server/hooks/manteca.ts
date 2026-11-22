@@ -28,9 +28,9 @@ import { Address } from "@exactly/common/validation";
 import { credentials } from "../database/schema";
 import t, { f } from "../i18n";
 import { emit } from "../utils/events";
-import findOperation from "../utils/findOperation";
 import {
   ErrorCodes,
+  findOperation,
   OrderStatus,
   SyntheticStatus,
   UserOnboardingTasks,
