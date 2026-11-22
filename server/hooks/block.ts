@@ -71,7 +71,7 @@ import { emit } from "../utils/events";
 import { refresh } from "../utils/liquidity";
 import listen from "../utils/listen";
 import publicClient, { alchemyClient } from "../utils/publicClient";
-import pay from "../utils/ramps/pay";
+import { pay } from "../utils/ramps/manteca";
 import revertFingerprint from "../utils/revertFingerprint";
 import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
@@ -227,14 +227,16 @@ export default function hook({
           ...decodeEventLog({ abi: marketAbi, eventName: "Withdraw", topics, data }),
         }));
       async function settle() {
-        if (outflows.length === 0) return [];
-        const settlements = Object.values(await manteca.getSettlements());
-        return outflows.filter(({ args }) =>
-          settlements.some((settlement) => isAddressEqual(settlement, args.receiver)),
-        );
+        const settlements: Record<string, Address> = outflows.length > 0 ? await manteca.getSettlements() : {};
+        return {
+          settlements,
+          settled: outflows.filter(({ args }) =>
+            Object.values(settlements).some((settlement) => isAddressEqual(settlement, args.receiver)),
+          ),
+        };
       }
       const payments = logs.every(({ topics }) => topics[0] === withdrawTopic) ? await settle() : undefined;
-      if (payments?.length === 0) {
+      if (payments?.settled.length === 0) {
         setExtra("exa.ignore", true);
         return c.json({}, 200);
       }
@@ -398,7 +400,7 @@ export default function hook({
             },
           );
         }),
-        Promise.resolve(payments ?? settle()).then((settled) =>
+        Promise.resolve(payments ?? settle()).then(({ settlements, settled }) =>
           Promise.all(
             new Set(settled.map(({ transaction }) => transaction?.hash)).values().map(async (hash) => {
               const payers = new Set<string>();
@@ -413,8 +415,9 @@ export default function hook({
                   if (!settled.some((p) => p.transaction?.hash === hash && isAddressEqual(p.args.owner, args.sender))) {
                     continue;
                   }
+                  const sender = v.parse(Address, args.sender);
                   const credential = await database.query.credentials.findFirst({
-                    where: eq(credentials.account, args.sender),
+                    where: eq(credentials.account, sender),
                     columns: { id: true },
                   });
                   if (!credential) continue;
@@ -422,7 +425,8 @@ export default function hook({
                   const start = operations[index - 1]?.logIndex ?? -1;
                   await pay(manteca, persona, credential.id, {
                     ...args,
-                    sender: v.parse(Address, args.sender),
+                    sender,
+                    settlements,
                     logs: receipt.logs.filter((log) => log.logIndex > start && log.logIndex < logIndex),
                   }).catch((error: unknown) => {
                     failures.push(error);

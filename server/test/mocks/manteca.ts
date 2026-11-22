@@ -21,8 +21,8 @@ const mock = vi.hoisted(() => {
       convertBalanceToUsdc: (...parameters: Parameters<Manteca["convertBalanceToUsdc"]>) =>
         current().convertBalanceToUsdc(...parameters),
       createOrder: (...parameters: Parameters<Manteca["createOrder"]>) => current().createOrder(...parameters),
-      executeQrPayment: (...parameters: Parameters<Manteca["executeQrPayment"]>) =>
-        current().executeQrPayment(...parameters),
+      executeQRPayment: (...parameters: Parameters<Manteca["executeQRPayment"]>) =>
+        current().executeQRPayment(...parameters),
       getDepositDetails: (...parameters: Parameters<Manteca["getDepositDetails"]>) =>
         current().getDepositDetails(...parameters),
       getLimits: (...parameters: Parameters<Manteca["getLimits"]>) => current().getLimits(...parameters),
@@ -35,7 +35,7 @@ const mock = vi.hoisted(() => {
       getUser: (...parameters: Parameters<Manteca["getUser"]>) => current().getUser(...parameters),
       initiateOnboarding: (...parameters: Parameters<Manteca["initiateOnboarding"]>) =>
         current().initiateOnboarding(...parameters),
-      lockQrPayment: (...parameters: Parameters<Manteca["lockQrPayment"]>) => current().lockQrPayment(...parameters),
+      lockQRPayment: (...parameters: Parameters<Manteca["lockQRPayment"]>) => current().lockQRPayment(...parameters),
       onboarding: (...parameters: Parameters<Manteca["onboarding"]>) => current().onboarding(...parameters),
       uploadIdentityFile: (...parameters: Parameters<Manteca["uploadIdentityFile"]>) =>
         current().uploadIdentityFile(...parameters),
