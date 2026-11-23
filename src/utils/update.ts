@@ -40,6 +40,10 @@ export function check() {
   return checking;
 }
 
+export function settle() {
+  return checking ?? Promise.resolve();
+}
+
 export function track(route: string) {
   current = route;
 }

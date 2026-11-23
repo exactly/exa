@@ -18,7 +18,7 @@ import { present } from "../../utils/intercom";
 import logout from "../../utils/logout";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
-import { reload } from "../../utils/update";
+import { reload, settle } from "../../utils/update";
 import IconButton from "../shared/IconButton";
 import SafeView from "../shared/SafeView";
 import Text from "../shared/Text";
@@ -72,7 +72,7 @@ export default function Settings() {
                 onPress={() => {
                   const idle = queryClient.isMutating() === 0;
                   logout()
-                    .then(() => (idle ? reload("/(auth)") : false))
+                    .then(() => (idle ? settle().then(() => reload("/(auth)")) : false))
                     .catch(reportError);
                 }}
               >
