@@ -52,6 +52,7 @@ export default function manteca(key: string, url: string) {
     executeQRPayment,
     getDepositDetails,
     getLimits,
+    getMinimum,
     getPaymentLock,
     getProvider,
     getQRRefund,
@@ -174,6 +175,20 @@ export default function manteca(key: string, url: string) {
     const result = safeParse(picklist(MantecaCountryCode), countryCode);
     if (!result.success) throw new Error(`Invalid country: ${countryCode}`);
     return Nationality[result.output];
+  }
+  async function getMinimum() {
+    const limits = await request(OperationLimits, "/crypto/v2/info/operation-limits", {}, undefined, "GET", 5000).catch(
+      (error: unknown) => {
+        captureException(error, { level: "warning" });
+      },
+    );
+    if (!limits) return;
+    const { currency, min } = limits.order;
+    if (currency === "USD") return min;
+    captureException(new Error("unsupported qr minimum currency"), {
+      level: "warning",
+      contexts: { order: { currency, min } },
+    });
   }
   async function getPaymentLock(code: string) {
     return await request(QRPaymentResponse, `/crypto/v2/payment-locks/${code}`, {}, undefined, "GET", 10_000).catch(
@@ -799,6 +814,8 @@ export const LimitsResponse = array(
     availableMonthlyLimit: string(),
   }),
 );
+
+const OperationLimits = object({ order: object({ min: string(), max: optional(string()), currency: string() }) });
 
 export const BalancesResponse = object({
   userId: string(),

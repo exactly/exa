@@ -26,6 +26,7 @@ const mock = vi.hoisted(() => {
       getDepositDetails: (...parameters: Parameters<Manteca["getDepositDetails"]>) =>
         current().getDepositDetails(...parameters),
       getLimits: (...parameters: Parameters<Manteca["getLimits"]>) => current().getLimits(...parameters),
+      getMinimum: (...parameters: Parameters<Manteca["getMinimum"]>) => current().getMinimum(...parameters),
       getPaymentLock: (...parameters: Parameters<Manteca["getPaymentLock"]>) => current().getPaymentLock(...parameters),
       getProvider: (...parameters: Parameters<Manteca["getProvider"]>) => current().getProvider(...parameters),
       getQRRefund: (...parameters: Parameters<Manteca["getQRRefund"]>) => current().getQRRefund(...parameters),
