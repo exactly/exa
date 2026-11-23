@@ -231,9 +231,28 @@ const selected = await automation.LocalWorkspace.selectStack(
           },
           { dependsOn: service, provider },
         );
+        new projects.IAMCustomRole(
+          `${project}-logging`,
+          {
+            permissions: ["logMetrics", "notificationRules"].flatMap((resource) =>
+              ["create", "delete", "get", "update"].map((permission) => `logging.${resource}.${permission}`),
+            ),
+            roleId: "pulumiLogging",
+            title: "pulumi logging",
+          },
+          { dependsOn: service, provider },
+        );
         const preview = new projects.IAMCustomRole(
           `${project}-preview`,
-          { permissions: ["iam.serviceAccounts.get"], roleId: "pulumiPreview", title: "pulumi preview" },
+          {
+            permissions: [
+              "iam.serviceAccounts.get",
+              "monitoring.notificationChannels.get",
+              "monitoring.notificationChannels.list",
+            ],
+            roleId: "pulumiPreview",
+            title: "pulumi preview",
+          },
           { dependsOn: service, provider },
         );
         for (const stack of projectStacks.filter(({ name }) => name === target.name)) {
