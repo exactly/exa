@@ -1,5 +1,14 @@
 # @exactly/mobile
 
+## 1.2.62
+
+### Patch Changes
+
+- [#2075](https://github.com/exactly/exa/pull/2075) [`ea2ed37`](https://github.com/exactly/exa/commit/ea2ed375c363556d877b0ec32a3f8d9b8277ece7) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 fix wallet reconnection hang in wallet browsers
+
+- Updated dependencies [[`9657943`](https://github.com/exactly/exa/commit/9657943eb02c1e94037de26b34ad61b567247d4d)]:
+  - @exactly/server@0.6.2
+
 ## 1.2.61
 
 ### Patch Changes

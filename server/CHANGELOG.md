@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.6.2
+
+### Patch Changes
+
+- [`9657943`](https://github.com/exactly/exa/commit/9657943eb02c1e94037de26b34ad61b567247d4d) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🦺 validate credential keys
+
 ## 0.6.1
 
 ### Patch Changes
