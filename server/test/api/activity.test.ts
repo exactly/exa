@@ -80,7 +80,7 @@ import route, {
 import database, { cards, credentials, transactions } from "../../database";
 import * as indexer from "../../database/indexer";
 import authenticate from "../../middleware/auth";
-import { signIssuerOp } from "../../utils/panda";
+import { collectors, signIssuerOp } from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
 import Statement from "../../utils/Statement";
 import wallet from "../../utils/wallet";
@@ -695,6 +695,292 @@ describe("onchain", () => {
     expect(statement).toHaveBeenCalledWith(
       expect.objectContaining({ maturity: Number(maturity), payments: [rollPayment, payment] }),
     );
+    expect(captureException).not.toHaveBeenCalled();
+  });
+  it("returns withdraws on every network", async () => {
+    const remote = chains[1];
+    assert.ok(remote);
+    const client = createTestClient({ chain: remote, mode: "anvil", transport: http() })
+      .extend(publicActions)
+      .extend(walletActions);
+    const owner = createWalletClient({
+      chain: remote,
+      transport: http(),
+      account: privateKeyToAccount(generatePrivateKey()),
+    });
+    const sender = deriveAddress(exaAccountFactoryAddress, { x: padHex(owner.account.address), y: zeroHash });
+    const receiver = padHex("0x69", { size: 20 });
+    const [collector] = collectors(remote.id);
+    const headers = { "test-credential-id": owner.account.address };
+    const call = (data: Hex) => ({ target: sender, value: 0n, data });
+    await Promise.all([
+      client.setBalance({ address: owner.account.address, value: 10n ** 24n }),
+      database.insert(credentials).values({
+        id: owner.account.address,
+        publicKey: new Uint8Array(),
+        account: sender,
+        factory: exaAccountFactoryAddress,
+      }),
+    ]);
+    const firewall = await client.readContract({
+      address: auditorAddress,
+      abi: parseAbi(["function firewall() view returns (address)"]),
+      functionName: "firewall",
+    });
+    await client.waitForTransactionReceipt({
+      hash: await client.writeContract({
+        address: firewall,
+        abi: parseAbi(["function allow(address account, bool allowed)"]),
+        functionName: "allow",
+        args: [sender, true],
+        account: null,
+      }),
+    });
+    await client.waitForTransactionReceipt({
+      hash: await owner.writeContract({
+        address: exaAccountFactoryAddress,
+        abi: exaAccountFactoryAbi,
+        functionName: "createAccount",
+        args: [0n, [{ x: hexToBigInt(owner.account.address), y: 0n }]],
+      }),
+    });
+    const { blockNumber: proposed, logs } = await client.waitForTransactionReceipt({
+      hash: await owner.writeContract({
+        address: sender,
+        abi: upgradeableModularAccountAbi,
+        functionName: "executeBatch",
+        args: [
+          [
+            {
+              target: usdcAddress,
+              value: 0n,
+              data: encodeFunctionData({
+                abi: [
+                  {
+                    type: "function",
+                    name: "mint",
+                    inputs: [{ type: "address" }, { type: "uint256" }],
+                    outputs: [],
+                    stateMutability: "nonpayable",
+                  },
+                ],
+                functionName: "mint",
+                args: [sender, 10_000_000n],
+              }),
+            },
+            {
+              target: usdcAddress,
+              value: 0n,
+              data: encodeFunctionData({
+                abi: erc20Abi,
+                functionName: "approve",
+                args: [marketUSDCAddress, 10_000_000n],
+              }),
+            },
+            {
+              target: marketUSDCAddress,
+              value: 0n,
+              data: encodeFunctionData({ abi: marketAbi, functionName: "deposit", args: [10_000_000n, sender] }),
+            },
+            call(
+              encodeFunctionData({
+                abi: exaPluginAbi,
+                functionName: "propose",
+                args: [
+                  marketUSDCAddress,
+                  3_000_000n,
+                  ProposalType.Withdraw,
+                  encodeAbiParameters([{ type: "address" }], [receiver]),
+                ],
+              }),
+            ),
+            call(
+              encodeFunctionData({
+                abi: exaPluginAbi,
+                functionName: "propose",
+                args: [
+                  marketUSDCAddress,
+                  2_000_000n,
+                  ProposalType.Withdraw,
+                  encodeAbiParameters([{ type: "address" }], [collector]),
+                ],
+              }),
+            ),
+          ],
+        ],
+      }),
+    });
+    const queued = parseEventLogs({ abi: proposalManagerAbi, eventName: "Proposed", logs });
+    await client.mine({ blocks: 1, interval: proposalManager.delay.default });
+    for (const {
+      args: { nonce },
+    } of queued) {
+      await owner
+        .writeContract({
+          address: sender,
+          abi: [...upgradeableModularAccountAbi, ...exaPluginAbi, ...proposalManagerAbi],
+          functionName: "executeBatch",
+          args: [[call(encodeFunctionData({ abi: exaPluginAbi, functionName: "executeProposal", args: [nonce] }))]],
+        })
+        .then((hash) => client.waitForTransactionReceipt({ hash }))
+        .catch((error: unknown) => {
+          if (!["NoProposal", "NotNext"].includes(revertReason(error))) throw error;
+        });
+    }
+    const [withdraw, collection, ...rest] = await client.getContractEvents({
+      address: marketUSDCAddress,
+      abi: marketAbi,
+      eventName: "Withdraw",
+      args: { owner: sender },
+      fromBlock: proposed,
+      strict: true,
+    });
+    expect(withdraw?.args).toMatchObject({ receiver, assets: 3_000_000n });
+    expect(collection?.args).toMatchObject({ receiver: collector, assets: 2_000_000n });
+    expect(rest).toStrictEqual([]);
+    assert.ok(withdraw);
+    assert.ok(collection);
+    const [{ timestamp }, usdPrice] = await Promise.all([
+      client.getBlock({ blockNumber: withdraw.blockNumber }),
+      client.readContract({
+        address: auditorAddress,
+        abi: auditorAbi,
+        functionName: "assetPrice",
+        args: [
+          await client
+            .readContract({
+              address: auditorAddress,
+              abi: auditorAbi,
+              functionName: "markets",
+              args: [marketUSDCAddress],
+            })
+            .then(({ 4: feed }) => feed),
+        ],
+        blockNumber: withdraw.blockNumber,
+      }),
+    ]);
+    await vi.waitFor(
+      async () => {
+        const status = (await fetch("http://localhost:42069/status").then((response) => response.json())) as Record<
+          string,
+          { block: { number: number } }
+        >;
+        expect(status[remote.name]?.block.number).toBeGreaterThanOrEqual(Number(collection.blockNumber));
+      },
+      { timeout: 30_000 },
+    );
+
+    const [response, legacy] = await Promise.all([
+      appClient.index.$get({ query: { include: "sent" } }, { headers }),
+      appClient.index.$get({}, { headers }),
+    ]);
+
+    expect(legacy.status).toBe(200);
+    await expect(legacy.json()).resolves.not.toContainEqual(expect.objectContaining({ chainId: remote.id }));
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual([
+      {
+        id: `${remote.id}:${withdraw.blockNumber}:${withdraw.transactionIndex}:${withdraw.logIndex}`,
+        chainId: remote.id,
+        currency: "USDC",
+        amount: 3,
+        usdAmount: Number((withdraw.args.assets * usdPrice) / WAD) / 1e6,
+        timestamp: new Date(Number(timestamp) * 1000).toISOString(),
+        transactionHash: withdraw.transactionHash,
+        receiver,
+        type: "sent",
+      },
+    ]);
+    expect(captureException).not.toHaveBeenCalled();
+  });
+  it("returns swaps on every network", async () => {
+    const remote = chains[1];
+    assert.ok(remote);
+    const client = createTestClient({ chain: remote, mode: "anvil", transport: http() })
+      .extend(publicActions)
+      .extend(walletActions);
+    const owner = createWalletClient({
+      chain: remote,
+      transport: http(),
+      account: privateKeyToAccount(generatePrivateKey()),
+    });
+    const receiver = deriveAddress(exaAccountFactoryAddress, { x: padHex(owner.account.address), y: zeroHash });
+    const headers = { "test-credential-id": owner.account.address };
+    await Promise.all([
+      client.setBalance({ address: owner.account.address, value: 10n ** 24n }),
+      database.insert(credentials).values({
+        id: owner.account.address,
+        publicKey: new Uint8Array(),
+        account: receiver,
+        factory: exaAccountFactoryAddress,
+      }),
+    ]);
+    await client.waitForTransactionReceipt({
+      hash: await owner.writeContract({
+        address: exaAccountFactoryAddress,
+        abi: exaAccountFactoryAbi,
+        functionName: "createAccount",
+        args: [0n, [{ x: hexToBigInt(owner.account.address), y: 0n }]],
+      }),
+    });
+    await client.waitForTransactionReceipt({
+      hash: await owner.writeContract({
+        address: usdcAddress,
+        abi: parseAbi(["function mint(address to, uint256 amount)"]),
+        functionName: "mint",
+        args: [owner.account.address, 1_000_000n],
+      }),
+    });
+    await client.waitForTransactionReceipt({
+      hash: await owner.writeContract({
+        address: usdcAddress,
+        abi: erc20Abi,
+        functionName: "approve",
+        args: [swapperAddress, 1_000_000n],
+      }),
+    });
+    const { blockNumber, logs } = await client.waitForTransactionReceipt({
+      hash: await owner.writeContract({
+        address: swapperAddress,
+        abi: mockSwapperAbi,
+        functionName: "swapExactAmountIn",
+        args: [usdcAddress, 1_000_000n, wethAddress, 0n, receiver],
+      }),
+    });
+    const [swap, ...rest] = parseEventLogs({ abi: mockSwapperAbi, eventName: "LiFiGenericSwapCompleted", logs });
+    expect(rest).toStrictEqual([]);
+    assert.ok(swap);
+    const [{ timestamp }, toUsdPrice] = await Promise.all([
+      client.getBlock({ blockNumber }),
+      assetPrice(wethAddress, blockNumber, client),
+    ]);
+    await vi.waitFor(
+      async () => {
+        const status = (await fetch("http://localhost:42069/status").then((response) => response.json())) as Record<
+          string,
+          { block: { number: number } }
+        >;
+        expect(status[remote.name]?.block.number).toBeGreaterThanOrEqual(Number(blockNumber));
+      },
+      { timeout: 30_000 },
+    );
+
+    const response = await appClient.index.$get({ query: { include: "swap" } }, { headers });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual([
+      {
+        id: `${remote.id}:${blockNumber}:${swap.transactionIndex}:${swap.logIndex}`,
+        chainId: remote.id,
+        type: "swap",
+        currency: "WETH",
+        amount: Number(swap.args.toAmount) / 1e18,
+        usdAmount: Number((swap.args.toAmount * toUsdPrice) / WAD) / 1e18,
+        from: { currency: "USDC", amount: 1 },
+        timestamp: new Date(Number(timestamp) * 1000).toISOString(),
+        transactionHash: swap.transactionHash,
+      },
+    ]);
     expect(captureException).not.toHaveBeenCalled();
   });
 });

@@ -61,7 +61,7 @@ import {
 import { TransactionReceiptNotFoundError, zeroHash } from "viem";
 
 import fixedRate from "@exactly/common/fixedRate";
-import chain, { debtManagerAddress, marketUSDCAddress, marketWETHAddress } from "@exactly/common/generated/chain";
+import chain, { debtManagerAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
 import ProposalType, { decodeWithdraw } from "@exactly/common/ProposalType";
 import { Address, Hash, type Hex } from "@exactly/common/validation";
 import { effectiveRate, WAD } from "@exactly/lib";
@@ -93,8 +93,6 @@ const legacyTypes = new Set<InferInput<typeof ActivityTypes>>(["card", "received
 
 const fromToken = alias(indexer.tokens, "from_token");
 const toToken = alias(indexer.tokens, "to_token");
-
-const collectors = new Set([...cryptomateCollectors, ...pandaCollectors()].map((a) => a.toLowerCase() as Hex));
 
 export default function route({ auth, database }: { auth: Auth; database: NodePgDatabase<typeof schema> }) {
   return new Hono().get(
@@ -376,7 +374,11 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                   and(eq(toToken.chainId, indexer.swaps.chainId), eq(toToken.address, indexer.swaps.toAsset)),
                 )
                 .where(
-                  and(eq(indexer.swaps.chainId, chain.id), eq(indexer.swaps.account, owner), beyond(indexer.swaps)),
+                  and(
+                    inArray(indexer.swaps.chainId, [...networks.keys()]),
+                    eq(indexer.swaps.account, owner),
+                    beyond(indexer.swaps),
+                  ),
                 )
                 .$dynamic(),
               indexer.swaps,
@@ -471,15 +473,28 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                     .from(indexer.withdraws)
                     .where(
                       and(
-                        eq(indexer.withdraws.chainId, chain.id),
                         eq(indexer.withdraws.account, owner),
                         eq(indexer.withdraws.caller, owner),
-                        inArray(indexer.withdraws.market, [...markets.keys()]),
                         or(
-                          notInArray(indexer.withdraws.receiver, [...collectors, ...plugins, owner]),
-                          and(
-                            inArray(indexer.withdraws.receiver, [...plugins]),
-                            eq(indexer.withdraws.market, marketWETHAddress.toLowerCase() as Hex),
+                          sql`false`,
+                          ...[...networks].flatMap(([chainId, assets]) =>
+                            legacy && chainId !== chain.id
+                              ? []
+                              : and(
+                                  eq(indexer.withdraws.chainId, chainId),
+                                  inArray(indexer.withdraws.market, [...assets.keys()]),
+                                  or(
+                                    notInArray(indexer.withdraws.receiver, [
+                                      ...collectors(chainId),
+                                      ...(installed?.get(chainId) ?? []),
+                                      owner,
+                                    ]),
+                                    and(
+                                      inArray(indexer.withdraws.receiver, [...(installed?.get(chainId) ?? [])]),
+                                      inArray(indexer.withdraws.market, weth(assets)),
+                                    ),
+                                  ),
+                                ),
                           ),
                         ),
                         beyond(indexer.withdraws),
@@ -493,28 +508,36 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                   .from(indexer.proposals)
                   .where(
                     and(
-                      eq(indexer.proposals.chainId, chain.id),
                       eq(indexer.proposals.account, owner),
-                      eq(indexer.proposals.market, marketWETHAddress.toLowerCase() as Hex),
                       inArray(indexer.proposals.proposalType, [ProposalType.Withdraw, ProposalType.Redeem]),
+                      or(
+                        sql`false`,
+                        ...[...networks].map(([chainId, assets]) =>
+                          and(eq(indexer.proposals.chainId, chainId), inArray(indexer.proposals.market, weth(assets))),
+                        ),
+                      ),
                     ),
                   ),
               ]).then(([withdraw, proposed]) =>
                 withdraw
                   .map((row) => {
-                    if (!collectors.has(row.receiver) && !plugins.has(row.receiver) && row.receiver !== owner)
-                      return row;
-                    if (row.market !== marketWETHAddress.toLowerCase() || !plugins.has(row.receiver)) return;
+                    const owned = new Set(installed?.get(row.chainId));
+                    if (![...collectors(row.chainId), ...owned, owner].includes(row.receiver)) return row;
+                    if (market(row.market, row.usdPrice, row.chainId).symbol !== "WETH" || !owned.has(row.receiver))
+                      return;
                     if (row.proposalManager === row.receiver) return row;
                     const proposal = proposed.find(
-                      ({ proposalManager, nonce }) => proposalManager === row.proposalManager && nonce === row.nonce,
+                      ({ chainId, proposalManager, nonce }) =>
+                        chainId === row.chainId && proposalManager === row.proposalManager && nonce === row.nonce,
                     );
                     if (!proposal) return;
                     return { ...row, receiver: decodeWithdraw(proposal.data) };
                   })
                   .filter((row) => !!row)
                   .filter(({ usdPrice }) => !legacy || usdPrice !== null)
-                  .map((row) => parse(WithdrawActivity, { ...row, market: market(row.market, row.usdPrice) })),
+                  .map((row) =>
+                    parse(WithdrawActivity, { ...row, market: market(row.market, row.usdPrice, row.chainId) }),
+                  ),
               ),
           ignore("card") || !first
             ? undefined
@@ -556,7 +579,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                       eq(indexer.borrows.account, owner),
                       eq(indexer.borrows.caller, owner),
                       inArray(indexer.borrows.market, [...markets.keys()]),
-                      notInArray(indexer.borrows.receiver, [...collectors]),
+                      notInArray(indexer.borrows.receiver, collectors(chain.id)),
                       notInArray(
                         indexer.borrows.receiver,
                         database
@@ -1460,6 +1483,14 @@ export const BridgeActivity = pipe(
     type: "bridge" as const,
   })),
 );
+
+function collectors(chainId: number) {
+  return [...cryptomateCollectors, ...pandaCollectors(chainId)].map((address) => address.toLowerCase() as Hex);
+}
+
+function weth(assets: ReadonlyMap<Hex, { symbol: string }>) {
+  return [...assets].flatMap(([address, { symbol }]) => (symbol === "WETH" ? [address] : []));
+}
 
 function forbid<T extends object>(value: T) {
   return new Proxy(value, {
