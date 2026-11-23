@@ -39,6 +39,7 @@ import { PLATINUM_PRODUCT_ID } from "@exactly/common/panda";
 
 import { chains } from "./anvil";
 import lifi from "./lifi";
+import updates from "./updates";
 import database, { cards as cardsTable, credentials } from "../database";
 import auth from "../middleware/auth";
 import createAlchemy from "../utils/alchemy";
@@ -206,6 +207,7 @@ describe("e2e", () => {
           });
           app.get("/e2e/session", auth(authSecret), (c) => c.json(c.req.valid("cookie")));
           app.route("/e2e/lifi", lifi(chains));
+          app.route("/e2e/updates", updates(root));
           app.get("/e2e/credential", async (c) => {
             const credential = await database.query.credentials.findFirst({
               columns: { id: true },
