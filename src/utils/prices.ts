@@ -122,7 +122,7 @@ export function useFeed(token?: { address: string; chainId: number; symbol: stri
       ]).get(chainId);
       if (!directory) return {};
       const response = await fetch(`https://reference-data-directory.vercel.app/feeds-${directory}.json`);
-      if (!response.ok) {
+      if (response.status !== 200) {
         throw Object.assign(new Error(`feeds failed: ${response.status}`), { body: await response.text() });
       }
       return Object.fromEntries(
