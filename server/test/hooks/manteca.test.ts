@@ -29,7 +29,7 @@ const mantecaHook = createMantecaHook({
   database,
   manteca,
   mantecaWebhookKey: "manteca",
-  onesignal: createOnesignal("onesignal"),
+  onesignal: createOnesignal('{"2f79a35c-8b11-4725-84d8-fc096f3f216e":"onesignal"}'),
   segment: createSegment("segment"),
 });
 const appClient = testClient(mantecaHook.app);

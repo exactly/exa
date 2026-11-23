@@ -23,7 +23,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../../utils/publicClient", () => ({ default: { readContract: mocks.readContract } }));
 
-setup(createOnesignal("onesignal"));
+setup(createOnesignal('{"2f79a35c-8b11-4725-84d8-fc096f3f216e":"onesignal"}'));
 
 type Window = "1h" | "24h";
 type CheckDebts = { window: Window };
@@ -297,7 +297,7 @@ describe("worker", () => {
       .spyOn(Queue.prototype, "setGlobalConcurrency")
       .mockRejectedValueOnce(new Error("redis error"));
     try {
-      await createMaturity(createOnesignal("onesignal")).ready;
+      await createMaturity(createOnesignal('{"2f79a35c-8b11-4725-84d8-fc096f3f216e":"onesignal"}')).ready;
     } finally {
       setGlobalConcurrency.mockRestore();
     }
@@ -312,7 +312,9 @@ describe("worker", () => {
       .mockRejectedValueOnce(new Error("redis error"))
       .mockRejectedValueOnce(new Error("redis down"));
     try {
-      await expect(createMaturity(createOnesignal("onesignal")).ready).rejects.toThrow("redis down");
+      await expect(
+        createMaturity(createOnesignal('{"2f79a35c-8b11-4725-84d8-fc096f3f216e":"onesignal"}')).ready,
+      ).rejects.toThrow("redis down");
     } finally {
       setGlobalConcurrency.mockRestore();
     }
