@@ -1075,5 +1075,9 @@
   "Enable bank transfers": "Habilitar transferencias bancarias",
   "Your wallet changed": "Tu billetera cambió",
   "You logged in with {{session}}, but your wallet is now using {{wallet}}. Switch back to {{session}} in your wallet to keep using this account, or continue with {{wallet}}.": "Iniciaste sesión con {{session}}, pero tu billetera ahora usa {{wallet}}. Vuelve a {{session}} en tu billetera para seguir usando esta cuenta, o continúa con {{wallet}}.",
-  "Continue with {{wallet}}": "Continuar con {{wallet}}"
+  "Continue with {{wallet}}": "Continuar con {{wallet}}",
+  "This passkey is for a personal account": "Esta llave de acceso es de una cuenta personal",
+  "This passkey is for a business account": "Esta llave de acceso es de una cuenta empresarial",
+  "Use it to sign in on the Exa app. Here, pick the passkey you created your business account with.": "Úsala para iniciar sesión en la app de Exa. Aquí, elige la llave de acceso con la que creaste tu cuenta empresarial.",
+  "Use it to sign in on the Exa business website. Here, pick the passkey you created this account with.": "Úsala para iniciar sesión en el sitio web empresarial de Exa. Aquí, elige la llave de acceso con la que creaste esta cuenta."
 }

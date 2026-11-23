@@ -2,10 +2,13 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { Linking, Platform } from "react-native";
 
+import tenants from "@exactly/common/tenants";
+
 import { RefreshCw } from "../../generated/icons/RefreshCw";
 import { Settings } from "../../generated/icons/Settings";
 import { loginUnidentified, newMessage, present } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
+import { origin } from "../../utils/server";
 import ErrorDialog from "../shared/ErrorDialog";
 
 import type { SignInIssue } from "../../utils/useAuth";
@@ -154,6 +157,37 @@ export default function SignInDialog({
             loginUnidentified()
               .then(() => newMessage(t("I can’t sign in. My passkey isn’t linked to an account.")))
               .catch(reportError);
+          }}
+        />
+      );
+    case "tenant":
+      return (
+        <ErrorDialog
+          open={open}
+          title={
+            Object.hasOwn(tenants, origin)
+              ? t("This passkey is for a personal account")
+              : t("This passkey is for a business account")
+          }
+          description={
+            Object.hasOwn(tenants, origin)
+              ? t("Use it to sign in on the Exa app. Here, pick the passkey you created your business account with.")
+              : t(
+                  "Use it to sign in on the Exa business website. Here, pick the passkey you created this account with.",
+                )
+          }
+          action={{
+            icon: <RefreshCw />,
+            label: t("Try again"),
+            onPress: () => {
+              onClose();
+              onRetry();
+            },
+          }}
+          onClose={onClose}
+          onContact={() => {
+            onClose();
+            loginUnidentified().then(present).catch(reportError);
           }}
         />
       );

@@ -101,7 +101,7 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
   },
   meta: {
     dropError: (error) => {
-      if (error instanceof ValiError) return true;
+      if (error instanceof ValiError || (error instanceof APIError && error.text === "other tenant")) return true;
       const { bundleCancelled, passkeyCancelled, passkeyNotAllowed, walletRejected } = classifyError(error);
       return bundleCancelled || passkeyCancelled || passkeyNotAllowed || walletRejected;
     },

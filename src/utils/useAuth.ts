@@ -121,6 +121,9 @@ function handleError(error: unknown, onIssue: (issue: SignInIssue) => void, t: T
     onIssue("passkey");
   } else if (isUnlinked(error)) {
     onIssue("unlinked");
+  } else if (error instanceof APIError && error.text === "other tenant") {
+    onIssue("tenant");
+    return;
   } else if (error instanceof APIError && error.text === "no authentication") {
     toast.error(t("Sign-in timed out. Please try again."), { duration: 1000 });
   } else {
@@ -130,7 +133,7 @@ function handleError(error: unknown, onIssue: (issue: SignInIssue) => void, t: T
   reportError(error);
 }
 
-export type SignInIssue = "backup" | "biometrics" | "domain" | "passkey" | "pending" | "stolen" | "unlinked";
+export type SignInIssue = "backup" | "biometrics" | "domain" | "passkey" | "pending" | "stolen" | "tenant" | "unlinked";
 
 let hybridTransport = false;
 if (
