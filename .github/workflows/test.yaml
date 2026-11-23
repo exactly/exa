@@ -88,7 +88,7 @@ jobs:
         id: pr
         run: |
           pr() { number=$(gh api -X GET "repos/$GITHUB_REPOSITORY/pulls" -f head="$GITHUB_REPOSITORY_OWNER:$GITHUB_REF_NAME" -f per_page=1 -q '.[].number') && echo "$number"; }
-          number=$(for delay in 5 10; do pr && exit; sleep "$delay"; done; pr)
+          number=$(for delay in 5 10; do pr && exit; sleep "$delay"; done; pr || :)
           echo "number=$number" >> "$GITHUB_OUTPUT"
         env: { GH_TOKEN: "${{ github.token }}" }
       - uses: codecov/codecov-action@v7
@@ -240,7 +240,7 @@ jobs:
         run: |
           curl -X POST http://localhost:3000/e2e/shutdown || true
           pr() { number=$(gh api -X GET "repos/$GITHUB_REPOSITORY/pulls" -f head="$GITHUB_REPOSITORY_OWNER:$GITHUB_REF_NAME" -f per_page=1 -q '.[].number') && echo "$number"; }
-          (for delay in 5 10; do pr && exit; sleep "$delay"; done; pr) > "$RUNNER_TEMP/pr" &
+          (for delay in 5 10; do pr && exit; sleep "$delay"; done; pr || :) > "$RUNNER_TEMP/pr" &
           for i in {1..60}; do [ -f server/coverage/lcov.info ] && break; sleep 1; done
           for i in {1..60}; do [ -f server/node_modules/@exactly/.postgres/postmaster.pid ] || break; sleep 1; done
           wait $!
