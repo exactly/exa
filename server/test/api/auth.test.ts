@@ -421,7 +421,7 @@ describe("authentication", () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 
-  it("authenticates a credential with a tenant salt regardless of origin", async () => {
+  it("rejects a tenant credential from another origin", async () => {
     const id = own(Buffer.from("auth:business-authentication").toString("base64url"));
     const factory = parse(Address, exaAccountFactoryAddress);
     await database.insert(credentials).values({
@@ -433,18 +433,6 @@ describe("authentication", () => {
       transports: [],
     });
     await redis.set("session:test-session", "test-challenge");
-    vi.mocked(verifyAuthenticationResponse).mockResolvedValueOnce({
-      verified: true,
-      authenticationInfo: {
-        credentialID: id,
-        newCounter: 0,
-        userVerified: false,
-        credentialDeviceType: "singleDevice",
-        credentialBackedUp: false,
-        origin: "http://localhost",
-        rpID: "localhost",
-      },
-    });
 
     const response = await appClient.index.$post(
       {
@@ -460,8 +448,9 @@ describe("authentication", () => {
       { headers: { cookie: "session_id=test-session", origin: unregistered } },
     );
 
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual(expect.objectContaining({ salt: tenant, rpId: "localhost" }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toStrictEqual({ code: "other tenant" });
+    expect(verifyAuthenticationResponse).not.toHaveBeenCalled();
     await expect(redis.exists("session:test-session")).resolves.toBe(0);
   });
 
@@ -843,6 +832,29 @@ describe("authentication", () => {
     expect(response.headers.get("set-cookie")).toBeNull();
   });
 
+  it("requires the owner key on siwe sign-in by account", async () => {
+    vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
+    const owner = parse(Address, slice(keccak256(toBytes("auth:siwe-owner-key-by-account")), 12));
+    const factory = parse(Address, exaAccountFactoryAddress);
+    own(owner);
+    own("c2l3ZS1vd25lci1rZXktYnktYWNjb3VudA"); // cspell:ignore Ynkt
+    await database.insert(credentials).values({
+      id: "c2l3ZS1vd25lci1rZXktYnktYWNjb3VudA",
+      publicKey: new Uint8Array(65),
+      account: deriveAddress(factory, { x: padHex(owner, { size: 32 }), y: zeroHash, salt: zeroAddress }),
+      factory,
+    });
+
+    const response = await appClient.index.$post(
+      { json: { method: "siwe", id: owner, signature: "0xdeadbeef" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toStrictEqual({ code: "no credential" });
+    expect(response.headers.get("set-cookie")).toBeNull();
+  });
+
   it("rejects address ids on passkey sign-in", async () => {
     vi.mocked(verifyAuthenticationResponse).mockClear();
     const id = own(parse(Address, slice(keccak256(toBytes("auth:webauthn-address-sign-in")), 12)));
@@ -938,6 +950,60 @@ describe("authentication", () => {
       columns: { salt: true },
     });
     expect(credential?.salt).toBe(zeroAddress);
+  });
+
+  it("keeps a personal and a business account for the same owner using siwe", async () => {
+    vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
+    const factory = parse(Address, exaAccountFactoryAddress);
+    const id = own(parse(Address, slice(keccak256(toBytes("auth:siwe-both-tenants")), 12)));
+    const publicKey = new Uint8Array(hexToBytes(id));
+    const owner = decodePublicKey(publicKey);
+    const personal = own(deriveAddress(factory, { ...owner, salt: zeroAddress }));
+    await database
+      .insert(credentials)
+      .values([{ id, publicKey, factory, salt: tenant, account: deriveAddress(factory, { ...owner, salt: tenant }) }]);
+
+    async function signIn(header: Record<string, string>) {
+      await redis.set("session:test-session", "test-challenge");
+      const response = await appClient.index.$post(
+        { json: { method: "siwe", id, signature: "0xdeadbeef" } },
+        { headers: { cookie: "session_id=test-session", ...header } },
+      );
+      expect(response.status).toBe(200);
+      const cookie = await parseSigned(
+        response.headers.getSetCookie().find((value) => value.startsWith("credential_id=")) ?? "",
+        authSecret,
+        "credential_id",
+      );
+      return { cookie: cookie.credential_id, json: parse(Authentication, await response.json()) };
+    }
+
+    const created = await signIn({});
+    expect(created).toStrictEqual({
+      cookie: personal,
+      json: expect.objectContaining({ credentialId: id, factory, ...owner, salt: zeroAddress }) as unknown,
+    });
+    expect(sardineCustomer).toHaveBeenCalledWith(
+      expect.objectContaining({ customer: expect.objectContaining({ id: personal }) as unknown }),
+    );
+    await expect(signIn({ origin: business })).resolves.toStrictEqual({
+      cookie: id,
+      json: expect.objectContaining({ credentialId: id, factory, ...owner, salt: tenant }) as unknown,
+    });
+    await expect(signIn({ origin: consumer })).resolves.toStrictEqual({
+      cookie: personal,
+      json: expect.objectContaining({ credentialId: id, factory, ...owner, salt: zeroAddress }) as unknown,
+    });
+    await expect(
+      database.query.credentials.findMany({
+        where: eq(credentials.publicKey, publicKey),
+        columns: { id: true, account: true, salt: true },
+        orderBy: credentials.salt,
+      }),
+    ).resolves.toStrictEqual([
+      { id: personal, account: personal, salt: zeroAddress },
+      { id, account: deriveAddress(factory, { ...owner, salt: tenant }), salt: tenant },
+    ]);
   });
 
   it.each<{ header: Record<string, string>; name: string }>([
@@ -1077,6 +1143,47 @@ describe("authentication", () => {
     await expect(redis.exists("session:test-session")).resolves.toBe(0);
   });
 
+  it("creates a personal account when another backend creates the business one first using siwe", async () => {
+    vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
+    const factory = parse(Address, exaAccountFactoryAddress);
+    const id = own(parse(Address, slice(keccak256(toBytes("auth:siwe-tenant-race")), 12)));
+    const publicKey = new Uint8Array(hexToBytes(id));
+    const owner = decodePublicKey(publicKey);
+    const personal = own(deriveAddress(factory, { ...owner, salt: zeroAddress }));
+    const insert = database.insert.bind(database);
+    vi.spyOn(database, "insert").mockImplementationOnce(
+      () =>
+        ({
+          values: async () => {
+            await insert(credentials).values([
+              { id, publicKey, factory, salt: tenant, account: deriveAddress(factory, { ...owner, salt: tenant }) },
+            ]);
+            throw new DrizzleQueryError(
+              "insert into credentials",
+              [],
+              Object.assign(new Error("duplicate key"), { code: "23505" }),
+            );
+          },
+        }) as unknown as ReturnType<typeof database.insert>,
+    );
+
+    const response = await appClient.index.$post(
+      { json: { method: "siwe", id, signature: "0xdeadbeef" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual(expect.objectContaining({ credentialId: id, salt: zeroAddress }));
+    await expect(
+      parseSigned(
+        response.headers.getSetCookie().find((cookie) => cookie.startsWith("credential_id=")) ?? "",
+        authSecret,
+        "credential_id",
+      ),
+    ).resolves.toEqual({ credential_id: personal });
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
   it("returns 400 when a siwe credential conflict leaves no credential", async () => {
     vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
     const error = new DrizzleQueryError(
@@ -1084,9 +1191,13 @@ describe("authentication", () => {
       [],
       Object.assign(new Error("duplicate key"), { code: "23505" }),
     );
-    vi.spyOn(derive, "default").mockImplementationOnce(() => {
-      throw error;
-    });
+    vi.spyOn(database, "insert")
+      .mockImplementationOnce(() => {
+        throw error;
+      })
+      .mockImplementationOnce(() => {
+        throw error;
+      });
     const id = own(parse(Address, slice(keccak256(toBytes("auth:siwe-conflict")), 12)));
 
     const response = await appClient.index.$post(
@@ -1111,7 +1222,7 @@ describe("authentication", () => {
   ])("reports siwe authentication database errors with %s", async (_, cause) => {
     vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
     const error = new DrizzleQueryError("insert into credentials", [], cause);
-    vi.spyOn(derive, "default").mockImplementationOnce(() => {
+    vi.spyOn(database, "insert").mockImplementationOnce(() => {
       throw error;
     });
     const id = own(parse(Address, slice(keccak256(toBytes("auth:siwe-database-error")), 12)));
@@ -1467,6 +1578,44 @@ describe("registration", () => {
     expect(subscribe.enqueue).not.toHaveBeenCalled();
     expect(identify).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("rejects siwe registration of a second account in the same tenant", async () => {
+    vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
+    const factory = parse(Address, exaAccountFactoryAddress);
+    const other = [...validFactories].find((f) => f !== factory);
+    assert.ok(other);
+    const id = own(parse(Address, slice(keccak256(toBytes("auth:siwe-second-factory")), 12)));
+    const publicKey = new Uint8Array(hexToBytes(id));
+    const owner = decodePublicKey(publicKey);
+    const account = own(deriveAddress(factory, { ...owner, salt: tenant }));
+    await database.insert(credentials).values([
+      { id, publicKey, factory, salt: zeroAddress, account: deriveAddress(factory, { ...owner, salt: zeroAddress }) },
+      { id: account, publicKey, factory, salt: tenant, account },
+    ]);
+
+    const response = await registrationAppClient.index.$post(
+      { json: { method: "siwe", id, signature: "0xdeadbeef" }, query: { factory: other } },
+      { headers: { cookie: "session_id=test-session", origin: business } },
+    );
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toStrictEqual({ code: "already registered" });
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(sardineCustomer).not.toHaveBeenCalled();
+    expect(subscribe.enqueue).not.toHaveBeenCalled();
+    expect(identify).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+    await expect(
+      database.query.credentials.findMany({
+        where: eq(credentials.publicKey, publicKey),
+        columns: { id: true, factory: true, salt: true },
+        orderBy: credentials.salt,
+      }),
+    ).resolves.toStrictEqual([
+      { id, factory, salt: zeroAddress },
+      { id: account, factory, salt: tenant },
+    ]);
   });
 
   it("consumes challenge after failed siwe registration to prevent replay", async () => {

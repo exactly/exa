@@ -31,7 +31,7 @@ import {
   type InferInput,
   type InferOutput,
 } from "valibot";
-import { isAddressEqual } from "viem";
+import { bytesToHex, isAddressEqual } from "viem";
 import { base } from "viem/chains";
 import { createSiweMessage, parseSiweMessage, verifySiweMessage } from "viem/siwe";
 
@@ -315,7 +315,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
         const { credentialId } = c.req.valid("cookie");
         const credential = await database.query.credentials.findFirst({
           where: eq(credentials.id, credentialId),
-          columns: { account: true, pandaId: true },
+          columns: { account: true, pandaId: true, publicKey: true },
           with: {
             cards: {
               columns: { id: true, lastFour: true, status: true, mode: true, productId: true },
@@ -371,7 +371,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
                   return panda.getNonce(credential.pandaId).then(({ nonce }) =>
                     createSiweMessage({
                       domain: new URL(origin(c.req.raw)).host,
-                      address: parse(Address, credentialId),
+                      address: parse(Address, bytesToHex(credential.publicKey)),
                       statement: `I authorize the account ${account} to be linked with the card ending in ${lastFour} for my user (${credential.pandaId})`,
                       uri: origin(c.req.raw),
                       version: "1",
@@ -942,7 +942,7 @@ async function encryptPIN(pin: string) {
                           return false;
                         }
                         return verifySiweMessage(publicClient, {
-                          address: parse(Address, credentialId),
+                          address: parse(Address, bytesToHex(credential.publicKey)),
                           domain: new URL(origin(c.req.raw)).host,
                           message: patch.message,
                           signature: patch.signature,

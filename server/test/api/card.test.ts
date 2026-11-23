@@ -17,7 +17,7 @@ import { SignJWT } from "jose";
 import { createSecretKey } from "node:crypto";
 import { env } from "node:process";
 import { nonEmpty, parse, pipe, string } from "valibot";
-import { checksumAddress, hexToBigInt, padHex, parseEther, zeroAddress, zeroHash } from "viem";
+import { checksumAddress, hexToBigInt, hexToBytes, padHex, parseEther, zeroAddress, zeroHash } from "viem";
 import { generatePrivateKey, privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { base, optimism } from "viem/chains";
 import { createSiweMessage, parseSiweMessage } from "viem/siwe";
@@ -2145,7 +2145,7 @@ describe("authenticated", () => {
         const account = padHex("0xbbb1", { size: 20 });
         await database.insert(credentials).values({
           id: credentialId,
-          publicKey: new Uint8Array(),
+          publicKey: new Uint8Array(hexToBytes(credentialId)),
           account,
           factory: exaAccountFactoryAddress,
           pandaId: "siwe-ok-panda",
@@ -2194,7 +2194,7 @@ describe("authenticated", () => {
         const credentialId = privateKeyToAddress(padHex("0xdeadbeef"));
         await database.insert(credentials).values({
           id: credentialId,
-          publicKey: new Uint8Array(),
+          publicKey: new Uint8Array(hexToBytes(credentialId)),
           account: padHex("0xbbb2", { size: 20 }),
           factory: exaAccountFactoryAddress,
         });
@@ -2215,7 +2215,7 @@ describe("authenticated", () => {
         const credentialId = privateKeyToAddress(padHex("0xfeed"));
         await database.insert(credentials).values({
           id: credentialId,
-          publicKey: new Uint8Array(),
+          publicKey: new Uint8Array(hexToBytes(credentialId)),
           account: padHex("0xbbb3", { size: 20 }),
           factory: exaAccountFactoryAddress,
           pandaId: "siwe-nonce-fail-panda",
@@ -2243,7 +2243,7 @@ describe("authenticated", () => {
         const account = checksumAddress(padHex("0xbbc1", { size: 20 }));
         await database.insert(credentials).values({
           id: credentialId,
-          publicKey: new Uint8Array(),
+          publicKey: new Uint8Array(hexToBytes(credentialId)),
           account,
           factory: exaAccountFactoryAddress,
           pandaId: "siwe-verify-panda",
@@ -2272,13 +2272,55 @@ describe("authenticated", () => {
         expect(verifySpy).toHaveBeenCalledWith("siwe-verify-panda", { message, signature, authType: "siwe" });
       });
 
+      it("links a second tenant account with the owner signature", async () => {
+        const owner = privateKeyToAccount(padHex("0xc0d2"));
+        const account = checksumAddress(padHex("0xbbcb", { size: 20 }));
+        await database.insert(credentials).values({
+          id: account,
+          publicKey: new Uint8Array(hexToBytes(owner.address)),
+          account,
+          factory: exaAccountFactoryAddress,
+          pandaId: "siwe-tenant-panda",
+        });
+        await database.insert(cards).values({
+          id: "00000000-0000-4000-8000-0000000000fd",
+          credentialId: account,
+          tenant: "OP",
+          lastFour: "9998",
+        });
+        vi.spyOn(panda, "getNonce").mockResolvedValueOnce({ nonce: "Db2ItfTPLuZ2dV0ZQ" });
+        vi.spyOn(panda, "getCard").mockResolvedValueOnce({ ...cardTemplate, last4: "9998" });
+        vi.spyOn(panda, "getUser").mockResolvedValueOnce(userTemplate);
+        const verifySpy = vi.spyOn(panda, "verify").mockResolvedValueOnce({});
+
+        const challenge = await appClient.index.$get(
+          { header: {}, query: { scope: "siwe" } },
+          { headers: { "test-credential-id": account } },
+        );
+
+        expect(challenge.status).toBe(200);
+        const { challenge: message } = (await challenge.json()) as { challenge: string };
+        expect(parseSiweMessage(message).address).toBe(owner.address);
+        const signature = await owner.signMessage({ message });
+
+        const response = await appClient.index.$patch({
+          // @ts-expect-error - bad hono patch type
+          header: { "test-credential-id": account },
+          json: { method: "siwe", message, signature },
+        });
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({ verification: "OK" });
+        expect(verifySpy).toHaveBeenCalledWith("siwe-tenant-panda", { message, signature, authType: "siwe" });
+      });
+
       it("rejects siwe message with non-canonical statement", async () => {
         const owner = privateKeyToAccount(padHex("0xc0d3"));
         const credentialId = owner.address;
         const account = checksumAddress(padHex("0xbbc4", { size: 20 }));
         await database.insert(credentials).values({
           id: credentialId,
-          publicKey: new Uint8Array(),
+          publicKey: new Uint8Array(hexToBytes(credentialId)),
           account,
           factory: exaAccountFactoryAddress,
           pandaId: "siwe-any-statement-panda",
@@ -2315,7 +2357,7 @@ describe("authenticated", () => {
         const account = checksumAddress(padHex("0xbbc8", { size: 20 }));
         await database.insert(credentials).values({
           id: credentialId,
-          publicKey: new Uint8Array(),
+          publicKey: new Uint8Array(hexToBytes(credentialId)),
           account,
           factory: exaAccountFactoryAddress,
           pandaId: "siwe-bad-chain-panda",
@@ -2352,7 +2394,7 @@ describe("authenticated", () => {
         const account = checksumAddress(padHex("0xbbc9", { size: 20 }));
         await database.insert(credentials).values({
           id: credentialId,
-          publicKey: new Uint8Array(),
+          publicKey: new Uint8Array(hexToBytes(credentialId)),
           account,
           factory: exaAccountFactoryAddress,
           pandaId: "siwe-bad-domain-panda",
@@ -2390,7 +2432,7 @@ describe("authenticated", () => {
         const account = checksumAddress(padHex("0xbbc5", { size: 20 }));
         await database.insert(credentials).values({
           id: credentialId,
-          publicKey: new Uint8Array(),
+          publicKey: new Uint8Array(hexToBytes(credentialId)),
           account,
           factory: exaAccountFactoryAddress,
           pandaId: "siwe-bad-signer-panda",
@@ -2427,7 +2469,7 @@ describe("authenticated", () => {
         const account = checksumAddress(padHex("0xbbc2", { size: 20 }));
         await database.insert(credentials).values({
           id: credentialId,
-          publicKey: new Uint8Array(),
+          publicKey: new Uint8Array(hexToBytes(credentialId)),
           account,
           factory: exaAccountFactoryAddress,
         });
@@ -2463,7 +2505,7 @@ describe("authenticated", () => {
         const account = checksumAddress(padHex("0xbbc6", { size: 20 }));
         await database.insert(credentials).values({
           id: credentialId,
-          publicKey: new Uint8Array(),
+          publicKey: new Uint8Array(hexToBytes(credentialId)),
           account,
           factory: exaAccountFactoryAddress,
           pandaId: "siwe-panda-401-panda",
@@ -2502,7 +2544,7 @@ describe("authenticated", () => {
         const account = checksumAddress(padHex("0xbbc7", { size: 20 }));
         await database.insert(credentials).values({
           id: credentialId,
-          publicKey: new Uint8Array(),
+          publicKey: new Uint8Array(hexToBytes(credentialId)),
           account,
           factory: exaAccountFactoryAddress,
           pandaId: "siwe-panda-503-panda",

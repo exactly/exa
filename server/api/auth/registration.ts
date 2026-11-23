@@ -432,7 +432,7 @@ export default function route({
         }
 
         try {
-          const result = await createCredential(c, attestation.id, {
+          const { id, ...result } = await createCredential(c, attestation.id, {
             factory,
             webauthn,
             source: headers?.["client-fid"],
@@ -448,7 +448,7 @@ export default function route({
               ...result,
               ...(webauthn && { rpId }),
               intercomToken,
-              ...(headers?.["client-platform"] === "ios" ? await walletExtension.create(attestation.id) : {}),
+              ...(headers?.["client-platform"] === "ios" ? await walletExtension.create(id) : {}),
             } satisfies InferOutput<typeof Authentication>,
             200,
           );

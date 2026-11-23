@@ -1,4 +1,5 @@
 import { captureException, setUser } from "@sentry/node";
+import { eq, inArray, or } from "drizzle-orm";
 import { setSignedCookie } from "hono/cookie";
 import { parse } from "valibot";
 import { hexToBytes, isAddress, zeroAddress } from "viem";
@@ -10,6 +11,7 @@ import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import decodePublicKey from "./decodePublicKey";
+import validFactories from "./validFactories";
 import { credentials } from "../database/schema";
 
 import type { IpAddress } from "./sardine";
@@ -46,13 +48,26 @@ export default function createCredential({
     const { x, y } = decodePublicKey(publicKey);
     const salt = parse(Address, options?.salt ?? zeroAddress);
     const account = deriveAddress(factory, { x, y, salt });
+    const owned = isAddress(credentialId)
+      ? await database.query.credentials.findMany({
+          columns: { id: true, salt: true },
+          where: or(
+            eq(credentials.id, credentialId),
+            inArray(
+              credentials.account,
+              [...validFactories].map((f) => deriveAddress(f, { x, y, salt })),
+            ),
+          ),
+        })
+      : [];
+    const id = owned.find((row) => row.salt === salt)?.id ?? (owned.length > 0 ? account : credentialId);
 
     setUser({ id: account });
     const expires = new Date(Date.now() + AUTH_EXPIRY);
     await database.insert(credentials).values([
       {
         account,
-        id: credentialId,
+        id,
         publicKey,
         factory,
         salt,
@@ -72,7 +87,7 @@ export default function createCredential({
           }
         : undefined;
     await Promise.all([
-      setSignedCookie(c, "credential_id", credentialId, authSecret, {
+      setSignedCookie(c, "credential_id", id, authSecret, {
         expires,
         httpOnly: true,
         ...(domain === "localhost"
@@ -84,7 +99,7 @@ export default function createCredential({
           flow: { name: "signup", type: "signup" },
           checkpoints: ["customer"],
           customer: {
-            id: credentialId,
+            id,
             tags: [
               { name: "source", value: options?.source ?? "EXA", type: "string" },
               { name: "auth_method", value: isAddress(credentialId) ? "siwe" : "webauthn", type: "string" },
@@ -98,6 +113,6 @@ export default function createCredential({
     await subscribe.enqueue(account).catch(() => undefined);
 
     segment.identify({ userId: account });
-    return { credentialId, factory: parse(Address, factory), x, y, salt, auth: expires.getTime() };
+    return { id, credentialId, factory: parse(Address, factory), x, y, salt, auth: expires.getTime() };
   };
 }

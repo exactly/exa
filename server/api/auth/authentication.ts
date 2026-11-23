@@ -4,7 +4,7 @@ import {
   verifyAuthenticationResponse,
   type AuthenticatorTransportFuture,
 } from "@simplewebauthn/server";
-import { and, DrizzleQueryError, eq } from "drizzle-orm";
+import { and, DrizzleQueryError, eq, inArray, or } from "drizzle-orm";
 import { Hono, type Env } from "hono";
 import { setCookie, setSignedCookie } from "hono/cookie";
 import { describeRoute } from "hono-openapi";
@@ -33,7 +33,7 @@ import {
   variant,
   type InferOutput,
 } from "valibot";
-import { hexToBytes, isAddress } from "viem";
+import { hexToBytes, isAddress, zeroAddress } from "viem";
 import { createSiweMessage, parseSiweMessage, validateSiweMessage } from "viem/siwe";
 
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
@@ -373,15 +373,37 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
         setContext("auth", assertion);
         const sessionId = headers?.["x-session-id"] ?? c.req.valid("cookie").session_id;
         if (!sessionId) return c.json({ code: "bad session" }, 400);
-        const where =
-          assertion.method === "siwe"
-            ? and(eq(credentials.id, assertion.id), eq(credentials.publicKey, new Uint8Array(hexToBytes(assertion.id))))
-            : eq(credentials.id, assertion.id);
+        const salt = parse(
+          Address,
+          business && headers?.origin && Object.hasOwn(tenants, headers.origin) ? tenants[headers.origin] : zeroAddress,
+        );
+        const publicKey = assertion.method === "siwe" ? new Uint8Array(hexToBytes(assertion.id)) : undefined;
+        const owner = publicKey && decodePublicKey(publicKey);
+        const where = and(
+          eq(credentials.salt, salt),
+          publicKey && owner
+            ? and(
+                eq(credentials.publicKey, publicKey),
+                or(
+                  eq(credentials.id, assertion.id),
+                  inArray(
+                    credentials.account,
+                    [...validFactories].map((f) => deriveAddress(f, { ...owner, salt })),
+                  ),
+                ),
+              )
+            : eq(credentials.id, assertion.id),
+        );
+        const columns = {
+          id: true,
+          publicKey: true,
+          account: true,
+          factory: true,
+          salt: true,
+          transports: true,
+        } as const;
         const [found, challenge] = await Promise.all([
-          database.query.credentials.findFirst({
-            columns: { publicKey: true, account: true, factory: true, salt: true, transports: true },
-            where,
-          }),
+          database.query.credentials.findFirst({ columns, where }),
           redis.getdel(`session:${sessionId}`),
         ]);
         if (!challenge) return c.json({ code: "no authentication", legacy: "no authentication" }, 400);
@@ -390,7 +412,14 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
         }
         let credential = found;
         if (!credential) {
-          if (assertion.method !== "siwe") return c.json({ code: "no credential", legacy: "no credential" }, 400);
+          if (assertion.method !== "siwe") {
+            return (await database.query.credentials.findFirst({
+              columns: { id: true },
+              where: eq(credentials.id, assertion.id),
+            }))
+              ? c.json({ code: "other tenant" }, 400)
+              : c.json({ code: "no credential", legacy: "no credential" }, 400);
+          }
           try {
             const message = parseSiweMessage(challenge);
             const url = new URL(origin(c.req.raw));
@@ -411,13 +440,16 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
               return c.json({ code: "bad authentication", legacy: "bad authentication" }, 400);
             }
             if (factory && !validFactories.has(factory)) return c.json({ code: "bad factory" }, 400);
-            const result = await createCredential(c, assertion.id, {
-              factory,
-              source: headers?.["client-fid"],
-              ip: headers?.["do-connecting-ip"],
-              ...(business &&
-                headers?.origin &&
-                Object.hasOwn(tenants, headers.origin) && { salt: tenants[headers.origin] }),
+            const create = () =>
+              createCredential(c, assertion.id, {
+                factory,
+                source: headers?.["client-fid"],
+                ip: headers?.["do-connecting-ip"],
+                salt,
+              });
+            const { id, ...result } = await create().catch((error: unknown) => {
+              if (conflict(error)) return create();
+              throw error;
             });
             const account = deriveAddress(result.factory, { x: result.x, y: result.y, salt: result.salt });
             const intercomToken = await intercom(account, result.auth);
@@ -426,21 +458,13 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
                 ...result,
                 expires: result.auth,
                 intercomToken,
-                ...(headers?.["client-platform"] === "ios" ? await walletExtension.create(assertion.id) : {}),
+                ...(headers?.["client-platform"] === "ios" ? await walletExtension.create(id) : {}),
               } satisfies InferOutput<typeof LegacyAuthentication>,
               200,
             );
           } catch (error) {
-            if (
-              error instanceof DrizzleQueryError &&
-              error.cause &&
-              "code" in error.cause &&
-              error.cause.code === "23505"
-            ) {
-              credential = await database.query.credentials.findFirst({
-                columns: { publicKey: true, account: true, factory: true, salt: true, transports: true },
-                where,
-              });
+            if (conflict(error)) {
+              credential = await database.query.credentials.findFirst({ columns, where });
             } else {
               captureException(error, { level: "error", tags: { unhandled: true } });
               return c.json({ code: "ouch", legacy: "ouch" }, 500);
@@ -502,7 +526,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
         const expires = new Date(Date.now() + AUTH_EXPIRY);
         const [intercomToken] = await Promise.all([
           intercom(parse(Address, credential.account), expires),
-          setSignedCookie(c, "credential_id", assertion.id, authSecret, {
+          setSignedCookie(c, "credential_id", credential.id, authSecret, {
             expires,
             httpOnly: true,
             ...(domain === "localhost"
@@ -521,10 +545,14 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
             auth: expires.getTime(),
             expires: expires.getTime(),
             intercomToken,
-            ...(headers?.["client-platform"] === "ios" ? await walletExtension.create(assertion.id) : {}),
+            ...(headers?.["client-platform"] === "ios" ? await walletExtension.create(credential.id) : {}),
           } satisfies InferOutput<typeof LegacyAuthentication>,
           200,
         );
       },
     );
+}
+
+function conflict(error: unknown) {
+  return error instanceof DrizzleQueryError && !!error.cause && "code" in error.cause && error.cause.code === "23505";
 }
