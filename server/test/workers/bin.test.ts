@@ -171,10 +171,10 @@ describe("bin", () => {
     expect(mocks.secret.mock.calls.map(([secret]) => secret)).toStrictEqual([
       "redis-url",
       "credit-postgres-url",
-      "credit-onesignal-api-key",
+      "credit-onesignal-api-keys",
     ]);
     expect(new Set(mocks.secret.mock.calls.map(([, secrets]) => secrets)).size).toBe(1);
-    expect(mocks.onesignal).toHaveBeenCalledExactlyOnceWith("credit-onesignal-api-key");
+    expect(mocks.onesignal).toHaveBeenCalledExactlyOnceWith("credit-onesignal-api-keys");
     expect(mocks.credit).toHaveBeenCalledExactlyOnceWith({
       bullmq: expect.objectContaining({ redisUrl: "redis-url", options: { maxRetriesPerRequest: null } }) as object,
       database,
@@ -191,11 +191,11 @@ describe("bin", () => {
     await created;
     expect(mocks.secret.mock.calls.map(([secret]) => secret)).toStrictEqual([
       "redis-url",
-      "poke-onesignal-api-key",
+      "poke-onesignal-api-keys",
       "poke-segment-write-key",
     ]);
     expect(new Set(mocks.secret.mock.calls.map(([, secrets]) => secrets)).size).toBe(1);
-    expect(mocks.onesignal).toHaveBeenCalledExactlyOnceWith("poke-onesignal-api-key");
+    expect(mocks.onesignal).toHaveBeenCalledExactlyOnceWith("poke-onesignal-api-keys");
     expect(mocks.segment).toHaveBeenCalledExactlyOnceWith("poke-segment-write-key");
     expect(mocks.signer.mock.calls.map(([signer]) => signer)).toStrictEqual(["poker"]);
     expect(mocks.poke).toHaveBeenCalledExactlyOnceWith({
@@ -232,7 +232,7 @@ describe("bin", () => {
     expect(mocks.secret.mock.calls.map(([secret]) => secret)).toStrictEqual([
       "redis-url",
       "refund-postgres-url",
-      "refund-onesignal-api-key",
+      "refund-onesignal-api-keys",
       "refund-panda-api-key",
       "panda-api-url",
       "refund-sardine-api-key",
