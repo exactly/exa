@@ -645,6 +645,133 @@ describe("proposal", () => {
       await removals;
       await vi.waitUntil(() => sendPushNotificationMock.mock.calls.length === 2, 26_666);
     });
+
+    it("waits for a lagging node to reach the unlock", async () => {
+      const unlock = proposals[0]?.args.unlock ?? 0n;
+      vi.setSystemTime(new Date(Number(unlock) * 1000));
+      const { getBlock } = publicClient;
+      const heads = vi
+        .spyOn(publicClient, "getBlock")
+        .mockImplementationOnce(async (parameters) => ({ ...(await getBlock(parameters)), timestamp: unlock - 1n }));
+      const simulate = vi.spyOn(publicClient, "simulateContract");
+      const exaSend = spyNotifiedExecutions();
+      const queue = spyProposalQueue();
+
+      const response = await post(logs());
+      await waitForQueueDrain(queue, proposals);
+      await waitForNotifiedExecutions(exaSend);
+
+      expect(response.status).toBe(200);
+      const caughtUp = heads.mock.invocationCallOrder[1] ?? Infinity;
+      const executions = simulate.mock.invocationCallOrder.filter(
+        (_, index) => simulate.mock.calls[index]?.[0].functionName === "executeProposal",
+      );
+      expect(executions.every((order) => order > caughtUp)).toBe(true);
+      await expect(withdrawnAssets(proposals)).resolves.toStrictEqual(proposals.map(({ args }) => args.amount));
+      const captures = vi
+        .mocked(captureException)
+        .mock.calls.filter((call) =>
+          proposals.some(({ args }) => matchProposal(args.account, args.nonce).capture(call)),
+        );
+      expect(captures).not.toContainEqual([expect.anything(), expect.objectContaining({ level: "error" })]);
+      expect(captures).not.toContainEqual([
+        expect.anything(),
+        expect.objectContaining({ fingerprint: ["{{ default }}", "Timelocked"] }),
+      ]);
+    });
+
+    it("falls back to the clock when the node stalls", async () => {
+      const unlock = proposals[0]?.args.unlock ?? 0n;
+      vi.setSystemTime(new Date(Number((proposals.at(-1)?.args.unlock ?? 0n) + 10n) * 1000));
+      const { getBlock } = publicClient;
+      vi.spyOn(publicClient, "getBlock").mockImplementation(async (parameters) => ({
+        ...(await getBlock(parameters)),
+        timestamp: unlock - 1n,
+      }));
+      const exaSend = spyNotifiedExecutions();
+      const queue = spyProposalQueue();
+
+      const response = await post(logs());
+      await waitForQueueDrain(queue, proposals);
+      await waitForNotifiedExecutions(exaSend);
+
+      expect(response.status).toBe(200);
+      await expect(withdrawnAssets(proposals)).resolves.toStrictEqual(proposals.map(({ args }) => args.amount));
+    });
+
+    it("waits on the clock when the head lookup fails", async () => {
+      vi.setSystemTime(new Date(Number((proposals[0]?.args.unlock ?? 0n) + 9n) * 1000));
+      const heads = vi.spyOn(publicClient, "getBlock").mockRejectedValueOnce(new Error("node down"));
+      const simulate = vi.spyOn(publicClient, "simulateContract");
+      const exaSend = spyNotifiedExecutions();
+      const queue = spyProposalQueue();
+
+      const response = await post(logs());
+      await waitForQueueDrain(queue, proposals);
+      await waitForNotifiedExecutions(exaSend);
+
+      expect(response.status).toBe(200);
+      expect(heads.mock.settledResults[0]?.type).toBe("rejected");
+      const recovered = heads.mock.invocationCallOrder[1] ?? Infinity;
+      const executions = simulate.mock.invocationCallOrder.filter(
+        (_, index) => simulate.mock.calls[index]?.[0].functionName === "executeProposal",
+      );
+      expect(executions.length).toBeGreaterThan(0);
+      expect(executions.every((order) => order > recovered)).toBe(true);
+      await expect(withdrawnAssets(proposals)).resolves.toStrictEqual(proposals.map(({ args }) => args.amount));
+    });
+
+    it("executes past the clock deadline when the head lookup fails", async () => {
+      vi.setSystemTime(new Date(Number((proposals.at(-1)?.args.unlock ?? 0n) + 10n) * 1000));
+      vi.spyOn(publicClient, "getBlock").mockRejectedValue(new Error("node down"));
+      const exaSend = spyNotifiedExecutions();
+      const queue = spyProposalQueue();
+
+      const response = await post(logs());
+      await waitForQueueDrain(queue, proposals);
+      await waitForNotifiedExecutions(exaSend);
+
+      expect(response.status).toBe(200);
+      await expect(withdrawnAssets(proposals)).resolves.toStrictEqual(proposals.map(({ args }) => args.amount));
+    });
+
+    it("retries a timelocked execution from a lagging node", async () => {
+      const first = proposals[0]?.args.nonce;
+      vi.setSystemTime(new Date(Number(proposals[0]?.args.unlock ?? 0n) * 1000));
+      const { simulateContract } = publicClient;
+      let lagging = true;
+      vi.spyOn(publicClient, "simulateContract").mockImplementation((parameters) => {
+        if (!lagging || parameters.functionName !== "executeProposal" || parameters.args?.[0] !== first) {
+          return simulateContract(parameters);
+        }
+        lagging = false;
+        // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
+        throw getContractError(
+          new RawContractError({ data: encodeErrorResult({ abi: proposalManagerAbi, errorName: "Timelocked" }) }),
+          { ...parameters, abi: proposalManagerAbi, args: [first] },
+        );
+      });
+      const exaSend = spyNotifiedExecutions();
+      const queue = spyProposalQueue();
+
+      const response = await post(logs());
+      await waitForQueueDrain(queue, proposals);
+      await waitForNotifiedExecutions(exaSend);
+
+      expect(response.status).toBe(200);
+      expect(lagging).toBe(false);
+      await expect(withdrawnAssets(proposals)).resolves.toStrictEqual(proposals.map(({ args }) => args.amount));
+      const captures = vi
+        .mocked(captureException)
+        .mock.calls.filter((call) =>
+          proposals.some(({ args }) => matchProposal(args.account, args.nonce).capture(call)),
+        );
+      expect(captures).not.toContainEqual([expect.anything(), expect.objectContaining({ level: "error" })]);
+      expect(captures).not.toContainEqual([
+        expect.anything(),
+        expect.objectContaining({ fingerprint: ["{{ default }}", "Timelocked"] }),
+      ]);
+    });
   });
 
   describe("with a withdraw in the block", () => {
@@ -1087,14 +1214,21 @@ describe("proposal", () => {
     });
 
     it.each([
-      { pending: true, name: "the pending unlock" },
-      { pending: false, name: "the next block" },
-    ])("requeues Timelocked proposals at $name without nonce skipping", async ({ pending }) => {
+      { pending: true, lagging: true, name: "the pending unlock when the node lags" },
+      { pending: true, lagging: false, name: "the next block" },
+      { pending: false, lagging: false, name: "the next block without a pending proposal" },
+    ])("requeues Timelocked proposals at $name without nonce skipping", async ({ pending, lagging }) => {
       const setUser = await spyScopeSetUser();
       const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
       const match = matchProposal(proposal.args.account, proposal.args.nonce);
-      const { readContract, simulateContract } = publicClient;
+      const { getBlock: readBlock, readContract, simulateContract } = publicClient;
       const getBlock = vi.spyOn(publicClient, "getBlock");
+      if (lagging) {
+        getBlock.mockImplementationOnce(readBlock).mockImplementationOnce(async (parameters) => ({
+          ...(await readBlock(parameters)),
+          timestamp: proposal.args.unlock - 1n,
+        }));
+      }
       if (!pending) {
         vi.spyOn(publicClient, "readContract").mockImplementation((parameters) =>
           parameters.functionName === "pendingProposals" && parameters.args?.[0] === proposal.args.account
@@ -1165,14 +1299,13 @@ describe("proposal", () => {
         throw new Error("missing requeued proposal");
       }
       expect(await redis.zrem("proposals", queued[2])).toBe(1);
-      expect(payload.unlock).toBeGreaterThanOrEqual(proposal.args.unlock);
-      const proposalCaptureCalls = vi.mocked(captureException).mock.calls.filter((call) => match.capture(call));
-      expect(proposalCaptureCalls).toContainEqual([
-        expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "executeProposal" }),
-        expect.objectContaining({ level: "warning", fingerprint: ["{{ default }}", "Timelocked"] }),
-      ]);
+      const head = getBlock.mock.settledResults[1];
+      expect(payload.unlock).toBe(
+        lagging ? proposal.args.unlock : head?.type === "fulfilled" ? head.value.timestamp + 1n : undefined,
+      );
+      expect(vi.mocked(captureException).mock.calls.filter((call) => match.capture(call))).toStrictEqual([]);
       expect(exaSendSpy.mock.calls.some(([, call]) => call.functionName === "setProposalNonce")).toBe(false);
-      expect(getBlock).toHaveBeenCalledTimes(pending ? 1 : 2);
+      expect(getBlock).toHaveBeenCalledTimes(2);
       expect(setUser).toHaveBeenCalledWith({ id: bobAccount });
     });
 
@@ -3903,6 +4036,81 @@ function waitForProposalNonce(account: Address, nonce: bigint) {
 
 function waitForProposalRemovals(expected: { account: Address; nonce: bigint }[]) {
   return waitForRemovals(expected.map(({ account, nonce }) => matchProposal(account, nonce)));
+}
+
+async function withdrawnAssets(logs: { blockNumber: bigint }[]) {
+  const withdrawals = await publicClient.getContractEvents({
+    address: marketUSDCAddress,
+    abi: marketAbi,
+    eventName: "Withdraw",
+    args: { owner: bobAccount },
+    fromBlock: logs[0]?.blockNumber,
+  });
+  return withdrawals.map(({ args }) => args.assets);
+}
+
+function spyNotifiedExecutions() {
+  vi.spyOn(ensClient, "getEnsName").mockResolvedValue(null);
+  sendPushNotificationMock.mockResolvedValue({});
+  return vi.spyOn(keeper, "exaSend");
+}
+
+function waitForNotifiedExecutions(exaSend: ReturnType<typeof spyNotifiedExecutions>) {
+  return vi.waitUntil(() => {
+    const { calls, settledResults } = exaSend.mock;
+    if (settledResults.some(({ type }) => type === "incomplete")) return false;
+    const executed = settledResults.filter(
+      (result, index) =>
+        calls[index]?.[1].functionName === "executeProposal" &&
+        result.type === "fulfilled" &&
+        result.value?.status === "success",
+    ).length;
+    return sendPushNotificationMock.mock.calls.length === executed;
+  }, 26_666);
+}
+
+function spyProposalQueue() {
+  return {
+    zadd: spyZadd(),
+    zrem: vi.spyOn<{ zrem: (key: string, member: string) => Promise<number> }, "zrem">(Redis.prototype, "zrem"),
+  };
+}
+
+function waitForQueueDrain(
+  { zadd, zrem }: ReturnType<typeof spyProposalQueue>,
+  logs: { address: Address; args: { account: Address; nonce: bigint } }[],
+) {
+  const last = logs.at(-1);
+  if (!last) throw new Error("missing proposals");
+  return vi.waitUntil(
+    () =>
+      publicClient
+        .readContract({
+          address: last.address,
+          abi: proposalManagerAbi,
+          functionName: "nonces",
+          args: [last.args.account],
+        })
+        .then((nonce) => {
+          if (nonce <= last.args.nonce) return false;
+          const removed = new Set(zrem.mock.calls.flatMap(([key, member]) => (key === "proposals" ? [member] : [])));
+          return zadd.mock.calls.every(([key, , member], index) => {
+            if (key !== "proposals" || removed.has(member)) return true;
+            const result = zadd.mock.settledResults[index];
+            if (result?.type === "fulfilled" && result.value === 0) return true;
+            const payload = deserialize(member);
+            return !(
+              typeof payload === "object" &&
+              payload !== null &&
+              "account" in payload &&
+              payload.account === last.args.account &&
+              "nonce" in payload &&
+              logs.some(({ args }) => args.nonce === payload.nonce)
+            );
+          });
+        }),
+    { timeout: 26_666, interval: 200 },
+  );
 }
 
 function waitForRemovals(matches: { zrem(args: unknown[]): boolean }[]) {
