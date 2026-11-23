@@ -16,7 +16,7 @@ supervise(
   Promise.all([
     secret("redis-url", secrets).then((url) => connect(url)),
     secret("credit-postgres-url", secrets).then((url) => drizzle(url, { schema })),
-    secret("credit-onesignal-api-key", secrets).then((key) => createOnesignal(key)),
+    secret("credit-onesignal-apps", secrets).then((key) => createOnesignal(key)),
   ]).then(([bullmq, database, onesignal]) =>
     own(
       worker({ bullmq, database, onesignal }),

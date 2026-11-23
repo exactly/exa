@@ -30,7 +30,7 @@ export default defineConfig({
       MANTECA_API_URL: "https://manteca.test",
       MANTECA_API_KEY: "manteca",
       MANTECA_WEBHOOKS_KEY: "manteca",
-      ONESIGNAL_API_KEY: "onesignal",
+      ONESIGNAL_APPS: '{"2f79a35c-8b11-4725-84d8-fc096f3f216e":"onesignal"}',
       KEEPER_PRIVATE_KEY: padHex("0x69"),
       PANDA_API_KEY: "panda",
       PANDA_API_URL: "https://panda.test",

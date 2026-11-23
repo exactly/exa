@@ -130,10 +130,11 @@ services:
         scope: RUN_TIME
         type: SECRET
         value: ${{ env.ENCRYPTED_MANTECA_WEBHOOKS_KEY || env.MANTECA_WEBHOOKS_KEY }}
-      - key: ONESIGNAL_API_KEY
+      - key: ONESIGNAL_APPS
         scope: RUN_TIME
         type: SECRET
-        value: ${{ env.ENCRYPTED_ONESIGNAL_API_KEY || env.ONESIGNAL_API_KEY }}
+        value: >-
+          ${{ env.ENCRYPTED_ONESIGNAL_APPS || env.ONESIGNAL_APPS }}
       - key: PANDA_API_KEY
         scope: RUN_TIME
         type: SECRET

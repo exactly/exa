@@ -35,7 +35,7 @@ const bridgeHook = createBridgeHook({
   bridge,
   bridgeWebhookKey: parse(pipe(string(), nonEmpty()), env.BRIDGE_WEBHOOK_PUBLIC_KEY),
   database,
-  onesignal: createOnesignal("onesignal"),
+  onesignal: createOnesignal('{"2f79a35c-8b11-4725-84d8-fc096f3f216e":"onesignal"}'),
   persona,
   segment: createSegment("segment"),
 });
