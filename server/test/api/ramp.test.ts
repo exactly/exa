@@ -1835,6 +1835,7 @@ describe("ramp api", () => {
         await redis.del(`qr:${code}`);
         vi.spyOn(persona, "getAccount").mockResolvedValueOnce(basicAccount);
         const lockQRPayment = vi.spyOn(manteca, "lockQRPayment").mockResolvedValueOnce(lock);
+        const getMinimum = vi.spyOn(manteca, "getMinimum").mockResolvedValueOnce("0.1");
         vi.spyOn(manteca, "getSettlement").mockResolvedValueOnce(settlement);
 
         const response = await appClient.qr.$post(
@@ -1860,15 +1861,122 @@ describe("ramp api", () => {
           sender: { legalIdNationality: "AR", legalId: "30123456", name: "Jane", surname: "Doe" },
         });
         expect(manteca.getSettlement).toHaveBeenCalledWith("ARS");
+        expect(getMinimum).toHaveBeenCalledExactlyOnceWith();
         await expect(redis.get(`qr:${code}`)).resolves.toBe(
           JSON.stringify({ account, amount: "2.44921774", asset: "ARS", expireAt: lock.expireAt }),
         );
         await expect(redis.ttl(`qr:${code}`)).resolves.toBeGreaterThan(8 * 24 * 60 * 60 - 60);
       });
 
+      it("locks at the minimum order", async () => {
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(basicAccount);
+        vi.spyOn(manteca, "lockQRPayment").mockResolvedValueOnce({ ...lock, paymentAgainstAmount: "0.10000000" });
+        vi.spyOn(manteca, "getMinimum").mockResolvedValueOnce("0.1");
+        vi.spyOn(manteca, "getSettlement").mockResolvedValueOnce(settlement);
+
+        const response = await appClient.qr.$post(
+          { json: { qr: "qr3" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({
+          code,
+          nonceKey: "0x6578612d717200018d0f05d6fb174adc8003de9a0ec9c77a",
+          amount: "0.10000000",
+          expireAt: lock.expireAt,
+          recipient: "Ricardo Fort",
+          receiver: settlement,
+          asset: "ARS",
+          assetAmount: "1706.37",
+          price: "696.70000000",
+        });
+        expect(captureException).not.toHaveBeenCalled();
+      });
+
+      it("returns 400 when the lock is below the minimum order", async () => {
+        await redis.del(`qr:${code}`);
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(basicAccount);
+        vi.spyOn(manteca, "lockQRPayment").mockResolvedValueOnce({ ...lock, paymentAgainstAmount: "0.05839416" });
+        const fetchSpy = vi
+          .spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(Response.json({ order: { min: "0.1", currency: "USD" } }));
+        vi.spyOn(manteca, "getSettlement").mockResolvedValueOnce(settlement);
+
+        const response = await appClient.qr.$post(
+          { json: { qr: "qr3" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code: "invalid order size" });
+        await expect(redis.get(`qr:${code}`)).resolves.toBeNull();
+        expect(fetchSpy).toHaveBeenCalledExactlyOnceWith(
+          `${env.MANTECA_API_URL}/crypto/v2/info/operation-limits`,
+          expect.objectContaining({ method: "GET" }),
+        );
+        expect(captureException).not.toHaveBeenCalled();
+      });
+
+      it("locks without the minimum when the operation limits fail", async () => {
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(basicAccount);
+        vi.spyOn(manteca, "lockQRPayment").mockResolvedValueOnce({ ...lock, paymentAgainstAmount: "0.05839416" });
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("internal", { status: 500 }));
+        vi.spyOn(manteca, "getSettlement").mockResolvedValueOnce(settlement);
+
+        const response = await appClient.qr.$post(
+          { json: { qr: "qr3" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({
+          code,
+          nonceKey: "0x6578612d717200018d0f05d6fb174adc8003de9a0ec9c77a",
+          amount: "0.05839416",
+          expireAt: lock.expireAt,
+          recipient: "Ricardo Fort",
+          receiver: settlement,
+          asset: "ARS",
+          assetAmount: "1706.37",
+          price: "696.70000000",
+        });
+        expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(ServiceError), { level: "warning" });
+      });
+
+      it("locks without the minimum in another currency", async () => {
+        vi.spyOn(persona, "getAccount").mockResolvedValueOnce(basicAccount);
+        vi.spyOn(manteca, "lockQRPayment").mockResolvedValueOnce({ ...lock, paymentAgainstAmount: "0.05839416" });
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json({ order: { min: "100", currency: "ARS" } }));
+        vi.spyOn(manteca, "getSettlement").mockResolvedValueOnce(settlement);
+
+        const response = await appClient.qr.$post(
+          { json: { qr: "qr3" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({
+          code,
+          nonceKey: "0x6578612d717200018d0f05d6fb174adc8003de9a0ec9c77a",
+          amount: "0.05839416",
+          expireAt: lock.expireAt,
+          recipient: "Ricardo Fort",
+          receiver: settlement,
+          asset: "ARS",
+          assetAmount: "1706.37",
+          price: "696.70000000",
+        });
+        expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("unsupported qr minimum currency"), {
+          level: "warning",
+          contexts: { order: { currency: "ARS", min: "100" } },
+        });
+      });
+
       it("returns 206 when the qr has no amount", async () => {
         vi.spyOn(persona, "getAccount").mockResolvedValueOnce(basicAccount);
         vi.spyOn(manteca, "lockQRPayment").mockResolvedValueOnce({ ...lock, code: "", paymentAgainstAmount: "0" });
+        const getMinimum = vi.spyOn(manteca, "getMinimum");
 
         const response = await appClient.qr.$post(
           { json: { qr: "qr3manualamount" } }, // cspell:ignore manualamount
@@ -1877,6 +1985,7 @@ describe("ramp api", () => {
 
         expect(response.status).toBe(206);
         await expect(response.json()).resolves.toStrictEqual({ recipient: "Ricardo Fort", asset: "ARS" });
+        expect(getMinimum).not.toHaveBeenCalled();
       });
 
       it("returns 400 without a persona account", async () => {

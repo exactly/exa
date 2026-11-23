@@ -22,7 +22,7 @@ import {
   type InferInput,
   type InferOutput,
 } from "valibot";
-import { isAddressEqual } from "viem";
+import { isAddressEqual, parseUnits } from "viem";
 
 import { business } from "@exactly/common/tenants";
 import { Address, Hash, Hex } from "@exactly/common/validation";
@@ -495,6 +495,8 @@ Lock the payment of a merchant QR code for the authenticated user, with the nati
 Send the \`amount\` in the currency of the QR when the QR has none. Without it, such a QR returns \`206\` with the recipient only.
 
 Pay the lock with a user operation that withdraws at least \`amount\` USDC to \`receiver\` before \`expireAt\`, using \`nonceKey\` as the key of its nonce. The server executes the payment once the withdraw is onchain.
+
+A lock whose \`amount\` is below the minimum order returns \`400\` with \`invalid order size\`, since its payment could never execute.
         `,
         tags: ["QR"],
         security: [{ credentialAuth: [] }],
@@ -522,6 +524,7 @@ Pay the lock with a user operation that withdraws at least \`amount\` USDC to \`
                       "bad qr",
                       ErrorCodes.NO_CREDENTIAL,
                       Manteca.ErrorCodes.INVALID_AMOUNT,
+                      Manteca.ErrorCodes.INVALID_ORDER_SIZE,
                       Manteca.ErrorCodes.INVALID_QR,
                       Manteca.ErrorCodes.NO_DOCUMENT,
                       Manteca.ErrorCodes.NO_PERSONA_ACCOUNT,
@@ -575,6 +578,10 @@ Pay the lock with a user operation that withdraws at least \`amount\` USDC to \`
           });
           if (!lock.code) return c.json({ recipient: lock.paymentRecipientName, asset: lock.paymentAsset }, 206);
           if (!lock.sender) throw new Error("lock without sender");
+          const [min, receiver] = await Promise.all([manteca.getMinimum(), manteca.getSettlement(lock.paymentAsset)]);
+          if (min && parseUnits(lock.paymentAgainstAmount, 8) < parseUnits(min, 8)) {
+            return c.json({ code: Manteca.ErrorCodes.INVALID_ORDER_SIZE }, 400);
+          }
           await redis.set(
             `qr:${lock.code}`,
             JSON.stringify({
@@ -593,7 +600,7 @@ Pay the lock with a user operation that withdraws at least \`amount\` USDC to \`
               amount: lock.paymentAgainstAmount,
               expireAt: lock.expireAt,
               recipient: lock.paymentRecipientName,
-              receiver: await manteca.getSettlement(lock.paymentAsset),
+              receiver,
               asset: lock.paymentAsset,
               assetAmount: lock.paymentAssetAmount,
               price: lock.paymentPrice,
