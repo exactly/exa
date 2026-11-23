@@ -583,7 +583,7 @@ export default function hook({
                     },
                     {
                       level: (reason, error) =>
-                        reason === "NonceTooLow()" || reason === "NoProposal()"
+                        reason === "NonceTooLow()" || reason === "NoProposal()" || reason === "Timelocked()"
                           ? false
                           : error instanceof ContractFunctionExecutionError
                             ? "warning"
@@ -691,12 +691,12 @@ export default function hook({
                   args: [account],
                 });
                 const pending = pendingProposals.find((queued) => queued.nonce === nonce);
-                let nextUnlock = pending?.unlock;
-                if (!nextUnlock) {
-                  const latest = await client.getBlock();
-                  nextUnlock = latest.timestamp + 1n;
-                }
-                await scheduleProposal({ ...proposal, retryCount: retryCount + 1, unlock: nextUnlock });
+                const { head } = await readHead(chainId);
+                await scheduleProposal({
+                  ...proposal,
+                  retryCount: retryCount + 1,
+                  unlock: pending && pending.unlock > head ? pending.unlock : head + 1n,
+                });
                 parent.setStatus({ code: SPAN_STATUS_OK, message: "retrying" });
                 return redis.zrem("proposals", message);
               }
@@ -735,10 +735,22 @@ export default function hook({
         );
       });
 
-    readHead(chainId)
-      .then(({ head, now }) =>
-        setTimeout(Math.max(0, Math.min((Number(unlock) + 10) * 1000 - now, Number(unlock + 10n - head) * 1000))),
-      )
+    const unlocked = (): Promise<unknown> =>
+      readHead(chainId).then(
+        ({ head, now }) =>
+          head < unlock && now < (Number(unlock) + 10) * 1000
+            ? setTimeout(Math.max(1000, Math.min(Number(unlock) * 1000 - now, Number(unlock - head) * 1000))).then(
+                unlocked,
+              )
+            : undefined,
+        () => {
+          const now = Date.now();
+          return now < (Number(unlock) + 10) * 1000
+            ? setTimeout(Math.max(1000, (Number(unlock) + 10) * 1000 - now)).then(unlocked)
+            : undefined;
+        },
+      );
+    unlocked()
       .then(() => {
         const key = `${chainId}:${account}`;
         const mutex = mutexes.get(key) ?? createMutex(key);
