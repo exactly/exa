@@ -6,6 +6,7 @@ import "../mocks/sentry";
 
 import { captureException, getActiveSpan } from "@sentry/node";
 import { verifyAuthenticationResponse, verifyRegistrationResponse } from "@simplewebauthn/server";
+import { decodeCredentialPublicKey } from "@simplewebauthn/server/helpers";
 import { DrizzleQueryError, eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { parseSigned } from "hono/utils/cookie";
@@ -421,7 +422,7 @@ describe("authentication", () => {
   });
 
   it("authenticates a credential with a tenant salt regardless of origin", async () => {
-    const id = own(parse(Address, slice(keccak256(toBytes("auth:business-authentication")), 12)));
+    const id = own(Buffer.from("auth:business-authentication").toString("base64url"));
     const factory = parse(Address, exaAccountFactoryAddress);
     await database.insert(credentials).values({
       id,
@@ -820,6 +821,56 @@ describe("authentication", () => {
     });
     expect(credential?.id).toBe(id);
     await expect(redis.exists("session:test-session")).resolves.toBe(0);
+  });
+
+  it("requires the owner key on siwe sign-in", async () => {
+    vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
+    const id = own(parse(Address, slice(keccak256(toBytes("auth:siwe-owner-key")), 12)));
+    await database.insert(credentials).values({
+      id,
+      publicKey: new Uint8Array(65),
+      account: parse(Address, slice(keccak256(toBytes("auth:siwe-owner-key-account")), 12)),
+      factory: parse(Address, exaAccountFactoryAddress),
+    });
+
+    const response = await appClient.index.$post(
+      { json: { method: "siwe", id, signature: "0xdeadbeef" } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toStrictEqual({ code: "no credential" });
+    expect(response.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("rejects address ids on passkey sign-in", async () => {
+    vi.mocked(verifyAuthenticationResponse).mockClear();
+    const id = own(parse(Address, slice(keccak256(toBytes("auth:webauthn-address-sign-in")), 12)));
+    await database.insert(credentials).values({
+      id,
+      publicKey: new Uint8Array(hexToBytes(id)),
+      account: parse(Address, slice(keccak256(toBytes("auth:webauthn-address-sign-in-account")), 12)),
+      factory: parse(Address, exaAccountFactoryAddress),
+    });
+
+    const response = await appClient.index.$post(
+      {
+        json: {
+          method: "webauthn",
+          id,
+          rawId: id,
+          response: { clientDataJSON: "dGVzdA", authenticatorData: "dGVzdA", signature: "dGVzdA" },
+          clientExtensionResults: {},
+          type: "public-key",
+        },
+      },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toStrictEqual({ code: "no credential", legacy: "no credential" });
+    expect(verifyAuthenticationResponse).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it("accepts a registered origin using siwe", async () => {
@@ -1237,6 +1288,40 @@ describe("registration", () => {
     expect(await firstResponse.json()).toEqual(expect.objectContaining({ code: "bad registration" }));
     expect(secondResponse.status).toBe(400);
     expect(await secondResponse.json()).toEqual(expect.objectContaining({ code: "no registration" }));
+  });
+
+  it("rejects address ids on passkey registration", async () => {
+    const id = own("0x5141A57C4d6C8567f04c5005e9E839Da5942Df6A");
+
+    const response = await postRegistrationWebauthn({ id, rawId: id });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toStrictEqual({ code: "bad registration", legacy: "bad registration" });
+    await expect(database.query.credentials.findFirst({ where: eq(credentials.id, id) })).resolves.toBeUndefined();
+  });
+
+  it("rejects public keys off the curve on passkey registration", async () => {
+    const owner = parse(Address, slice(keccak256(toBytes("auth:registration-curve-owner")), 12));
+    vi.mocked(decodeCredentialPublicKey).mockReturnValueOnce(
+      new Map<number, number | Uint8Array>([
+        [1, 2],
+        [3, -7],
+        [-1, 1],
+        [-2, hexToBytes(padHex(owner, { size: 32 }))],
+        [-3, new Uint8Array(32)],
+      ]) as ReturnType<typeof decodeCredentialPublicKey>,
+    );
+
+    const response = await postRegistrationWebauthn({
+      id: "YXV0aDpyZWdpc3RyYXRpb24tY3VydmU",
+      rawId: "YXV0aDpyZWdpc3RyYXRpb24tY3VydmU",
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toStrictEqual({ code: "bad registration", legacy: "bad registration" });
+    await expect(
+      database.query.credentials.findFirst({ where: eq(credentials.id, "YXV0aDpyZWdpc3RyYXRpb24tY3VydmU") }),
+    ).resolves.toBeUndefined();
   });
 
   it("consumes challenge after mismatched registration credential id to prevent replay", async () => {
@@ -1775,8 +1860,8 @@ vi.mock("@simplewebauthn/server/helpers", async (importOriginal) => {
         [1, 2],
         [3, -7],
         [-1, 1],
-        [-2, new Uint8Array(32)],
-        [-3, new Uint8Array(32)],
+        [-2, Buffer.from("6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296", "hex")],
+        [-3, Buffer.from("4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5", "hex")],
       ]),
     ),
     cose: { ...original.cose, isCOSEPublicKeyEC2: () => true, COSEKEYS: { x: -2, y: -3 } },

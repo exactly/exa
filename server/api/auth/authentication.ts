@@ -4,7 +4,7 @@ import {
   verifyAuthenticationResponse,
   type AuthenticatorTransportFuture,
 } from "@simplewebauthn/server";
-import { DrizzleQueryError, eq } from "drizzle-orm";
+import { and, DrizzleQueryError, eq } from "drizzle-orm";
 import { Hono, type Env } from "hono";
 import { setCookie, setSignedCookie } from "hono/cookie";
 import { describeRoute } from "hono-openapi";
@@ -33,7 +33,7 @@ import {
   variant,
   type InferOutput,
 } from "valibot";
-import { isAddress } from "viem";
+import { hexToBytes, isAddress } from "viem";
 import { createSiweMessage, parseSiweMessage, validateSiweMessage } from "viem/siwe";
 
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
@@ -373,14 +373,21 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
         setContext("auth", assertion);
         const sessionId = headers?.["x-session-id"] ?? c.req.valid("cookie").session_id;
         if (!sessionId) return c.json({ code: "bad session" }, 400);
+        const where =
+          assertion.method === "siwe"
+            ? and(eq(credentials.id, assertion.id), eq(credentials.publicKey, new Uint8Array(hexToBytes(assertion.id))))
+            : eq(credentials.id, assertion.id);
         const [found, challenge] = await Promise.all([
           database.query.credentials.findFirst({
             columns: { publicKey: true, account: true, factory: true, salt: true, transports: true },
-            where: eq(credentials.id, assertion.id),
+            where,
           }),
           redis.getdel(`session:${sessionId}`),
         ]);
         if (!challenge) return c.json({ code: "no authentication", legacy: "no authentication" }, 400);
+        if (assertion.method !== "siwe" && isAddress(assertion.id, { strict: false })) {
+          return c.json({ code: "no credential", legacy: "no credential" }, 400);
+        }
         let credential = found;
         if (!credential) {
           if (assertion.method !== "siwe") return c.json({ code: "no credential", legacy: "no credential" }, 400);
@@ -432,7 +439,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
             ) {
               credential = await database.query.credentials.findFirst({
                 columns: { publicKey: true, account: true, factory: true, salt: true, transports: true },
-                where: eq(credentials.id, assertion.id),
+                where,
               });
             } else {
               captureException(error, { level: "error", tags: { unhandled: true } });

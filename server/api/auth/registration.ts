@@ -11,7 +11,7 @@ import { Hono, type Env } from "hono";
 import { setCookie } from "hono/cookie";
 import { describeRoute } from "hono-openapi";
 import { resolver, validator as vValidator } from "hono-openapi/valibot";
-import { randomBytes } from "node:crypto";
+import { createPublicKey, randomBytes } from "node:crypto";
 import {
   any,
   array,
@@ -32,6 +32,7 @@ import {
   variant,
   type InferOutput,
 } from "valibot";
+import { isAddress } from "viem";
 import { createSiweMessage, parseSiweMessage, validateSiweMessage } from "viem/siwe";
 
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
@@ -45,6 +46,7 @@ import { Address, Base64URL, Hex } from "@exactly/common/validation";
 import { Authentication } from "./authentication";
 import androidOrigins from "../../utils/android/origins";
 import { origin, origins } from "../../utils/appOrigin";
+import decodePublicKey from "../../utils/decodePublicKey";
 import publicClient from "../../utils/publicClient";
 import { IpAddress } from "../../utils/sardine";
 import validatorHook from "../../utils/validatorHook";
@@ -411,7 +413,11 @@ export default function route({
                 "webauthn.aaguid": aaguid,
                 "webauthn.device_type": credentialDeviceType,
               });
-              if (credential.id !== attestation.id) {
+              if (
+                credential.id !== attestation.id ||
+                isAddress(attestation.id, { strict: false }) ||
+                !onCurve(credential.publicKey)
+              ) {
                 return c.json({ code: "bad registration", legacy: "bad registration" }, 400);
               }
               if (credentialDeviceType !== "multiDevice") {
@@ -460,4 +466,23 @@ export default function route({
         }
       },
     );
+}
+
+function onCurve(publicKey: Uint8Array<ArrayBuffer>) {
+  try {
+    const { x, y } = decodePublicKey(publicKey, (bytes) => bytes);
+    if (x.length !== 32 || y.length !== 32) return false;
+    createPublicKey({
+      key: {
+        kty: "EC",
+        crv: "P-256",
+        x: Buffer.from(x).toString("base64url"),
+        y: Buffer.from(y).toString("base64url"),
+      },
+      format: "jwk",
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
