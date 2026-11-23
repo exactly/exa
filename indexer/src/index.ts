@@ -289,6 +289,13 @@ ponder.on("Swapper:LiFiTransferCompleted", async ({ event, context }) => {
     .values({ ...log(event, context), transactionId, asset: receivingAssetId, receiver, amount });
 });
 
+ponder.on("Swapper:LiFiTransferRecovered", async ({ event, context }) => {
+  const { transactionId, receivingAssetId, receiver, amount } = event.args;
+  await context.db
+    .insert(bridgeCompletions)
+    .values({ ...log(event, context), transactionId, asset: receivingAssetId, receiver, amount });
+});
+
 ponder.on("Swapper:LiFiTransferStarted", async ({ event, context }) => {
   const { bridgeData } = event.args;
   if (bridgeData.integrator !== integrator) return;
