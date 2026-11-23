@@ -1,0 +1,44 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- stopApp
+- runFlow: publishUpdate.yaml
+- launchApp: { permissions: {} }
+- assertTrue: '${http.get("http://localhost:3000/e2e/updates/downloaded?n=" + output.update.n).ok}'
+- runFlow:
+    when: { true: '${!http.get("http://localhost:3000/e2e/updates/launched?timeout=10000&n=" + output.update.n).ok}' }
+    commands:
+      - runFlow: storeCoverage.yaml
+      - stopApp
+      - launchApp: { permissions: {} }
+- assertTrue: '${http.get("http://localhost:3000/e2e/updates/launched?n=" + output.update.n).ok}'
+- runFlow: storeCoverage.yaml
+- assertVisible: ${output.update.marker}
+- runFlow: publishUpdate.yaml
+- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- swipe: { start: "50%,30%", end: "50%,70%" }
+- assertTrue: '${http.get("http://localhost:3000/e2e/updates/launched?n=" + output.update.n).ok}'
+- runFlow: storeCoverage.yaml
+- assertVisible: ${output.update.marker}
+- runFlow: publishUpdate.yaml
+- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- assertTrue: '${http.get("http://localhost:3000/e2e/updates/downloaded?n=" + output.update.n).ok}'
+- tapOn: Payments
+- assertVisible: Total outstanding|No payments pending
+- retry:
+    maxRetries: 3
+    commands:
+      - tapOn: { text: Payments, index: -1 }
+      - assertTrue: '${http.get("http://localhost:3000/e2e/updates/launched?timeout=15000&n=" + output.update.n).ok}'
+- assertVisible: Total outstanding|No payments pending
+- tapOn: Home
+- runFlow: storeCoverage.yaml
+- assertVisible: ${output.update.marker}
+- runFlow: publishUpdate.yaml
+- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- assertTrue: '${http.get("http://localhost:3000/e2e/updates/downloaded?n=" + output.update.n).ok}'
+- tapOn: Payments
+- tapOn: Home
+- runFlow: storeCoverage.yaml
+- tapOn: Logout
+- assertTrue: '${http.get("http://localhost:3000/e2e/updates/launched?n=" + output.update.n).ok}'
+- assertVisible: Create new account
