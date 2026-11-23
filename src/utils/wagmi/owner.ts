@@ -14,7 +14,7 @@ import publicClient from "../publicClient";
 
 const config = createConfig({
   chains: [chain, ...Object.values(chains)],
-  connectors: [miniAppConnector(), injected()],
+  connectors: [hostedMiniApp, injected()],
   transports: {
     ...Object.fromEntries(Object.values(chains).map((c) => [c.id, http()])),
     ...Object.fromEntries(
@@ -26,6 +26,11 @@ const config = createConfig({
   dataSuffix,
 });
 export default config;
+
+function hostedMiniApp(parameters: Parameters<ReturnType<typeof miniAppConnector>>[0]) {
+  const connector = miniAppConnector()(parameters);
+  return { ...connector, getProvider: async () => ((await sdk.isInMiniApp()) ? connector.getProvider() : undefined) };
+}
 
 export async function getConnector() {
   const miniApp = await sdk.isInMiniApp();
