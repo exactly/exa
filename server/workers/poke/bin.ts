@@ -17,7 +17,7 @@ supervise(
   name,
   Promise.all([
     secret("redis-url", secrets).then((url) => connect(url)),
-    secret("poke-onesignal-api-key", secrets).then((key) => createOnesignal(key)),
+    secret("poke-onesignal-api-keys", secrets).then((key) => createOnesignal(key)),
     signer("poker", kms),
     secret("poke-segment-write-key", secrets).then((key) => createSegment(key)),
   ]).then(([bullmq, onesignal, poker, segment]) =>
