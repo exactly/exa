@@ -17,6 +17,7 @@ import { presentArticle } from "../../utils/intercom";
 import {
   balancesOptions,
   isRestricted,
+  isSendable,
   lifiChainsOptions,
   lifiTokensOptions,
   swappable,
@@ -79,7 +80,7 @@ export default function ArrivalSheet({ focused }: { focused: boolean }) {
         !isRestricted(country, asset) &&
         (asset.chainId === chain.id
           ? allowed.has(asset.address.toLowerCase())
-          : factories[networks.indexOf(asset.chainId)]?.data === true) &&
+          : factories[networks.indexOf(asset.chainId)]?.data === true && isSendable(asset.address, asset.chainId)) &&
         !(asset.chainId === chain.id && (portfolio.collateralUSD > 0n || deposited.has(asset.address.toLowerCase()))) &&
         !dismissed?.includes(`${asset.chainId}:${asset.address.toLowerCase()}`),
     )

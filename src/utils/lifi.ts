@@ -349,10 +349,10 @@ export function swappable(markets: readonly { asset: string }[] = []) {
   );
 }
 
-export function isSendable(address: string) {
+export function isSendable(address: string, chainId: number = chain.id) {
   return (
     address === zeroAddress ||
-    !!allowlists[String(chain.id)]?.some((allowed) => allowed.toLowerCase() === address.toLowerCase())
+    !!allowlists[String(chainId)]?.some((allowed) => allowed.toLowerCase() === address.toLowerCase())
   );
 }
 

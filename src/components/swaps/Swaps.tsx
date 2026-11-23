@@ -67,6 +67,7 @@ import {
   getAllowTokens,
   getRouteFrom,
   isRestricted,
+  isSendable,
   isStock,
   lifiChainsOptions,
   lifiTokensOptions,
@@ -266,7 +267,10 @@ export default function Swaps() {
     return [
       ...(homeTokens ?? []),
       ...(lifiTokens ?? []).filter(
-        (token) => (token.chainId as number) !== chain.id && reachable.has(token.chainId as number),
+        (token) =>
+          (token.chainId as number) !== chain.id &&
+          reachable.has(token.chainId as number) &&
+          isSendable(token.address, token.chainId),
       ),
     ];
   }, [homeTokens, lifiTokens, networks]);

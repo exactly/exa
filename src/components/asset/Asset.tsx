@@ -115,7 +115,7 @@ export default function Asset() {
   const decimals = protocol?.decimals ?? external?.decimals ?? 18;
   const shares = toShares(amount, decimals, multiplier);
   const symbol = protocol ? (protocol.symbol.slice(3) === "WETH" ? "ETH" : protocol.symbol.slice(3)) : entry?.symbol;
-  const tradable = chainId !== chain.id || swappable(markets).has(address.toLowerCase());
+  const tradable = chainId === chain.id ? swappable(markets).has(address.toLowerCase()) : isSendable(address, chainId);
   function trade(side: "fromToken" | "toToken", selected: Token) {
     queryClient.setQueryData<Swap>(["swap"], (old) =>
       old && sameToken(selected, old[side]?.token) && old[side]?.external === !protocol
@@ -356,7 +356,7 @@ export default function Asset() {
         reason="token"
         open={unsupported}
         asset={external}
-        chainName={chain.name}
+        chainName={alchemyChains.get(chainId)?.name ?? chain.name}
         onClose={() => {
           setUnsupported(false);
         }}
