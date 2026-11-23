@@ -75,6 +75,7 @@ import {
   sliceHex,
   trim,
   UnknownRpcError,
+  UnsupportedChainIdError,
   UnsupportedProviderMethodError,
   zeroAddress,
   type Address,
@@ -819,7 +820,10 @@ export async function sendOwnerCalls({ chainId = chain.id, experimental_fallback
             request: (args: { method: string }) =>
               args.method === "wallet_sendCalls"
                 ? Promise.reject(
-                    error.walk((cause) => cause instanceof UnsupportedProviderMethodError)
+                    error.walk(
+                      (cause) =>
+                        cause instanceof UnsupportedProviderMethodError || cause instanceof UnsupportedChainIdError,
+                    )
                       ? new MethodNotSupportedRpcError(error)
                       : error.walk(),
                   )
@@ -847,7 +851,8 @@ export async function sendOwnerCalls({ chainId = chain.id, experimental_fallback
         (cause) =>
           cause instanceof MethodNotFoundRpcError ||
           cause instanceof MethodNotSupportedRpcError ||
-          cause instanceof UnsupportedProviderMethodError,
+          cause instanceof UnsupportedProviderMethodError ||
+          cause instanceof UnsupportedChainIdError,
       )
     ) {
       unsupported.set(key, error);
