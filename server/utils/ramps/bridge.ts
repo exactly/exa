@@ -2112,6 +2112,25 @@ const SepaReference = pipe(
   maxLength(140, "6-140 characters"),
   regex(/^[\dA-Z &./-]+$/i, "letters, digits, spaces and & - . /"),
 );
+const IBAN = pipe(
+  string(),
+  maxLength(64, "IBAN"),
+  transform((value) =>
+    value
+      .normalize("NFKC")
+      .replaceAll(/[\s.\p{Cf}\p{Pd}\u2043\u2212]/gu, "")
+      .replace(/^iban:?/i, "")
+      .toUpperCase(),
+  ),
+  regex(/^[A-Z]{2}\d{2}[\dA-Z]{11,30}$/, "IBAN"),
+  check((value) => {
+    let rest = 0;
+    for (const char of value.slice(4) + value.slice(0, 4)) {
+      rest = (rest * (char <= "9" ? 10 : 100) + Number.parseInt(char, 36)) % 97;
+    }
+    return rest === 1;
+  }, "IBAN checksum"),
+);
 const FasterPaymentsReference = pipe(string(), minLength(1), maxLength(18, "1-18 characters"));
 
 const AddressInput = object({
@@ -2170,7 +2189,7 @@ export const ExternalAccountInput = variant("currency", [
     accountOwnerType: literal("individual"),
     firstName: pipe(string(), minLength(1)),
     lastName: pipe(string(), minLength(1)),
-    accountNumber: pipe(string(), minLength(1)),
+    accountNumber: IBAN,
     bic: optional(pipe(string(), minLength(1))),
     country: CountryCode,
     bankName: optional(BankName),
@@ -2182,7 +2201,7 @@ export const ExternalAccountInput = variant("currency", [
     accountOwnerName: AccountOwnerName,
     accountOwnerType: literal("business"),
     businessName: pipe(string(), minLength(1)),
-    accountNumber: pipe(string(), minLength(1)),
+    accountNumber: IBAN,
     bic: optional(pipe(string(), minLength(1))),
     country: CountryCode,
     bankName: optional(BankName),

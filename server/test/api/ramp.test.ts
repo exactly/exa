@@ -6,6 +6,7 @@ import "../mocks/persona";
 import "../mocks/sentry";
 
 import { captureException } from "@sentry/core";
+import { captureException as captureNodeException } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import { testClient } from "hono/testing";
@@ -2373,6 +2374,144 @@ describe("ramp api", () => {
         undefined,
         "invoice 4021",
       );
+    });
+
+    it("sends a pasted IBAN in electronic format", async () => {
+      vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+      const createSpy = vi
+        .spyOn(bridge, "createExternalAccount")
+        .mockResolvedValue({ ...externalAccount, currency: "EUR" });
+      const transferSpy = vi.spyOn(bridge, "createOfframpTransfer").mockResolvedValue(undefined as never);
+
+      const response = await appClient["external-account"].$post(
+        {
+          json: {
+            currency: "EUR",
+            accountOwnerName: "Jane Doe",
+            accountOwnerType: "individual",
+            firstName: "Jane",
+            lastName: "Doe",
+            accountNumber: "IBAN\uFF1A \u200Bde89-3704\u20130044\uFF0E0532\u00AD0130\u2212\uFF10\uFF10\u200E",
+            country: "DEU",
+          },
+        },
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(200);
+      expect(createSpy).toHaveBeenCalledExactlyOnceWith(bridgeCustomer, {
+        currency: "EUR",
+        accountOwnerName: "Jane Doe",
+        accountOwnerType: "individual",
+        firstName: "Jane",
+        lastName: "Doe",
+        accountNumber: "DE89370400440532013000",
+        country: "DEU",
+      });
+      await expect(response.json()).resolves.toStrictEqual({ ...externalAccount, currency: "EUR" });
+      expect(transferSpy.mock.calls).toStrictEqual([
+        [
+          bridgeCustomer.id,
+          deriveAddress(factory, { x: padHex(privateKeyToAddress(padHex("0xbee"))), y: zeroHash }),
+          externalAccount.id,
+          "EUR",
+          undefined,
+          undefined,
+        ],
+      ]);
+      expect(captureException).not.toHaveBeenCalled();
+    });
+
+    it("rejects an IBAN with symbols", async () => {
+      const createSpy = vi.spyOn(bridge, "createExternalAccount");
+
+      const response = await appClient["external-account"].$post(
+        {
+          json: {
+            currency: "EUR",
+            accountOwnerName: "Acme",
+            accountOwnerType: "business",
+            businessName: "Acme",
+            accountNumber: "DE89/3704/0044/0532/0130/00",
+            country: "DEU",
+          },
+        },
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({
+        code: "bad request",
+        legacy: "bad request",
+        message: expect.arrayContaining(["accountNumber IBAN"]) as unknown,
+      });
+      expect(createSpy).not.toHaveBeenCalled();
+      expect(captureNodeException).toHaveBeenCalledExactlyOnceWith(new Error("bad request"), {
+        fingerprint: ["{{ default }}", "bad request"],
+        contexts: { validation: expect.objectContaining({ success: false }) as unknown },
+      });
+    });
+
+    it("rejects an IBAN longer than its printed form", async () => {
+      const createSpy = vi.spyOn(bridge, "createExternalAccount");
+
+      const response = await appClient["external-account"].$post(
+        {
+          json: {
+            currency: "EUR",
+            accountOwnerName: "Jane Doe",
+            accountOwnerType: "individual",
+            firstName: "Jane",
+            lastName: "Doe",
+            accountNumber: "DE89 3704 0044 0532 0130 00".padEnd(65, " "),
+            country: "DEU",
+          },
+        },
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({
+        code: "bad request",
+        legacy: "bad request",
+        message: expect.arrayContaining(["accountNumber IBAN"]) as unknown,
+      });
+      expect(createSpy).not.toHaveBeenCalled();
+      expect(captureNodeException).toHaveBeenCalledExactlyOnceWith(new Error("bad request"), {
+        fingerprint: ["{{ default }}", "bad request"],
+        contexts: { validation: expect.objectContaining({ success: false }) as unknown },
+      });
+    });
+
+    it("rejects an IBAN with a wrong checksum", async () => {
+      const createSpy = vi.spyOn(bridge, "createExternalAccount");
+
+      const response = await appClient["external-account"].$post(
+        {
+          json: {
+            currency: "EUR",
+            accountOwnerName: "Jane Doe",
+            accountOwnerType: "individual",
+            firstName: "Jane",
+            lastName: "Doe",
+            accountNumber: "DE89 3704 0044 0532 0130 01",
+            country: "DEU",
+          },
+        },
+        { headers: { "test-credential-id": "ramp-bridge" } },
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toStrictEqual({
+        code: "bad request",
+        legacy: "bad request",
+        message: expect.arrayContaining(["accountNumber IBAN checksum"]) as unknown,
+      });
+      expect(createSpy).not.toHaveBeenCalled();
+      expect(captureNodeException).toHaveBeenCalledExactlyOnceWith(new Error("bad request"), {
+        fingerprint: ["{{ default }}", "bad request"],
+        contexts: { validation: expect.objectContaining({ success: false }) as unknown },
+      });
     });
 
     it("rejects a reference that exceeds the ach length", async () => {
