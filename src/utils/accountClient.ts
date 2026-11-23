@@ -196,7 +196,7 @@ export default async function createAccountClient({ credentialId, factory, x, y,
     chain,
     transport,
     account,
-    ...alchemyGasManagerMiddleware(alchemyGasPolicyId),
+    ...gasManager(alchemyGasPolicyId),
     gasEstimator,
   });
   const crossChainAccounts = new Map<number, Promise<Remote>>();
@@ -473,7 +473,7 @@ export default async function createAccountClient({ credentialId, factory, x, y,
                   account: remote.account,
                   feeEstimator: alchemyFeeEstimator(remote.alchemyTransport),
                   ...(ids
-                    ? alchemyGasManagerMiddleware(ids, token)
+                    ? gasManager(ids, token)
                     : { opts: { feeOptions: { maxPriorityFeePerGas: { multiplier: 1.5 } } } }),
                   gasEstimator,
                 });
@@ -604,6 +604,15 @@ export default async function createAccountClient({ credentialId, factory, x, y,
   }).extend(smartAccountClientActions) as unknown as typeof client;
 }
 
+function gasManager(...args: Parameters<typeof alchemyGasManagerMiddleware>) {
+  const middleware = alchemyGasManagerMiddleware(...args);
+  const paymasterAndData: ClientMiddlewareFn = async (uo, context) =>
+    Object.assign(await middleware.paymasterAndData({ ...uo, signature: SPONSOR_SIGNATURE }, context), {
+      signature: uo.signature,
+    });
+  return { ...middleware, paymasterAndData };
+}
+
 function noRetry(provider: Parameters<typeof custom>[0]) {
   return custom(provider, { retryCount: 0 });
 }
@@ -612,16 +621,18 @@ function wrapSignature(ownerIndex: number, signature: Hex) {
   return encodePacked(["uint8", "bytes"], [ownerIndex, signature]);
 }
 
-function dummySignature(challenge: string) {
+function dummySignature(
+  challenge: string,
+  origin = Platform.OS === "android"
+    ? `android:apk-key-hash:${"A".repeat(43)}`
+    : Platform.OS === "web" && typeof window !== "undefined"
+      ? window.location.origin
+      : `https://${domain}`,
+  crossOrigin = Platform.OS !== "ios",
+) {
   return webauthn({
     authenticatorData: "0x49960de5880e8c687434170f6476605b8fe4aeb9a28632c7995cf3ba831d97630500000000",
-    clientDataJSON: `{"type":"webauthn.get","challenge":"${challenge}","origin":"${
-      Platform.OS === "android"
-        ? `android:apk-key-hash:${"A".repeat(43)}`
-        : Platform.OS === "web" && typeof window !== "undefined"
-          ? window.location.origin
-          : `https://${domain}`
-    }"${Platform.OS === "ios" ? "" : ',"crossOrigin":false'}}`,
+    clientDataJSON: `{"type":"webauthn.get","challenge":"${challenge}","origin":"${origin}"${crossOrigin ? ',"crossOrigin":false' : ""}}`,
     typeIndex: 1n,
     challengeIndex: 23n,
     r: maxUint256,
@@ -671,6 +682,7 @@ const UO_MAGIC_ID = "0x433743374337433743374337433743374337433743374337433743374
 const TX_MAGIC_ID = "0x5792579257925792579257925792579257925792579257925792579257925792";
 const P256_N = 0xff_ff_ff_ff_00_00_00_00_ff_ff_ff_ff_ff_ff_ff_ff_bc_e6_fa_ad_a7_17_9e_84_f3_b9_ca_c2_fc_63_25_51n;
 const DUMMY_SIGNATURE = dummySignature("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+const SPONSOR_SIGNATURE = dummySignature("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "https://exactly.app", false);
 
 function webauthn({
   authenticatorData,
