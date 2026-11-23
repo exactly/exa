@@ -67,7 +67,7 @@ catalog:
   "@wagmi/core": ^3.6.6
   comlink: ^4.4.2
   hono: ^4.13.18
-  i18next: ^26.0.5
+  i18next: ^26.7.2
   ioredis: ^5.10.1
   ox: ^0.14.56
   react: &react "19.2.0"
