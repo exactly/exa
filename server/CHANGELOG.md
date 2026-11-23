@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.6.1
+
+### Patch Changes
+
+- [`347c7a9`](https://github.com/exactly/exa/commit/347c7a968437c633c059f75df22be6fadb81b389) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚀 deploy new app version
+
 ## 0.6.0
 
 ### Minor Changes

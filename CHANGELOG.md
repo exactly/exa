@@ -1,5 +1,14 @@
 # @exactly/mobile
 
+## 1.2.61
+
+### Patch Changes
+
+- [#2086](https://github.com/exactly/exa/pull/2086) [`6688b97`](https://github.com/exactly/exa/commit/6688b973b50c1023ebda64180f7fb75d23af51e8) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚑️ shorten paymaster request signature
+
+- Updated dependencies [[`347c7a9`](https://github.com/exactly/exa/commit/347c7a968437c633c059f75df22be6fadb81b389)]:
+  - @exactly/server@0.6.1
+
 ## 1.2.60
 
 ### Patch Changes
