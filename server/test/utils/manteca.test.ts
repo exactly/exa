@@ -1033,6 +1033,38 @@ describe("manteca utils", () => {
     });
   });
 
+  describe("getMinimum", () => {
+    it("returns the minimum order in usd", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(mockFetchResponse({ order: { min: "0.1", currency: "USD" } }));
+
+      await expect(manteca.getMinimum()).resolves.toBe("0.1");
+      expect(fetchSpy.mock.calls[0]?.[0]).toBe("https://manteca.test/crypto/v2/info/operation-limits");
+      expect(fetchSpy.mock.calls[0]?.[1]?.method).toBe("GET");
+      expect(captureException).not.toHaveBeenCalled();
+    });
+
+    it("warns about a minimum in another currency", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        mockFetchResponse({ order: { min: "100", max: "5000000", currency: "ARS" } }),
+      );
+
+      await expect(manteca.getMinimum()).resolves.toBeUndefined();
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("unsupported qr minimum currency"), {
+        level: "warning",
+        contexts: { order: { currency: "ARS", min: "100" } },
+      });
+    });
+
+    it("warns on errors", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchError(500, "internal"));
+
+      await expect(manteca.getMinimum()).resolves.toBeUndefined();
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(ServiceError), { level: "warning" });
+    });
+  });
+
   describe("refundQRPayment", () => {
     const userOpHash = padHex("0x4337", { size: 32 });
     const address = parse(Address, padHex("0xa11ce", { size: 20 }));
