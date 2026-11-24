@@ -1,4 +1,4 @@
-import { captureException, setUser } from "@sentry/core";
+import { captureException, getActiveSpan, setUser } from "@sentry/core";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { describeRoute } from "hono-openapi";
@@ -567,6 +567,7 @@ A lock whose \`amount\` is below the minimum order returns \`400\` with \`invali
           ({ value }) => value.id_class.value === "id" && value.id_issuing_country.value === "AR",
         )?.value;
         if (!document) return c.json({ code: Manteca.ErrorCodes.NO_DOCUMENT }, 400);
+        getActiveSpan()?.setAttributes({ "qr.input": payment.amount });
         try {
           const lock = await manteca.lockQRPayment({
             paymentDestination: payment.qr,
@@ -578,6 +579,14 @@ A lock whose \`amount\` is below the minimum order returns \`400\` with \`invali
               name: personaAccount.attributes.fields.name.value.first.value,
               surname: personaAccount.attributes.fields.name.value.last.value,
             },
+          });
+          getActiveSpan()?.setAttributes({
+            "qr.code": lock.code,
+            "qr.asset": lock.paymentAsset,
+            "qr.amount": lock.paymentAssetAmount,
+            "qr.price": lock.paymentPrice,
+            "qr.usdc": lock.paymentAgainstAmount,
+            "qr.expiry": lock.expireAt,
           });
           if (!lock.code) return c.json({ recipient: lock.paymentRecipientName, asset: lock.paymentAsset }, 206);
           if (!lock.sender) throw new Error("lock without sender");
