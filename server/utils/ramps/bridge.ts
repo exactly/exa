@@ -2495,6 +2495,8 @@ const BridgeExternalAccount = object({
 
 const ExternalAccounts = object({ count: number(), data: array(BridgeExternalAccount) });
 
+export const ExternalAccountId = pipe(string(), regex(/^[\w-]+$/));
+
 export const ExternalAccount = object({
   addressValid: optional(boolean()),
   bankName: optional(string()),

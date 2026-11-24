@@ -163,7 +163,7 @@ export default function route({
           object({
             currency: picklist(Bridge.FiatCurrency),
             direction: literal("offramp"),
-            externalAccountId: string(),
+            externalAccountId: Bridge.ExternalAccountId,
             provider: literal("bridge"),
           }),
           object({
@@ -733,7 +733,7 @@ Returns the synthetic of the payment once the server executed it, \`FAILED\` whe
     .patch(
       "/external-account/:id",
       auth,
-      vValidator("param", object({ id: string() }), validatorHook()),
+      vValidator("param", object({ id: Bridge.ExternalAccountId }), validatorHook()),
       vValidator("json", Bridge.UpdateExternalAccountInput, validatorHook()),
       async (c) => {
         const { credentialId } = c.req.valid("cookie");
@@ -764,7 +764,7 @@ Returns the synthetic of the payment once the server executed it, \`FAILED\` whe
     .delete(
       "/external-account/:id",
       auth,
-      vValidator("param", object({ id: string() }), validatorHook()),
+      vValidator("param", object({ id: Bridge.ExternalAccountId }), validatorHook()),
       async (c) => {
         const { credentialId } = c.req.valid("cookie");
         const credential = await database.query.credentials.findFirst({
