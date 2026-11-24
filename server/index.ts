@@ -117,6 +117,7 @@ const hooks = {
       issuer,
       onesignal,
       panda,
+      redis,
       refund,
       sardine,
       segment,

@@ -14,6 +14,7 @@ import { E_TIMEOUT } from "async-mutex";
 import createDebug from "debug";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { Hono } from "hono";
+import { setTimeout } from "node:timers/promises";
 import { v5 } from "uuid";
 import * as v from "valibot";
 import {
@@ -85,6 +86,7 @@ import type createHook from "../workers/hook/queue";
 import type createRefund from "../workers/refund/queue";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { UnofficialStatusCode } from "hono/utils/http-status";
+import type { Redis } from "ioredis";
 
 const debug = createDebug("exa:panda");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
@@ -94,6 +96,7 @@ export default function hook({
   issuer,
   onesignal,
   panda,
+  redis,
   refund,
   sardine,
   segment,
@@ -105,6 +108,7 @@ export default function hook({
   issuer: LocalAccount;
   onesignal: ReturnType<typeof createOnesignal>;
   panda: ReturnType<typeof createPanda>;
+  redis: Redis;
   refund: ReturnType<typeof createRefund>;
   sardine: ReturnType<typeof createSardine>;
   segment: ReturnType<typeof createSegment>;
@@ -306,8 +310,12 @@ export default function hook({
               panda,
               wallet,
             );
-            const authorize = () => {
-              if (!payload.body.id) release();
+            const authorize = async () => {
+              if (payload.body.id) {
+                await within(redis.set(`mode:${payload.body.id}`, card.mode, "EX", 2_592_000), "mode write timeout");
+              } else {
+                release();
+              }
               trackAuthorized(account, payload, card.mode, card.credential.source, segment);
               return c.json({ code: "ok" });
             };
@@ -325,7 +333,7 @@ export default function hook({
                 }
               }).catch((error: unknown) => captureException(error, { level: "error" }));
               release();
-              return authorize();
+              return await authorize();
             }
 
             startSpan({ name: "assess risk", op: "tx.risk.authorization" }, async (span) => {
@@ -436,7 +444,7 @@ export default function hook({
                 });
                 throw new PandaError("bad collection", 551 as UnofficialStatusCode);
               }
-              return authorize();
+              return await authorize();
             } catch (error: unknown) {
               if (error instanceof PandaError) throw error;
               captureException(error, { contexts: { tx: { call } } });
@@ -694,7 +702,12 @@ export default function hook({
                   (payload.action === "completed" &&
                     !(await isCreated(database, payload.body.id, payload.body.spend.cardId))),
             );
-            const { call } = await prepareCollection(card, payload, database, issuer, panda, wallet);
+            const mode = await within(redis.get(`mode:${payload.body.id}`), "mode read timeout");
+            if (payload.action === "created" && mode === null) {
+              captureMessage("authorized mode not found", { level: "warning" });
+            }
+            const authorized = mode === null ? card : { ...card, mode: Number(mode) };
+            const { call } = await prepareCollection(authorized, payload, database, issuer, panda, wallet);
             if (!call) {
               const appended = await database
                 .update(transactions)
@@ -824,7 +837,7 @@ export default function hook({
                     userId: account,
                     headings: t("Card purchase"),
                     contents: t("{{amount}} at {{merchantName}}. Paid in {{count}} installments", {
-                      count: card.mode,
+                      count: authorized.mode,
                       amount: f(payload.body.spend.localAmount / 100, payload.body.spend.localCurrency),
                       merchantName: payload.body.spend.merchantName.trim(),
                     }),
@@ -899,7 +912,7 @@ export default function hook({
                 userId: account,
                 event: "TransactionRejected",
                 properties: {
-                  cardMode: card.mode,
+                  cardMode: authorized.mode,
                   declinedReason: `collection:${payload.action}:${call.functionName}:${reason}`,
                   id: payload.body.id,
                   reasonName,
@@ -916,7 +929,7 @@ export default function hook({
                   action: payload.action,
                   amount: payload.body.spend.amount,
                   authorizedAmount: payload.body.spend.authorizedAmount ?? null,
-                  cardMode: card.mode,
+                  cardMode: authorized.mode,
                   functionName: call.functionName,
                   id: payload.body.id,
                   knownTransaction: Boolean(tx),
@@ -1275,6 +1288,15 @@ async function prepareCollection(
       data: encodeFunctionData({ abi: exaPluginAbi, ...call }),
     } as const,
   };
+}
+
+function within<T>(promise: Promise<T>, message: string) {
+  return Promise.race([
+    promise,
+    setTimeout(1000).then(() => {
+      throw new Error(message);
+    }),
+  ]);
 }
 
 const collectorTopics = new Set(collectors.map((address) => padHex(address.toLowerCase() as Hex)));

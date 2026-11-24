@@ -17,6 +17,7 @@ import {
   ContractFunctionRevertedError,
   createWalletClient,
   decodeEventLog,
+  decodeFunctionData,
   encodeAbiParameters,
   encodeErrorResult,
   encodeFunctionData,
@@ -58,6 +59,7 @@ import t, { f } from "../../i18n";
 import createOnesignal from "../../utils/onesignal";
 import createPanda, * as Panda from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
+import redis from "../../utils/redis";
 import createSardine from "../../utils/sardine";
 import createSegment from "../../utils/segment";
 import traceClient from "../../utils/traceClient";
@@ -88,6 +90,7 @@ const dependencies = {
   issuer,
   onesignal: createOnesignal("onesignal"),
   panda,
+  redis,
   refund,
   sardine: createSardine(sardineConfig.key, sardineConfig.url),
   segment: createSegment("segment"),
@@ -338,6 +341,53 @@ describe("card operations", () => {
         });
 
         expect(response.status).toBe(200);
+      });
+
+      it("declines when the authorized mode is not stored", async () => {
+        const cardId = "mode-write";
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "5678", mode: 0 }]);
+        const error = new Error("redis down");
+        vi.spyOn(redis, "set").mockRejectedValueOnce(error);
+        const track = vi.spyOn(segment, "track");
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: { ...authorization.json.body, id: cardId, spend: { ...authorization.json.body.spend, cardId } },
+          },
+        });
+
+        expect(response.status).toBe(569);
+        await expect(response.json()).resolves.toStrictEqual({ code: "unexpected error", rejectionCode: "UNKNOWN" });
+        expect(captureException).toHaveBeenCalledWith(error, expect.anything());
+        expect(track).not.toHaveBeenCalledWith(expect.objectContaining({ event: "TransactionAuthorized" }));
+        await expect(redis.get(`mode:${cardId}`)).resolves.toBeNull();
+      });
+
+      it("declines when the authorized mode is not stored in time", async () => {
+        const cardId = "mode-slow";
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "5678", mode: 0 }]);
+        vi.spyOn(redis, "set").mockReturnValueOnce(new Promise<never>(() => undefined));
+        const track = vi.spyOn(segment, "track");
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: { ...authorization.json.body, id: cardId, spend: { ...authorization.json.body.spend, cardId } },
+          },
+        });
+
+        expect(response.status).toBe(569);
+        await expect(response.json()).resolves.toStrictEqual({ code: "unexpected error", rejectionCode: "UNKNOWN" });
+        expect(captureException).toHaveBeenCalledWith(new Error("mode write timeout"), expect.anything());
+        expect(track).not.toHaveBeenCalledWith(expect.objectContaining({ event: "TransactionAuthorized" }));
+        await expect(redis.get(`mode:${cardId}`)).resolves.toBeNull();
       });
 
       it("authorizes debit when risk assessment times out", async () => {
@@ -823,6 +873,66 @@ describe("card operations", () => {
 
         expect(usdcToCollector(purchaseReceipt)).toBe(BigInt(amount * 1e4));
         expect(response.status).toBe(200);
+        expect(captureMessage).toHaveBeenCalledWith("authorized mode not found", { level: "warning" });
+      });
+
+      it("clears with the authorized mode", async () => {
+        const amount = 1337;
+        const cardId = "switched";
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "4747", mode: 0 }]);
+        const spend = { ...authorization.json.body.spend, cardId, amount, authorizedAmount: amount };
+        const requested = await appClient.index.$post({
+          ...authorization,
+          json: { ...authorization.json, body: { ...authorization.json.body, id: cardId, spend } },
+        });
+        await database.update(cards).set({ mode: 1 }).where(eq(cards.id, cardId));
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: { ...authorization.json, action: "created", body: { ...authorization.json.body, id: cardId, spend } },
+        });
+
+        const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
+        const { input } = await publicClient.getTransaction({ hash: transaction?.hashes[0] as Hex });
+
+        expect(requested.status).toBe(200);
+        expect(response.status).toBe(200);
+        expect(decodeFunctionData({ abi: exaPluginAbi, data: input }).functionName).toBe("collectDebit");
+        expect(captureMessage).not.toHaveBeenCalledWith("authorized mode not found", expect.anything());
+      });
+
+      it("clears with the authorized mode after a failed mode read", async () => {
+        const amount = 1338;
+        const cardId = "mode-read";
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "4848", mode: 0 }]);
+        const spend = { ...authorization.json.body.spend, cardId, amount, authorizedAmount: amount };
+        const requested = await appClient.index.$post({
+          ...authorization,
+          json: { ...authorization.json, body: { ...authorization.json.body, id: cardId, spend } },
+        });
+        await database.update(cards).set({ mode: 1 }).where(eq(cards.id, cardId));
+        const error = new Error("redis down");
+        vi.spyOn(redis, "get").mockRejectedValueOnce(error);
+        const created = {
+          ...authorization,
+          json: { ...authorization.json, action: "created", body: { ...authorization.json.body, id: cardId, spend } },
+        } as const;
+
+        const failed = await appClient.index.$post(created);
+        const response = await appClient.index.$post(created);
+
+        const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
+        const { input } = await publicClient.getTransaction({ hash: transaction?.hashes[0] as Hex });
+
+        expect(requested.status).toBe(200);
+        expect(failed.status).toBe(500);
+        expect(response.status).toBe(200);
+        expect(transaction?.hashes).toHaveLength(1);
+        expect(decodeFunctionData({ abi: exaPluginAbi, data: input }).functionName).toBe("collectDebit");
       });
 
       it("clears with transaction update", async () => {
@@ -3167,6 +3277,29 @@ describe("concurrency", () => {
       expect(mutex?.isLocked()).toBe(false);
       expect(spendAuthorization.status).toBe(200);
       expect(collectSpendAuthorization.status).toBe(200);
+    });
+
+    it("releases mutex when authorization is declined without the authorized mode", async () => {
+      const cardId = `${account2}-card`;
+      const spend = { ...authorization.json.body.spend, amount: 800, cardId };
+      const requested = await appClient.index.$post({
+        ...authorization,
+        json: { ...authorization.json, body: { ...authorization.json.body, id: cardId, spend } },
+      });
+      vi.spyOn(redis, "get").mockRejectedValueOnce(new Error("redis down"));
+
+      const declined = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: { ...authorization.json.body, id: cardId, spend: { ...spend, status: "declined" } },
+        },
+      });
+
+      expect(requested.status).toBe(200);
+      expect(declined.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
     });
 
     it("keeps mutex when another transaction is declined", async () => {
