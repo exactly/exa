@@ -5,7 +5,6 @@ import { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 
 import { useRouter } from "expo-router";
 
-import { toast } from "@tamagui/toast";
 import { Spinner, XStack } from "tamagui";
 
 import chain from "@exactly/common/generated/chain";
@@ -14,6 +13,7 @@ import { ArrowDownToLine } from "../../generated/icons/ArrowDownToLine";
 import { ArrowRight } from "../../generated/icons/ArrowRight";
 import { ChevronRight } from "../../generated/icons/ChevronRight";
 import { IdCard } from "../../generated/icons/IdCard";
+import errorToast from "../../utils/errorToast";
 import reportError from "../../utils/reportError";
 import useBeginKYC from "../../utils/useBeginKYC";
 import useOnboardingSteps from "../../utils/useOnboardingSteps";
@@ -37,7 +37,7 @@ export default function GettingStarted({ isDeployed, kyc }: { isDeployed: boolea
       case "verify-identity":
         beginKYC(undefined, {
           onError(error) {
-            toast.error(t("Error verifying identity"), { duration: 1000 });
+            errorToast(error, t("Error verifying identity"), { duration: 1000 });
             reportError(error);
           },
         });

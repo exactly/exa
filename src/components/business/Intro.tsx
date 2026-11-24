@@ -1,11 +1,11 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { toast } from "@tamagui/toast";
 import { YStack } from "tamagui";
 
 import documents from "../../assets/images/documents.webp";
 import { ArrowRight } from "../../generated/icons/ArrowRight";
+import errorToast from "../../utils/errorToast";
 import { APIError } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useBeginKYC from "../../utils/useBeginKYC";
@@ -42,7 +42,7 @@ export default function Intro() {
             mutate(undefined, {
               onError(error) {
                 if (error instanceof APIError && error.code === 400) return;
-                toast.error(t("Error verifying business"), { duration: 1000 });
+                errorToast(error, t("Error verifying business"), { duration: 1000 });
                 reportError(error);
               },
             });

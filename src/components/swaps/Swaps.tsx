@@ -5,7 +5,6 @@ import { LinearTransition } from "react-native-reanimated";
 import { selectionAsync } from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 
-import { toast } from "@tamagui/toast";
 import { ScrollView, Separator, Spinner, XStack, YStack } from "tamagui";
 
 import { useQueries, useQuery, type UseQueryResult } from "@tanstack/react-query";
@@ -58,6 +57,7 @@ import { Repeat } from "../../generated/icons/Repeat";
 import { TriangleAlert } from "../../generated/icons/TriangleAlert";
 import { DeploymentError, estimateCalls } from "../../utils/accountClient";
 import deployedOptions, { requestDeployment } from "../../utils/deployedOptions";
+import errorToast from "../../utils/errorToast";
 import executionOptions from "../../utils/executionOptions";
 import { present, presentArticle } from "../../utils/intercom";
 import {
@@ -980,7 +980,7 @@ export default function Swaps() {
                       refetchKYC().catch(reportError);
                       return;
                     }
-                    toast.error(t("Error verifying identity"), { duration: 1000 });
+                    errorToast(error, t("Error verifying identity"), { duration: 1000 });
                     reportError(error);
                   },
                 });

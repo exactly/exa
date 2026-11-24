@@ -32,6 +32,7 @@ import { Eye } from "../../generated/icons/Eye";
 import { EyeOff } from "../../generated/icons/EyeOff";
 import { Hash } from "../../generated/icons/Hash";
 import { Snowflake } from "../../generated/icons/Snowflake";
+import errorToast from "../../utils/errorToast";
 import { presentArticle } from "../../utils/intercom";
 import openBrowser from "../../utils/openBrowser";
 import queryClient from "../../utils/queryClient";
@@ -155,19 +156,19 @@ export default function Card() {
     mutationFn: async function handleReveal() {
       if (queryClient.isMutating({ mutationKey: ["card", "create"] })) return;
       if (business && !cardDetails) {
-        const { data, isSuccess } = await refetchCard();
+        const { data, isSuccess, error } = await refetchCard();
         if (data) queryClient.setQueryData(["card-details-open"], true);
         else if (isSuccess) router.push("/business");
-        else toast.error(t("An error occurred. Please try again later."), { duration: 1000 });
+        else errorToast(error, t("An error occurred. Please try again later."), { duration: 1000 });
         return;
       }
       if (!cardDetails) {
-        const { data: code, isSuccess } = await refetchBytecode();
+        const { data: code, isSuccess, error } = await refetchBytecode();
         if (!code) {
           if (isSuccess) {
             router.push("/(main)/getting-started");
           } else {
-            toast.error(t("An error occurred. Please try again later."), { duration: 1000 });
+            errorToast(error, t("An error occurred. Please try again later."), { duration: 1000 });
           }
           return;
         }
@@ -184,7 +185,7 @@ export default function Card() {
       } catch (error) {
         if (!(error instanceof APIError) || (error.text !== "not started" && error.text !== "no kyc")) {
           reportError(error);
-          toast.error(t("An error occurred. Please try again later."), { duration: 1000 });
+          errorToast(error, t("An error occurred. Please try again later."), { duration: 1000 });
           return;
         }
       }
@@ -192,7 +193,7 @@ export default function Card() {
         .fetchQuery<KYCStatus>({ queryKey: ["kyc", "status"], staleTime: 0 })
         .catch((error: unknown) => {
           reportError(error);
-          toast.error(t("An error occurred. Please try again later."), { duration: 1000 });
+          errorToast(error, t("An error occurred. Please try again later."), { duration: 1000 });
         });
       if (!status) return;
       const code = "code" in status ? status.code : undefined;
@@ -220,7 +221,7 @@ export default function Card() {
           if (approved) setDisclaimerShown(true);
         },
         onError(error) {
-          toast.error(t("An error occurred. Please try again later."), { duration: 1000 });
+          errorToast(error, t("An error occurred. Please try again later."), { duration: 1000 });
           reportError(error);
         },
       });
@@ -240,9 +241,9 @@ export default function Card() {
   } = useMutation({
     mutationKey: ["card", "status"],
     mutationFn: setCardStatus,
+    meta: { toast: () => [t("An error occurred. Please try again later."), { duration: 1000 }] },
     onError: (error) => {
       reportError(error);
-      toast.error(t("An error occurred. Please try again later."), { duration: 1000 });
     },
     onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: ["card", "details"] });
@@ -268,20 +269,20 @@ export default function Card() {
       const { data: card } = await refetchCard();
       if (card) queryClient.setQueryData(["card-details-open"], true);
     },
+    meta: {
+      toast: (error) =>
+        error instanceof APIError && error.text.includes("already created")
+          ? undefined
+          : [t("Error activating card"), { duration: 1000 }],
+    },
     onError: async (error: Error) => {
-      if (!(error instanceof APIError)) {
-        reportError(error);
-        toast.error(t("Error activating card"), { duration: 1000 });
-        return;
-      }
-      if (error.text.includes("already created")) {
+      if (error instanceof APIError && error.text.includes("already created")) {
         queryClient.setQueryData<boolean>(["settings", "card-support-contacted"], false);
         await queryClient.refetchQueries({ queryKey: ["card", "details"] });
         await queryClient.setQueryData(["card-details-open"], true);
         return;
       }
       reportError(error);
-      toast.error(t("Error activating card"), { duration: 1000 });
     },
   });
 

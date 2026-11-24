@@ -13,6 +13,7 @@ import chain from "@exactly/common/generated/chain";
 import tenants from "@exactly/common/tenants";
 
 import alchemyConnector from "./alchemyConnector";
+import errorToast from "./errorToast";
 import queryClient, { type AuthMethod } from "./queryClient";
 import reportError, { classifyError } from "./reportError";
 import { track } from "./segment";
@@ -125,7 +126,7 @@ function handleError(error: unknown, onIssue: (issue: SignInIssue) => void, t: T
   } else if (error instanceof APIError && error.text === "no authentication") {
     toast.error(t("Sign-in timed out. Please try again."), { duration: 1000 });
   } else {
-    toast.error(t("Something went wrong. Please try again."), { duration: 1000 });
+    errorToast(error, t("Something went wrong. Please try again."), { duration: 1000 });
   }
   if (auth && queryClient.getQueryState(["auth"])?.error === error) return;
   reportError(error);

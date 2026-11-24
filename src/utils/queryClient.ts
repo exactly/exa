@@ -1,14 +1,25 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+import type { toast } from "@tamagui/toast";
+
 import { sdk } from "@farcaster/miniapp-sdk";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { persistQueryClientRestore, persistQueryClientSubscribe } from "@tanstack/query-persist-client-core";
-import { dehydrate, onlineManager, QueryCache, QueryClient, skipToken, type Query } from "@tanstack/react-query";
+import {
+  dehydrate,
+  MutationCache,
+  onlineManager,
+  QueryCache,
+  QueryClient,
+  skipToken,
+  type Query,
+} from "@tanstack/react-query";
 import { deserialize, serialize } from "wagmi";
 import { hashFn, structuralSharing } from "wagmi/query";
 
 import chain from "@exactly/common/generated/chain";
 
+import errorToast from "./errorToast";
 import reportError from "./reportError";
 import { isAvailable as isOwnerAvailable } from "./wagmi/owner";
 import release from "../generated/release";
@@ -64,6 +75,12 @@ const queryClient = new (class extends QueryClient {
         if (value === "drop") return;
       }
       reportError(error);
+    },
+  }),
+  mutationCache: new MutationCache({
+    onError: (error, _variables, _context, mutation) => {
+      const notice = mutation.meta?.toast?.(error);
+      if (notice) errorToast(error, ...notice);
     },
   }),
   defaultOptions: {
@@ -377,6 +394,9 @@ export class NetworkError extends Error {
 declare module "@tanstack/react-query" {
   // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- module augmentation requires interface merging
   interface Register {
+    mutationMeta: {
+      toast?: (error: Error) => [title: string, options?: Parameters<typeof toast.error>[1]] | undefined;
+    };
     queryMeta: {
       dropError?: (error: unknown) => boolean | undefined;
       persist?: (data: never) => unknown;

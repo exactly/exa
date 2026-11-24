@@ -14,6 +14,7 @@ import { Download } from "../../generated/icons/Download";
 import { LetterText } from "../../generated/icons/LetterText";
 import { Table } from "../../generated/icons/Table";
 import { Upload } from "../../generated/icons/Upload";
+import errorToast from "../../utils/errorToast";
 import reportError from "../../utils/reportError";
 import { downloadStatement } from "../../utils/statement";
 import ModalSheet from "../shared/ModalSheet";
@@ -126,7 +127,7 @@ export default function ExportSheet({
     onClose();
     downloadStatement(maturity).catch((error: unknown) => {
       reportError(error);
-      toast.error(t("Couldn't download your statement. Please try again."));
+      errorToast(error, t("Couldn't download your statement. Please try again."));
     });
   }
 

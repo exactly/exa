@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 
 import { useRouter } from "expo-router";
 
-import { toast } from "@tamagui/toast";
 import { YStack } from "tamagui";
 
 import { useMutation } from "@tanstack/react-query";
@@ -36,15 +35,16 @@ export default function MissingTransferSheet({
       queryClient.invalidateQueries({ queryKey: ["ramp", "external-accounts"] }).catch(reportError);
       router.replace({ pathname: "/send-funds/new-recipient", params: { currency, provider } });
     },
-    onError: (error) => {
-      const inUse = error instanceof APIError && error.text === "withdrawal in progress";
-      if (!inUse) reportError(error);
-      toast.error(
-        inUse
+    meta: {
+      toast: (error) => [
+        error instanceof APIError && error.text === "withdrawal in progress"
           ? t("Can't delete this contact while a withdrawal is in progress.")
           : t("Couldn't delete the contact. Please try again."),
         { duration: 3000 },
-      );
+      ],
+    },
+    onError: (error) => {
+      if (!(error instanceof APIError && error.text === "withdrawal in progress")) reportError(error);
     },
   });
 

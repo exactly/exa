@@ -94,14 +94,14 @@ export default function NewRecipient() {
         params: { currency, provider, contactId: newAccount.id, ...(amount && { amount }) },
       });
     },
+    meta: {
+      toast: (error) => {
+        const codeMessage = error instanceof APIError ? errorMessages[error.text] : undefined;
+        return [codeMessage ? t(codeMessage) : t("Couldn't create the account. Please try again."), { duration: 3000 }];
+      },
+    },
     onError: (error) => {
-      const codeMessage = error instanceof APIError ? errorMessages[error.text] : undefined;
-      if (codeMessage) {
-        toast.error(t(codeMessage), { duration: 3000 });
-        return;
-      }
-      reportError(error);
-      toast.error(t("Couldn't create the account. Please try again."), { duration: 3000 });
+      if (!(error instanceof APIError && errorMessages[error.text])) reportError(error);
     },
   });
 

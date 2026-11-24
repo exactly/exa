@@ -35,7 +35,7 @@ import {
 } from "@exactly/common/generated/hooks";
 
 import InfoAlert from "./InfoAlert";
-import reportError from "../../utils/reportError";
+import reportError, { classifyError } from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useSingleMutation from "../../utils/useSingleMutation";
 import exa from "../../utils/wagmi/exa";
@@ -172,10 +172,12 @@ export default function PluginUpgrade() {
       }
       toast.success(t("Account upgraded!"), { duration: 1000 });
     },
+    meta: {
+      toast: (error) =>
+        classifyError(error).authKnown ? undefined : [t("Error upgrading account"), { duration: 1000 }],
+    },
     onError(error) {
-      if (!reportError(error).authKnown) {
-        toast.error(t("Error upgrading account"), { duration: 1000 });
-      }
+      reportError(error);
     },
   });
 

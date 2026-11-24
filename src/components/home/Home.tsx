@@ -38,6 +38,7 @@ import StocksIntroSheet from "./StocksIntroSheet";
 import VisaSignatureBanner from "./VisaSignatureBanner";
 import VisaSignatureModal from "./VisaSignatureSheet";
 import { revalidateUnsupported } from "../../utils/deployedOptions";
+import errorToast from "../../utils/errorToast";
 import { balancesOptions, restrictedCountries } from "../../utils/lifi";
 import { isPromoActive, PROMO } from "../../utils/promo";
 import queryClient from "../../utils/queryClient";
@@ -160,9 +161,9 @@ export default function Home() {
     onSuccess: (_data, mode) => {
       toast.success(mode === 0 ? t("Pay Now selected") : t("Installments selected", { count: mode }));
     },
+    meta: { toast: () => [t("Failed to update pay mode")] },
     onError: (error, _, context: undefined | { previous?: CardDetails }) => {
       if (context?.previous) queryClient.setQueryData(["card", "details"], context.previous);
-      toast.error(t("Failed to update pay mode"));
       reportError(error);
     },
   });
@@ -339,12 +340,12 @@ export default function Home() {
                         return;
                       }
                       refetchCard()
-                        .then(({ data }) => {
+                        .then(({ data, error }) => {
                           if (data?.displayName) {
                             setCardDetailsOpen(true);
                             return;
                           }
-                          toast.error(t("An error occurred. Please try again later."), { duration: 1000 });
+                          errorToast(error, t("An error occurred. Please try again later."), { duration: 1000 });
                         })
                         .catch(reportError);
                     }}

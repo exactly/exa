@@ -17,7 +17,6 @@ import { scheduleOnRN } from "react-native-worklets";
 
 import { selectionAsync } from "expo-haptics";
 
-import { toast } from "@tamagui/toast";
 import { AnimatePresence, Spinner, Square, useTheme, View, XStack, YStack } from "tamagui";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -78,9 +77,9 @@ export default function CardStatus({
   } = useMutation({
     mutationKey: ["card", "status"],
     mutationFn: setCardStatus,
+    meta: { toast: () => [t("An error occurred. Please try again later."), { duration: 1000 }] },
     onError: (error) => {
       reportError(error);
-      toast.error(t("An error occurred. Please try again later."), { duration: 1000 });
     },
     onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: ["card", "details"] });
