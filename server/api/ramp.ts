@@ -512,6 +512,7 @@ Pay the lock with a user operation that withdraws at least \`amount\` USDC to \`
                       Manteca.ErrorCodes.INVALID_QR,
                       Manteca.ErrorCodes.NO_DOCUMENT,
                       Manteca.ErrorCodes.NO_PERSONA_ACCOUNT,
+                      Manteca.ErrorCodes.RISKY_SOURCE_ADDRESS,
                     ]),
                   }),
                   { errorMode: "ignore" },
@@ -534,7 +535,8 @@ Pay the lock with a user operation that withdraws at least \`amount\` USDC to \`
           columns: { account: true },
         });
         if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
-        setUser({ id: parse(Address, credential.account) });
+        const account = parse(Address, credential.account);
+        setUser({ id: account });
 
         const personaAccount = await persona.getAccount(credentialId, "basic").catch((error: unknown) => {
           if (error instanceof ValiError && error.issues.every((issue: BaseIssue<unknown>) => isMissingOrNull(issue))) {
@@ -550,6 +552,7 @@ Pay the lock with a user operation that withdraws at least \`amount\` USDC to \`
             paymentDestination: payment.qr,
             amount: payment.amount,
             against: "USDC",
+            sourceAddress: account,
             sender: {
               legalIdNationality: document.id_issuing_country.value,
               legalId: document.id_number.value,
@@ -573,7 +576,9 @@ Pay the lock with a user operation that withdraws at least \`amount\` USDC to \`
         } catch (error) {
           if (
             error instanceof Error &&
-            (error.message === Manteca.ErrorCodes.INVALID_AMOUNT || error.message === Manteca.ErrorCodes.INVALID_QR)
+            (error.message === Manteca.ErrorCodes.INVALID_AMOUNT ||
+              error.message === Manteca.ErrorCodes.INVALID_QR ||
+              error.message === Manteca.ErrorCodes.RISKY_SOURCE_ADDRESS)
           ) {
             return c.json({ code: error.message }, 400);
           }
