@@ -4,6 +4,7 @@ import { captureException } from "@sentry/node";
 import { deserialize, serialize } from "@wagmi/core";
 import { parse } from "valibot";
 import { padHex } from "viem";
+import { generatePrivateKey, privateKeyToAddress } from "viem/accounts";
 import { moonbeamDev } from "viem/chains";
 import { describe, expect, it, vi } from "vitest";
 
@@ -53,15 +54,16 @@ describe("remember", () => {
 
 describe("refresh", () => {
   it("stores positions of card users", async () => {
+    const card = parse(Address, privateKeyToAddress(generatePrivateKey()));
     await database.insert(credentials).values({
       id: "refresh",
       publicKey: new Uint8Array(),
-      account,
-      factory: account,
+      account: card,
+      factory: card,
       pandaId: "refresh",
     });
 
-    refresh(database, redis, account, chain.id);
+    refresh(database, redis, card, chain.id);
 
     await vi.waitFor(() => expect(redis.hexists(key("refresh"), String(chain.id))).resolves.toBe(1));
   });
@@ -114,7 +116,7 @@ describe("refresh", () => {
   });
 
   it("skips accounts without card", async () => {
-    const other = parse(Address, padHex("0x5678", { size: 20 }));
+    const other = parse(Address, privateKeyToAddress(generatePrivateKey()));
     await database
       .insert(credentials)
       .values({ id: "no-card", publicKey: new Uint8Array(), account: other, factory: other });
