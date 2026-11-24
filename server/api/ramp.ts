@@ -578,6 +578,7 @@ A lock whose \`amount\` is below the minimum order returns \`400\` with \`invali
               name: personaAccount.attributes.fields.name.value.first.value,
               surname: personaAccount.attributes.fields.name.value.last.value,
             },
+            sourceAddress: account,
           });
           if (!lock.code) return c.json({ recipient: lock.paymentRecipientName, asset: lock.paymentAsset }, 206);
           if (!lock.sender) throw new Error("lock without sender");

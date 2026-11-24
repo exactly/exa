@@ -1900,6 +1900,7 @@ describe("ramp api", () => {
           paymentDestination: "qr3",
           against: "USDC",
           sender: { legalIdNationality: "AR", legalId: "30123456", name: "Jane", surname: "Doe" },
+          sourceAddress: account,
         });
         expect(manteca.getSettlement).toHaveBeenCalledWith("ARS");
         expect(getMinimum).toHaveBeenCalledExactlyOnceWith();

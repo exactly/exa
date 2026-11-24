@@ -383,7 +383,8 @@ export default function manteca(key: string, url: string) {
     return DevelopmentChainIds.includes(chain.id as (typeof DevelopmentChainIds)[number]);
   }
   async function lockQRPayment(lock: InferInput<typeof PaymentLock>) {
-    return await request(QRPaymentResponse, "/crypto/v2/payment-locks", {}, lock, "POST", 10_000).catch(
+    const body = { ...lock, sourceNetwork: Supported[chain.id] };
+    return await request(QRPaymentResponse, "/crypto/v2/payment-locks", {}, body, "POST", 10_000).catch(
       (error: unknown) => {
         if (error instanceof ServiceError && typeof error.cause === "string") {
           if (error.cause.includes(MantecaApiErrorCodes.INVALID_AMOUNT)) throw new Error(ErrorCodes.INVALID_AMOUNT);
@@ -752,6 +753,7 @@ export const PaymentLock = object({
   amount: optional(string()),
   against: optional(string()),
   sender: object({ legalIdNationality: string(), legalId: string(), name: string(), surname: string() }),
+  sourceAddress: Address,
 });
 
 export const QRPaymentResponse = object({
