@@ -765,7 +765,15 @@ describe("manteca utils", () => {
   });
 
   describe("lockQRPayment", () => {
-    it("locks with the real payer as sender", async () => {
+    const address = parse(Address, padHex("0x1", { size: 20 }));
+
+    it.each([
+      [optimism.id, "OPTIMISM"],
+      [optimismSepolia.id, "OPTIMISM"],
+      [base.id, "BASE"],
+      [baseSepolia.id, "BASE"],
+    ])("locks with the real payer as sender on chain %i", async (id, sourceNetwork) => {
+      chainMock.id = id;
       const lock = {
         code: "fa44218d-7b3c-4a1e-bc9f-2d5e8f01c3a7",
         type: "QR3",
@@ -787,7 +795,7 @@ describe("manteca utils", () => {
       const sender = { legalIdNationality: "ARGENTINA", legalId: "12345678", name: "JANE", surname: "DOE" };
 
       await expect(
-        manteca.lockQRPayment({ paymentDestination: "qr3", against: "USDC", sender }),
+        manteca.lockQRPayment({ paymentDestination: "qr3", against: "USDC", sender, sourceAddress: address }),
       ).resolves.toStrictEqual({ ...lock, sender: { legalId: "12345678" } });
 
       expect(fetchSpy).toHaveBeenCalledOnce();
@@ -797,6 +805,8 @@ describe("manteca utils", () => {
         paymentDestination: "qr3",
         against: "USDC",
         sender,
+        sourceAddress: address,
+        sourceNetwork,
       });
     });
 
@@ -822,6 +832,7 @@ describe("manteca utils", () => {
           amount: "0",
           against: "USDC",
           sender: { legalIdNationality: "AR", legalId: "12345678", name: "JANE", surname: "DOE" },
+          sourceAddress: address,
         }),
       ).rejects.toThrow(new Error(code));
     });
@@ -837,6 +848,7 @@ describe("manteca utils", () => {
           paymentDestination: "qr3",
           against: "USDC",
           sender: { legalIdNationality: "AR", legalId: "12345678", name: "JANE", surname: "DOE" },
+          sourceAddress: address,
         }),
       ).rejects.toThrow(type);
     });
@@ -866,6 +878,7 @@ describe("manteca utils", () => {
         paymentDestination: "qr3manualamount", // cspell:ignore manualamount
         against: "USDC",
         sender: { legalIdNationality: "AR", legalId: "30123456", name: "Juan", surname: "Perez" },
+        sourceAddress: parse(Address, padHex("0x1", { size: 20 })),
       }),
     ).resolves.toStrictEqual({
       code: "",
