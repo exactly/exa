@@ -256,12 +256,14 @@ export async function setCardPIN(pin: string) {
   if (!response.ok) throw new APIError("PATCH", response, stringOrLegacy(await response.json()));
 }
 
+export const sessions = new Map<string, { inquiryId: string; sessionToken: string }>();
+
 export async function getKYCTokens(
   scope: InferRequestType<typeof api.kyc.$post>["json"]["scope"] = "basic",
   redirectURI?: string,
 ) {
   await auth();
-  const response = await api.kyc.$post({ json: { scope, redirectURI } });
+  const response = await api.kyc.$post({ json: { scope, redirectURI, tokens: sessions.get(scope) } });
   if (!response.ok) {
     const { code } = await response.json();
     throw new APIError("POST", response, code);
@@ -358,7 +360,7 @@ queryClient.setQueryDefaults(["kyc", "panda-business"], {
 
 export async function startApplication() {
   await auth();
-  const response = await api.kyc.$post({ json: { scope: "panda-business" } });
+  const response = await api.kyc.$post({ json: { scope: "panda-business", tokens: sessions.get("panda-business") } });
   if (!response.ok) throw new APIError("POST", response, stringOrLegacy(await response.json()));
   return response.json();
 }
