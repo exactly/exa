@@ -181,6 +181,13 @@ init({
       const exception = event.exception?.values?.[0];
       if (exception) exception.type = reason ?? "unknown";
     }
+    if (Platform.OS === "web") {
+      const extension = extensionSource(hint.originalException);
+      if (extension) {
+        event.level = "info";
+        event.tags = { ...event.tags, source: "extension", extension };
+      }
+    }
     return event;
   },
   spotlight: e2e || (__DEV__ && !!process.env.EXPO_PUBLIC_SENTRY_DSN),
@@ -360,4 +367,14 @@ function Navigator() {
       <WalletSwitchSheet />
     </>
   );
+}
+
+function extensionSource(error: unknown) {
+  if (typeof error !== "object" || !error || !("stack" in error) || typeof error.stack !== "string") return;
+  const urls = error.stack
+    .split("\n")
+    .filter((line) => /^\s*at |@/.test(line))
+    .flatMap((line) => /[a-z][\w+.-]*:\/\/[^\s)]+/i.exec(line)?.[0] ?? []);
+  if (urls.some((url) => url.startsWith(`${origin}/`))) return;
+  return urls.map((url) => /^[a-z-]*extension:\/\/([^/]+)\//.exec(url)?.[1]).find(Boolean);
 }
