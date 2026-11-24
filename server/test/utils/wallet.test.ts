@@ -169,7 +169,54 @@ describe("fault tolerance", () => {
     expect(captureException).not.toHaveBeenCalled();
   });
 
-  it("captures other invalid input errors on rebroadcast", async () => {
+  it("skips capture when rebroadcast finds the transaction mined", async () => {
+    const sendRawTransaction = vi.spyOn(publicClient, "sendRawTransaction");
+    const waitForTransactionReceipt = publicClient.waitForTransactionReceipt;
+    vi.spyOn(publicClient, "waitForTransactionReceipt").mockImplementation(async (parameters) => {
+      await vi.waitUntil(() => sendRawTransaction.mock.settledResults[1]?.type === "rejected", {
+        timeout: 15_000,
+        interval: 100,
+      });
+      return waitForTransactionReceipt(parameters);
+    });
+    const receipt = await keeper.exaSend(
+      { name: "test transfer", op: "test.transfer" },
+      { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
+    );
+
+    expect(receipt?.status).toBe("success");
+    expect(sendRawTransaction.mock.settledResults[0]?.type).toBe("fulfilled");
+    expect(sendRawTransaction.mock.settledResults[1]).toMatchObject({
+      type: "rejected",
+      value: { details: "nonce too low" },
+    });
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("captures rebroadcast errors while the transaction is not mined", async () => {
+    const getTransactionReceipt = vi
+      .spyOn(publicClient, "getTransactionReceipt")
+      .mockRejectedValueOnce(new Error("missing receipt"));
+    const waitForTransactionReceipt = publicClient.waitForTransactionReceipt;
+    vi.spyOn(publicClient, "waitForTransactionReceipt").mockImplementation(async (parameters) => {
+      await vi.waitUntil(() => getTransactionReceipt.mock.settledResults[0]?.type === "rejected", {
+        timeout: 15_000,
+        interval: 100,
+      });
+      return waitForTransactionReceipt(parameters);
+    });
+    const receipt = await keeper.exaSend(
+      { name: "test transfer", op: "test.transfer" },
+      { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
+    );
+
+    expect(receipt?.status).toBe("success");
+    expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ details: "nonce too low" }), {
+      level: "error",
+    });
+  });
+
+  it("captures invalid input errors on first send", async () => {
     const invalid = new InvalidInputRpcError(
       new RpcRequestError({ body: {}, url: "", error: { code: -32_000, message: "nonce too low" } }),
     );

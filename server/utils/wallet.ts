@@ -81,7 +81,7 @@ export function extender(
   }: {
     publicClient?: Pick<
       PublicActions<Transport, Chain>,
-      "sendRawTransaction" | "simulateContract" | "waitForTransactionReceipt"
+      "getTransactionReceipt" | "sendRawTransaction" | "simulateContract" | "waitForTransactionReceipt"
     >;
     traceClient?: Pick<typeof defaultTraceClient, "traceTransaction">;
   } = {},
@@ -155,8 +155,9 @@ export function extender(
                 await Promise.allSettled([
                   startSpan({ name: "send transaction", op: "tx.send" }, () =>
                     publicClient.sendRawTransaction({ serializedTransaction }),
-                  ).catch((error: unknown) => {
-                    if (!(error instanceof InvalidInputRpcError && error.details === "already known")) {
+                  ).catch(async (error: unknown) => {
+                    const known = error instanceof InvalidInputRpcError && error.details === "already known";
+                    if (!known && !(await publicClient.getTransactionReceipt({ hash }).catch(() => null))) {
                       captureException(error, { level: "error" });
                     }
                     throw error;
