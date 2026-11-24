@@ -239,9 +239,12 @@ export default function route({
         switch (query.provider) {
           case "manteca": {
             if (query.direction === "qr") {
-              const quote = await manteca.getQuote(`USDC_${query.currency}`);
+              const [quote, min] = await Promise.all([
+                manteca.getQuote(`USDC_${query.currency}`),
+                manteca.getMinimum(),
+              ]);
               if (!quote) return c.json({ code: ErrorCodes.NO_QUOTE }, 503);
-              return c.json({ quote, depositInfo: [] } satisfies InferOutput<typeof RampResponse>, 200);
+              return c.json({ quote, depositInfo: [], min } satisfies InferOutput<typeof RampResponse>, 200);
             }
             const mantecaUser = await manteca.getUser(account);
             if (!mantecaUser) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
@@ -1061,6 +1064,7 @@ const RampResponse = object({
       }),
     ]),
   ),
+  min: optional(string()),
 });
 
 const ProviderStatus = picklist(["ACTIVE", "CONTACT_SUPPORT", "NOT_AVAILABLE", "NOT_STARTED", "ONBOARDING"]);
