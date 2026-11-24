@@ -367,9 +367,10 @@ describe("ramp api", () => {
         });
       });
 
-      it("returns the qr quote without manteca user", async () => {
+      it("returns the qr quote and minimum without manteca user", async () => {
         const getUser = vi.spyOn(manteca, "getUser").mockResolvedValue(null);
         const getQuote = vi.spyOn(manteca, "getQuote").mockResolvedValue({ buyRate: "5.52", sellRate: "5.41" });
+        const getMinimum = vi.spyOn(manteca, "getMinimum").mockResolvedValueOnce("0.1");
         const getDepositDetails = vi.spyOn(manteca, "getDepositDetails");
 
         const response = await appClient.quote.$get(
@@ -381,11 +382,34 @@ describe("ramp api", () => {
         await expect(response.json()).resolves.toStrictEqual({
           quote: { buyRate: "5.52", sellRate: "5.41" },
           depositInfo: [],
+          min: "0.1",
         });
         expect(getQuote).toHaveBeenCalledExactlyOnceWith("USDC_BRL");
+        expect(getMinimum).toHaveBeenCalledExactlyOnceWith();
         expect(getUser).not.toHaveBeenCalled();
         expect(getDepositDetails).not.toHaveBeenCalled();
         expect(captureException).not.toHaveBeenCalled();
+      });
+
+      it("omits the qr minimum when the operation limits fail", async () => {
+        vi.spyOn(manteca, "getQuote").mockResolvedValue({ buyRate: "1650.10", sellRate: "1607.89" });
+        const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response("internal", { status: 500 }));
+
+        const response = await appClient.quote.$get(
+          { query: { provider: "manteca", currency: "ARS", direction: "qr" } },
+          { headers: { "test-credential-id": "ramp-test" } },
+        );
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({
+          quote: { buyRate: "1650.10", sellRate: "1607.89" },
+          depositInfo: [],
+        });
+        expect(fetchSpy).toHaveBeenCalledExactlyOnceWith(
+          `${env.MANTECA_API_URL}/crypto/v2/info/operation-limits`,
+          expect.objectContaining({ method: "GET" }),
+        );
+        expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(ServiceError), { level: "warning" });
       });
 
       it("returns 400 for unsupported currency", async () => {
