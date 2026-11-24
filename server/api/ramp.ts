@@ -228,10 +228,11 @@ export default function route({
         switch (query.provider) {
           case "manteca": {
             if (query.direction === "qr") {
-              return c.json(
-                { quote: (await manteca.getQuote(`USDC_${query.currency}`)) satisfies QuoteResponse, depositInfo: [] },
-                200,
-              );
+              const [quote, min] = await Promise.all([
+                manteca.getQuote(`USDC_${query.currency}`),
+                manteca.getMinimum(),
+              ]);
+              return c.json({ quote: quote satisfies QuoteResponse, depositInfo: [], min }, 200);
             }
             const mantecaUser = await manteca.getUser(account);
             if (!mantecaUser) return c.json({ code: ErrorCodes.NOT_STARTED }, 400);
