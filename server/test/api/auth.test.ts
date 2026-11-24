@@ -1313,14 +1313,14 @@ describe("registration", () => {
     );
 
     const response = await postRegistrationWebauthn({
-      id: "YXV0aDpyZWdpc3RyYXRpb24tY3VydmU",
-      rawId: "YXV0aDpyZWdpc3RyYXRpb24tY3VydmU",
+      id: "YXV0aDpyZWdpc3RyYXRpb24tY3VydmU", // cspell:ignore Wdpc Vydm
+      rawId: "YXV0aDpyZWdpc3RyYXRpb24tY3VydmU", // cspell:ignore Wdpc Vydm
     });
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toStrictEqual({ code: "bad registration", legacy: "bad registration" });
     await expect(
-      database.query.credentials.findFirst({ where: eq(credentials.id, "YXV0aDpyZWdpc3RyYXRpb24tY3VydmU") }),
+      database.query.credentials.findFirst({ where: eq(credentials.id, "YXV0aDpyZWdpc3RyYXRpb24tY3VydmU") }), // cspell:ignore Wdpc Vydm
     ).resolves.toBeUndefined();
   });
 
