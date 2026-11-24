@@ -335,6 +335,7 @@ export default function route({
         object({
           redirectURI: optional(string()),
           scope: optional(Scope),
+          tokens: optional(object({ inquiryId: string(), sessionToken: string() })),
         }),
         validatorHook({ debug }),
       ),
@@ -343,6 +344,7 @@ export default function route({
         const payload = c.req.valid("json");
         const scope = payload.scope ?? "basic";
         const redirectURI = payload.redirectURI;
+        const tokens = payload.tokens;
         const credential = await database.query.credentials.findFirst({
           columns: { id: true, account: true, pandaId: true, salt: true },
           where: eq(credentials.id, credentialId),
@@ -496,7 +498,7 @@ export default function route({
                   case "created":
                   case "pending":
                   case "expired":
-                    return c.json(await generateInquiryTokens(inquiry.id, persona), 200);
+                    return await resume(template, inquiry.id, inquiry.attributes.status);
                   case "completed":
                   case "needs_review":
                     return c.json({ code: "processing" }, 400);
@@ -531,22 +533,17 @@ export default function route({
         if (scope === "cardLimit") {
           const unknownAccount = await persona.getUnknownAccount(credentialId);
           const cardLimit = await persona.getCardLimitStatus(credentialId, unknownAccount);
+          const names = parse(
+            fallback(optional(object({ "name-first": string(), "name-last": string() })), () => undefined),
+            unknownAccount.data[0]?.attributes,
+          );
           switch (cardLimit.status) {
             case "resolved":
               return c.json({ code: "already approved" }, 400);
             case "noTemplate":
               return c.json({ code: "not started" }, 400);
             case "noInquiry": {
-              const names = safeParse(
-                object({ "name-first": string(), "name-last": string() }),
-                unknownAccount.data[0]?.attributes,
-              );
-              const { data } = await persona.createInquiry(
-                credentialId,
-                CARD_LIMIT_TEMPLATE,
-                redirectURI,
-                names.success ? names.output : undefined,
-              );
+              const { data } = await persona.createInquiry(credentialId, CARD_LIMIT_TEMPLATE, redirectURI, names);
               return c.json(await generateInquiryTokens(data.id, persona), 200);
             }
             case "approved":
@@ -556,7 +553,7 @@ export default function route({
             case "pending":
             case "created":
             case "expired":
-              return c.json(await generateInquiryTokens(cardLimit.id, persona), 200);
+              return resume(CARD_LIMIT_TEMPLATE, cardLimit.id, cardLimit.status, names);
             case "failed":
             case "declined":
               return c.json({ code: "failed" }, 400);
@@ -585,24 +582,7 @@ export default function route({
             scope !== "business" &&
             (await canRetry(credentialId, inquiryTemplateId, persona)))
         ) {
-          const attempt = `${credentialId}:${inquiryTemplateId}:${inquiry?.id ?? "initial"}`;
-          const key = `kyc:inquiry:${attempt}`;
-          if (!(await redis.set(key, "", "EX", 60, "NX"))) {
-            const createdId = await redis.get(key);
-            if (!createdId) return c.json({ code: "processing" }, 409);
-            return c.json(await generateInquiryTokens(createdId, persona), 200);
-          }
-          const generation = Number(await redis.getex(`${key}:generation`, "EX", 86_400)); // cspell:ignore getex
-          const { data } = await persona
-            .createInquiry(credentialId, inquiryTemplateId, redirectURI, undefined, `${attempt}:${generation}`)
-            .catch(async (error: unknown) => {
-              if (error instanceof ServiceError && !UNSETTLED_STATUSES.has(error.status)) {
-                await redis.multi().incr(`${key}:generation`).expire(`${key}:generation`, 86_400).del(key).exec();
-              }
-              throw error;
-            });
-          await redis.set(key, data.id, "EX", 86_400);
-          return c.json(await generateInquiryTokens(data.id, persona), 200);
+          return create(inquiryTemplateId, inquiry?.id);
         }
 
         switch (inquiry.attributes.status) {
@@ -623,9 +603,50 @@ export default function route({
           case "pending":
           case "created":
           case "expired":
-            return c.json(await generateInquiryTokens(inquiry.id, persona), 200);
+            return resume(inquiryTemplateId, inquiry.id, inquiry.attributes.status);
           default:
             throw new Error("unknown inquiry status");
+        }
+
+        async function resume(
+          template: string,
+          id: string,
+          status: string,
+          fields?: Parameters<typeof persona.createInquiry>[3],
+        ) {
+          try {
+            return c.json(await generateInquiryTokens(id, persona, status === "expired" ? undefined : tokens), 200);
+          } catch (error: unknown) {
+            if (!(error instanceof ServiceError && String(error.cause).includes("inquiry_session_limit_exceeded"))) {
+              throw error;
+            }
+            return create(template, id, fields);
+          }
+        }
+
+        async function create(
+          template: string,
+          previous = "initial",
+          fields?: Parameters<typeof persona.createInquiry>[3],
+        ) {
+          const attempt = `${credentialId}:${template}:${previous}`;
+          const key = `kyc:inquiry:${attempt}`;
+          if (!(await redis.set(key, "", "EX", 60, "NX"))) {
+            const createdId = await redis.get(key);
+            if (!createdId) return c.json({ code: "processing" }, 409);
+            return c.json(await generateInquiryTokens(createdId, persona), 200);
+          }
+          const generation = Number(await redis.getex(`${key}:generation`, "EX", 86_400)); // cspell:ignore getex
+          const { data } = await persona
+            .createInquiry(credentialId, template, redirectURI, fields, `${attempt}:${generation}`)
+            .catch(async (error: unknown) => {
+              if (error instanceof ServiceError && !UNSETTLED_STATUSES.has(error.status)) {
+                await redis.multi().incr(`${key}:generation`).expire(`${key}:generation`, 86_400).del(key).exec();
+              }
+              throw error;
+            });
+          await redis.set(key, data.id, "EX", 86_400);
+          return c.json(await generateInquiryTokens(data.id, persona), 200);
         }
       },
     )
@@ -1056,7 +1077,12 @@ export async function canRetry(credentialId: string, templateId: string, persona
   return failed.length < MAX_FAILED_INQUIRIES;
 }
 
-async function generateInquiryTokens(inquiryId: string, persona: ReturnType<typeof createPersona>) {
+async function generateInquiryTokens(
+  inquiryId: string,
+  persona: ReturnType<typeof createPersona>,
+  tokens?: { inquiryId: string; sessionToken: string },
+) {
+  if (tokens?.inquiryId === inquiryId) return { inquiryId, sessionToken: tokens.sessionToken, type: "persona" };
   const { meta: sessionTokenMeta } = await persona.resumeInquiry(inquiryId);
   return { inquiryId, sessionToken: sessionTokenMeta["session-token"], type: "persona" };
 }

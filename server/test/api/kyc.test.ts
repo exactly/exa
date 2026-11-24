@@ -649,6 +649,144 @@ describe("authenticated", () => {
         expect(response.status).toBe(200);
       });
 
+      it.each(["created", "pending"] as const)("reuses session token of a %s inquiry", async (status) => {
+        const resumeInquiry = vi.spyOn(persona, "resumeInquiry");
+        vi.spyOn(persona, "getPendingInquiryTemplate").mockResolvedValueOnce(persona.PANDA_TEMPLATE);
+        vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+          ...personaTemplate,
+          attributes: { ...personaTemplate.attributes, status },
+        });
+
+        const response = await appClient.index.$post(
+          { json: { scope: "basic", tokens: { inquiryId: personaTemplate.id, sessionToken: "device-session-token" } } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(resumeInquiry).not.toHaveBeenCalled();
+        await expect(response.json()).resolves.toStrictEqual({
+          type: "persona",
+          sessionToken: "device-session-token",
+          inquiryId: personaTemplate.id,
+        });
+        expect(response.status).toBe(200);
+      });
+
+      it("resumes expired inquiry instead of reusing its session token", async () => {
+        const resumeInquiry = vi.spyOn(persona, "resumeInquiry").mockResolvedValueOnce(resumeTemplate);
+        vi.spyOn(persona, "getPendingInquiryTemplate").mockResolvedValueOnce(persona.PANDA_TEMPLATE);
+        vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+          ...personaTemplate,
+          attributes: { ...personaTemplate.attributes, status: "expired" },
+        });
+
+        const response = await appClient.index.$post(
+          { json: { scope: "basic", tokens: { inquiryId: personaTemplate.id, sessionToken: "device-session-token" } } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(resumeInquiry).toHaveBeenCalledWith(personaTemplate.id);
+        await expect(response.json()).resolves.toStrictEqual({
+          type: "persona",
+          sessionToken: resumeTemplate.meta["session-token"],
+          inquiryId: personaTemplate.id,
+        });
+        expect(response.status).toBe(200);
+      });
+
+      it("resumes inquiry when session token belongs to another inquiry", async () => {
+        const resumeInquiry = vi.spyOn(persona, "resumeInquiry").mockResolvedValueOnce(resumeTemplate);
+        vi.spyOn(persona, "getPendingInquiryTemplate").mockResolvedValueOnce(persona.PANDA_TEMPLATE);
+        vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+          ...personaTemplate,
+          attributes: { ...personaTemplate.attributes, status: "pending" },
+        });
+
+        const response = await appClient.index.$post(
+          { json: { scope: "basic", tokens: { inquiryId: "other-inquiry", sessionToken: "device-session-token" } } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(resumeInquiry).toHaveBeenCalledWith(personaTemplate.id);
+        await expect(response.json()).resolves.toStrictEqual({
+          type: "persona",
+          sessionToken: resumeTemplate.meta["session-token"],
+          inquiryId: personaTemplate.id,
+        });
+        expect(response.status).toBe(200);
+      });
+
+      it.each(["created", "pending", "expired"] as const)(
+        "creates inquiry when a %s inquiry runs out of sessions",
+        async (status) => {
+          const cappedId = `capped-${crypto.randomUUID()}`;
+          const renewedId = `renewed-${crypto.randomUUID()}`;
+          const key = `kyc:inquiry:bob:${persona.PANDA_TEMPLATE}:${cappedId}`;
+          vi.spyOn(persona, "getPendingInquiryTemplate").mockResolvedValueOnce(persona.PANDA_TEMPLATE);
+          vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+            ...personaTemplate,
+            id: cappedId,
+            attributes: { ...personaTemplate.attributes, status },
+          });
+          const resumeInquiry = vi
+            .spyOn(persona, "resumeInquiry")
+            .mockRejectedValueOnce(
+              new ServiceError(
+                "Persona",
+                403,
+                '{"errors":[{"title":"Too many sessions","code":"inquiry_session_limit_exceeded"}]}',
+              ),
+            )
+            .mockResolvedValueOnce({ ...resumeTemplate, data: { ...resumeTemplate.data, id: renewedId } });
+          const createInquiry = vi
+            .spyOn(persona, "createInquiry")
+            .mockResolvedValueOnce({ data: { ...inquiry.data, id: renewedId } });
+
+          const response = await appClient.index.$post(
+            { json: { scope: "basic" } },
+            { headers: { "test-credential-id": "bob" } },
+          );
+
+          expect(resumeInquiry.mock.calls).toStrictEqual([[cappedId], [renewedId]]);
+          expect(createInquiry.mock.calls).toStrictEqual([
+            ["bob", persona.PANDA_TEMPLATE, undefined, undefined, `bob:${persona.PANDA_TEMPLATE}:${cappedId}:0`],
+          ]);
+          await expect(response.json()).resolves.toStrictEqual({
+            type: "persona",
+            sessionToken: resumeTemplate.meta["session-token"],
+            inquiryId: renewedId,
+          });
+          expect(response.status).toBe(200);
+          expect(captureException).not.toHaveBeenCalled();
+          await expect(redis.get(key)).resolves.toBe(renewedId);
+        },
+      );
+
+      it.each([
+        ["another persona rejection", new ServiceError("Persona", 403, '{"errors":[{"title":"Forbidden"}]}')],
+        ["an unexpected error", new Error("network failure")],
+      ])("keeps inquiry when resume fails with %s", async (_, error) => {
+        const pendingId = `pending-${crypto.randomUUID()}`;
+        vi.spyOn(persona, "getPendingInquiryTemplate").mockResolvedValueOnce(persona.PANDA_TEMPLATE);
+        vi.spyOn(persona, "getInquiry").mockResolvedValueOnce({
+          ...personaTemplate,
+          id: pendingId,
+          attributes: { ...personaTemplate.attributes, status: "pending" },
+        });
+        const resumeInquiry = vi.spyOn(persona, "resumeInquiry").mockRejectedValueOnce(error);
+        const createInquiry = vi.spyOn(persona, "createInquiry");
+
+        const response = await appClient.index.$post(
+          { json: { scope: "basic" } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(response.status).toBe(500);
+        await expect(response.text()).resolves.toBe("Internal Server Error");
+        expect(resumeInquiry).toHaveBeenCalledExactlyOnceWith(pendingId);
+        expect(createInquiry).not.toHaveBeenCalled();
+        await expect(redis.exists(`kyc:inquiry:bob:${persona.PANDA_TEMPLATE}:${pendingId}`)).resolves.toBe(0);
+      });
+
       it("returns session token when creating inquiry after failed inquiry", async () => {
         const sessionToken = "persona-session-token";
         const failedId = `failed-${crypto.randomUUID()}`;
@@ -2036,6 +2174,76 @@ describe("authenticated", () => {
         expect(response.status).toBe(200);
       });
 
+      it.each(["created", "pending"] as const)("reuses session token of a %s inquiry", async (status) => {
+        const resumeInquiry = vi.spyOn(persona, "resumeInquiry");
+        vi.spyOn(persona, "getCardLimitStatus").mockResolvedValueOnce({ status, id: personaTemplate.id });
+
+        const response = await appClient.index.$post(
+          {
+            json: {
+              scope: "cardLimit",
+              tokens: { inquiryId: personaTemplate.id, sessionToken: "device-session-token" },
+            },
+          },
+          { headers: { "test-credential-id": "bob" } },
+        );
+
+        expect(resumeInquiry).not.toHaveBeenCalled();
+        await expect(response.json()).resolves.toStrictEqual({
+          inquiryId: personaTemplate.id,
+          sessionToken: "device-session-token",
+          type: "persona",
+        });
+        expect(response.status).toBe(200);
+      });
+
+      it.each(["created", "pending", "expired"] as const)(
+        "creates inquiry when a %s inquiry runs out of sessions",
+        async (status) => {
+          const cappedId = `capped-${crypto.randomUUID()}`;
+          const renewedId = `renewed-${crypto.randomUUID()}`;
+          vi.spyOn(persona, "getCardLimitStatus").mockResolvedValueOnce({ status, id: cappedId });
+          const resumeInquiry = vi
+            .spyOn(persona, "resumeInquiry")
+            .mockRejectedValueOnce(
+              new ServiceError(
+                "Persona",
+                403,
+                '{"errors":[{"title":"Too many sessions","code":"inquiry_session_limit_exceeded"}]}',
+              ),
+            )
+            .mockResolvedValueOnce({ ...resumeTemplate, data: { ...resumeTemplate.data, id: renewedId } });
+          const createInquiry = vi
+            .spyOn(persona, "createInquiry")
+            .mockResolvedValueOnce({ data: { ...inquiry.data, id: renewedId } });
+
+          const response = await appClient.index.$post(
+            { json: { scope: "cardLimit" } },
+            { headers: { "test-credential-id": "bob" } },
+          );
+
+          expect(resumeInquiry.mock.calls).toStrictEqual([[cappedId], [renewedId]]);
+          expect(createInquiry.mock.calls).toStrictEqual([
+            [
+              "bob",
+              persona.CARD_LIMIT_TEMPLATE,
+              undefined,
+              { "name-first": "ALEXANDER J", "name-last": "SAMPLE" },
+              `bob:${persona.CARD_LIMIT_TEMPLATE}:${cappedId}:0`,
+            ],
+          ]);
+          await expect(response.json()).resolves.toStrictEqual({
+            inquiryId: renewedId,
+            sessionToken: resumeTemplate.meta["session-token"],
+            type: "persona",
+          });
+          expect(response.status).toBe(200);
+          await expect(redis.get(`kyc:inquiry:bob:${persona.CARD_LIMIT_TEMPLATE}:${cappedId}`)).resolves.toBe(
+            renewedId,
+          );
+        },
+      );
+
       it.each(["declined", "failed"] as const)("returns failed for %s inquiry", async (status) => {
         vi.spyOn(persona, "getCardLimitStatus").mockResolvedValueOnce({ status, id: personaTemplate.id });
 
@@ -2728,6 +2936,87 @@ describe("authenticated", () => {
           type: "persona",
         });
       });
+
+      it.each(["created", "pending"] as const)("reuses session token of a %s checkbox inquiry", async (status) => {
+        vi.spyOn(panda, "getCompanyApplication").mockResolvedValue({
+          id: businessId,
+          applicationStatus: "approved",
+          applicationReason: "",
+        });
+        vi.spyOn(persona, "getInquiry").mockResolvedValue({
+          ...personaTemplate,
+          attributes: { ...personaTemplate.attributes, status },
+        });
+        const resumeInquiry = vi.spyOn(persona, "resumeInquiry");
+
+        const response = await appClient.index.$post(
+          {
+            json: {
+              scope: "panda-business",
+              tokens: { inquiryId: personaTemplate.id, sessionToken: "device-session-token" },
+            },
+          },
+          { headers: { "test-credential-id": businessId, SessionID: "fakeSession", "do-connecting-ip": "127.0.0.1" } },
+        );
+
+        expect(response.status).toBe(200);
+        expect(resumeInquiry).not.toHaveBeenCalled();
+        await expect(response.json()).resolves.toStrictEqual({
+          inquiryId: personaTemplate.id,
+          sessionToken: "device-session-token",
+          type: "persona",
+        });
+      });
+
+      it.each(["created", "pending", "expired"] as const)(
+        "creates checkbox inquiry when a %s one runs out of sessions",
+        async (status) => {
+          const cappedId = `capped-${crypto.randomUUID()}`;
+          const renewedId = `renewed-${crypto.randomUUID()}`;
+          vi.spyOn(panda, "getCompanyApplication").mockResolvedValue({
+            id: businessId,
+            applicationStatus: "approved",
+            applicationReason: "",
+          });
+          vi.spyOn(persona, "getInquiry").mockResolvedValue({
+            ...personaTemplate,
+            id: cappedId,
+            attributes: { ...personaTemplate.attributes, status },
+          });
+          const resumeInquiry = vi
+            .spyOn(persona, "resumeInquiry")
+            .mockRejectedValueOnce(
+              new ServiceError(
+                "Persona",
+                403,
+                '{"errors":[{"title":"Too many sessions","code":"inquiry_session_limit_exceeded"}]}',
+              ),
+            )
+            .mockResolvedValueOnce({ ...resumeTemplate, data: { ...resumeTemplate.data, id: renewedId } });
+          const createInquiry = vi
+            .spyOn(persona, "createInquiry")
+            .mockResolvedValueOnce({ data: { ...inquiry.data, id: renewedId } });
+
+          const response = await submit("panda-business", { "do-connecting-ip": "127.0.0.1" });
+
+          expect(response.status).toBe(200);
+          expect(resumeInquiry.mock.calls).toStrictEqual([[cappedId], [renewedId]]);
+          expect(createInquiry.mock.calls).toStrictEqual([
+            [
+              businessId,
+              persona.PANDA_BUSINESS_CHECKBOX_TEMPLATE,
+              undefined,
+              undefined,
+              `${businessId}:${persona.PANDA_BUSINESS_CHECKBOX_TEMPLATE}:${cappedId}:0`,
+            ],
+          ]);
+          await expect(response.json()).resolves.toStrictEqual({
+            inquiryId: renewedId,
+            sessionToken: resumeTemplate.meta["session-token"],
+            type: "persona",
+          });
+        },
+      );
 
       it.each([
         ["completed", "processing"],
