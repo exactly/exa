@@ -513,6 +513,9 @@ importers:
       expo-localization:
         specifier: ~55.0.9
         version: 55.0.9(expo@55.0.9)(react@19.2.0)
+      expo-network:
+        specifier: ~55.0.9
+        version: 55.0.18(expo@55.0.9)(react@19.2.0)
       expo-router:
         specifier: ~55.0.5
         version: 55.0.8(e648b7c2d7f97def12d5a5dbfb5d4641)
@@ -11141,6 +11144,12 @@ packages:
     peerDependencies:
       react: '*'
       react-native: '*'
+
+  expo-network@55.0.18:
+    resolution: {integrity: sha512-zHKgRbTbPAN/TYbnV4r2DGlTvq5DG26n/N0S/MF41i3S/kcU6fad/YNgdkixmXt2JFNOCfT3OnouV2q7OyYAWg==}
+    peerDependencies:
+      expo: '*'
+      react: '*'
 
   expo-router@55.0.8:
     resolution: {integrity: sha512-SG51cnmH84Htxa+vXJPw4xl10rDCrWkC/3m38Sn51Bg+9N2nPPJMhCYifAcR9ZYK6mlb2BPG1GiHVjZw78DSxQ==}
@@ -30148,6 +30157,11 @@ snapshots:
       invariant: 2.2.4
       react: 19.2.0
       react-native: 0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10)
+
+  expo-network@55.0.18(expo@55.0.9)(react@19.2.0):
+    dependencies:
+      expo: 55.0.9(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(@expo/metro-runtime@55.0.7)(bufferutil@4.1.0)(expo-router@55.0.8)(react-dom@19.2.0(react@19.2.0))(react-native-webview@13.16.0(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.2.14)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@5.0.10))(react@19.2.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      react: 19.2.0
 
   expo-router@55.0.8(e648b7c2d7f97def12d5a5dbfb5d4641):
     dependencies:
