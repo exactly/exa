@@ -975,7 +975,10 @@ describe("authentication", () => {
         authSecret,
         "credential_id",
       );
-      return { cookie: cookie.credential_id, json: parse(Authentication, await response.json()) };
+      const json = parse(Authentication, await response.json());
+      const [credentialId, expires] = String(cookie.credential_id).split(".");
+      expect(Number(expires)).toBe(json.auth);
+      return { cookie: credentialId, json };
     }
 
     const created = await signIn({});
@@ -1123,13 +1126,12 @@ describe("authentication", () => {
       expires: expect.any(Number) as number,
       intercomToken: expect.any(String) as string,
     });
-    await expect(
-      parseSigned(
-        response.headers.getSetCookie().find((cookie) => cookie.startsWith("credential_id=")) ?? "",
-        authSecret,
-        "credential_id",
-      ),
-    ).resolves.toEqual({ credential_id: id });
+    const { credential_id: signed } = await parseSigned(
+      response.headers.getSetCookie().find((cookie) => cookie.startsWith("credential_id=")) ?? "",
+      authSecret,
+      "credential_id",
+    );
+    expect(String(signed).split(".")).toStrictEqual([id, expect.stringMatching(/^\d+$/)]);
     expect(verify).toHaveBeenCalledTimes(2);
     await expect(
       database.query.credentials.findMany({
@@ -1174,13 +1176,12 @@ describe("authentication", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual(expect.objectContaining({ credentialId: id, salt: zeroAddress }));
-    await expect(
-      parseSigned(
-        response.headers.getSetCookie().find((cookie) => cookie.startsWith("credential_id=")) ?? "",
-        authSecret,
-        "credential_id",
-      ),
-    ).resolves.toEqual({ credential_id: personal });
+    const { credential_id: signed } = await parseSigned(
+      response.headers.getSetCookie().find((cookie) => cookie.startsWith("credential_id=")) ?? "",
+      authSecret,
+      "credential_id",
+    );
+    expect(String(signed).split(".")).toStrictEqual([personal, expect.stringMatching(/^\d+$/)]);
     expect(captureException).not.toHaveBeenCalled();
   });
 

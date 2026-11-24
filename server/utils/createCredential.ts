@@ -87,7 +87,7 @@ export default function createCredential({
           }
         : undefined;
     await Promise.all([
-      setSignedCookie(c, "credential_id", id, authSecret, {
+      setSignedCookie(c, "credential_id", `${id}.${expires.getTime()}`, authSecret, {
         expires,
         httpOnly: true,
         ...(domain === "localhost"

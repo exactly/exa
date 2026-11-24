@@ -526,7 +526,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
         const expires = new Date(Date.now() + AUTH_EXPIRY);
         const [intercomToken] = await Promise.all([
           intercom(parse(Address, credential.account), expires),
-          setSignedCookie(c, "credential_id", credential.id, authSecret, {
+          setSignedCookie(c, "credential_id", `${credential.id}.${expires.getTime()}`, authSecret, {
             expires,
             httpOnly: true,
             ...(domain === "localhost"
