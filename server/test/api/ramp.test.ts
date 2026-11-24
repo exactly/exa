@@ -57,7 +57,7 @@ const persona = Object.assign(
 );
 
 const app = route({
-  auth: authenticate(""),
+  auth: authenticate(undefined as never),
   bridge,
   database,
   manteca,

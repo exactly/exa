@@ -24,7 +24,7 @@ const pax = createPax({
 
 const appClient = testClient(
   route({
-    auth: authenticate(""),
+    auth: authenticate(undefined as never),
     database,
     pax,
   }),
@@ -52,7 +52,7 @@ describe("/pax GET", () => {
   });
 
   it("returns 404 without pax config", async () => {
-    const response = await testClient(route({ auth: authenticate(""), database })).index.$get(
+    const response = await testClient(route({ auth: authenticate(undefined as never), database })).index.$get(
       {},
       { headers: { "test-credential-id": "bob" } },
     );

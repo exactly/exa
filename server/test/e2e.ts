@@ -43,9 +43,11 @@ import database, { cards as cardsTable, credentials } from "../database";
 import auth from "../middleware/auth";
 import createAlchemy from "../utils/alchemy";
 import appOrigin, { origins, related } from "../utils/appOrigin";
+import createBetterAuth from "../utils/auth";
 import authSecret from "../utils/authSecret";
 import createOnesignal from "../utils/onesignal";
 import createPanda from "../utils/panda";
+import redis from "../utils/redis";
 import createSardine from "../utils/sardine";
 import createSegment from "../utils/segment";
 import allowWorker from "../workers/allow/worker";
@@ -175,7 +177,12 @@ describe("e2e", () => {
             headers.delete("content-length");
             headers.delete("set-cookie");
             for (const cookie of response.headers.getSetCookie()) {
-              headers.append("set-cookie", cookie.replace(/expires=[^;]+/i, `Expires=${expires.toUTCString()}`));
+              headers.append(
+                "set-cookie",
+                cookie
+                  .replace(/expires=[^;]+/i, `Expires=${expires.toUTCString()}`)
+                  .replace(/max-age=\d+/i, "Max-Age=5"),
+              );
             }
             return Response.json(
               { ...json, auth: expires.getTime(), expires: expires.getTime() },
@@ -204,7 +211,9 @@ describe("e2e", () => {
             holds.delete(id.toLowerCase());
             return c.json({ code: "ok" });
           });
-          app.get("/e2e/session", auth(authSecret), (c) => c.json(c.req.valid("cookie")));
+          app.get("/e2e/session", auth(createBetterAuth(database, authSecret, redis)), (c) =>
+            c.json(c.req.valid("cookie")),
+          );
           app.route("/e2e/lifi", lifi(chains));
           app.get("/e2e/credential", async (c) => {
             const credential = await database.query.credentials.findFirst({

@@ -48,11 +48,7 @@ import("../api")
         ],
         components: {
           securitySchemes: {
-            credentialAuth: {
-              type: "apiKey",
-              in: "cookie",
-              name: "credential_id",
-            },
+            credentialAuth: { type: "apiKey", in: "cookie", name: "__Secure-better-auth.session_token" },
             extensionAuth: { type: "http", scheme: "bearer" },
             siweAuth: { type: "apiKey", in: "cookie", name: "__Secure-better-auth.session_token" },
           },

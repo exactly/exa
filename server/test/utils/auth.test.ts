@@ -15,6 +15,7 @@ import appOrigin from "../../utils/appOrigin";
 import createAuth from "../../utils/auth";
 import authSecret from "../../utils/authSecret";
 import publicClient from "../../utils/publicClient";
+import redis from "../../utils/redis";
 
 import type { SIWEPluginOptions } from "better-auth/plugins/siwe";
 
@@ -248,3 +249,21 @@ function siwe(path: string, body: Record<string, unknown>) {
     }),
   );
 }
+
+describe("secondary storage", () => {
+  it("keeps auth state in redis", async () => {
+    const storage = createAuth(database, authSecret, redis).options.secondaryStorage;
+    assert.ok(storage);
+    const key = `test:${Date.now()}`;
+    await storage.set(key, "value", 0);
+    await expect(storage.get(key)).resolves.toBe("value");
+    await storage.set(key, "expiring", 60);
+    await expect(redis.ttl(`auth:${key}`)).resolves.toBeGreaterThan(0);
+    await expect(storage.getAndDelete(key)).resolves.toBe("expiring");
+    await expect(storage.get(key)).resolves.toBeNull();
+    await expect(storage.increment(key, 60)).resolves.toBe(1);
+    await expect(storage.increment(key, 60)).resolves.toBe(2);
+    await storage.delete(key);
+    await expect(storage.get(key)).resolves.toBeNull();
+  });
+});

@@ -426,7 +426,7 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
         description: `
 Retrieve push-provisioning credentials for Apple Wallet Extension callers.
 
-This endpoint only accepts Wallet Extension bearer access. It does not accept \`credential_id\` cookies, Better Auth sessions, or \`sessionid\`.
+This endpoint only accepts Wallet Extension bearer access. It does not accept Better Auth sessions or \`sessionid\`.
     `,
         tags: ["Card"],
         security: [{ extensionAuth: [] }],

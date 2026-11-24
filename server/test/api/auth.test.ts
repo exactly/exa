@@ -8,8 +8,9 @@ import { captureException, getActiveSpan } from "@sentry/node";
 import { verifyAuthenticationResponse, verifyRegistrationResponse } from "@simplewebauthn/server";
 import { decodeCredentialPublicKey } from "@simplewebauthn/server/helpers";
 import { DrizzleQueryError, eq } from "drizzle-orm";
+import { Hono } from "hono";
 import { testClient } from "hono/testing";
-import { parseSigned } from "hono/utils/cookie";
+import { serializeSigned } from "hono/utils/cookie";
 import { decodeJwt, decodeProtectedHeader, jwtVerify } from "jose";
 import assert from "node:assert";
 import { env } from "node:process";
@@ -19,6 +20,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { parseSiweMessage, validateSiweMessage } from "viem/siwe";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
+import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import deriveAddress, * as derive from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
 import chain, { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
@@ -26,9 +28,11 @@ import { Address } from "@exactly/common/validation";
 
 import authentication, { Authentication } from "../../api/auth/authentication";
 import registration from "../../api/auth/registration";
-import database, { credentials } from "../../database";
+import database, { credentials, users } from "../../database";
+import createAuthMiddleware from "../../middleware/auth";
 import androidOrigins from "../../utils/android/origins";
 import { origins } from "../../utils/appOrigin";
+import createAuth, { signIn as createSignIn } from "../../utils/auth";
 import authSecret from "../../utils/authSecret";
 import createCredentialFactory from "../../utils/createCredential";
 import decodePublicKey from "../../utils/decodePublicKey";
@@ -60,19 +64,21 @@ const subscribe = {
   ready: vi.fn<() => Promise<void>>().mockResolvedValue(),
   enqueue: vi.fn<ReturnType<typeof createSubscribe>["enqueue"]>().mockResolvedValue(),
 };
+const betterAuth = createAuth(database, authSecret, redis);
+const signIn = createSignIn(betterAuth);
 const createCredential = createCredentialFactory({
-  authSecret,
   database,
   sardine: createSardine(
     parse(pipe(string(), nonEmpty()), env.SARDINE_API_KEY),
     parse(pipe(string(), nonEmpty()), env.SARDINE_API_URL),
   ),
   segment: createSegment(parse(pipe(string(), nonEmpty()), env.SEGMENT_WRITE_KEY)),
+  signIn,
   subscribe,
 });
 const intercom = createIntercom(parse(pipe(string(), nonEmpty()), env.INTERCOM_IDENTITY_KEY));
 const appClient = testClient(
-  authentication({ authSecret, business: true, createCredential, database, intercom, redis, walletExtension }),
+  authentication({ business: true, createCredential, database, intercom, redis, signIn, walletExtension }),
 );
 const registrationAppClient = testClient(
   registration({ business: true, createCredential, intercom, redis, walletExtension }),
@@ -475,7 +481,7 @@ describe("authentication", () => {
     const { verifyAuthenticationResponse: verify } = await import("@simplewebauthn/server");
     const { default: create } = await import("../../api/auth/authentication");
     const client = testClient(
-      create({ authSecret, business: true, createCredential, database, intercom, redis, walletExtension }),
+      create({ business: true, createCredential, database, intercom, redis, signIn, walletExtension }),
     );
     vi.mocked(verify).mockResolvedValueOnce({
       verified: true,
@@ -926,7 +932,7 @@ describe("authentication", () => {
     const id = own(parse(Address, slice(keccak256(toBytes("auth:siwe-business-disabled")), 12)));
 
     const response = await testClient(
-      authentication({ authSecret, business: false, createCredential, database, intercom, redis, walletExtension }),
+      authentication({ business: false, createCredential, database, intercom, redis, signIn, walletExtension }),
     ).index.$post(
       { json: { method: "siwe", id, signature: "0xdeadbeef" } },
       { headers: { cookie: "session_id=test-session", origin: business } },
@@ -1058,12 +1064,8 @@ describe("authentication", () => {
       intercomToken: expect.any(String) as string,
     });
     await expect(
-      parseSigned(
-        response.headers.getSetCookie().find((cookie) => cookie.startsWith("credential_id=")) ?? "",
-        authSecret,
-        "credential_id",
-      ),
-    ).resolves.toEqual({ credential_id: id });
+      betterAuth.api.getSession({ headers: new Headers({ cookie: sessionCookie(response.headers.getSetCookie()) }) }),
+    ).resolves.toMatchObject({ user: { id } });
     expect(verify).toHaveBeenCalledTimes(2);
     await expect(
       database.query.credentials.findMany({
@@ -1920,6 +1922,70 @@ function postRegistrationWebauthn(override: RegistrationWebauthnAssertionOverrid
 function own<T extends string>(id: T) {
   onTestFinished(async () => {
     await database.delete(credentials).where(eq(credentials.id, id));
+    await database.delete(users).where(eq(users.id, id));
   });
   return id;
+}
+
+describe("session", () => {
+  const app = new Hono().get("/me", createAuthMiddleware(betterAuth), (c) => c.json(c.req.valid("cookie")));
+
+  it("authorizes until revoked", async () => {
+    const id = own(parse(Address, slice(keccak256(toBytes("auth:session")), 12)));
+    const { headers } = await betterAuth.api.signInCredential({ body: { credentialId: id }, returnHeaders: true });
+    const cookie = sessionCookie(headers.getSetCookie());
+    const response = await app.request("/me", { headers: { cookie } });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ credentialId: id });
+
+    const { internalAdapter } = await betterAuth.$context;
+    await internalAdapter.deleteUserSessions(id);
+    await expect(app.request("/me", { headers: { cookie } })).resolves.toHaveProperty("status", 401);
+  });
+
+  it("expires on the server", async () => {
+    const id = own(parse(Address, slice(keccak256(toBytes("auth:expiry")), 12)));
+    const { headers } = await betterAuth.api.signInCredential({ body: { credentialId: id }, returnHeaders: true });
+    const cookie = sessionCookie(headers.getSetCookie());
+    vi.useFakeTimers({ now: Date.now() + AUTH_EXPIRY + 1000, toFake: ["Date"] });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    await expect(app.request("/me", { headers: { cookie } })).resolves.toHaveProperty("status", 401);
+  });
+
+  it("issues a new session on each sign-in", async () => {
+    const id = own(parse(Address, slice(keccak256(toBytes("auth:sign-ins")), 12)));
+    const first = await betterAuth.api.signInCredential({ body: { credentialId: id }, returnHeaders: true });
+    const second = await betterAuth.api.signInCredential({ body: { credentialId: id }, returnHeaders: true });
+    expect(sessionCookie(first.headers.getSetCookie())).not.toBe(sessionCookie(second.headers.getSetCookie()));
+    await betterAuth.api.revokeSession({
+      body: { token: second.response.session.token },
+      headers: new Headers({ cookie: sessionCookie(second.headers.getSetCookie()) }),
+    });
+    const kept = await app.request("/me", { headers: { cookie: sessionCookie(first.headers.getSetCookie()) } });
+    expect(kept.status).toBe(200);
+    await expect(
+      app.request("/me", { headers: { cookie: sessionCookie(second.headers.getSetCookie()) } }),
+    ).resolves.toHaveProperty("status", 401);
+  });
+
+  it("rejects signed credential cookies, forged cookies and missing cookies", async () => {
+    const id = own(parse(Address, slice(keccak256(toBytes("auth:legacy")), 12)));
+    const legacy = cookiePair(await serializeSigned("credential_id", id, authSecret));
+    await expect(app.request("/me", { headers: { cookie: legacy } })).resolves.toHaveProperty("status", 401);
+    const forged = cookiePair(await serializeSigned("better-auth.session_token", "forged", "secret"));
+    await expect(app.request("/me", { headers: { cookie: forged } })).resolves.toHaveProperty("status", 401);
+    await expect(app.request("/me")).resolves.toHaveProperty("status", 401);
+  });
+});
+
+function sessionCookie(cookies: string[]) {
+  const cookie = cookies.find((value) => value.includes("session_token="));
+  if (!cookie) throw new Error("missing session cookie");
+  return cookiePair(cookie);
+}
+
+function cookiePair(cookie: string) {
+  return cookie.split(";")[0] ?? "";
 }
