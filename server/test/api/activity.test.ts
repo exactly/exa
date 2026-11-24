@@ -475,7 +475,7 @@ describe("onchain", () => {
       functionName: "firewall",
     });
     for (const allowed of [borrower, debtManagerAddress]) {
-      await client.waitForTransactionReceipt({
+      const { status } = await client.waitForTransactionReceipt({
         hash: await client.writeContract({
           address: firewall,
           abi: parseAbi(["function allow(address account, bool allowed)"]),
@@ -484,8 +484,9 @@ describe("onchain", () => {
           account: null,
         }),
       });
+      expect(status).toBe("success");
     }
-    await client.waitForTransactionReceipt({
+    const created = await client.waitForTransactionReceipt({
       hash: await owner.writeContract({
         address: exaAccountFactoryAddress,
         abi: exaAccountFactoryAbi,
@@ -493,7 +494,12 @@ describe("onchain", () => {
         args: [0n, [{ x: hexToBigInt(owner.account.address), y: 0n }]],
       }),
     });
-    const { blockNumber: proposed, logs: queued } = await client.waitForTransactionReceipt({
+    expect(created.status).toBe("success");
+    const {
+      blockNumber: proposed,
+      logs: queued,
+      status: batched,
+    } = await client.waitForTransactionReceipt({
       hash: await owner.writeContract({
         address: borrower,
         abi: upgradeableModularAccountAbi,
@@ -556,6 +562,7 @@ describe("onchain", () => {
         ],
       }),
     });
+    expect(batched).toBe("success");
     await client.mine({ blocks: 1, interval: proposalManager.delay.default });
     const [{ address: manager } = {}] = parseEventLogs({
       abi: proposalManagerAbi,
