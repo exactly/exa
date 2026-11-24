@@ -27,6 +27,7 @@ import {
   type MaybePromise,
   type Prettify,
   type PublicActions,
+  type ReplacementReason,
   type TransactionReceipt,
   type Transport,
   type WalletClient,
@@ -147,6 +148,7 @@ export function extender(
           scope.setContext("tx", { request, prepared, hash });
           span.setAttribute("tx.hash", hash);
           const abortController = new AbortController();
+          let replaced: ReplacementReason | undefined;
           const [, receiptResult] = await Promise.allSettled([
             (async () => {
               while (!abortController.signal.aborted) {
@@ -164,7 +166,13 @@ export function extender(
               }
             })(),
             startSpan({ name: "wait for receipt", op: "tx.wait" }, () =>
-              publicClient.waitForTransactionReceipt({ hash, confirmations: 0 }),
+              publicClient.waitForTransactionReceipt({
+                hash,
+                confirmations: 0,
+                onReplaced: ({ reason }) => {
+                  replaced = reason;
+                },
+              }),
             )
               .catch((error: unknown) => {
                 if (error instanceof WaitForTransactionReceiptTimeoutError) {
@@ -190,12 +198,13 @@ export function extender(
           ]);
           if (receiptResult.status === "rejected") throw receiptResult.reason;
           const receipt = receiptResult.value;
-          scope.setContext("tx", { request, receipt });
+          scope.setContext("tx", { request, prepared, hash, receipt });
+          if (replaced && replaced !== "repriced") throw new Error(`transaction ${replaced}`);
           Promise.resolve(options?.onReceipt?.(receipt)).catch((error: unknown) =>
             captureException(error, { level: "error" }),
           );
           const trace = await startSpan({ name: "trace transaction", op: "tx.trace" }, () =>
-            withRetry(() => traceClient.traceTransaction(hash), {
+            withRetry(() => traceClient.traceTransaction(receipt.transactionHash), {
               delay: 1000,
               retryCount: 10,
               shouldRetry: ({ error }) =>

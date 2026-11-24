@@ -18,8 +18,9 @@ import {
   RpcRequestError,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { waitForTransactionReceipt as waitForReceipt } from "viem/actions";
 import { recoverAuthorizationAddress } from "viem/utils";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { dataSuffix } from "@exactly/common/attribution";
 import chain, { auditorAbi, auditorAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
@@ -27,6 +28,7 @@ import chain, { auditorAbi, auditorAddress, marketUSDCAddress } from "@exactly/c
 import nonceManager from "../../utils/nonceManager";
 import publicClient from "../../utils/publicClient";
 import wallet from "../../utils/wallet";
+import anvilClient from "../anvilClient";
 
 import type * as tracing from "../../utils/traceClient";
 import type * as Wallet from "../../utils/wallet";
@@ -184,6 +186,69 @@ describe("fault tolerance", () => {
     expect(receipt?.status).toBe("success");
     expect(captureException).toHaveBeenCalledWith(invalid, { level: "error" });
     expect(sendRawTransaction.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it.each([
+    ["cancelled", 0n],
+    ["replaced", 1n],
+  ] as const)("throws when %s by another transaction", async (reason, value) => {
+    const { nonce, onHash, replaced } = await replace(() => ({ to: walletClient.account.address, value }));
+    const onReceipt = vi.fn<() => void>();
+    const hashes: Hex[] = [];
+    const contexts: unknown[] = [];
+    vi.mocked(captureException).mockImplementation(() => {
+      contexts.push(getCurrentScope().getScopeData().contexts.tx);
+      return "";
+    });
+    onTestFinished(() => {
+      vi.mocked(captureException).mockRestore();
+    });
+
+    await expect(
+      keeper.exaSend(
+        { name: "test transfer", op: "test.transfer" },
+        { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
+        {
+          onHash: (hash) => {
+            hashes.push(hash);
+            return onHash();
+          },
+          onReceipt,
+        },
+      ),
+    ).rejects.toThrow(`transaction ${reason}`);
+    expect(captureException).toHaveBeenLastCalledWith(new Error(`transaction ${reason}`), {
+      level: "error",
+      fingerprint: ["{{ default }}", "unknown"],
+    });
+    expect(contexts.at(-1)).toMatchObject({
+      request: { to: auditorAddress },
+      prepared: { nonce: nonce + 1 },
+      hash: hashes[0],
+      receipt: await publicClient.getTransactionReceipt({ hash: await replaced.promise }),
+    });
+    expect(onReceipt).not.toHaveBeenCalled();
+  });
+
+  it("returns receipt when repriced", async () => {
+    const { default: traceClient } = await vi.importActual<typeof tracing>("../../utils/traceClient");
+    const traceTransaction = vi.spyOn(traceClient, "traceTransaction");
+    enableTracing();
+    const { onHash, replaced } = await replace(({ input, to }) => ({ to, data: input }));
+    const onReceipt = vi.fn<() => void>();
+
+    const receipt = await keeper.exaSend(
+      { name: "test transfer", op: "test.transfer" },
+      { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
+      { onHash, onReceipt },
+    );
+
+    expect(receipt).toStrictEqual(await publicClient.getTransactionReceipt({ hash: await replaced.promise }));
+    expect(receipt?.status).toBe("success");
+    expect(onReceipt).toHaveBeenCalledExactlyOnceWith(receipt);
+    expect(traceTransaction).toHaveBeenCalledExactlyOnceWith(receipt?.transactionHash);
+    await expect(traceTransaction.mock.results[0]?.value).resolves.toMatchObject({ type: "CALL" });
+    expect(captureException).not.toHaveBeenCalledWith(new Error("transaction repriced"), expect.anything());
   });
 
   it("applies data suffix", async () => {
@@ -637,6 +702,55 @@ function enterMarket() {
     { name: "test transfer", op: "test.transfer" },
     { address: auditorAddress, abi: auditorAbi, functionName: "enterMarket", args: [marketUSDCAddress] },
   );
+}
+
+async function replace(
+  build: (transaction: Awaited<ReturnType<typeof publicClient.getTransaction>>) => {
+    data?: Hex;
+    to: Hex | null;
+    value?: bigint;
+  },
+) {
+  const { address } = walletClient.account;
+  const nonce = await nonceSource.get({ address, chainId: walletClient.chain.id, client: walletClient });
+  vi.spyOn(nonceSource, "get").mockResolvedValueOnce(nonce + 1);
+  const fetched = Promise.withResolvers<Awaited<ReturnType<typeof publicClient.getTransaction>>>();
+  const sendRawTransaction = publicClient.sendRawTransaction;
+  const sent = Promise.withResolvers<null>();
+  vi.spyOn(publicClient, "sendRawTransaction").mockImplementation(async (parameters) => {
+    const hash = await sendRawTransaction(parameters);
+    sent.resolve(null);
+    return hash;
+  });
+  const client = {
+    ...publicClient,
+    getTransaction: async (query: Parameters<typeof publicClient.getTransaction>[0]) => {
+      const transaction = await publicClient.getTransaction(query);
+      fetched.resolve(transaction);
+      return transaction;
+    },
+  };
+  vi.spyOn(publicClient, "waitForTransactionReceipt").mockImplementation((parameters) =>
+    waitForReceipt(client, { ...parameters, pollingInterval: 10, retryDelay: 10 }),
+  );
+  const replaced = Promise.withResolvers<Hex>();
+  async function onHash() {
+    await sent.promise;
+    await anvilClient.mine({ blocks: 1 });
+    const { to, ...rest } = build(await fetched.promise);
+    const hash = await walletClient.sendTransaction({
+      ...rest,
+      to: to ?? undefined,
+      nonce: nonce + 1,
+      gas: 5_000_000n,
+      maxFeePerGas: 2_000_000_000n,
+      maxPriorityFeePerGas: 2_000_000n,
+    });
+    await publicClient.waitForTransactionReceipt({ hash: await walletClient.sendTransaction({ to: address, nonce }) });
+    await publicClient.waitForTransactionReceipt({ hash });
+    replaced.resolve(hash);
+  }
+  return { nonce, onHash, replaced };
 }
 
 function failSend(attributes?: Record<string, string>) {
