@@ -930,6 +930,7 @@ describe("manteca utils", () => {
       expect(JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string)).toStrictEqual({
         qrCode: "lock-code",
         externalId: "0xabc",
+        skipDeposit: true,
       });
     });
 

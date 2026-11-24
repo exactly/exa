@@ -3509,8 +3509,8 @@ describe("qr payment", () => {
       ([url]) => url === "https://manteca.test/crypto/v2/synthetics/qr-payment",
     );
     expect(executions.map(([, init]) => init?.body)).toStrictEqual([
-      JSON.stringify({ qrCode: code, externalId: userOpHash }),
-      JSON.stringify({ qrCode: code, externalId: userOpHash }),
+      JSON.stringify({ qrCode: code, externalId: userOpHash, skipDeposit: true }),
+      JSON.stringify({ qrCode: code, externalId: userOpHash, skipDeposit: true }),
     ]);
     expect(fetch).toHaveBeenCalledWith(
       `https://manteca.test/crypto/v2/synthetics/${userOpHash}`,
