@@ -30,7 +30,7 @@ import {
   type Log,
 } from "viem";
 import { getUserOperationReceipt, UserOperationReceiptNotFoundError } from "viem/account-abstraction";
-import { optimism, optimismSepolia } from "viem/chains";
+import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
 import chain, { marketAbi, marketUSDCAddress } from "@exactly/common/generated/chain";
 import { Address, type Hash } from "@exactly/common/validation";
@@ -206,7 +206,7 @@ export default function manteca(key: string, url: string) {
     );
   }
   async function getProvider(account: Address, countryCode?: string) {
-    if (!Supported[chain.id]) {
+    if (Supported[chain.id] !== "OPTIMISM") {
       captureException(new Error("manteca not supported chain id"), { level: "error", contexts: { chain } });
       return { onramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
     }
@@ -395,7 +395,7 @@ export default function manteca(key: string, url: string) {
   }
   async function onboarding(account: Address, credentialId: string, persona: PersonaService) {
     const externalId = account.replace("0x", "");
-    if (!Supported[chain.id]) {
+    if (Supported[chain.id] !== "OPTIMISM") {
       captureException(new Error("manteca not supported chain id"), { level: "error", contexts: { chain } });
       throw new Error(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
     }
@@ -686,10 +686,12 @@ export default function manteca(key: string, url: string) {
 
 // #region schemas
 export const Currency = ["ARS", "BRL", "USD"] as const;
-const DevelopmentChainIds = [optimismSepolia.id] as const;
-const Network = ["OPTIMISM"] as const;
+const DevelopmentChainIds = [baseSepolia.id, optimismSepolia.id] as const;
+const Network = ["BASE", "OPTIMISM"] as const;
 
 const Supported: Record<number, (typeof Network)[number] | undefined> = {
+  [base.id]: "BASE",
+  [baseSepolia.id]: "BASE",
   [optimism.id]: "OPTIMISM",
   [optimismSepolia.id]: "OPTIMISM",
 } as const;

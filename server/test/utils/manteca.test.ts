@@ -3,7 +3,7 @@ import "../mocks/sentry";
 import { captureException } from "@sentry/core";
 import { parse } from "valibot";
 import { hexToBigInt, padHex } from "viem";
-import { optimism, optimismSepolia } from "viem/chains";
+import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Address } from "@exactly/common/validation";
@@ -311,6 +311,22 @@ describe("manteca utils", () => {
         destination: { address, network: "OPTIMISM" },
       });
     });
+
+    it.each([base.id, baseSepolia.id])("withdraws with BASE network on chain %i", async (id) => {
+      chainMock.id = id;
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(mockFetchResponse({ ...mockBalanceBase, balance: { USDC: "100.00" } }))
+        .mockResolvedValueOnce(mockFetchResponse(mockWithdrawResponse));
+
+      await expect(manteca.withdrawBalance("456", "USDC", address)).resolves.toBeUndefined();
+      expect(JSON.parse(fetchSpy.mock.calls[1]?.[1]?.body as string)).toStrictEqual({
+        userAnyId: "456",
+        asset: "USDC",
+        amount: "100.00",
+        destination: { address, network: "BASE" },
+      });
+    });
   });
 
   describe("getProvider", () => {
@@ -506,6 +522,21 @@ describe("manteca utils", () => {
       expect(result.status).toBe("NOT_STARTED");
       expect(result.onramp.currencies).toEqual(["ARS", "USD"]);
     });
+
+    it.each([base.id, baseSepolia.id])("keeps the onramp off on chain %i", async (id) => {
+      chainMock.id = id;
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+      await expect(manteca.getProvider(account, "BR")).resolves.toStrictEqual({
+        onramp: { currencies: [] },
+        status: "NOT_AVAILABLE",
+      });
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("manteca not supported chain id"), {
+        level: "error",
+        contexts: { chain: { id } },
+      });
+    });
   });
 
   describe("mantecaOnboarding", () => {
@@ -581,10 +612,12 @@ describe("manteca utils", () => {
       },
     };
 
-    it("throws for unsupported chain id", async () => {
-      chainMock.id = 1;
+    it.each([1, base.id, baseSepolia.id])("throws for chain %i", async (id) => {
+      chainMock.id = id;
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
 
       await expect(manteca.onboarding(account, credentialId)).rejects.toThrow(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
+      expect(fetchSpy).not.toHaveBeenCalled();
     });
 
     it("returns early when user is already active", async () => {
@@ -1130,6 +1163,47 @@ describe("manteca utils", () => {
       });
     });
 
+    it.each([base.id, baseSepolia.id])("refunds on the BASE network on chain %i", async (id) => {
+      chainMock.id = id;
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(mockFetchResponse({ BASE: lock.OPTIMISM }))
+        .mockResolvedValueOnce(mockFetchResponse(refund))
+        .mockResolvedValueOnce(mockFetchResponse(principal("1000")));
+
+      await expect(manteca.refundQRPayment(userOpHash, address, 2_449_218n, "exa")).resolves.toStrictEqual({
+        id: refund.id,
+        numberId: refund.numberId,
+        userExternalId: "Exactly-argentina",
+        status: "PENDING",
+      });
+      expect(JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string)).toStrictEqual({
+        userAnyId: "Exactly-argentina",
+        asset: "USDC",
+        destination: { address, network: "BASE" },
+      });
+      expect(JSON.parse(fetchSpy.mock.calls[1]?.[1]?.body as string)).toStrictEqual({
+        externalId: `refund-${userOpHash}`,
+        userAnyId: "Exactly-argentina",
+        legalEntity: "WALLET_ARG",
+        asset: "USDC",
+        amount: "2.580047",
+        withdrawLockCode: lock.OPTIMISM.code,
+        destination: { address, network: "BASE" },
+      });
+      expect(captureException).not.toHaveBeenCalled();
+    });
+
+    it("throws when manteca locks gas only on another network", async () => {
+      chainMock.id = base.id;
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchResponse(lock));
+
+      await expect(manteca.refundQRPayment(userOpHash, address, 2_449_218n, "exa")).rejects.toThrow(
+        "missing withdraw lock",
+      );
+      expect(fetchSpy).toHaveBeenCalledOnce();
+    });
+
     it("refunds when the principal balance fails to load", async () => {
       const fetchSpy = vi
         .spyOn(globalThis, "fetch")
@@ -1418,6 +1492,42 @@ describe("manteca utils", () => {
 
       await expect(settlements.getSettlements()).resolves.toStrictEqual({
         ARS: parse(Address, padHex("0xa5", { size: 20 })),
+      });
+    });
+
+    it.each([base.id, baseSepolia.id])("picks the settlements that list BASE on chain %i", async (id) => {
+      chainMock.id = id;
+      const settlements = createManteca("manteca", "https://manteca.test");
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        mockFetchResponse({
+          banking: {
+            addresses: [
+              {
+                acceptedNetworks: ["OPTIMISM"],
+                legalEntity: "WALLET_ARG",
+                address: padHex("0xa5", { size: 20 }),
+                type: "SETTLEMENT",
+              },
+              {
+                acceptedNetworks: ["ETHEREUM", "BASE"],
+                legalEntity: "WALLET_ARG",
+                address: padHex("0xa4", { size: 20 }),
+                type: "SETTLEMENT",
+              },
+              {
+                acceptedNetworks: ["BASE"],
+                legalEntity: "CRYPTO_GLOBAL",
+                address: padHex("0xb1", { size: 20 }),
+                type: "SETTLEMENT",
+              },
+            ],
+          },
+        }),
+      );
+
+      await expect(settlements.getSettlements()).resolves.toStrictEqual({
+        ARS: parse(Address, padHex("0xa4", { size: 20 })),
+        BRL: parse(Address, padHex("0xb1", { size: 20 })),
       });
     });
 
