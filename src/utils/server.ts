@@ -23,6 +23,7 @@ import type { ExaAPI } from "@exactly/server/api"; // eslint-disable-line @nx/en
 import type { InferOutput } from "valibot";
 
 let reconnection: Promise<void> | undefined;
+let issued: undefined | { at: number; expires: number };
 queryClient.setQueryDefaults<number | undefined>(["auth"], {
   retry: false,
   enabled: false,
@@ -97,7 +98,8 @@ queryClient.setQueryDefaults<number | undefined>(["auth"], {
       rpId: "rpId" in result ? result.rpId : undefined,
     });
     await loginIntercom(deriveAddress(factory, { x, y, salt }), intercomToken, expires);
-    return parse(Auth, expires);
+    issued = { at: Date.now(), expires: parse(Auth, expires) };
+    return issued.expires;
   },
   meta: {
     dropError: (error) => {
@@ -133,9 +135,27 @@ const api = hc<ExaAPI>(new URL(origin).hostname === "localhost" ? "http://localh
       headers.set("Client-Fid", String(client.clientFid));
     }
     const method = init?.method ?? "GET";
+    const expires = queryClient.getQueryData<number>(["auth"]);
     const response = await fetch(input, { ...init, headers }).catch((error: unknown) => {
       throw new NetworkError(method, input instanceof Request ? input.url : String(input), error);
     });
+    if (
+      response.status === 401 &&
+      expires !== undefined &&
+      (expires !== issued?.expires || Date.now() - issued.at > 5 * 60_000)
+    ) {
+      const body = (await response
+        .clone()
+        .json()
+        .catch(() => undefined)) as undefined | { code?: unknown };
+      if (
+        body?.code === "unauthorized" &&
+        queryClient.getQueryData<number>(["auth"]) === expires &&
+        queryClient.isFetching({ queryKey: ["auth"], exact: true }) === 0
+      ) {
+        queryClient.removeQueries({ queryKey: ["auth"], exact: true });
+      }
+    }
     if (!response.ok && !response.headers.get("content-type")?.startsWith("application/json")) {
       throw new APIError(method, response, response.statusText);
     }
@@ -410,7 +430,8 @@ export async function createCredential(hints?: string[]) {
     intercomToken,
     expires,
   );
-  await queryClient.setQueryData(["auth"], parse(Auth, expires));
+  issued = { at: Date.now(), expires: parse(Auth, expires) };
+  await queryClient.setQueryData(["auth"], issued.expires);
   return parse(Credential, credential);
 }
 
