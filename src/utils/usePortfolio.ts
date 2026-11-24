@@ -2,9 +2,10 @@ import { useCallback, useMemo } from "react";
 
 import { useQuery } from "@tanstack/react-query";
 import { safeParse } from "valibot";
-import { formatUnits } from "viem";
+import { formatUnits, parseAbi, zeroAddress } from "viem";
+import { useReadContracts } from "wagmi";
 
-import chain from "@exactly/common/generated/chain";
+import chain, { marketWETHAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 import { floatingDepositRates, WAD, withdrawLimit } from "@exactly/lib";
 
@@ -45,9 +46,59 @@ export type PortfolioAsset = ExternalAsset | ProtocolAsset;
 
 export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValue" }) {
   const { address: account } = useAccount();
-  const { markets, supportedAssets, rateSnapshot, timestamp, isPending: isMarketsPending } = useMarkets();
+  const {
+    markets,
+    supportedAssets,
+    rateSnapshot,
+    timestamp,
+    blockNumber,
+    updatedAt,
+    isPending: isMarketsPending,
+  } = useMarkets();
 
-  const { data: balances, isLoading: isBalancesPending } = useQuery(balancesOptions(account));
+  const {
+    data: balances,
+    dataUpdatedAt: balancesAt,
+    isLoading: isBalancesPending,
+  } = useQuery(balancesOptions(account));
+  const pinned = updatedAt > balancesAt;
+
+  const held = useMemo(() => {
+    const assets = new Set(
+      markets?.flatMap(({ asset, market }) => [
+        asset.toLowerCase(),
+        ...(market === marketWETHAddress ? [zeroAddress] : []),
+      ]),
+    );
+    return (balances?.[chain.id] ?? []).filter(({ address }) => assets.has(address.toLowerCase()));
+  }, [balances, markets]);
+  const contracts = useMemo(
+    () =>
+      held.map(({ address }) => ({
+        address: address === zeroAddress ? chain.contracts.multicall3.address : (address as ViemAddress),
+        abi: balanceAbi,
+        functionName: address === zeroAddress ? ("getEthBalance" as const) : ("balanceOf" as const),
+        args: [account ?? zeroAddress] as const,
+        chainId: chain.id,
+      })),
+    [account, held],
+  );
+  const { data: settled } = useReadContracts({
+    allowFailure: false,
+    blockNumber,
+    contracts,
+    query: {
+      enabled: pinned && !!account && blockNumber !== undefined && held.length > 0,
+      staleTime: Infinity,
+      placeholderData: (previous, query) => {
+        const reads = query?.queryKey[1].contracts;
+        return reads?.length === contracts.length &&
+          reads.every(({ address, args }, index) => address === contracts[index]?.address && args?.[0] === account)
+          ? previous
+          : undefined;
+      },
+    },
+  });
 
   const portfolio = useMemo(() => {
     if (!markets) return { depositMarkets: [], balanceUSD: 0n, collateralUSD: 0n };
@@ -104,13 +155,14 @@ export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValu
     const tokens = balances?.[chain.id] ?? [];
     if (!markets || tokens.length === 0) return [];
     const marketAddresses = new Set(markets.map(({ market }) => market.toLowerCase()));
+    const amounts = new Map(pinned && settled ? held.map(({ address }, index) => [address, settled[index]]) : []);
     return tokens
       .filter((token) => !marketAddresses.has(token.address.toLowerCase()))
       .flatMap((token) => {
-        const asset = toExternalAsset(token);
+        const asset = toExternalAsset({ ...token, amount: amounts.get(token.address) ?? token.amount });
         return asset ? [asset] : [];
       });
-  }, [balances, markets]);
+  }, [balances, held, markets, pinned, settled]);
 
   const isExternal = useCallback(
     (chainId: number, address: string) => {
@@ -172,6 +224,11 @@ export default function usePortfolio(options?: { sortBy?: "usdcFirst" | "usdValu
     isBalancesPending,
   };
 }
+
+const balanceAbi = parseAbi([
+  "function balanceOf(address) view returns (uint256)",
+  "function getEthBalance(address) view returns (uint256)",
+]);
 
 function compareAssets(sortBy: "usdcFirst" | "usdValue" | undefined) {
   return function compare(a: PortfolioAsset, b: PortfolioAsset) {
