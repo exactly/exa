@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 
 import { useRouter } from "expo-router";
 
-import { toast } from "@tamagui/toast";
 import { ScrollView, XStack, YStack } from "tamagui";
 
 import { useBytecode } from "wagmi";
@@ -15,6 +14,7 @@ import { ArrowDownToLine } from "../../generated/icons/ArrowDownToLine";
 import { ArrowLeft } from "../../generated/icons/ArrowLeft";
 import { CreditCard } from "../../generated/icons/CreditCard";
 import { IdCard } from "../../generated/icons/IdCard";
+import errorToast from "../../utils/errorToast";
 import { newMessage, presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
@@ -222,7 +222,7 @@ function CurrentStep({ id, approved }: { approved: boolean; id: "add-funds" | "c
                 if (result.status === "complete") router.dismissTo("/(main)/(home)");
               },
               onError(error) {
-                toast.error(t("Error verifying identity"), { duration: 1000 });
+                errorToast(error, t("Error verifying identity"), { duration: 1000 });
                 reportError(error);
               },
             });

@@ -85,12 +85,14 @@ export default function EditRecipient() {
       toast.success(t("Contact updated"), { duration: 2000 });
       router.dismissTo({ pathname: "/send-funds/recipients", params: { currency, provider } });
     },
+    meta: {
+      toast: (error) => {
+        const codeMessage = error instanceof APIError ? errorMessages[error.text] : undefined;
+        return [codeMessage ? t(codeMessage) : t("Couldn't update the contact. Please try again."), { duration: 3000 }];
+      },
+    },
     onError: (error) => {
-      const codeMessage = error instanceof APIError ? errorMessages[error.text] : undefined;
-      if (!codeMessage) reportError(error);
-      toast.error(codeMessage ? t(codeMessage) : t("Couldn't update the contact. Please try again."), {
-        duration: 3000,
-      });
+      if (!(error instanceof APIError && errorMessages[error.text])) reportError(error);
     },
   });
 

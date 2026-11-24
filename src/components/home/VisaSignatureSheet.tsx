@@ -45,9 +45,7 @@ export default function VisaSignatureSheet({ open, onClose }: { onClose: () => v
       await queryClient.resetQueries({ queryKey: ["card", "details"] });
       toast.success(t("Card upgraded successfully"), { duration: 1000 });
     },
-    onError: () => {
-      toast.error(t("Error upgrading card"), { duration: 1000 });
-    },
+    meta: { toast: () => [t("Error upgrading card"), { duration: 1000 }] },
   });
 
   const onSuccess = useCallback(() => {

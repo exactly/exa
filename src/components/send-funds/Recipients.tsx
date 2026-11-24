@@ -52,15 +52,16 @@ export default function Recipients() {
       queryClient.invalidateQueries({ queryKey: ["ramp", "external-accounts"] }).catch(reportError);
       toast.success(t("Contact deleted"), { duration: 2000 });
     },
-    onError: (error) => {
-      const inUse = error instanceof APIError && error.text === "withdrawal in progress";
-      if (!inUse) reportError(error);
-      toast.error(
-        inUse
+    meta: {
+      toast: (error) => [
+        error instanceof APIError && error.text === "withdrawal in progress"
           ? t("Can't delete this contact while a withdrawal is in progress.")
           : t("Couldn't delete the contact. Please try again."),
         { duration: 3000 },
-      );
+      ],
+    },
+    onError: (error) => {
+      if (!(error instanceof APIError && error.text === "withdrawal in progress")) reportError(error);
     },
   });
 

@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 
 import { useRouter } from "expo-router";
 
-import { toast } from "@tamagui/toast";
 import { ScrollView, YStack } from "tamagui";
 
 import ARS from "../../assets/images/ars.svg";
@@ -16,6 +15,7 @@ import USDC from "../../assets/images/usdc.svg";
 import background from "../../assets/images/welcome-background.svg";
 import { ArrowLeft } from "../../generated/icons/ArrowLeft";
 import { ArrowRight } from "../../generated/icons/ArrowRight";
+import errorToast from "../../utils/errorToast";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useBeginKYC from "../../utils/useBeginKYC";
@@ -100,7 +100,7 @@ export default function RampWelcome({ direction }: { direction: "offramp" | "onr
                 }
               },
               onError(error) {
-                toast.error(t("Error verifying identity"), { duration: 1000 });
+                errorToast(error, t("Error verifying identity"), { duration: 1000 });
                 reportError(error);
               },
             });
