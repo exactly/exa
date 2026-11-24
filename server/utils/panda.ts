@@ -827,16 +827,107 @@ export class BusinessApplicationError extends Error {
 }
 
 const mutexes = new Map<Address, MutexInterface>();
+const timeout = (proposalManager.delay as Record<number, number>)[chain.id] ?? proposalManager.delay.default * 1000;
 export function createMutex(address: Address) {
-  const mutex = withTimeout(
-    new Mutex(),
-    (proposalManager.delay as Record<number, number>)[chain.id] ?? proposalManager.delay.default * 1000,
-  );
+  const mutex = withTimeout(new Mutex(), timeout);
   mutexes.set(address, mutex);
   return mutex;
 }
 export function getMutex(address: Address) {
   return mutexes.get(address);
+}
+export const E_DECLINED = new Error("declined");
+const declined = new Map<string, ReturnType<typeof setTimeout>>();
+const holders = new WeakMap<
+  MutexInterface,
+  {
+    claims: number;
+    declined: boolean;
+    id: string;
+    incremental: Promise<boolean | null>;
+    lookup: () => Promise<boolean | null>;
+    retried?: Promise<boolean | null>;
+    sent: Set<string>;
+  }
+>();
+export async function acquireMutex(
+  mutex: MutexInterface,
+  id: string,
+  lookup: () => Promise<boolean | null> = () => Promise.resolve(false),
+) {
+  if (declined.has(id)) throw E_DECLINED;
+  await mutex.acquire();
+  if (declined.has(id)) {
+    mutex.release();
+    throw E_DECLINED;
+  }
+  const holder = {
+    claims: 0,
+    declined: false,
+    id,
+    incremental: lookup(),
+    lookup,
+    sent: new Set<string>(),
+  };
+  holders.set(mutex, holder);
+  return () => {
+    if (holders.get(mutex) !== holder || holder.claims > 0) return;
+    holders.delete(mutex);
+    mutex.release();
+  };
+}
+async function classify(holder: NonNullable<ReturnType<typeof holders.get>>) {
+  const incremental =
+    (await holder.incremental) ??
+    (await (holder.retried ??= holder.lookup().then((result) => {
+      if (result === null) holder.retried = undefined;
+      return result;
+    })));
+  if (incremental === null) throw new Error("unclassified hold");
+  return incremental;
+}
+export async function claimMutex(
+  mutex: MutexInterface | undefined,
+  id: string,
+  event: string,
+  when: (incremental: boolean) => boolean | Promise<boolean>,
+) {
+  const holder = mutex && holders.get(mutex);
+  if (!mutex || holder?.id !== id) return;
+  const incremental = await classify(holder);
+  if (!(await when(incremental))) return;
+  holder.claims++;
+  return {
+    sent: () => holder.sent.add(event),
+    settle: (collected: boolean, replayed = false) => {
+      if (holders.get(mutex) !== holder) return;
+      holder.claims--;
+      const done = collected && !(replayed && incremental && !holder.sent.has(event));
+      if (!done && (!holder.declined || holder.claims > 0)) return;
+      holders.delete(mutex);
+      mutex.release();
+    },
+  };
+}
+export async function declineMutex(
+  mutex: MutexInterface | undefined,
+  id: string,
+  when?: (incremental: boolean) => boolean,
+) {
+  clearTimeout(declined.get(id));
+  declined.set(
+    id,
+    setTimeout(() => declined.delete(id), Math.max(timeout, proposalManager.delay.default * 1000)).unref(),
+  );
+  const holder = mutex && holders.get(mutex);
+  if (!mutex || holder?.id !== id) return;
+  if (when && (!when(await classify(holder)) || holders.get(mutex) !== holder)) return;
+  if (holder.claims > 0) {
+    holder.declined = true;
+    return;
+  }
+  holders.delete(mutex);
+  mutex.release();
 }
 
 const AddressSchema = object({

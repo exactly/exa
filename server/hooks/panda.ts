@@ -54,9 +54,13 @@ import { MATURITY_INTERVAL, splitInstallments } from "@exactly/lib";
 import { cards, credentials, transactions } from "../database/schema";
 import t, { f } from "../i18n";
 import {
+  acquireMutex,
+  claimMutex,
   collectors,
   createMutex,
   declineMessage,
+  declineMutex,
+  E_DECLINED,
   getMutex,
   Payload,
   signIssuerOp,
@@ -262,9 +266,27 @@ export default function hook({
             return c.json({ code: "ok" });
           }
           const mutex = getMutex(account) ?? createMutex(account);
+          const transactionId = payload.body.id;
+          let release: () => void;
           try {
-            await startSpan({ name: "acquire mutex", op: "panda.mutex" }, () => mutex.acquire());
+            release = await startSpan({ name: "acquire mutex", op: "panda.mutex" }, () =>
+              acquireMutex(
+                mutex,
+                transactionId ?? payload.id,
+                transactionId === undefined
+                  ? undefined
+                  : () =>
+                      isCreated(database, transactionId, payload.body.spend.cardId).catch((error: unknown) => {
+                        captureException(error, { level: "error" });
+                        return null;
+                      }),
+              ),
+            );
           } catch (error: unknown) {
+            if (error === E_DECLINED) {
+              trackAuthorizationRejected(account, payload, card.mode, card.credential.source, "declined", segment);
+              return c.json({ code: "declined", rejectionCode: "UNKNOWN" }, 554 as UnofficialStatusCode);
+            }
             if (error === E_TIMEOUT) {
               captureException(error, { level: "fatal", tags: { unhandled: true } });
               trackAuthorizationRejected(account, payload, card.mode, card.credential.source, "mutex-timeout", segment);
@@ -285,6 +307,7 @@ export default function hook({
               wallet,
             );
             const authorize = () => {
+              if (!payload.body.id) release();
               trackAuthorized(account, payload, card.mode, card.credential.source, segment);
               return c.json({ code: "ok" });
             };
@@ -301,6 +324,7 @@ export default function hook({
                   captureException(new Error("high risk verification"), { level: "error" });
                 }
               }).catch((error: unknown) => captureException(error, { level: "error" }));
+              release();
               return authorize();
             }
 
@@ -419,7 +443,7 @@ export default function hook({
               throw new PandaError("unexpected error", 569 as UnofficialStatusCode);
             }
           } catch (error: unknown) {
-            mutex.release();
+            release();
             setContext("mutex", { locked: mutex.isLocked() });
             if (error instanceof PandaError) {
               error.message !== "tx reverted" &&
@@ -480,6 +504,9 @@ export default function hook({
             if (!card) throw new Error("card not found");
             const account = v.parse(Address, card.credential.account);
             setUser({ id: account });
+            if (payload.body.spend.status === "reversed" && payload.body.spend.amount <= 0) {
+              await declineMutex(getMutex(account), payload.body.id);
+            }
             if (
               payload.body.spend.status === "reversed" &&
               !(await database.query.transactions.findFirst({
@@ -563,7 +590,8 @@ export default function hook({
               ...(payload.body.spend.declinedReason && { "span.description": payload.body.spend.declinedReason }),
             });
             const mutex = getMutex(account);
-            mutex?.release();
+            if (payload.action === "created") await declineMutex(mutex, payload.body.id);
+            if (payload.action === "updated") await declineMutex(mutex, payload.body.id, (incremental) => incremental);
             setContext("mutex", { locked: mutex?.isLocked() });
 
             const provider = payload.body.spend.declinedReason === "" ? undefined : payload.body.spend.declinedReason;
@@ -654,7 +682,18 @@ export default function hook({
           if (payload.body.spend.status !== "pending" && payload.action !== "completed") return c.json({ code: "ok" });
           getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "panda.tx.collect");
 
+          const mutex = getMutex(account);
+          let claim: Awaited<ReturnType<typeof claimMutex>>;
+          let collected = false;
+          let replayed = false;
           try {
+            claim = await claimMutex(mutex, payload.body.id, payload.id, async (incremental) =>
+              incremental
+                ? payload.action === "updated" && payload.body.spend.authorizationUpdateAmount > 0
+                : payload.action === "created" ||
+                  (payload.action === "completed" &&
+                    !(await isCreated(database, payload.body.id, payload.body.spend.cardId))),
+            );
             const { call } = await prepareCollection(card, payload, database, issuer, panda, wallet);
             if (!call) {
               const appended = await database
@@ -670,6 +709,7 @@ export default function hook({
                 .where(and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)))
                 .returning({ id: transactions.id });
               if (appended.length === 0) throw new Error("transaction not found");
+              collected = true;
 
               sardine
                 .feedback({
@@ -715,6 +755,7 @@ export default function hook({
                 },
                 {
                   async onHash(hash) {
+                    claim?.sent();
                     const body = {
                       ...(jsonBody as object),
                       createdAt: getCreatedAt(payload) ?? new Date().toISOString(),
@@ -770,6 +811,7 @@ export default function hook({
                           ),
                 },
               );
+              collected = true;
 
               if (
                 payload.action === "created" ||
@@ -822,6 +864,8 @@ export default function hook({
                 error.cause.data?.errorName === "Replay"
               ) {
                 getActiveSpan()?.setAttributes({ "panda.replay": true });
+                collected = true;
+                replayed = true;
                 return c.json({ code: "ok" });
               }
               const settlement = payload.action === "completed";
@@ -939,8 +983,7 @@ export default function hook({
               return c.text(error instanceof Error ? error.message : String(error), 569 as UnofficialStatusCode);
             }
           } finally {
-            const mutex = getMutex(account);
-            if (payload.action === "created" || payload.action === "updated") mutex?.release();
+            claim?.settle(collected, replayed);
             setContext("mutex", { locked: mutex?.isLocked() });
           }
         }
@@ -1093,6 +1136,14 @@ function getCreatedAt(payload: v.InferOutput<typeof Transaction>): string | unde
   }
 }
 
+async function isCreated(database: Database, id: string, cardId: string) {
+  const tx = await database.query.transactions.findFirst({
+    columns: { payload: true },
+    where: and(eq(transactions.id, id), eq(transactions.cardId, cardId)),
+  });
+  return !!tx && v.parse(TransactionPayload, tx.payload).bodies.some((b) => b.action === "created");
+}
+
 async function prepareCollection(
   card: { credential: { account: string }; mode: number },
   payload: v.InferOutput<typeof Transaction>,
@@ -1109,11 +1160,7 @@ async function prepareCollection(
         case "updated":
           return payload.body.spend.authorizationUpdateAmount;
         case "completed": {
-          const tx = await database.query.transactions.findFirst({
-            columns: { payload: true },
-            where: and(eq(transactions.id, payload.body.id), eq(transactions.cardId, payload.body.spend.cardId)),
-          });
-          if (!tx || !v.parse(TransactionPayload, tx.payload).bodies.some((b) => b.action === "created")) {
+          if (!(await isCreated(database, payload.body.id, payload.body.spend.cardId))) {
             getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "panda.tx.capture.force");
             return payload.body.spend.amount;
           }

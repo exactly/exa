@@ -6,6 +6,7 @@ import "../mocks/sentry";
 import "../mocks/wallet";
 
 import { captureException, captureMessage, getClient, setUser, spanToJSON } from "@sentry/node";
+import { E_TIMEOUT, Mutex, withTimeout } from "async-mutex";
 import { eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import { v5 } from "uuid";
@@ -3166,6 +3167,2468 @@ describe("concurrency", () => {
       expect(mutex?.isLocked()).toBe(false);
       expect(spendAuthorization.status).toBe(200);
       expect(collectSpendAuthorization.status).toBe(200);
+    });
+
+    it("keeps mutex when another transaction is declined", async () => {
+      const cardId = `${account2}-card`;
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: { ...authorization.json.body, id: cardId, spend: { ...authorization.json.body.spend, cardId } },
+        },
+      });
+      const declined = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-other-declined`,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: `${cardId}-other`,
+            spend: { ...authorization.json.body.spend, cardId, status: "declined" },
+          },
+        },
+      });
+
+      expect(spend.status).toBe(200);
+      expect(declined.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+
+      const collect = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: { ...authorization.json.body, id: cardId, spend: { ...authorization.json.body.spend, cardId } },
+        },
+      });
+
+      expect(collect.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+    });
+
+    it("releases mutex after a zero amount authorization", async () => {
+      const cardId = `${account2}-card`;
+      const response = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, amount: 0, cardId },
+          },
+        },
+      });
+
+      expect(response.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+    });
+
+    it("keeps mutex when another transaction is collected", async () => {
+      const cardId = `${account2}-card`;
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: { ...authorization.json.body, id: cardId, spend: { ...authorization.json.body.spend, cardId } },
+        },
+      });
+      const other = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-other-created`,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: `${cardId}-other`,
+            spend: { ...authorization.json.body.spend, amount: 100, authorizedAmount: 100, cardId },
+          },
+        },
+      });
+
+      const transaction = await database.query.transactions.findFirst({
+        where: eq(transactions.id, `${cardId}-other`),
+      });
+
+      expect(spend.status).toBe(200);
+      expect(other.status).toBe(200);
+      expect(transaction?.hashes).toHaveLength(1);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+
+      const collect = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: { ...authorization.json.body, id: cardId, spend: { ...authorization.json.body.spend, cardId } },
+        },
+      });
+
+      expect(collect.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+    });
+
+    it("releases mutex after an authorization without transaction id", async () => {
+      const cardId = `${account2}-card`;
+      const { id, ...body } = authorization.json.body;
+      const response = await appClient.index.$post({
+        ...authorization,
+        json: { ...authorization.json, body: { ...body, spend: { ...body.spend, cardId } } },
+      });
+
+      expect(response.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+    });
+
+    it("releases mutex after a forced capture", async () => {
+      const cardId = `${account2}-card`;
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: { ...authorization.json.body, id: cardId, spend: { ...authorization.json.body.spend, cardId } },
+        },
+      });
+
+      expect(spend.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+
+      const { authorizedAmount, ...completed } = authorization.json.body.spend;
+      const capture = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "completed",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: {
+              ...completed,
+              authorizedAt: new Date().toISOString(),
+              postedAt: new Date().toISOString(),
+              cardId,
+              status: "completed",
+            },
+          },
+        },
+      });
+
+      expect(capture.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+    });
+
+    it("keeps mutex when its collection fails", async () => {
+      const cardId = `${account2}-card`;
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: { ...authorization.json.body, id: cardId, spend: { ...authorization.json.body.spend, cardId } },
+        },
+      });
+      const created = {
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: { ...authorization.json.body, id: cardId, spend: { ...authorization.json.body.spend, cardId } },
+        },
+      } as const;
+      vi.spyOn(Panda, "signIssuerOp").mockRejectedValueOnce(new Error("sign failed"));
+      const failed = await appClient.index.$post(created);
+
+      expect(spend.status).toBe(200);
+      expect(failed.status).not.toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+
+      const collect = await appClient.index.$post({ ...created, json: { ...created.json, id: `${cardId}-retried` } });
+
+      expect(collect.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+    });
+
+    it("releases mutex when its transaction is delivered again and keeps the next hold", async () => {
+      const cardId = `${account2}-card`;
+      const authorizedAt = new Date().toISOString();
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const { promise: signing, resolve: sign } = Promise.withResolvers<boolean>();
+      const signIssuerOp = Panda.signIssuerOp;
+      const signer = vi.spyOn(Panda, "signIssuerOp").mockImplementationOnce(async (...parameters) => {
+        await signing;
+        return signIssuerOp(...parameters);
+      });
+      const created = {
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      } as const;
+      const collect = appClient.index.$post(created);
+      await vi.waitUntil(() => signer.mock.calls.length > 0, 26_666);
+      const redelivered = await appClient.index.$post({
+        ...created,
+        json: { ...created.json, id: `${cardId}-redelivered` },
+      });
+
+      expect(spend.status).toBe(200);
+      expect(redelivered.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+
+      const next = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-next`,
+          body: {
+            ...authorization.json.body,
+            id: `${cardId}-next`,
+            spend: { ...authorization.json.body.spend, cardId, amount: 77, authorizedAt: new Date().toISOString() },
+          },
+        },
+      });
+
+      expect(next.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+
+      sign(true);
+
+      await expect(collect).resolves.toHaveProperty("status", 200);
+      await expect(
+        database.query.transactions.findFirst({ where: eq(transactions.id, cardId) }),
+      ).resolves.toHaveProperty("hashes", [expect.any(String)]);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+    });
+
+    it("drops a queued authorization declined while waiting", async () => {
+      const cardId = `${account2}-card`;
+      const track = vi.spyOn(segment, "track");
+      const mutex = withTimeout(new Mutex(), 26_666);
+      const getMutex = vi.spyOn(Panda, "getMutex").mockReturnValue(mutex);
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: { ...authorization.json.body, id: cardId, spend: { ...authorization.json.body.spend, cardId } },
+        },
+      });
+      const calls = getMutex.mock.calls.length;
+      const queued = appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-queued-requested`,
+          body: {
+            ...authorization.json.body,
+            id: `${cardId}-queued`,
+            spend: { ...authorization.json.body.spend, amount: 800, cardId },
+          },
+        },
+      });
+      await vi.waitUntil(() => getMutex.mock.calls.length > calls, 26_666);
+      const declined = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-queued-declined`,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: `${cardId}-queued`,
+            spend: { ...authorization.json.body.spend, cardId, status: "declined" },
+          },
+        },
+      });
+      const collect = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: { ...authorization.json.body, id: cardId, spend: { ...authorization.json.body.spend, cardId } },
+        },
+      });
+
+      expect(spend.status).toBe(200);
+      expect(declined.status).toBe(200);
+      expect(collect.status).toBe(200);
+      const dropped = await queued;
+
+      expect(dropped.status).toBe(554);
+      await expect(dropped.json()).resolves.toStrictEqual({ code: "declined", rejectionCode: "UNKNOWN" });
+      expect(captureException).not.toHaveBeenCalledWith(E_TIMEOUT, expect.anything());
+      expect(track).toHaveBeenCalledWith({
+        userId: account2,
+        event: "AuthorizationRejected",
+        properties: expect.objectContaining({ declinedReason: "declined" }) as unknown,
+      });
+      expect(mutex.isLocked()).toBe(false);
+    });
+
+    it("drops a queued authorization of its own declined transaction", async () => {
+      const cardId = `${account2}-card`;
+      const track = vi.spyOn(segment, "track");
+      const mutex = withTimeout(new Mutex(), 26_666);
+      const getMutex = vi.spyOn(Panda, "getMutex").mockReturnValue(mutex);
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: { ...authorization.json.body, id: cardId, spend: { ...authorization.json.body.spend, cardId } },
+        },
+      });
+      const calls = getMutex.mock.calls.length;
+      const queued = appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-redelivered`,
+          body: { ...authorization.json.body, id: cardId, spend: { ...authorization.json.body.spend, cardId } },
+        },
+      });
+      await vi.waitUntil(() => getMutex.mock.calls.length > calls, 26_666);
+      const declined = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-declined`,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, status: "declined" },
+          },
+        },
+      });
+      const dropped = await queued;
+
+      expect(spend.status).toBe(200);
+      expect(declined.status).toBe(200);
+      expect(dropped.status).toBe(554);
+      await expect(dropped.json()).resolves.toStrictEqual({ code: "declined", rejectionCode: "UNKNOWN" });
+      expect(captureException).not.toHaveBeenCalledWith(E_TIMEOUT, expect.anything());
+      expect(track).toHaveBeenCalledWith({
+        userId: account2,
+        event: "AuthorizationRejected",
+        properties: expect.objectContaining({ declinedReason: "declined" }) as unknown,
+      });
+      expect(mutex.isLocked()).toBe(false);
+    });
+
+    it("drops an authorization that arrives after its decline", async () => {
+      const cardId = `${account2}-card`;
+      const track = vi.spyOn(segment, "track");
+      const declined = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-declined`,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, status: "declined" },
+          },
+        },
+      });
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: { ...authorization.json.body, id: cardId, spend: { ...authorization.json.body.spend, cardId } },
+        },
+      });
+
+      expect(declined.status).toBe(200);
+      expect(spend.status).toBe(554);
+      await expect(spend.json()).resolves.toStrictEqual({ code: "declined", rejectionCode: "UNKNOWN" });
+      expect(captureException).not.toHaveBeenCalledWith(E_TIMEOUT, expect.anything());
+      expect(track).toHaveBeenCalledWith({
+        userId: account2,
+        event: "AuthorizationRejected",
+        properties: expect.objectContaining({ declinedReason: "declined" }) as unknown,
+      });
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+    });
+
+    it("drops an authorization declined before it reaches the lock", async () => {
+      const cardId = `${account2}-card`;
+      const track = vi.spyOn(segment, "track");
+      const { promise: lookup, resolve: look } = Promise.withResolvers<boolean>();
+      const findFirst = database.query.cards.findFirst.bind(database.query.cards);
+      const finder = vi
+        .spyOn(database.query.cards, "findFirst")
+        .mockImplementationOnce(((...parameters) => lookup.then(() => findFirst(...parameters))) as typeof findFirst);
+      const spend = appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: { ...authorization.json.body, id: cardId, spend: { ...authorization.json.body.spend, cardId } },
+        },
+      });
+      await vi.waitUntil(() => finder.mock.calls.length > 0, 26_666);
+      const declined = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-declined`,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, status: "declined" },
+          },
+        },
+      });
+      look(true);
+      const dropped = await spend;
+
+      expect(declined.status).toBe(200);
+      expect(dropped.status).toBe(554);
+      await expect(dropped.json()).resolves.toStrictEqual({ code: "declined", rejectionCode: "UNKNOWN" });
+      expect(captureException).not.toHaveBeenCalledWith(E_TIMEOUT, expect.anything());
+      expect(track).toHaveBeenCalledWith({
+        userId: account2,
+        event: "AuthorizationRejected",
+        properties: expect.objectContaining({ declinedReason: "declined" }) as unknown,
+      });
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+    });
+
+    it("releases mutex when its failed collection was declined", async () => {
+      const cardId = `${account2}-card`;
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: { ...authorization.json.body, id: cardId, spend: { ...authorization.json.body.spend, cardId } },
+        },
+      });
+      const { promise: signing, resolve: sign } = Promise.withResolvers<boolean>();
+      const signer = vi.spyOn(Panda, "signIssuerOp").mockImplementationOnce(async () => {
+        await signing;
+        throw new Error("sign failed");
+      });
+      const collect = appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: { ...authorization.json.body, id: cardId, spend: { ...authorization.json.body.spend, cardId } },
+        },
+      });
+      await vi.waitUntil(() => signer.mock.calls.length > 0, 26_666);
+      const declined = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-declined`,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, status: "declined" },
+          },
+        },
+      });
+
+      expect(spend.status).toBe(200);
+      expect(declined.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+
+      sign(true);
+      const failed = await collect;
+
+      expect(failed.status).not.toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+    });
+
+    it("releases mutex when its authorization is reversed", async () => {
+      const cardId = `${account2}-card`;
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: { ...authorization.json.body, id: cardId, spend: { ...authorization.json.body.spend, cardId } },
+        },
+      });
+      const reversed = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-reversed`,
+          action: "updated",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: {
+              ...authorization.json.body.spend,
+              cardId,
+              amount: 0,
+              authorizationUpdateAmount: -authorization.json.body.spend.amount,
+              authorizedAt: new Date().toISOString(),
+              status: "reversed",
+            },
+          },
+        },
+      });
+
+      expect(spend.status).toBe(200);
+      expect(reversed.status).toBe(553);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+    });
+
+    it("keeps mutex when its failed collection is partially reversed", async () => {
+      const cardId = `${account2}-card`;
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: { ...authorization.json.body, id: cardId, spend: { ...authorization.json.body.spend, cardId } },
+        },
+      });
+      const created = {
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: { ...authorization.json.body, id: cardId, spend: { ...authorization.json.body.spend, cardId } },
+        },
+      } as const;
+      vi.spyOn(Panda, "signIssuerOp").mockRejectedValueOnce(new Error("sign failed"));
+      const failed = await appClient.index.$post(created);
+      const reversed = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-reversed`,
+          action: "updated",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: {
+              ...authorization.json.body.spend,
+              cardId,
+              amount: authorization.json.body.spend.amount - 300,
+              authorizationUpdateAmount: -300,
+              authorizedAt: new Date().toISOString(),
+              status: "reversed",
+            },
+          },
+        },
+      });
+
+      expect(spend.status).toBe(200);
+      expect(failed.status).not.toBe(200);
+      expect(reversed.status).toBe(553);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+
+      const collect = await appClient.index.$post({ ...created, json: { ...created.json, id: `${cardId}-retried` } });
+
+      expect(collect.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+    });
+
+    it("keeps mutex when an update of its authorization is declined", async () => {
+      const cardId = `${account2}-card`;
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: { ...authorization.json.body, id: cardId, spend: { ...authorization.json.body.spend, cardId } },
+        },
+      });
+      const declined = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-update-declined`,
+          action: "updated",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: {
+              ...authorization.json.body.spend,
+              cardId,
+              authorizationUpdateAmount: 300,
+              authorizedAt: new Date().toISOString(),
+              status: "declined",
+            },
+          },
+        },
+      });
+
+      expect(spend.status).toBe(200);
+      expect(declined.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+
+      const collect = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: { ...authorization.json.body, id: cardId, spend: { ...authorization.json.body.spend, cardId } },
+        },
+      });
+
+      expect(collect.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+    });
+
+    it("keeps mutex when its authorization is partially captured", async () => {
+      const cardId = `${account2}-card`;
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: { ...authorization.json.body, id: cardId, spend: { ...authorization.json.body.spend, cardId } },
+        },
+      });
+      const captured = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-completed`,
+          action: "completed",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: {
+              ...authorization.json.body.spend,
+              cardId,
+              amount: 50,
+              authorizedAmount: authorization.json.body.spend.amount,
+              authorizedAt: new Date().toISOString(),
+              postedAt: new Date().toISOString(),
+              status: "completed",
+            },
+          },
+        },
+      });
+
+      expect(spend.status).toBe(200);
+      expect(captured.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+    });
+
+    it("keeps mutex when an update of its failed collection is collected", async () => {
+      const cardId = `${account2}-card`;
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: { ...authorization.json.body, id: cardId, spend: { ...authorization.json.body.spend, cardId } },
+        },
+      });
+      const created = {
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: { ...authorization.json.body, id: cardId, spend: { ...authorization.json.body.spend, cardId } },
+        },
+      } as const;
+      vi.spyOn(Panda, "signIssuerOp").mockRejectedValueOnce(new Error("sign failed"));
+      const failed = await appClient.index.$post(created);
+      const updated = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-updated`,
+          action: "updated",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: {
+              ...authorization.json.body.spend,
+              cardId,
+              amount: authorization.json.body.spend.amount + 300,
+              authorizationUpdateAmount: 300,
+              authorizedAt: new Date().toISOString(),
+              status: "pending",
+            },
+          },
+        },
+      });
+
+      expect(spend.status).toBe(200);
+      expect(failed.status).not.toBe(200);
+      expect(updated.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+
+      const collect = await appClient.index.$post({ ...created, json: { ...created.json, id: `${cardId}-retried` } });
+
+      expect(collect.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+    });
+
+    it("releases mutex when its incremental authorization is collected", async () => {
+      const cardId = `${account2}-card`;
+      const authorizedAt = new Date().toISOString();
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const created = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const increment = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-increment`,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, amount: 300, authorizedAt },
+          },
+        },
+      });
+
+      expect(spend.status).toBe(200);
+      expect(created.status).toBe(200);
+      expect(increment.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+
+      const updated = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-updated`,
+          action: "updated",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: {
+              ...authorization.json.body.spend,
+              cardId,
+              amount: authorization.json.body.spend.amount + 300,
+              authorizationUpdateAmount: 300,
+              authorizedAt: new Date().toISOString(),
+              status: "pending",
+            },
+          },
+        },
+      });
+
+      expect(updated.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+    });
+
+    it("releases mutex when its incremental authorization is declined", async () => {
+      const cardId = `${account2}-card`;
+      const authorizedAt = new Date().toISOString();
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const created = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const increment = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-increment`,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, amount: 300, authorizedAt },
+          },
+        },
+      });
+
+      expect(spend.status).toBe(200);
+      expect(created.status).toBe(200);
+      expect(increment.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+
+      const updated = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-updated`,
+          action: "updated",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: {
+              ...authorization.json.body.spend,
+              cardId,
+              amount: authorization.json.body.spend.amount + 300,
+              authorizationUpdateAmount: 300,
+              authorizedAt: new Date().toISOString(),
+              status: "declined",
+            },
+          },
+        },
+      });
+
+      expect(updated.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+    });
+
+    it("keeps mutex when an update lands after its collection reverts", async () => {
+      const cardId = `${account2}-card`;
+      const authorizedAt = new Date().toISOString();
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const created = {
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      } as const;
+      vi.spyOn(keeper, "exaSend").mockImplementationOnce(async (...parameters) => {
+        await parameters[2]?.onHash?.(amountHash(1n));
+        throw new Error("reverted");
+      });
+      const reverted = await appClient.index.$post(created);
+      const updated = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-updated`,
+          action: "updated",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: {
+              ...authorization.json.body.spend,
+              cardId,
+              amount: authorization.json.body.spend.amount + 300,
+              authorizationUpdateAmount: 300,
+              authorizedAt: new Date().toISOString(),
+              status: "pending",
+            },
+          },
+        },
+      });
+
+      expect(spend.status).toBe(200);
+      expect(reverted.status).not.toBe(200);
+      expect(updated.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+
+      const collect = await appClient.index.$post({ ...created, json: { ...created.json, id: `${cardId}-retried` } });
+
+      expect(collect.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+    });
+
+    it("keeps mutex when an update lands after its collection reverts and its first lookup failed", async () => {
+      const cardId = `${account2}-card`;
+      const authorizedAt = new Date().toISOString();
+      const error = new Error("lookup failed");
+      vi.spyOn(database.query.transactions, "findFirst").mockRejectedValueOnce(error);
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const created = {
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      } as const;
+      await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([reason]) => reason === error), 26_666);
+      vi.spyOn(keeper, "exaSend").mockImplementationOnce(async (...parameters) => {
+        await parameters[2]?.onHash?.(amountHash(1n));
+        throw new Error("reverted");
+      });
+      const reverted = await appClient.index.$post(created);
+      const updated = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-updated`,
+          action: "updated",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: {
+              ...authorization.json.body.spend,
+              cardId,
+              amount: authorization.json.body.spend.amount + 300,
+              authorizationUpdateAmount: 300,
+              authorizedAt: new Date().toISOString(),
+              status: "pending",
+            },
+          },
+        },
+      });
+
+      expect(spend.status).toBe(200);
+      expect(reverted.status).not.toBe(200);
+      expect(updated.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+
+      const collect = await appClient.index.$post({ ...created, json: { ...created.json, id: `${cardId}-retried` } });
+
+      expect(collect.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+    });
+
+    it("keeps mutex when its settlement lands after its collection reverts", async () => {
+      const cardId = `${account2}-card`;
+      const authorizedAt = new Date().toISOString();
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const created = {
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      } as const;
+      vi.spyOn(keeper, "exaSend").mockImplementationOnce(async (...parameters) => {
+        await parameters[2]?.onHash?.(amountHash(1n));
+        throw new Error("reverted");
+      });
+      const reverted = await appClient.index.$post(created);
+      const settled = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-completed`,
+          action: "completed",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: {
+              ...authorization.json.body.spend,
+              cardId,
+              authorizedAt,
+              postedAt: new Date().toISOString(),
+              status: "completed",
+            },
+          },
+        },
+      });
+
+      expect(spend.status).toBe(200);
+      expect(reverted.status).not.toBe(200);
+      expect(settled.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+
+      const collect = await appClient.index.$post({ ...created, json: { ...created.json, id: `${cardId}-retried` } });
+
+      expect(collect.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+    });
+
+    it("skips its claim when its hold ends during the capture lookup", async () => {
+      const cardId = `${account2}-card`;
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: { ...authorization.json.body, id: cardId, spend: { ...authorization.json.body.spend, cardId } },
+        },
+      });
+      const { promise: lookup, resolve: look } = Promise.withResolvers<boolean>();
+      const findFirst = database.query.transactions.findFirst.bind(database.query.transactions);
+      const finder = vi
+        .spyOn(database.query.transactions, "findFirst")
+        .mockImplementationOnce(((...parameters) => lookup.then(() => findFirst(...parameters))) as typeof findFirst);
+      const { authorizedAmount, ...completed } = authorization.json.body.spend;
+      const capture = appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-completed`,
+          action: "completed",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: {
+              ...completed,
+              authorizedAt: new Date().toISOString(),
+              postedAt: new Date().toISOString(),
+              cardId,
+              status: "completed",
+            },
+          },
+        },
+      });
+      await vi.waitUntil(() => finder.mock.calls.length > 0, 26_666);
+      const reversed = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-reversed`,
+          action: "updated",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: {
+              ...authorization.json.body.spend,
+              cardId,
+              amount: 0,
+              authorizationUpdateAmount: -authorization.json.body.spend.amount,
+              authorizedAt: new Date().toISOString(),
+              status: "reversed",
+            },
+          },
+        },
+      });
+
+      expect(spend.status).toBe(200);
+      expect(reversed.status).toBe(553);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+
+      look(true);
+      await capture;
+
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+    });
+
+    it("skips its claim when its hold is replaced during the capture lookup", async () => {
+      const cardId = `${account2}-card`;
+      const authorizedAt = new Date().toISOString();
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const { promise: lookup, resolve: look } = Promise.withResolvers<boolean>();
+      const finder = vi
+        .spyOn(database.query.transactions, "findFirst")
+        .mockImplementationOnce((() => lookup.then(() => undefined)) as typeof database.query.transactions.findFirst);
+      const { authorizedAmount, ...completed } = authorization.json.body.spend;
+      const capture = appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-completed`,
+          action: "completed",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: {
+              ...completed,
+              authorizedAt: new Date(Date.parse(authorizedAt) + 2000).toISOString(),
+              postedAt: new Date().toISOString(),
+              cardId,
+              status: "completed",
+            },
+          },
+        },
+      });
+      await vi.waitUntil(() => finder.mock.calls.length > 0, 26_666);
+      const created = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const increment = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-increment`,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, amount: 300, authorizedAt },
+          },
+        },
+      });
+
+      expect(spend.status).toBe(200);
+      expect(created.status).toBe(200);
+      expect(increment.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+
+      look(true);
+      await capture;
+
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+    });
+
+    it("skips its decline when its hold ends during the increment lookup", async () => {
+      const cardId = `${account2}-card`;
+      const authorizedAt = new Date().toISOString();
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const created = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const { promise: lookup, resolve: look } = Promise.withResolvers<boolean>();
+      const findFirst = database.query.transactions.findFirst.bind(database.query.transactions);
+      vi.spyOn(database.query.transactions, "findFirst").mockImplementationOnce(((...parameters) =>
+        lookup.then(() => findFirst(...parameters))) as typeof findFirst);
+      const increment = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-increment`,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, amount: 300, authorizedAt },
+          },
+        },
+      });
+      const decline = vi.spyOn(Panda, "declineMutex");
+      const declined = appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-update-declined`,
+          action: "updated",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: {
+              ...authorization.json.body.spend,
+              cardId,
+              amount: authorization.json.body.spend.amount + 300,
+              authorizationUpdateAmount: 300,
+              authorizedAt: new Date().toISOString(),
+              status: "declined",
+            },
+          },
+        },
+      });
+      await vi.waitUntil(() => decline.mock.calls.length > 0, 26_666);
+      const reversed = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-reversed`,
+          action: "updated",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: {
+              ...authorization.json.body.spend,
+              cardId,
+              amount: 0,
+              authorizationUpdateAmount: -authorization.json.body.spend.amount,
+              authorizedAt: new Date().toISOString(),
+              status: "reversed",
+            },
+          },
+        },
+      });
+
+      expect(spend.status).toBe(200);
+      expect(created.status).toBe(200);
+      expect(increment.status).toBe(200);
+      expect(reversed.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+
+      const next = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-next`,
+          body: {
+            ...authorization.json.body,
+            id: `${cardId}-next`,
+            spend: { ...authorization.json.body.spend, cardId, amount: 77, authorizedAt: new Date().toISOString() },
+          },
+        },
+      });
+
+      expect(next.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+
+      look(true);
+
+      await expect(declined).resolves.toHaveProperty("status", 200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+    });
+
+    it("releases mutex when its authorization is delivered again after its lookups fail", async () => {
+      const cardId = `${account2}-card`;
+      const authorizedAt = new Date().toISOString();
+      const error = new Error("lookup failed");
+      const retry = new Error("lookup failed again");
+      vi.spyOn(database.query.transactions, "findFirst").mockRejectedValueOnce(error).mockRejectedValueOnce(retry);
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+
+      expect(spend.status).toBe(200);
+      await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([reason]) => reason === error), 26_666);
+
+      const created = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+
+      expect(created.status).toBe(500);
+      expect(captureException).toHaveBeenCalledWith(retry, { level: "error" });
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+
+      const redelivered = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+
+      expect(redelivered.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+    });
+
+    it("releases mutex when its increment is delivered again after its lookups fail", async () => {
+      const cardId = `${account2}-card`;
+      const authorizedAt = new Date().toISOString();
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const created = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const error = new Error("lookup failed");
+      const retry = new Error("lookup failed again");
+      vi.spyOn(database.query.transactions, "findFirst").mockRejectedValueOnce(error).mockRejectedValueOnce(retry);
+      const increment = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-increment`,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, amount: 300, authorizedAt },
+          },
+        },
+      });
+
+      expect(spend.status).toBe(200);
+      expect(created.status).toBe(200);
+      expect(increment.status).toBe(200);
+      await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([reason]) => reason === error), 26_666);
+
+      const send = () =>
+        appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            id: `${cardId}-updated`,
+            action: "updated",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: {
+                ...authorization.json.body.spend,
+                cardId,
+                amount: authorization.json.body.spend.amount + 300,
+                authorizationUpdateAmount: 300,
+                authorizedAt,
+                status: "pending",
+              },
+            },
+          },
+        });
+      const updated = await send();
+
+      expect(updated.status).toBe(500);
+      expect(captureException).toHaveBeenCalledWith(retry, { level: "error" });
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+
+      const redelivered = await send();
+
+      expect(redelivered.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+    });
+
+    it("releases mutex when its increment decline is delivered again after its lookups fail", async () => {
+      const cardId = `${account2}-card`;
+      const authorizedAt = new Date().toISOString();
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const created = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const error = new Error("lookup failed");
+      const retry = new Error("lookup failed again");
+      vi.spyOn(database.query.transactions, "findFirst").mockRejectedValueOnce(error).mockRejectedValueOnce(retry);
+      const increment = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-increment`,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, amount: 300, authorizedAt },
+          },
+        },
+      });
+
+      expect(spend.status).toBe(200);
+      expect(created.status).toBe(200);
+      expect(increment.status).toBe(200);
+      await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([reason]) => reason === error), 26_666);
+
+      const send = () =>
+        appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            id: `${cardId}-updated`,
+            action: "updated",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: {
+                ...authorization.json.body.spend,
+                cardId,
+                amount: authorization.json.body.spend.amount + 300,
+                authorizationUpdateAmount: 300,
+                authorizedAt,
+                status: "declined",
+              },
+            },
+          },
+        });
+      const updated = await send();
+
+      expect(updated.status).toBe(500);
+      expect(captureException).toHaveBeenCalledWith(retry, { level: "error" });
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+
+      const redelivered = await send();
+
+      expect(redelivered.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+    });
+
+    it("releases mutex when its increment lookup fails once", async () => {
+      const cardId = `${account2}-card`;
+      const authorizedAt = new Date().toISOString();
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const created = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const error = new Error("lookup failed");
+      vi.spyOn(database.query.transactions, "findFirst").mockRejectedValueOnce(error);
+      const increment = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-increment`,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, amount: 300, authorizedAt },
+          },
+        },
+      });
+
+      expect(spend.status).toBe(200);
+      expect(created.status).toBe(200);
+      expect(increment.status).toBe(200);
+      await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([reason]) => reason === error), 26_666);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+
+      const updated = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-updated`,
+          action: "updated",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: {
+              ...authorization.json.body.spend,
+              cardId,
+              amount: authorization.json.body.spend.amount + 300,
+              authorizationUpdateAmount: 300,
+              authorizedAt,
+              status: "pending",
+            },
+          },
+        },
+      });
+
+      expect(updated.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+    });
+
+    it("keeps mutex when an earlier update replays after its own update was sent", async () => {
+      const cardId = `${account2}-card`;
+      const authorizedAt = new Date().toISOString();
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const created = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const first = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-first-increment`,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, amount: 300, authorizedAt },
+          },
+        },
+      });
+      const update = {
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-first-updated`,
+          action: "updated",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: {
+              ...authorization.json.body.spend,
+              cardId,
+              amount: authorization.json.body.spend.amount + 300,
+              authorizationUpdateAmount: 300,
+              authorizedAt,
+              status: "pending",
+            },
+          },
+        },
+      } as const;
+      const collect = await appClient.index.$post(update);
+      const second = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-second-increment`,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, amount: 400, authorizedAt },
+          },
+        },
+      });
+      vi.spyOn(keeper, "exaSend").mockImplementationOnce(async (...parameters) => {
+        await parameters[2]?.onHash?.(amountHash(2n));
+        throw new Error("receipt timeout");
+      });
+      const failed = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-second-updated`,
+          action: "updated",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: {
+              ...authorization.json.body.spend,
+              cardId,
+              amount: authorization.json.body.spend.amount + 400,
+              authorizationUpdateAmount: 400,
+              authorizedAt,
+              status: "pending",
+            },
+          },
+        },
+      });
+      const replayed = await appClient.index.$post(update);
+
+      expect(spend.status).toBe(200);
+      expect(created.status).toBe(200);
+      expect(first.status).toBe(200);
+      expect(collect.status).toBe(200);
+      expect(second.status).toBe(200);
+      expect(failed.status).not.toBe(200);
+      expect(replayed.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+    });
+
+    it("releases mutex when a redelivery of its landed collection replays", async () => {
+      const cardId = `${account2}-card`;
+      const authorizedAt = new Date().toISOString();
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const created = {
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      } as const;
+      const exaSend = keeper.exaSend.bind(keeper);
+      vi.spyOn(keeper, "exaSend").mockImplementationOnce(async (...parameters) => {
+        await exaSend(...parameters);
+        throw new Error("receipt timeout");
+      });
+      const failed = await appClient.index.$post(created);
+
+      expect(spend.status).toBe(200);
+      expect(failed.status).not.toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+
+      const redelivered = await appClient.index.$post({
+        ...created,
+        json: { ...created.json, id: `${cardId}-redelivered` },
+      });
+
+      expect(redelivered.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+    });
+
+    it("drops an authorization that arrives after its update is declined", async () => {
+      const cardId = `${account2}-card`;
+      const authorizedAt = new Date().toISOString();
+      const declined = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-update-declined`,
+          action: "updated",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: {
+              ...authorization.json.body.spend,
+              cardId,
+              amount: authorization.json.body.spend.amount + 300,
+              authorizationUpdateAmount: 300,
+              authorizedAt,
+              status: "declined",
+            },
+          },
+        },
+      });
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: { ...authorization.json.body, id: cardId, spend: { ...authorization.json.body.spend, cardId } },
+        },
+      });
+
+      expect(declined.status).toBe(200);
+      expect(spend.status).toBe(554);
+      await expect(spend.json()).resolves.toStrictEqual({ code: "declined", rejectionCode: "UNKNOWN" });
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+    });
+
+    it("keeps mutex when its incremental authorization is settled before its update", async () => {
+      const cardId = `${account2}-card`;
+      const authorizedAt = new Date().toISOString();
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const created = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const increment = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-increment`,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, amount: 300, authorizedAt },
+          },
+        },
+      });
+      const settled = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-completed`,
+          action: "completed",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: {
+              ...authorization.json.body.spend,
+              cardId,
+              amount: authorization.json.body.spend.amount + 300,
+              authorizedAmount: authorization.json.body.spend.amount + 300,
+              authorizedAt,
+              postedAt: new Date().toISOString(),
+              status: "completed",
+            },
+          },
+        },
+      });
+
+      expect(spend.status).toBe(200);
+      expect(created.status).toBe(200);
+      expect(increment.status).toBe(200);
+      expect(settled.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+
+      const updated = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-updated`,
+          action: "updated",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: {
+              ...authorization.json.body.spend,
+              cardId,
+              amount: authorization.json.body.spend.amount + 300,
+              authorizationUpdateAmount: 300,
+              authorizedAt,
+              status: "pending",
+            },
+          },
+        },
+      });
+
+      expect(updated.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+    });
+
+    it("keeps mutex when an earlier update of its transaction is delivered again", async () => {
+      const cardId = `${account2}-card`;
+      const authorizedAt = new Date().toISOString();
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const created = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const first = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-first-increment`,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, amount: 300, authorizedAt },
+          },
+        },
+      });
+      const update = {
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-first-updated`,
+          action: "updated",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: {
+              ...authorization.json.body.spend,
+              cardId,
+              amount: authorization.json.body.spend.amount + 300,
+              authorizationUpdateAmount: 300,
+              authorizedAt,
+              status: "pending",
+            },
+          },
+        },
+      } as const;
+      const collect = await appClient.index.$post(update);
+
+      expect(spend.status).toBe(200);
+      expect(created.status).toBe(200);
+      expect(first.status).toBe(200);
+      expect(collect.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+
+      const second = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-second-increment`,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, amount: 400, authorizedAt },
+          },
+        },
+      });
+      const replayed = await appClient.index.$post(update);
+
+      expect(second.status).toBe(200);
+      expect(replayed.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+
+      const updated = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-second-updated`,
+          action: "updated",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: {
+              ...authorization.json.body.spend,
+              cardId,
+              amount: authorization.json.body.spend.amount + 400,
+              authorizationUpdateAmount: 400,
+              authorizedAt,
+              status: "pending",
+            },
+          },
+        },
+      });
+
+      expect(updated.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+    });
+
+    it("releases mutex when a retry of its sent increment replays", async () => {
+      const cardId = `${account2}-card`;
+      const authorizedAt = new Date().toISOString();
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const created = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const increment = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-increment`,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, amount: 300, authorizedAt },
+          },
+        },
+      });
+      const exaSend = keeper.exaSend.bind(keeper);
+      vi.spyOn(keeper, "exaSend").mockImplementationOnce(async (...parameters) => {
+        await exaSend(...parameters);
+        throw new Error("receipt timeout");
+      });
+      const update = {
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-updated`,
+          action: "updated",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: {
+              ...authorization.json.body.spend,
+              cardId,
+              amount: authorization.json.body.spend.amount + 300,
+              authorizationUpdateAmount: 300,
+              authorizedAt,
+              status: "pending",
+            },
+          },
+        },
+      } as const;
+      const failed = await appClient.index.$post(update);
+
+      expect(spend.status).toBe(200);
+      expect(created.status).toBe(200);
+      expect(increment.status).toBe(200);
+      expect(failed.status).not.toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+
+      const retried = await appClient.index.$post(update);
+
+      expect(retried.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+    });
+
+    it("keeps mutex when its incremental authorization is updated by zero", async () => {
+      const cardId = `${account2}-card`;
+      const authorizedAt = new Date().toISOString();
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const created = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const increment = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-increment`,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, amount: 300, authorizedAt },
+          },
+        },
+      });
+      const updated = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-updated`,
+          action: "updated",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: {
+              ...authorization.json.body.spend,
+              cardId,
+              amount: authorization.json.body.spend.amount + 0,
+              authorizationUpdateAmount: 0,
+              authorizedAt,
+              status: "pending",
+            },
+          },
+        },
+      });
+
+      expect(spend.status).toBe(200);
+      expect(created.status).toBe(200);
+      expect(increment.status).toBe(200);
+      expect(updated.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+    });
+
+    it("drops a queued incremental authorization declined while waiting", async () => {
+      const cardId = `${account2}-card`;
+      const authorizedAt = new Date().toISOString();
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const created = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const mutex = withTimeout(new Mutex(), 26_666);
+      const getMutex = vi.spyOn(Panda, "getMutex").mockReturnValue(mutex);
+      const other = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-other`,
+          body: {
+            ...authorization.json.body,
+            id: `${cardId}-other`,
+            spend: { ...authorization.json.body.spend, cardId, amount: 77, authorizedAt },
+          },
+        },
+      });
+      const calls = getMutex.mock.calls.length;
+      const queued = appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-increment`,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, amount: 300, authorizedAt },
+          },
+        },
+      });
+      await vi.waitUntil(() => getMutex.mock.calls.length > calls, 26_666);
+      const declined = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-update-declined`,
+          action: "updated",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: {
+              ...authorization.json.body.spend,
+              cardId,
+              amount: authorization.json.body.spend.amount + 300,
+              authorizationUpdateAmount: 300,
+              authorizedAt,
+              status: "declined",
+            },
+          },
+        },
+      });
+      const collect = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-other-created`,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: `${cardId}-other`,
+            spend: { ...authorization.json.body.spend, cardId, amount: 77, authorizedAt },
+          },
+        },
+      });
+
+      expect(spend.status).toBe(200);
+      expect(created.status).toBe(200);
+      expect(other.status).toBe(200);
+      expect(declined.status).toBe(200);
+      expect(collect.status).toBe(200);
+      const dropped = await queued;
+
+      expect(dropped.status).toBe(554);
+      await expect(dropped.json()).resolves.toStrictEqual({ code: "declined", rejectionCode: "UNKNOWN" });
+      expect(mutex.isLocked()).toBe(false);
+    });
+
+    it("releases mutex when its redelivery collects and the first delivery fails", async () => {
+      const cardId = `${account2}-card`;
+      const authorizedAt = new Date().toISOString();
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const { promise: signing, resolve: sign } = Promise.withResolvers<boolean>();
+      const signer = vi.spyOn(Panda, "signIssuerOp").mockImplementationOnce(async () => {
+        await signing;
+        throw new Error("sign failed");
+      });
+      const created = {
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      } as const;
+      const first = appClient.index.$post(created);
+      await vi.waitUntil(() => signer.mock.calls.length > 0, 26_666);
+      const redelivered = await appClient.index.$post({
+        ...created,
+        json: { ...created.json, id: `${cardId}-redelivered` },
+      });
+
+      expect(spend.status).toBe(200);
+      expect(redelivered.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+
+      sign(true);
+      const failed = await first;
+
+      expect(failed.status).not.toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+    });
+
+    it("keeps mutex while its first delivery collects after a reversal and a failed redelivery", async () => {
+      const cardId = `${account2}-card`;
+      const authorizedAt = new Date().toISOString();
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const { promise: signing, resolve: sign } = Promise.withResolvers<boolean>();
+      const signIssuerOp = Panda.signIssuerOp;
+      const signer = vi
+        .spyOn(Panda, "signIssuerOp")
+        .mockImplementationOnce(async (...parameters) => {
+          await signing;
+          return signIssuerOp(...parameters);
+        })
+        .mockRejectedValueOnce(new Error("sign failed"));
+      const created = {
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      } as const;
+      const first = appClient.index.$post(created);
+      await vi.waitUntil(() => signer.mock.calls.length > 0, 26_666);
+      const reversed = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-reversed`,
+          action: "updated",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: {
+              ...authorization.json.body.spend,
+              cardId,
+              amount: 0,
+              authorizationUpdateAmount: -authorization.json.body.spend.amount,
+              authorizedAt,
+              status: "reversed",
+            },
+          },
+        },
+      });
+      const redelivered = await appClient.index.$post({
+        ...created,
+        json: { ...created.json, id: `${cardId}-redelivered` },
+      });
+
+      expect(spend.status).toBe(200);
+      expect(redelivered.status).not.toBe(200);
+      expect(reversed.status).toBe(553);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+
+      sign(true);
+
+      await expect(first).resolves.toHaveProperty("status", 200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+    });
+
+    it("keeps mutex while its redelivery collects after its first delivery fails", async () => {
+      const cardId = `${account2}-card`;
+      const authorizedAt = new Date().toISOString();
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      });
+      const { promise: failing, resolve: fail } = Promise.withResolvers<boolean>();
+      const { promise: signing, resolve: sign } = Promise.withResolvers<boolean>();
+      const signIssuerOp = Panda.signIssuerOp;
+      const signer = vi
+        .spyOn(Panda, "signIssuerOp")
+        .mockImplementationOnce(async () => {
+          await failing;
+          throw new Error("sign failed");
+        })
+        .mockImplementationOnce(async (...parameters) => {
+          await signing;
+          return signIssuerOp(...parameters);
+        });
+      const created = {
+        ...authorization,
+        json: {
+          ...authorization.json,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, authorizedAt },
+          },
+        },
+      } as const;
+      const first = appClient.index.$post(created);
+      await vi.waitUntil(() => signer.mock.calls.length > 0, 26_666);
+      const redelivered = appClient.index.$post({
+        ...created,
+        json: { ...created.json, id: `${cardId}-redelivered` },
+      });
+      await vi.waitUntil(() => signer.mock.calls.length > 1, 26_666);
+      fail(true);
+      const failed = await first;
+      const reversed = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-reversed`,
+          action: "updated",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: {
+              ...authorization.json.body.spend,
+              cardId,
+              amount: 0,
+              authorizationUpdateAmount: -authorization.json.body.spend.amount,
+              authorizedAt,
+              status: "reversed",
+            },
+          },
+        },
+      });
+
+      expect(spend.status).toBe(200);
+      expect(failed.status).not.toBe(200);
+      expect(reversed.status).toBe(553);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+
+      sign(true);
+
+      await expect(redelivered).resolves.toHaveProperty("status", 200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
+    });
+
+    it("evaluates an authorization once its decline is forgotten", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      onTestFinished(() => {
+        vi.useRealTimers();
+      });
+      const cardId = `${account2}-card`;
+      const declined = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          id: `${cardId}-declined`,
+          action: "created",
+          body: {
+            ...authorization.json.body,
+            id: cardId,
+            spend: { ...authorization.json.body.spend, cardId, status: "declined" },
+          },
+        },
+      });
+      vi.advanceTimersByTime(60_000);
+      const spend = await appClient.index.$post({
+        ...authorization,
+        json: {
+          ...authorization.json,
+          body: { ...authorization.json.body, id: cardId, spend: { ...authorization.json.body.spend, cardId } },
+        },
+      });
+
+      expect(declined.status).toBe(200);
+      expect(spend.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(true);
+    });
+
+    it("releases mutex after a zero amount authorization without transaction id", async () => {
+      const cardId = `${account2}-card`;
+      const { id, ...body } = authorization.json.body;
+      const response = await appClient.index.$post({
+        ...authorization,
+        json: { ...authorization.json, body: { ...body, spend: { ...body.spend, amount: 0, cardId } } },
+      });
+
+      expect(id).toBeDefined();
+      expect(response.status).toBe(200);
+      expect(Panda.getMutex(account2)?.isLocked()).toBe(false);
     });
   });
 
