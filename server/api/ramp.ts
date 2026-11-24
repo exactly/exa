@@ -524,6 +524,7 @@ A lock whose \`amount\` is below the minimum order returns \`400\` with \`invali
                     code: picklist([
                       "bad qr",
                       ErrorCodes.NO_CREDENTIAL,
+                      ErrorCodes.NOT_SUPPORTED,
                       Manteca.ErrorCodes.INVALID_AMOUNT,
                       Manteca.ErrorCodes.INVALID_ORDER_SIZE,
                       Manteca.ErrorCodes.INVALID_QR,
@@ -548,11 +549,12 @@ A lock whose \`amount\` is below the minimum order returns \`400\` with \`invali
         const payment = c.req.valid("json");
         const credential = await database.query.credentials.findFirst({
           where: eq(credentials.id, credentialId),
-          columns: { account: true },
+          columns: { account: true, salt: true },
         });
         if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
         const account = parse(Address, credential.account);
         setUser({ id: account });
+        if (parse(Address, credential.salt) === business) return c.json({ code: ErrorCodes.NOT_SUPPORTED }, 400);
 
         const personaAccount = await persona.getAccount(credentialId, "basic").catch((error: unknown) => {
           if (error instanceof ValiError && error.issues.every((issue: BaseIssue<unknown>) => isMissingOrNull(issue))) {

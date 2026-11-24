@@ -1855,6 +1855,23 @@ describe("ramp api", () => {
     });
 
     describe("lock", () => {
+      it("returns 400 for a business account", async () => {
+        await setBridgeCredential({ salt: business });
+        const getAccount = vi.spyOn(persona, "getAccount");
+        const lockQRPayment = vi.spyOn(manteca, "lockQRPayment");
+
+        const response = await appClient.qr.$post(
+          { json: { qr: "qr3" } },
+          { headers: { "test-credential-id": "ramp-bridge" } },
+        );
+
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toStrictEqual({ code: "not supported" });
+        expect(getAccount).not.toHaveBeenCalled();
+        expect(lockQRPayment).not.toHaveBeenCalled();
+        expect(captureException).not.toHaveBeenCalled();
+      });
+
       it("locks with the persona dni as sender", async () => {
         await redis.del(`qr:${code}`);
         vi.spyOn(persona, "getAccount").mockResolvedValueOnce(basicAccount);
