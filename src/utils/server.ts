@@ -1,6 +1,8 @@
 import { AppState, Platform } from "react-native";
 import { get as assert, create } from "react-native-passkeys";
 
+import { addNetworkStateListener } from "expo-network";
+
 import { sdk } from "@farcaster/miniapp-sdk";
 import { base64URLStringToBuffer } from "@simplewebauthn/browser";
 import { onlineManager } from "@tanstack/react-query";
@@ -176,16 +178,12 @@ function wake() {
   ping().catch(reportError);
 }
 if (!isServer) {
-  if (Platform.OS === "web") {
-    onlineManager.setEventListener(() => {
-      window.addEventListener("online", wake);
-      window.addEventListener("offline", wake);
-      return () => {
-        window.removeEventListener("online", wake);
-        window.removeEventListener("offline", wake);
-      };
+  onlineManager.setEventListener(() => {
+    const network = addNetworkStateListener(({ isConnected, isInternetReachable }) => {
+      if (isConnected === false || isInternetReachable === false || !onlineManager.isOnline()) wake();
     });
-  }
+    return () => network.remove();
+  });
   AppState.addEventListener("change", (state) => {
     if (state !== "active") clearTimeout(timer);
     else if (!onlineManager.isOnline()) wake();
