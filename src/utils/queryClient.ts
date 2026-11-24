@@ -3,7 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { persistQueryClientRestore, persistQueryClientSubscribe } from "@tanstack/query-persist-client-core";
-import { dehydrate, QueryCache, QueryClient, skipToken, type Query } from "@tanstack/react-query";
+import { dehydrate, onlineManager, QueryCache, QueryClient, skipToken, type Query } from "@tanstack/react-query";
 import { deserialize, serialize } from "wagmi";
 import { hashFn, structuralSharing } from "wagmi/query";
 
@@ -48,7 +48,9 @@ export const persister = createAsyncStoragePersister({
   storage: AsyncStorage,
   throttleTime: 0,
 });
-const queryClient = new QueryClient({
+const queryClient = new (class extends QueryClient {
+  override fetchQuery: QueryClient["fetchQuery"] = (options) => super.fetchQuery({ retry: false, ...options });
+})({
   queryCache: new QueryCache({
     onError: (error, query) => {
       if (query.meta?.dropError?.(error)) return;
@@ -64,7 +66,16 @@ const queryClient = new QueryClient({
       reportError(error);
     },
   }),
-  defaultOptions: { queries: { queryKeyHashFn: hashFn, structuralSharing } },
+  defaultOptions: {
+    mutations: { networkMode: "always" },
+    queries: {
+      networkMode: "always",
+      refetchOnReconnect: true,
+      retry: (failureCount) => failureCount < 3 && onlineManager.isOnline(),
+      queryKeyHashFn: hashFn,
+      structuralSharing,
+    },
+  },
 });
 
 export const hydrated =
@@ -80,7 +91,7 @@ export const hydrated =
 const dehydrateOptions = {
   shouldDehydrateQuery: ({ queryKey, state }: Query) =>
     state.status === "success" &&
-    !["activity", "externalAssets", "capabilities", "deeplink", "ens", "prices", "zxing"].includes(
+    !["activity", "banner", "externalAssets", "capabilities", "deeplink", "ens", "prices", "zxing"].includes(
       queryKey[0] as string,
     ) &&
     !(queryKey[0] === "card" && queryKey[1] !== "details") &&
@@ -105,6 +116,7 @@ export function persist() {
   );
 }
 
+queryClient.setQueryDefaults(["banner"], { gcTime: Infinity, queryFn: skipToken });
 queryClient.setQueryDefaults(["credential"], {
   retry: false,
   staleTime: Infinity,

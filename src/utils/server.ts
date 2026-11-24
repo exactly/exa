@@ -3,6 +3,7 @@ import { get as assert, create } from "react-native-passkeys";
 
 import { sdk } from "@farcaster/miniapp-sdk";
 import { base64URLStringToBuffer } from "@simplewebauthn/browser";
+import { onlineManager } from "@tanstack/react-query";
 import { getConnection, signMessage, watchConnection } from "@wagmi/core";
 import { hc, parseResponse, type InferRequestType, type InferResponseType } from "hono/client";
 import { check, number, object, parse, picklist, pipe, safeParse, string, ValiError } from "valibot";
@@ -10,6 +11,7 @@ import { check, number, object, parse, picklist, pipe, safeParse, string, ValiEr
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 import deriveAddress from "@exactly/common/deriveAddress";
 import domain from "@exactly/common/domain";
+import chain from "@exactly/common/generated/chain";
 import { Credential } from "@exactly/common/validation";
 
 import { login as loginIntercom } from "./intercom";
@@ -123,7 +125,8 @@ export function isUnlinked(error: unknown) {
 
 export const origin = Platform.OS === "web" && !isServer ? window.location.origin : `https://${domain}`;
 
-const api = hc<ExaAPI>(new URL(origin).hostname === "localhost" ? "http://localhost:3000/api" : `${origin}/api`, {
+const base = new URL(origin).hostname === "localhost" ? "http://localhost:3000/api" : `${origin}/api`;
+const api = hc<ExaAPI>(base, {
   init: { credentials: "include" },
   fetch: async (input: Request | string | URL, init?: RequestInit) => {
     const headers = new Headers(init?.headers);
@@ -133,7 +136,8 @@ const api = hc<ExaAPI>(new URL(origin).hostname === "localhost" ? "http://localh
       headers.set("Client-Fid", String(client.clientFid));
     }
     const method = init?.method ?? "GET";
-    const response = await fetch(input, { ...init, headers }).catch((error: unknown) => {
+    const response = await fetch(input, { ...init, headers }).catch(async (error: unknown) => {
+      if (classifyError(error).network !== undefined) await ping();
       throw new NetworkError(method, input instanceof Request ? input.url : String(input), error);
     });
     if (!response.ok && !response.headers.get("content-type")?.startsWith("application/json")) {
@@ -142,6 +146,51 @@ const api = hc<ExaAPI>(new URL(origin).hostname === "localhost" ? "http://localh
     return response;
   },
 });
+
+let probe: Promise<void> | undefined;
+let timer: ReturnType<typeof setTimeout> | undefined;
+function ping() {
+  if (probe) return probe;
+  clearTimeout(timer);
+  probe = (async () => {
+    const internet = reach(chain.rpcUrls.alchemy.http[0]);
+    const online = await reach(base);
+    if (!online) queryClient.setQueryData(["banner", "internet"], await internet);
+    probe = undefined;
+    onlineManager.setOnline(online);
+    if (!online && AppState.currentState === "active") timer = setTimeout(wake, 3000);
+  })();
+  return probe;
+}
+function reach(url: string) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  return fetch(url, { method: "HEAD", mode: "no-cors", cache: "no-store", signal: controller.signal })
+    .then(
+      () => true,
+      () => false,
+    )
+    .finally(() => clearTimeout(timeout));
+}
+function wake() {
+  ping().catch(reportError);
+}
+if (!isServer) {
+  if (Platform.OS === "web") {
+    onlineManager.setEventListener(() => {
+      window.addEventListener("online", wake);
+      window.addEventListener("offline", wake);
+      return () => {
+        window.removeEventListener("online", wake);
+        window.removeEventListener("offline", wake);
+      };
+    });
+  }
+  AppState.addEventListener("change", (state) => {
+    if (state !== "active") clearTimeout(timer);
+    else if (!onlineManager.isOnline()) wake();
+  });
+}
 
 async function getCard(sessionid?: string) {
   await auth();

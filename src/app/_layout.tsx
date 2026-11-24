@@ -48,6 +48,7 @@ import SplineSansMonoMedium from "../assets/fonts/SplineSansMono-Medium.otf";
 import AppIcon from "../assets/icon.png";
 import ThemeProvider, { isBaseTheme } from "../components/context/ThemeProvider";
 import Error from "../components/shared/Error";
+import OfflineBanner from "../components/shared/OfflineBanner";
 import Splash from "../components/shared/Splash";
 import WalletSwitchSheet from "../components/shared/WalletSwitchSheet";
 import release from "../generated/release";
@@ -350,14 +351,16 @@ function Navigator() {
   }, [ready, isMiniApp]);
   return (
     <>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Protected guard={!authenticated}>
-          <Stack.Screen name="(auth)" />
-        </Stack.Protected>
-        <Stack.Protected guard={authenticated}>
-          <Stack.Screen name="(main)" />
-        </Stack.Protected>
-      </Stack>
+      <OfflineBanner>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Protected guard={!authenticated}>
+            <Stack.Screen name="(auth)" />
+          </Stack.Protected>
+          <Stack.Protected guard={authenticated}>
+            <Stack.Screen name="(main)" />
+          </Stack.Protected>
+        </Stack>
+      </OfflineBanner>
       <WalletSwitchSheet />
       {Platform.OS !== "web" && <Splash isReady={ready} />}
     </>

@@ -78,6 +78,7 @@ export default function Amount() {
     refetch: refetchTokens,
   } = useQuery(lifiTokensOptions);
   const { data: swapSheetHidden } = useQuery<boolean>({ queryKey: ["settings", "swap-sheet"] });
+  const { data: banner = 0 } = useQuery<number>({ queryKey: ["banner"] });
   const { data: advanced } = useQuery<boolean>({ queryKey: ["settings", "advanced-mode"] });
 
   const destinationToken = useMemo(
@@ -260,7 +261,11 @@ export default function Amount() {
 
   return (
     <SafeView fullScreen>
-      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+      <KeyboardAvoidingView
+        behavior="padding"
+        keyboardVerticalOffset={Platform.OS === "ios" ? banner : 0}
+        style={{ flex: 1 }}
+      >
         <View gap="s4_5" fullScreen padded>
           <XStack gap="s3_5" justifyContent="space-between" alignItems="center">
             <IconButton
