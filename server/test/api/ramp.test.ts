@@ -5,7 +5,7 @@ import "../mocks/manteca";
 import "../mocks/persona";
 import "../mocks/sentry";
 
-import { captureEvent, captureException } from "@sentry/core";
+import { captureEvent, captureException, getActiveSpan, type Span } from "@sentry/core";
 import { captureException as captureNodeException } from "@sentry/node";
 import { eq } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
@@ -1942,6 +1942,10 @@ describe("ramp api", () => {
 
       it("locks with the persona dni as sender", async () => {
         await redis.del(`qr:${code}`);
+        const setAttributes = vi.fn<Span["setAttributes"]>();
+        vi.mocked(getActiveSpan)
+          .mockReturnValueOnce({ setAttributes } as unknown as Span)
+          .mockReturnValueOnce({ setAttributes } as unknown as Span);
         vi.spyOn(persona, "getAccount").mockResolvedValueOnce(basicAccount);
         const lockQRPayment = vi.spyOn(manteca, "lockQRPayment").mockResolvedValueOnce(lock);
         const getMinimum = vi.spyOn(manteca, "getMinimum").mockResolvedValueOnce("0.1");
@@ -1975,6 +1979,16 @@ describe("ramp api", () => {
           JSON.stringify({ account, amount: "2.44921774", asset: "ARS", expireAt: lock.expireAt }),
         );
         await expect(redis.ttl(`qr:${code}`)).resolves.toBeGreaterThan(8 * 24 * 60 * 60 - 60);
+        expect(setAttributes).toHaveBeenCalledTimes(2);
+        expect(setAttributes).toHaveBeenNthCalledWith(1, { "qr.input": undefined });
+        expect(setAttributes).toHaveBeenNthCalledWith(2, {
+          "qr.code": code,
+          "qr.asset": "ARS",
+          "qr.amount": "1706.37",
+          "qr.price": "696.70000000",
+          "qr.usdc": "2.44921774",
+          "qr.expiry": lock.expireAt,
+        });
       });
 
       it("locks at the minimum order", async () => {
@@ -2005,6 +2019,10 @@ describe("ramp api", () => {
 
       it("returns 400 when the lock is below the minimum order", async () => {
         await redis.del(`qr:${code}`);
+        const setAttributes = vi.fn<Span["setAttributes"]>();
+        vi.mocked(getActiveSpan)
+          .mockReturnValueOnce({ setAttributes } as unknown as Span)
+          .mockReturnValueOnce({ setAttributes } as unknown as Span);
         vi.spyOn(persona, "getAccount").mockResolvedValueOnce(basicAccount);
         vi.spyOn(manteca, "lockQRPayment").mockResolvedValueOnce({ ...lock, paymentAgainstAmount: "0.05839416" });
         const fetchSpy = vi
@@ -2025,6 +2043,16 @@ describe("ramp api", () => {
           expect.objectContaining({ method: "GET" }),
         );
         expect(captureException).not.toHaveBeenCalled();
+        expect(setAttributes).toHaveBeenCalledTimes(2);
+        expect(setAttributes).toHaveBeenNthCalledWith(1, { "qr.input": undefined });
+        expect(setAttributes).toHaveBeenNthCalledWith(2, {
+          "qr.code": code,
+          "qr.asset": "ARS",
+          "qr.amount": "1706.37",
+          "qr.price": "696.70000000",
+          "qr.usdc": "0.05839416",
+          "qr.expiry": lock.expireAt,
+        });
       });
 
       it("locks without the minimum when the operation limits fail", async () => {
@@ -2083,6 +2111,10 @@ describe("ramp api", () => {
       });
 
       it("returns 206 when the qr has no amount", async () => {
+        const setAttributes = vi.fn<Span["setAttributes"]>();
+        vi.mocked(getActiveSpan)
+          .mockReturnValueOnce({ setAttributes } as unknown as Span)
+          .mockReturnValueOnce({ setAttributes } as unknown as Span);
         vi.spyOn(persona, "getAccount").mockResolvedValueOnce(basicAccount);
         vi.spyOn(manteca, "lockQRPayment").mockResolvedValueOnce({ ...lock, code: "", paymentAgainstAmount: "0" });
         const getMinimum = vi.spyOn(manteca, "getMinimum");
@@ -2095,6 +2127,16 @@ describe("ramp api", () => {
         expect(response.status).toBe(206);
         await expect(response.json()).resolves.toStrictEqual({ recipient: "Ricardo Fort", asset: "ARS" });
         expect(getMinimum).not.toHaveBeenCalled();
+        expect(setAttributes).toHaveBeenCalledTimes(2);
+        expect(setAttributes).toHaveBeenNthCalledWith(1, { "qr.input": undefined });
+        expect(setAttributes).toHaveBeenNthCalledWith(2, {
+          "qr.code": "",
+          "qr.asset": "ARS",
+          "qr.amount": "1706.37",
+          "qr.price": "696.70000000",
+          "qr.usdc": "0",
+          "qr.expiry": lock.expireAt,
+        });
       });
 
       it("returns 400 without a persona account", async () => {
@@ -2154,6 +2196,8 @@ describe("ramp api", () => {
         ],
         ["invalid qr", { internalStatus: "PAYMENT_DESTINATION", message: "Payment destination seems to be invalid" }],
       ])("returns 400 with %s", async (error, body) => {
+        const setAttributes = vi.fn<Span["setAttributes"]>();
+        vi.mocked(getActiveSpan).mockReturnValueOnce({ setAttributes } as unknown as Span);
         vi.spyOn(persona, "getAccount").mockResolvedValueOnce(basicAccount);
         const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(body, { status: 400 }));
         const getSettlement = vi.spyOn(manteca, "getSettlement");
@@ -2171,6 +2215,7 @@ describe("ramp api", () => {
         );
         expect(getSettlement).not.toHaveBeenCalled();
         expect(captureException).not.toHaveBeenCalled();
+        expect(setAttributes).toHaveBeenCalledExactlyOnceWith({ "qr.input": "0" });
       });
 
       it("returns 400 with an empty amount", async () => {
