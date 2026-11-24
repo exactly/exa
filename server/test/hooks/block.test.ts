@@ -3727,7 +3727,7 @@ describe("qr payment", () => {
     expect(executeQRPayment).not.toHaveBeenCalled();
     expect(core.captureException).toHaveBeenCalledExactlyOnceWith(new Error("qr payment not executed"), {
       level: "info",
-      contexts: { payment: { account: payer, userOpHash, amount: "2449218", ...details, refund: "automatic" } },
+      contexts: { payment: { account: payer, userOpHash, amount: "2449218", code, ...details, refund: "automatic" } },
     });
   });
 
@@ -3775,7 +3775,7 @@ describe("qr payment", () => {
     expect(captureException).not.toHaveBeenCalled();
     expect(core.captureException).toHaveBeenCalledExactlyOnceWith(new Error("qr payment not executed"), {
       level: "error",
-      contexts: { payment: { account: payer, userOpHash, amount: "2449218", ...details } },
+      contexts: { payment: { account: payer, userOpHash, amount: "2449218", code, ...details } },
     });
   });
 
@@ -4002,7 +4002,7 @@ describe("qr payment", () => {
     expect(core.captureException).not.toHaveBeenCalled();
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       level: "error",
-      contexts: { payment: { account: payer, userOpHash } },
+      contexts: { payment: { account: payer, userOpHash, code } },
     });
   });
 
@@ -4028,7 +4028,7 @@ describe("qr payment", () => {
     expect(core.captureException).not.toHaveBeenCalled();
     expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("not supported currency"), {
       level: "error",
-      contexts: { payment: { account: payer, userOpHash } },
+      contexts: { payment: { account: payer, userOpHash, code } },
     });
   });
 
@@ -4068,7 +4068,7 @@ describe("qr payment", () => {
     expect(core.captureException).not.toHaveBeenCalled();
     expect(captureException).toHaveBeenCalledExactlyOnceWith(error, {
       level: "error",
-      contexts: { payment: { account: payer, userOpHash } },
+      contexts: { payment: { account: payer, userOpHash, code } },
     });
   });
 
@@ -4090,7 +4090,9 @@ describe("qr payment", () => {
     expect(executeQRPayment).not.toHaveBeenCalled();
     expect(core.captureException).toHaveBeenCalledExactlyOnceWith(new Error("qr payment not executed"), {
       level: "info",
-      contexts: { payment: { account: payer, userOpHash, amount: "2449218", cause: "expired", refund: "automatic" } },
+      contexts: {
+        payment: { account: payer, userOpHash, amount: "2449218", code, cause: "expired", refund: "automatic" },
+      },
     });
   });
 
@@ -4114,7 +4116,9 @@ describe("qr payment", () => {
     expect(captureException).not.toHaveBeenCalled();
     expect(core.captureException).toHaveBeenCalledExactlyOnceWith(new Error("qr payment not executed"), {
       level: "info",
-      contexts: { payment: { account: payer, userOpHash, amount: "2449218", cause: "lock", refund: "automatic" } },
+      contexts: {
+        payment: { account: payer, userOpHash, amount: "2449218", code, cause: "lock", refund: "automatic" },
+      },
     });
   });
 
@@ -4136,7 +4140,7 @@ describe("qr payment", () => {
     expect(core.captureException).not.toHaveBeenCalled();
     expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(ServiceError), {
       level: "error",
-      contexts: { payment: { account: payer, userOpHash } },
+      contexts: { payment: { account: payer, userOpHash, code } },
     });
   });
 
@@ -4258,7 +4262,16 @@ describe("qr payment", () => {
       expect(captureException).not.toHaveBeenCalled();
       expect(core.captureException).toHaveBeenCalledExactlyOnceWith(new Error("qr payment not executed"), {
         level: "info",
-        contexts: { payment: { account: payer, userOpHash: opHash, amount: "2449218", cause, refund: "automatic" } },
+        contexts: {
+          payment: {
+            account: payer,
+            userOpHash: opHash,
+            amount: "2449218",
+            code: recorded,
+            cause,
+            refund: "automatic",
+          },
+        },
       });
     });
 
@@ -4684,7 +4697,9 @@ describe("qr payment", () => {
       });
       expect(core.captureException).toHaveBeenCalledExactlyOnceWith(new Error("qr payment not executed"), {
         level: "error",
-        contexts: { payment: { account: payer, userOpHash: opHash, amount: "2449218", cause: "expired" } },
+        contexts: {
+          payment: { account: payer, userOpHash: opHash, amount: "2449218", code: recorded, cause: "expired" },
+        },
       });
     });
 
@@ -4726,7 +4741,7 @@ describe("qr payment", () => {
       expect(executeQRPayment).toHaveBeenCalledExactlyOnceWith(recorded, opHash);
       expect(captureException).toHaveBeenCalledExactlyOnceWith(failure, {
         level: "error",
-        contexts: { payment: { account: payer, userOpHash: opHash } },
+        contexts: { payment: { account: payer, userOpHash: opHash, code: recorded } },
       });
       expect(core.captureException).not.toHaveBeenCalled();
       await expect(checks.getJob(opHash)).resolves.toBeUndefined();
