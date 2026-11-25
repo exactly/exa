@@ -104,11 +104,13 @@ const hooks = {
       blockKey: env.ALCHEMY_BLOCK_KEY,
       database,
       executor: keeper,
+      issuer,
       manteca,
       onesignal,
       persona,
       qr,
       redis,
+      refunder: keeper,
       source,
     }),
   bridge: () =>
@@ -123,9 +125,13 @@ const hooks = {
   manteca: () =>
     createMantecaHook({
       database,
+      issuer,
       manteca,
       mantecaWebhookKey: parse(pipe(string("manteca webhook"), nonEmpty("manteca webhook")), env.MANTECA_WEBHOOKS_KEY),
       onesignal,
+      qr,
+      redis,
+      refunder: keeper,
       segment,
     }),
   panda: () =>
@@ -156,7 +162,7 @@ const hooks = {
 const workers = {
   hook: () => createHookWorker({ bullmq, database, panda }),
   maturity: () => createMaturity(onesignal),
-  qr: () => createQRWorker({ bullmq, manteca, redis }),
+  qr: () => createQRWorker({ bullmq, issuer, manteca, redis, refunder: keeper }),
 };
 const disabled = new Set<string>(
   parse(

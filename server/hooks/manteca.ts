@@ -12,6 +12,7 @@ import {
   number,
   object,
   optional,
+  parse,
   picklist,
   pipe,
   safeParse,
@@ -32,6 +33,7 @@ import {
   ErrorCodes,
   findOperation,
   OrderStatus,
+  refundQRPayment,
   SyntheticStatus,
   UserOnboardingTasks,
   UserStatus,
@@ -39,12 +41,16 @@ import {
 } from "../utils/ramps/manteca";
 import validatorHook from "../utils/validatorHook";
 import verifySignature from "../utils/verifySignature";
+import { Check } from "../workers/qr/job";
 
 import type * as schema from "../database/schema";
 import type createOnesignal from "../utils/onesignal";
 import type createManteca from "../utils/ramps/manteca";
 import type createSegment from "../utils/segment";
+import type createQR from "../workers/qr/queue";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { Redis } from "ioredis";
+import type { LocalAccount } from "viem";
 
 const debug = createDebug("exa:manteca");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
@@ -177,15 +183,23 @@ const Payload = variant("event", [
 
 export default function hook({
   database,
+  issuer,
   manteca,
   mantecaWebhookKey,
   onesignal,
+  qr,
+  redis,
+  refunder,
   segment,
 }: {
   database: NodePgDatabase<typeof schema>;
+  issuer: LocalAccount;
   manteca: ReturnType<typeof createManteca>;
   mantecaWebhookKey: string;
   onesignal: ReturnType<typeof createOnesignal>;
+  qr: ReturnType<typeof createQR>;
+  redis: Redis;
+  refunder: LocalAccount;
   segment: ReturnType<typeof createSegment>;
 }) {
   const app = new Hono().post(
@@ -225,27 +239,29 @@ export default function hook({
         });
         if (operation) setUser({ id: operation.sender });
         captureEvent({ message: "MantecaSyntheticStatusUpdate", level: "info", contexts: { details: payload.data } });
+        if (payload.data.status !== "CANCELLED" || !payload.data.externalId) return c.json({ code: "ok" }, 200);
+        const check = await qr.getJob(payload.data.externalId);
+        if (!check) {
+          if (operation) {
+            captureException(new Error("qr refund payment not found"), {
+              level: "error",
+              contexts: { refund: { userOpHash: operation.userOpHash, synthetic: payload.data.id } },
+            });
+          }
+          return c.json({ code: "ok" }, 200);
+        }
+        await refundQRPayment(
+          { issuer, redis, refunder },
+          {
+            ...parse(Check, { ...check.data, userOpHash: payload.data.externalId }),
+            settlements: await manteca.getSettlements(),
+          },
+          true,
+        );
         return c.json({ code: "ok" }, 200);
       }
 
       if (payload.data.userExternalId === undefined || payload.data.userExternalId.startsWith("Exactly-")) {
-        if (
-          payload.event === "WITHDRAW_STATUS_UPDATE" &&
-          payload.data.status === "CANCELLED" &&
-          payload.data.externalId?.startsWith("refund-")
-        ) {
-          captureEvent({
-            message: "qr refund cancelled",
-            level: "error",
-            contexts: {
-              refund: {
-                userOpHash: payload.data.externalId.slice("refund-".length),
-                withdraw: payload.data.id,
-                amount: payload.data.amount,
-              },
-            },
-          });
-        }
         // TODO link merchant withdraws to the account by externalId
         const {
           data: { sender, userLegalId, ...data },

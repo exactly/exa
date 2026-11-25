@@ -749,16 +749,15 @@ Returns the synthetic of the payment once the server executed it, or \`FAILED\` 
         const code = decodeNonceKey(BigInt(operation.nonce)); // eslint-disable-line @typescript-eslint/no-unnecessary-type-conversion -- viem keeps the rpc hex
         if (!code) return c.json({ code: ErrorCodes.PAYMENT_NOT_FOUND }, 404);
         if (!operation.success) return c.json({ status: "FAILED" } satisfies InferOutput<typeof QRPayment>, 200);
+        if (await redis.exists(`qr:${userOpHash}:refund`)) {
+          return c.json({ status: "REFUNDED" } satisfies InferOutput<typeof QRPayment>, 200);
+        }
         const lock = await manteca.getPaymentLock(code);
         const synthetic = await manteca.getSynthetic(userOpHash);
         if (synthetic) {
           return c.json({ id: synthetic.id, status: synthetic.status } satisfies InferOutput<typeof QRPayment>, 200);
         }
         if (!lock) {
-          const refund = await manteca.getQRRefund(userOpHash);
-          if (refund) {
-            return c.json({ status: RefundStatus[refund.status] } satisfies InferOutput<typeof QRPayment>, 200);
-          }
           const record = safeParse(Manteca.QRRecord, await redis.get(`qr:${code}`));
           const check = await qr.getJob(userOpHash);
           const pending = check && !check.finishedOn && record.success && record.output.account === account;
@@ -923,8 +922,6 @@ const QRPayment = union([
   object({ id: string(), status: picklist(Manteca.SyntheticStatus) }),
   object({ status: picklist(["EXPIRED", "FAILED", "REFUNDING", "REFUNDED"]) }),
 ]);
-
-const RefundStatus = { PENDING: "REFUNDING", EXECUTED: "REFUNDED", CANCELLED: "EXPIRED" } as const;
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const RampResponse = object({

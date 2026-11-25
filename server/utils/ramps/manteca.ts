@@ -1,4 +1,4 @@
-import { captureException, withScope } from "@sentry/core";
+import { captureEvent, captureException, withScope } from "@sentry/core";
 import {
   array,
   boolean,
@@ -8,7 +8,6 @@ import {
   parseJson,
   picklist,
   pipe,
-  record,
   safeParse,
   string,
   uuid,
@@ -18,7 +17,6 @@ import {
 } from "valibot";
 import {
   concat,
-  formatUnits,
   InvalidParamsRpcError,
   isAddressEqual,
   isHash,
@@ -27,19 +25,29 @@ import {
   parseUnits,
   stringToHex,
   withRetry,
+  type LocalAccount,
   type Log,
 } from "viem";
 import { getUserOperationReceipt, UserOperationReceiptNotFoundError } from "viem/account-abstraction";
 import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 
-import chain, { marketAbi, marketUSDCAddress } from "@exactly/common/generated/chain";
+import chain, {
+  issuerCheckerAbi,
+  issuerCheckerAddress,
+  marketAbi,
+  marketUSDCAddress,
+  refunderAbi,
+  refunderAddress,
+} from "@exactly/common/generated/chain";
 import { Address, type Hash } from "@exactly/common/validation";
 
 import { MantecaCountryCode } from "../persona";
 import publicClient from "../publicClient";
 import ServiceError from "../ServiceError";
+import createWallet from "../wallet";
 
 import type createPersona from "../persona";
+import type { Redis } from "ioredis";
 
 export const name = "manteca" as const;
 
@@ -55,7 +63,6 @@ export default function manteca(key: string, url: string) {
     getMinimum,
     getPaymentLock,
     getProvider,
-    getQRRefund,
     getQuote,
     getSettlement,
     getSettlements,
@@ -64,7 +71,6 @@ export default function manteca(key: string, url: string) {
     initiateOnboarding,
     lockQRPayment,
     onboarding,
-    refundQRPayment,
     uploadIdentityFile,
     withdrawBalance,
     withdrawOrder,
@@ -284,25 +290,6 @@ export default function manteca(key: string, url: string) {
     }
     return { onramp: { currencies }, status: "ONBOARDING" as const };
   }
-  async function getQRRefund(userOpHash: string) {
-    return await request(
-      WithdrawResponse,
-      `/crypto/v2/withdraws/refund-${userOpHash}`,
-      {},
-      undefined,
-      "GET",
-      10_000,
-    ).catch((error: unknown) => {
-      if (
-        error instanceof ServiceError &&
-        typeof error.cause === "string" &&
-        error.cause.includes(MantecaApiErrorCodes.WITHDRAW_NOT_FOUND)
-      ) {
-        return null;
-      }
-      throw error;
-    });
-  }
   async function getQuote(coinPair: string) {
     const quote = await request(
       QuoteResponse,
@@ -485,66 +472,6 @@ export default function manteca(key: string, url: string) {
       result.status === "rejected" && captureException(result.reason, { level: "error", extra: { account } });
     }
   }
-  async function refundQRPayment(userOpHash: string, address: Address, amount: bigint, gas: "exa" | "user") {
-    const network = Supported[chain.id];
-    if (!network) throw new Error(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
-    const destination = { address, network };
-    const { [network]: lock } = await request(
-      WithdrawLocks,
-      "/crypto/v2/withdraw-locks",
-      {},
-      { userAnyId: "Exactly-argentina", asset: "USDC", destination },
-      "POST",
-      10_000,
-    );
-    if (!lock) throw new Error("missing withdraw lock");
-    const cost = parseUnits(lock.cost, 6);
-    if (gas === "user" && amount <= cost) {
-      captureException(new Error("qr refund below withdraw cost"), {
-        level: "warning",
-        contexts: { refund: { userOpHash, address, amount: String(amount), cost: String(cost) } },
-      });
-      return null;
-    }
-    const withdraw = await withdrawOrder({
-      externalId: `refund-${userOpHash}`,
-      userAnyId: "Exactly-argentina",
-      legalEntity: "WALLET_ARG",
-      asset: "USDC",
-      amount: formatUnits(gas === "exa" ? amount + cost : amount, 6),
-      withdrawLockCode: lock.code,
-      destination,
-    }).catch(async (error: unknown) => {
-      if (error instanceof ServiceError && typeof error.cause === "string") {
-        if (error.cause.includes(MantecaApiErrorCodes.WITHDRAW_EXISTS)) {
-          const existing = await getQRRefund(userOpHash);
-          if (existing) return existing;
-        }
-        if (error.cause.includes(MantecaApiErrorCodes.NO_FUNDS)) throw new Error(ErrorCodes.NO_FUNDS, { cause: error });
-      }
-      throw error;
-    });
-    await balances("Exactly-argentina")
-      .then(
-        ({
-          balances: {
-            WALLET_ARG: { USDC: balance },
-          },
-        }) => {
-          // TODO size the refund cash with the team
-          if (parseUnits(balance, 6) < 1_000_000_000n) {
-            captureException(new Error("qr refund balance low"), {
-              level: "warning",
-              contexts: { refund: { balance, userOpHash, withdraw: withdraw.id } },
-            });
-          }
-        },
-      )
-      .catch((error: unknown) => {
-        captureException(error, { level: "error", contexts: { refund: { userOpHash, withdraw: withdraw.id } } });
-      });
-    return withdraw;
-  }
   async function request<TInput, TOutput, TIssue extends BaseIssue<unknown>>(
     schema: BaseSchema<TInput, TOutput, TIssue>,
     path: `/${string}`,
@@ -709,8 +636,6 @@ export const Withdraw = object({
   withdrawLockCode: optional(string()),
   destination: object({ address: Address, network: picklist(Network) }),
 });
-
-const WithdrawLocks = record(string(), object({ code: string(), cost: string() }));
 
 export const WithdrawResponse = object({
   id: string(),
@@ -997,6 +922,7 @@ export const UploadIdentityFileResponse = object({ url: string() });
 export async function pay(
   ramp: ReturnType<typeof manteca>,
   persona: Pick<ReturnType<typeof createPersona>, "getAccount">,
+  redis: Redis,
   credentialId: string,
   {
     userOpHash,
@@ -1090,7 +1016,82 @@ export async function pay(
     }
     return { code: ErrorCodes.INVALID_PAYMENT };
   }
+  if (
+    !(await redis.set(`qr:${code}:claim`, "pay", "EX", 8 * 24 * 60 * 60, "NX")) &&
+    (await redis.get(`qr:${code}:claim`)) !== "pay"
+  ) {
+    return { code: ErrorCodes.REFUNDED };
+  }
   return await ramp.executeQRPayment(code, userOpHash);
+}
+
+export async function refundQRPayment(
+  { issuer, redis, refunder }: { issuer: LocalAccount; redis: Redis; refunder: LocalAccount },
+  {
+    account,
+    code,
+    settlements,
+    timestamp,
+    userOpHash,
+    withdraws,
+  }: {
+    account: Address;
+    code: string;
+    settlements: Record<string, Address>;
+    timestamp: number;
+    userOpHash: string;
+    withdraws: readonly { assets: string; receiver: Address }[];
+  },
+  force = false,
+) {
+  const amount = withdraws
+    .filter(({ receiver }) => Object.values(settlements).includes(receiver))
+    .reduce((total, { assets }) => total + BigInt(assets), 0n);
+  const contexts = { refund: { account, userOpHash, amount: String(amount) } };
+  if (amount === 0n) {
+    if (withdraws.length > 0) captureException(new Error("qr refund unknown settlement"), { level: "error", contexts });
+    return null;
+  }
+  if (!safeParse(QRRecord, await redis.get(`qr:${code}`)).success) {
+    captureException(new Error("qr refund unknown lock"), { level: "error", contexts });
+    return null;
+  }
+  if (
+    !(await redis.set(`qr:${code}:claim`, "refund", "EX", 8 * 24 * 60 * 60, "NX")) &&
+    (await redis.get(`qr:${code}:claim`)) !== "refund"
+  ) {
+    if (!force) return null;
+    await redis.set(`qr:${code}:claim`, "refund", "EX", 8 * 24 * 60 * 60);
+  }
+  const receipt = await createWallet(refunder).exaSend(
+    { name: "qr refund", op: "exa.refund", attributes: { account, userOpHash } },
+    {
+      address: refunderAddress,
+      abi: [...refunderAbi, ...issuerCheckerAbi],
+      functionName: "refund",
+      args: [
+        account,
+        amount,
+        BigInt(timestamp),
+        await issuer.signTypedData({
+          domain: { chainId: chain.id, name: "IssuerChecker", version: "1", verifyingContract: issuerCheckerAddress },
+          types: {
+            Refund: [
+              { name: "account", type: "address" },
+              { name: "amount", type: "uint256" },
+              { name: "timestamp", type: "uint40" },
+            ],
+          },
+          primaryType: "Refund",
+          message: { account, amount, timestamp },
+        }),
+      ],
+    },
+    { ignore: ["Replay()"] },
+  );
+  await redis.set(`qr:${userOpHash}:refund`, receipt?.transactionHash ?? "replay", "EX", 8 * 24 * 60 * 60);
+  if (receipt) captureEvent({ message: "QRPaymentRefund", level: "warning", contexts });
+  return receipt;
 }
 
 export async function findOperation(hash: string | undefined) {
@@ -1129,9 +1130,9 @@ export const ErrorCodes = {
   INVALID_ORDER_SIZE: "invalid order size",
   INVALID_PAYMENT: "invalid payment",
   INVALID_QR: "invalid qr",
-  NO_FUNDS: "no funds",
   NO_PERSONA_ACCOUNT: "no persona account",
   NO_DOCUMENT: "no document",
+  REFUNDED: "refunded",
 };
 
 const MantecaApiErrorCodes = {
@@ -1141,12 +1142,9 @@ const MantecaApiErrorCodes = {
   INVALID_LEGAL_ID: "legalId has wrong value",
   INVALID_ORDER_SIZE: "MIN_SIZE",
   INVALID_QR: "PAYMENT_DESTINATION",
-  NO_FUNDS: "NO_FUNDS",
   SYNTHETIC_EXISTS: "SYNTHETIC_EXISTS",
   SYNTHETIC_NOT_FOUND: "SYNTHETIC_NF",
   USER_NOT_FOUND: "USER_NF",
-  WITHDRAW_EXISTS: "WITHDRAW_EXISTS",
-  WITHDRAW_NOT_FOUND: "WITHDRAW_NF",
 } as const;
 
 type PersonaService = Pick<ReturnType<typeof createPersona>, "getAccount" | "getDocument" | "getDocumentForManteca">;

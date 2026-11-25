@@ -72,7 +72,7 @@ import { emit } from "../utils/events";
 import { refresh } from "../utils/liquidity";
 import listen from "../utils/listen";
 import publicClient, { alchemyClient } from "../utils/publicClient";
-import { decodeNonceKey, pay } from "../utils/ramps/manteca";
+import { decodeNonceKey, pay, refundQRPayment } from "../utils/ramps/manteca";
 import revertFingerprint from "../utils/revertFingerprint";
 import ServiceError from "../utils/ServiceError";
 import validatorHook from "../utils/validatorHook";
@@ -98,11 +98,13 @@ export default function hook({
   chainId: emitterChainId = chain.id,
   database,
   executor,
+  issuer,
   manteca,
   onesignal,
   persona,
   qr,
   redis,
+  refunder,
   source = "alchemy",
 }: {
   alchemy: ReturnType<typeof createAlchemy>;
@@ -110,11 +112,13 @@ export default function hook({
   chainId?: number;
   database: NodePgDatabase<typeof schema> & { $client: Pool };
   executor: LocalAccount;
+  issuer: LocalAccount;
   manteca: ReturnType<typeof createManteca>;
   onesignal: ReturnType<typeof createOnesignal>;
   persona: ReturnType<typeof createPersona>;
   qr: ReturnType<typeof createQR>;
   redis: Redis;
+  refunder: LocalAccount;
   source?: "alchemy" | "indexer";
 }) {
   const wallet = createWallet(executor);
@@ -466,14 +470,6 @@ export default function hook({
                     }));
                   let queued = false;
                   if (args.success && code) {
-                    await redis
-                      .set(`qr:${code}:op`, args.userOpHash, "EX", 8 * 24 * 60 * 60, "NX")
-                      .catch((error: unknown) => {
-                        captureException(error, {
-                          level: "error",
-                          contexts: { payment: { account: sender, userOpHash: args.userOpHash } },
-                        });
-                      });
                     queued = await qr
                       .enqueue(
                         { account: sender, code, timestamp, withdraws: sent },
@@ -493,7 +489,7 @@ export default function hook({
                       );
                   }
                   if (!settlements) continue;
-                  await pay(manteca, persona, credential.id, {
+                  const result = await pay(manteca, persona, redis, credential.id, {
                     ...args,
                     sender,
                     settlements,
@@ -504,6 +500,24 @@ export default function hook({
                     captureException(error, {
                       level: "error",
                       contexts: { payment: { account: args.sender, userOpHash: args.userOpHash } },
+                    });
+                  });
+                  if (!args.success || !code || !result || !("code" in result)) continue;
+                  await refundQRPayment(
+                    { issuer, redis, refunder },
+                    {
+                      account: sender,
+                      code,
+                      settlements,
+                      timestamp,
+                      userOpHash: args.userOpHash,
+                      withdraws: sent.filter(({ receiver }) => Object.values(settlements).includes(receiver)),
+                    },
+                  ).catch((error: unknown) => {
+                    failures.push(error);
+                    captureException(error, {
+                      level: "error",
+                      contexts: { payment: { account: sender, userOpHash: args.userOpHash } },
                     });
                   });
                 }
