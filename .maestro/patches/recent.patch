@@ -1,0 +1,81 @@
+From b18b771b6f3d1ff3fe60fa8d48ab02907c0274e9 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Fri, 20 Nov 2026 23:06:12 +0000
+Subject: [PATCH] fix: reuse the settled hierarchy for the next lookup
+
+Every command that waits for the app to settle ends with a hierarchy it just read twice and found unchanged, and the next command that looks for an element reads the hierarchy again right away. Keep the settled hierarchy and use it for the next lookup's first pass when it is at most 30 ms old, so back-to-back commands skip one read. Keyboard and erase commands drop it, since they change the screen without a settle. Only drivers with fast hierarchies keep it, Android and web: the iOS settle returns a hierarchy only when the screen never stopped moving.
+---
+ .../src/main/java/maestro/Maestro.kt           | 18 ++++++++++++++++--
+ 1 file changed, 16 insertions(+), 2 deletions(-)
+
+diff --git a/maestro-client/src/main/java/maestro/Maestro.kt b/maestro-client/src/main/java/maestro/Maestro.kt
+index f353874..d415de2 100644
+--- a/maestro-client/src/main/java/maestro/Maestro.kt
++++ b/maestro-client/src/main/java/maestro/Maestro.kt
+@@ -83,6 +83,9 @@ class Maestro(
+     // it survives other commands until then.
+     private var recentScroll = false
+ 
++    private var settled: ViewHierarchy? = null
++    private var settledAt = 0L
++
+     suspend fun launchApp(
+         appId: String,
+         launchArguments: Map<String, Any> = emptyMap(),
+@@ -139,6 +142,7 @@ class Maestro(
+ 
+         // iOS dismisses the keyboard with real content drags that can leave the screen decelerating.
+         recentScroll = true
++        settled = null
+         driver.hideKeyboard()
+     }
+ 
+@@ -551,11 +555,15 @@ class Maestro(
+         initialHierarchy: ViewHierarchy? = null
+     ): FindElementResult? {
+         var hierarchy = initialHierarchy ?: ViewHierarchy(TreeNode())
++        var recent = settled
++        val recentAt = settledAt
++        settled = null
+ 
+         val found = MaestroTimer.withTimeoutSuspend(timeoutMs) {
+-            hierarchy = initialHierarchy ?: runInterruptible(Dispatchers.IO) {
++            hierarchy = initialHierarchy ?: recent?.takeIf { System.currentTimeMillis() - recentAt <= SETTLED_REUSE_MS } ?: runInterruptible(Dispatchers.IO) {
+                 ViewHierarchy.from(driver, false)
+             }
++            recent = null
+             filter(hierarchy.aggregate()).firstOrNull()
+         }
+ 
+@@ -590,7 +598,11 @@ class Maestro(
+         appId: String? = null,
+         waitToSettleTimeoutMs: Int? = null
+     ): ViewHierarchy? = runInterruptible(Dispatchers.IO) {
+-        driver.waitForAppToSettle(initialHierarchy, appId, waitToSettleTimeoutMs)
++        driver.waitForAppToSettle(initialHierarchy, appId, waitToSettleTimeoutMs).also {
++            if (Capability.FAST_HIERARCHY !in driver.capabilities()) return@also
++            settled = it
++            settledAt = System.currentTimeMillis()
++        }
+     }
+ 
+     suspend fun inputText(text: String) {
+@@ -749,6 +761,7 @@ class Maestro(
+     suspend fun eraseText(charactersToErase: Int) = runInterruptible(Dispatchers.IO) {
+         LOGGER.info("Erasing $charactersToErase characters")
+ 
++        settled = null
+         driver.eraseText(charactersToErase)
+     }
+ 
+@@ -817,6 +830,7 @@ class Maestro(
+ 
+         private const val SCREENSHOT_DIFF_THRESHOLD = 0.005 // 0.5%
+         private const val ANIMATION_TIMEOUT_MS: Long = 15000
++        private const val SETTLED_REUSE_MS = 30L
+         // Mirrors IOSDriver.SCREEN_SETTLE_TIMEOUT_MS (3000ms): the element-stability wait
+         // stands in for the settle confirmation the iOS driver could not give, so keep the
+         // two budgets aligned when tuning either.
+-- 
+2.43.0
+
