@@ -2,14 +2,12 @@ import { queryOptions, skipToken } from "@tanstack/react-query";
 import { readContract } from "@wagmi/core/actions";
 import { getContractAddress, isAddress, zeroAddress, zeroHash } from "viem";
 
-import chain, {
+import {
   allowlists,
   appPreviewerAbi,
   appPreviewerCode,
   appPreviewerDeployedCode,
-  auditorAddress,
-  previewerAddress,
-  ratePreviewerAddress,
+  chains,
 } from "@exactly/common/generated/chain";
 
 import { lifiTokensOptions } from "./lifi";
@@ -24,6 +22,7 @@ export default function networkOptions(account: Address | undefined, chainId: nu
     queryFn: account
       ? async () => {
           const tokens = queryClient.getQueryData(lifiTokensOptions.queryKey);
+          const contracts = chains.get(chainId);
           const { wallet, protocol } = await readContract(exaConfig, {
             chainId,
             abi: appPreviewerAbi,
@@ -43,8 +42,8 @@ export default function networkOptions(account: Address | undefined, chainId: nu
                   ].map((target) => target.toLowerCase() as Address),
                 ),
               ],
-              chainId === chain.id
-                ? { auditor: auditorAddress, previewer: previewerAddress, ratePreviewer: ratePreviewerAddress }
+              contracts
+                ? { auditor: contracts.auditor, previewer: contracts.previewer, ratePreviewer: contracts.ratePreviewer }
                 : { auditor: zeroAddress, previewer: zeroAddress, ratePreviewer: zeroAddress },
             ],
             stateOverride: [{ address: appPreviewerAddress, code: appPreviewerDeployedCode }],
@@ -54,6 +53,12 @@ export default function networkOptions(account: Address | undefined, chainId: nu
               wallet.proposalManager.proposalManager === zeroAddress
                 ? null
                 : wallet.allowed.map((target) => target.toLowerCase()),
+            collateral: protocol.markets
+              .filter(({ isFrozen, nonCollateral }) => !isFrozen && !nonCollateral)
+              .flatMap(({ market: { asset, symbol } }) => [
+                asset.toLowerCase(),
+                ...(symbol === "exaWETH" ? [zeroAddress] : []),
+              ]),
             lifi: tokens !== undefined,
             timestamp: wallet.timestamp,
             balance: wallet.balance,
