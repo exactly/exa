@@ -17,7 +17,7 @@ export default function queue(redis: Redis) {
       salt,
       source,
     }: Omit<Job, "sentryBaggage" | "sentryTrace">) {
-      await instance.enqueue({ account, assets, chainId, factory, publicKey, salt, source }, account);
+      await instance.enqueue({ account, assets, chainId, factory, publicKey, salt, source }, { jobId: account });
     },
   };
 }

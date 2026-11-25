@@ -4,7 +4,7 @@ import createQueue from "../queue";
 import type { Redis } from "ioredis";
 
 export default function queue(bullmq: Redis) {
-  const instance = createQueue<Job>(name, attempts, bullmq);
+  const instance = createQueue<Job>(name, attempts, bullmq, { backoff: { type: "fixed", delay: 2000 } });
   return {
     close: () => instance.close(),
     ready: () => instance.ready(),
@@ -20,7 +20,7 @@ export default function queue(bullmq: Redis) {
     }: Omit<Job, "sentryBaggage" | "sentryTrace">) {
       await instance.enqueue(
         { account, assets, chainId, factory, origin, publicKey, salt, source },
-        [chainId, account, ...(assets ?? [])].join("-"),
+        { deduplication: { id: [chainId, account, ...(assets ?? [])].join("-"), keepLastIfActive: true } },
       );
     },
   };

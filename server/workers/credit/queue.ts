@@ -9,7 +9,7 @@ export default function queue(bullmq: Redis) {
     close: () => instance.close(),
     ready: () => instance.ready(),
     async enqueue(account: Job["account"], jobId: string = account) {
-      await instance.enqueue({ account }, jobId);
+      await instance.enqueue({ account }, { jobId });
     },
   };
 }

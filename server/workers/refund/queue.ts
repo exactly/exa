@@ -8,6 +8,6 @@ export default function queue(redis: Redis) {
   return {
     close: () => instance.close(),
     ready: () => instance.ready(),
-    enqueue: (data: Omit<Job, "sentryBaggage" | "sentryTrace">, id: string) => instance.enqueue(data, id),
+    enqueue: (data: Omit<Job, "sentryBaggage" | "sentryTrace">, id: string) => instance.enqueue(data, { jobId: id }),
   };
 }

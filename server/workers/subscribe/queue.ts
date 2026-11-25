@@ -9,6 +9,6 @@ export default function queue(redis: Redis) {
   return {
     close: () => instance.close(),
     ready: () => instance.ready(),
-    enqueue: (account: Address) => instance.enqueue({ account }, account),
+    enqueue: (account: Address) => instance.enqueue({ account }, { jobId: account }),
   };
 }
