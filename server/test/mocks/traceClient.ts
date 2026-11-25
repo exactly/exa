@@ -4,6 +4,7 @@ import { afterEach, vi } from "vitest";
 import type * as traceClient from "../../utils/traceClient";
 
 let tracing = false;
+const traced = new Set<Hash>();
 
 vi.mock("../../utils/traceClient", async (importOriginal) => {
   const original = await importOriginal<typeof traceClient>();
@@ -21,8 +22,9 @@ vi.mock("../../utils/traceClient", async (importOriginal) => {
 });
 
 // eslint-disable-next-line import/prefer-default-export -- mirrors mocked module
-export function enableTracing() {
-  tracing = true;
+export function enableTracing(...hashes: Hash[]) {
+  if (hashes.length === 0) tracing = true;
+  for (const hash of hashes) traced.add(hash);
 }
 
 afterEach(() => {
@@ -30,7 +32,7 @@ afterEach(() => {
 });
 
 function suppress(traceTransaction: (hash: Hash) => Promise<traceClient.CallFrame>) {
-  return (hash: Hash) => (tracing ? traceTransaction(hash) : Promise.resolve(emptyTrace));
+  return (hash: Hash) => (tracing || traced.has(hash) ? traceTransaction(hash) : Promise.resolve(emptyTrace));
 }
 
 const emptyTrace = {
