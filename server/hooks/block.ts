@@ -15,7 +15,7 @@ import { deserialize, serialize } from "@wagmi/core";
 import { Mutex } from "async-mutex";
 import createDebug from "debug";
 import { and, asc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { createHash } from "node:crypto";
 import { setTimeout } from "node:timers/promises";
 import { v5 } from "uuid";
@@ -37,6 +37,7 @@ import {
   toEventSelector,
   zeroAddress,
   type LocalAccount,
+  type PublicClient,
 } from "viem";
 import { entryPoint06Abi, entryPoint06Address } from "viem/account-abstraction";
 import { optimism, optimismSepolia } from "viem/chains";
@@ -81,6 +82,7 @@ import type createOnesignal from "../utils/onesignal";
 import type createPersona from "../utils/persona";
 import type createManteca from "../utils/ramps/manteca";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { BlankEnv } from "hono/types";
 import type { Redis } from "ioredis";
 import type { Pool } from "pg";
 
@@ -111,6 +113,7 @@ export default function hook({
   source?: "alchemy" | "indexer";
 }) {
   const wallet = createWallet(executor);
+  const signingKeys = new Set(blockKey && [blockKey]);
   const targets = new Map(
     [...chains.values()].flatMap((network) => {
       if (!network.smartAccount) return [];
@@ -119,8 +122,10 @@ export default function hook({
         [
           network.id,
           {
+            alchemyNetwork: network.alchemyNetwork,
             client: home ? publicClient : alchemyClient(network),
             exaPreviewer: network.exaPreviewer,
+            keys: home ? signingKeys : new Set<string>(),
             wallet: home ? wallet : createWallet(executor, network),
           },
         ] as const,
@@ -147,18 +152,23 @@ export default function hook({
 
   const initialized = new Set<string>();
   const foreign = new Map<string, number>();
-  let emitters: Promise<Set<Address>> | undefined;
-  function proposalEmitters() {
-    emitters ??= discoverEmitters(emitterChainId).catch((error: unknown) => {
-      emitters = undefined;
-      throw error;
-    });
-    return emitters;
+  const emitters = new Map<number, Promise<Set<Address>>>();
+  function proposalEmitters(chainId: number, client: PublicClient) {
+    const cached = emitters.get(chainId);
+    if (cached) return cached;
+    const discovered = discoverEmitters(chainId === chain.id ? emitterChainId : chainId, client).catch(
+      (error: unknown) => {
+        emitters.delete(chainId);
+        throw error;
+      },
+    );
+    emitters.set(chainId, discovered);
+    return discovered;
   }
 
   const listener = source === "indexer" ? listen(database.$client, sync) : undefined;
+  const watched = [...targets].filter(([chainId]) => source === "alchemy" || chainId === chain.id);
   if (!blockKey) debug("missing alchemy block key");
-  const signingKeys = new Set(blockKey && [blockKey]);
   const ready = Promise.all([
     redis
       .zrange("withdraw", 0, Infinity, "BYSCORE")
@@ -172,44 +182,42 @@ export default function hook({
         for (const message of messages) scheduleMessage(message);
       })
       .catch((error: unknown) => captureException(error)),
-    initializeAlchemy(alchemy, signingKeys, proposalEmitters).catch((error: unknown) => {
-      if (signingKeys.size === 0) throw error;
-      captureException(error, { level: "warning" });
-    }),
+    ...watched.map(([chainId, { alchemyNetwork, client, keys }]) =>
+      initializeAlchemy(alchemy, keys, chainId, alchemyNetwork, () => proposalEmitters(chainId, client)).catch(
+        (error: unknown) => {
+          if (chainId === chain.id && keys.size === 0) throw error;
+          captureException(error, { level: chainId === chain.id ? "warning" : "error" });
+        },
+      ),
+    ),
     listener?.ready,
   ]);
+  const payload = vValidator(
+    "json",
+    Payload,
+    validatorHook({
+      code: "bad alchemy",
+      status: 200,
+      filter: ({ event }) => event.data.block.logs.length > 0,
+      debug,
+    }),
+  );
+  const routes = watched
+    .filter(([chainId]) => chainId !== chain.id)
+    .map(
+      ([chainId, { client, exaPreviewer, keys }]) => [chainId, client, exaPreviewer, headerValidator(keys)] as const,
+    );
   const app = new Hono().post(
     "/",
     headerValidator(signingKeys),
-    vValidator(
-      "json",
-      v.object({
-        type: v.literal("GRAPHQL"),
-        event: v.object({
-          data: v.object({
-            block: v.object({
-              number: v.optional(v.number()), // TODO remove optional after migration
-              timestamp: v.number(),
-              logs: v.array(
-                v.object({
-                  topics: v.tupleWithRest([Hash], Hash),
-                  data: Hex,
-                  account: v.object({ address: Address }),
-                  transaction: v.optional(v.object({ hash: Hash })),
-                }),
-              ),
-            }),
-          }),
-        }),
-      }),
-      validatorHook({
-        code: "bad alchemy",
-        status: 200,
-        filter: ({ event }) => event.data.block.logs.length > 0,
-        debug,
-      }),
-    ),
-    async (c) => {
+    payload,
+    receive(chain.id, publicClient, exaPreviewerAddress),
+  );
+  for (const [chainId, client, exaPreviewer, validator] of routes)
+    app.post(`/${chainId}`, validator, payload, receive(chainId, client, exaPreviewer));
+
+  function receive(chainId: number, client: PublicClient, exaPreviewer: `0x${string}`) {
+    return async (c: Context<BlankEnv, string, { out: { json: v.InferOutput<typeof Payload> } }>) => {
       getActiveSpan()?.setAttribute(SEMANTIC_ATTRIBUTE_SENTRY_OP, "alchemy.block");
       const { number, timestamp, logs } = c.req.valid("json").event.data.block;
 
@@ -240,7 +248,7 @@ export default function hook({
       }
       setContext("alchemy", await c.req.json());
 
-      const trusted = await proposalEmitters();
+      const trusted = await proposalEmitters(chainId, client);
       const proposalsBySignature = logs.reduce((accumulator, event) => {
         if (!trusted.has(event.account.address)) {
           debug("ignored log from %s", event.account.address);
@@ -261,6 +269,7 @@ export default function hook({
           ?.map(({ topics, data, account: { address: emitter } }) => {
             const p = v.safeParse(Proposal, {
               ...decodeEventLog({ topics, data, abi: [...exaPluginAbi, ...proposalManagerAbi] }).args,
+              chainId,
               timestamp,
             });
             if (p.success) return { emitter, proposal: p.output };
@@ -292,7 +301,7 @@ export default function hook({
       if (
         accounts.length > 0 &&
         number !== undefined &&
-        (await publicClient.getBlockNumber({ cacheTime: 0 })) < BigInt(number)
+        (await client.getBlockNumber({ cacheTime: 0 })) < BigInt(number)
       ) {
         throw new Error("rpc behind block");
       }
@@ -301,7 +310,7 @@ export default function hook({
       const uncached = accounts.filter(
         (account) => !credentialed.has(account) && !initialized.has(account) && !foreign.has(account),
       );
-      const lookups = await initializedAccounts(uncached, number);
+      const lookups = await initializedAccounts(client, uncached, number);
       for (const lookup of lookups) {
         if (lookup.status === "rejected") continue;
         for (const account of lookup.value.batch) {
@@ -323,9 +332,9 @@ export default function hook({
             async (account) =>
               [
                 account,
-                await publicClient
+                await client
                   .readContract({
-                    address: exaPreviewerAddress,
+                    address: exaPreviewer,
                     functionName: "proposalManager",
                     abi: exaPreviewerAbi,
                     args: [account],
@@ -342,7 +351,7 @@ export default function hook({
             async (account) =>
               [
                 account,
-                await publicClient
+                await client
                   .readContract({
                     address: account,
                     abi: upgradeableModularAccountAbi,
@@ -460,8 +469,8 @@ export default function hook({
         ),
       ]);
       return c.json({}, failures.length > 0 ? 500 : 200);
-    },
-  );
+    };
+  }
 
   function scheduleProposal(proposal: v.InferOutput<typeof Proposal>) {
     return startSpan(
@@ -1045,7 +1054,7 @@ const legacyEmitters: Partial<Record<number, { factories: Address[]; plugins: Ad
 const LOOKUP_BATCH = 100;
 const FOREIGN_TTL = 5 * 60_000;
 
-async function initializedAccounts(accounts: string[], blockNumber?: number) {
+async function initializedAccounts(client: PublicClient, accounts: string[], blockNumber?: number) {
   if (accounts.length === 0) return [];
   const toBlock = blockNumber === undefined ? undefined : BigInt(blockNumber);
   const batches = Array.from({ length: Math.ceil(accounts.length / LOOKUP_BATCH) }, (_, index) =>
@@ -1053,7 +1062,7 @@ async function initializedAccounts(accounts: string[], blockNumber?: number) {
   );
   return Promise.allSettled(
     batches.map(async (batch) => {
-      const logs = await publicClient.getLogs({
+      const logs = await client.getLogs({
         address: [...factories.versions, ...factories.legacy],
         event: getAbiItem({ abi: exaAccountFactoryAbi, name: "ExaAccountInitialized" }),
         args: { account: batch.map((account) => v.parse(Address, account)) },
@@ -1066,11 +1075,11 @@ async function initializedAccounts(accounts: string[], blockNumber?: number) {
   );
 }
 
-function discoverEmitters(chainId: number) {
+function discoverEmitters(chainId: number, client: PublicClient) {
   const legacy = legacyEmitters[chainId] ?? { factories: [], plugins: [] };
   return Promise.all(
     [...new Set([...factories.versions, ...factories.legacy, ...legacy.factories])].map((factory) =>
-      publicClient
+      client
         .readContract({ address: factory, abi: exaAccountFactoryAbi, functionName: "EXA_PLUGIN" })
         .catch(unlessReverted),
     ),
@@ -1079,7 +1088,7 @@ function discoverEmitters(chainId: number) {
       Promise.all(
         [...new Set([...plugins.filter((plugin) => plugin !== undefined), ...legacy.plugins])].map(async (plugin) => [
           plugin,
-          await publicClient
+          await client
             .readContract({ address: plugin, abi: exaPluginAbi, functionName: "proposalManager" })
             .catch(unlessReverted),
         ]),
@@ -1101,14 +1110,20 @@ const withdrawTopic = toEventSelector(getAbiItem({ abi: marketAbi, name: "Withdr
 async function initializeAlchemy(
   alchemy: ReturnType<typeof createAlchemy>,
   signingKeys: Set<string>,
+  chainId: number,
+  network: string,
   proposalEmitters: () => Promise<Set<Address>>,
 ) {
+  const path = chainId === chain.id ? url : `${url}/${chainId}`;
   const currentHook = await alchemy.findWebhook(
     ({ webhook_type, webhook_url }) =>
-      webhook_type === "GRAPHQL" && (webhook_url === url || webhook_url.startsWith(`${url}?`)),
+      webhook_type === "GRAPHQL" && (webhook_url === path || webhook_url.startsWith(`${path}?`)),
+    network,
   );
   if (currentHook) signingKeys.add(currentHook.signing_key);
-  const addresses = [...new Set([...(await proposalEmitters()), marketUSDCAddress])].toSorted();
+  const addresses = [
+    ...new Set([...(await proposalEmitters()), ...(chainId === chain.id ? [marketUSDCAddress] : [])]),
+  ].toSorted();
   const query = `#graphql
 {
   block {
@@ -1137,10 +1152,11 @@ async function initializeAlchemy(
     }
   }
 }`;
-  const webhookUrl = `${url}?query=${createHash("sha256").update(query).digest("hex")}`;
+  const webhookUrl = `${path}?query=${createHash("sha256").update(query).digest("hex")}`;
   if (currentHook?.webhook_url === webhookUrl) return;
 
   const newHook = await alchemy.createWebhook({
+    network,
     webhook_type: "GRAPHQL",
     webhook_url: webhookUrl,
     graphql_query: { skip_empty_messages: true, query },
@@ -1156,6 +1172,26 @@ async function initializeAlchemy(
     signingKeys.delete(currentHook.signing_key);
   }
 }
+
+const Payload = v.object({
+  type: v.literal("GRAPHQL"),
+  event: v.object({
+    data: v.object({
+      block: v.object({
+        number: v.optional(v.number()), // TODO remove optional after migration
+        timestamp: v.number(),
+        logs: v.array(
+          v.object({
+            topics: v.tupleWithRest([Hash], Hash),
+            data: Hex,
+            account: v.object({ address: Address }),
+            transaction: v.optional(v.object({ hash: Hash })),
+          }),
+        ),
+      }),
+    }),
+  }),
+});
 
 const Proposal = v.pipe(
   v.object({

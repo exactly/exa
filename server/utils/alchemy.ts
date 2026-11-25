@@ -33,9 +33,9 @@ export default function alchemy(key: string) {
     );
   }
 
-  async function findWebhook(predicate: (webhook: Webhook) => unknown) {
+  async function findWebhook(predicate: (webhook: Webhook) => unknown, network = chain.alchemyNetwork) {
     const webhooks = await getWebhooks();
-    return webhooks.find((hook) => hook.is_active && hook.network === chain.alchemyNetwork && predicate(hook));
+    return webhooks.find((hook) => hook.is_active && hook.network === network && predicate(hook));
   }
 
   async function createWebhook(

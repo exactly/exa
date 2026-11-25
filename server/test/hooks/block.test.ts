@@ -43,6 +43,7 @@ import {
   zeroAddress,
   zeroHash,
   type Address,
+  type Chain,
   type Hash,
   type Hex,
   type Log,
@@ -55,7 +56,9 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished,
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import chain, {
+  alchemyChains,
   auditorAbi,
+  chains,
   exaAccountFactoryAbi,
   exaAccountFactoryAddress,
   exaPluginAbi,
@@ -85,7 +88,7 @@ import appOrigin from "../../utils/appOrigin";
 import ensClient from "../../utils/ensClient";
 import createOnesignal from "../../utils/onesignal";
 import createPersona from "../../utils/persona";
-import publicClient from "../../utils/publicClient";
+import publicClient, { alchemyClient } from "../../utils/publicClient";
 import createManteca from "../../utils/ramps/manteca";
 import redis from "../../utils/redis";
 import revertFingerprint from "../../utils/revertFingerprint";
@@ -137,12 +140,33 @@ describe("initialization", () => {
   it("starts with a discovered key when reconciliation fails", async () => {
     const error = new Error("creation failed");
     vi.mocked(findWebhook).mockResolvedValueOnce(existing);
-    vi.mocked(createWebhook).mockRejectedValueOnce(error);
+    const create = vi.mocked(createWebhook).getMockImplementation() as typeof createWebhook;
+    vi.mocked(createWebhook).mockImplementation((options) =>
+      options.network === chain.alchemyNetwork ? Promise.reject(error) : create(options),
+    );
+    onTestFinished(() => {
+      vi.mocked(createWebhook).mockImplementation(create);
+    });
     const currentHook = createBlockHook(defaults);
 
     await expect(currentHook.ready).resolves.toBeDefined();
     expect(headerValidator).toHaveBeenLastCalledWith(new Set([existing.signing_key]));
     expect(captureException).toHaveBeenCalledWith(error, { level: "warning" });
+  });
+
+  it("starts when another network webhook fails", async () => {
+    const error = new Error("creation failed");
+    const create = vi.mocked(createWebhook).getMockImplementation() as typeof createWebhook;
+    vi.mocked(createWebhook).mockImplementation((options) =>
+      options.network === chain.alchemyNetwork ? create(options) : Promise.reject(error),
+    );
+    onTestFinished(() => {
+      vi.mocked(createWebhook).mockImplementation(create);
+    });
+    const currentHook = createBlockHook(defaults);
+
+    await expect(currentHook.ready).resolves.toBeDefined();
+    expect(captureException).toHaveBeenCalledWith(error, { level: "error" });
   });
 
   it("keeps both keys when the old webhook deletion fails", async () => {
@@ -158,7 +182,7 @@ describe("initialization", () => {
     const currentHook = createBlockHook(defaults);
 
     await expect(currentHook.ready).resolves.toBeDefined();
-    expect(createWebhook).toHaveBeenCalledOnce();
+    expect(created()).toHaveLength(1);
     expect(headerValidator).toHaveBeenLastCalledWith(new Set([existing.signing_key, "mock-signing-key"]));
     expect(captureException).toHaveBeenCalledWith(
       expect.objectContaining({ name: "Alchemy503", message: "unavailable", status: 503 }),
@@ -168,7 +192,7 @@ describe("initialization", () => {
 
   it("keeps a webhook whose url carries its query hash", async () => {
     await createBlockHook(defaults).ready;
-    const options = vi.mocked(createWebhook).mock.lastCall?.[0];
+    const options = created().at(-1);
     if (!options || !("graphql_query" in options)) throw new Error("missing webhook");
     vi.mocked(createWebhook).mockClear();
     vi.mocked(findWebhook).mockResolvedValueOnce({ ...existing, webhook_url: options.webhook_url });
@@ -186,9 +210,9 @@ describe("initialization", () => {
     );
     expect(options.graphql_query.query).toContain(`"${withdrawTopic}" # Withdraw`);
     expect(options.graphql_query.query).toMatch(/transaction \{\s+hash\s+\}/);
-    expect(createWebhook).not.toHaveBeenCalled();
+    expect(created()).toHaveLength(0);
     expect(headerValidator).toHaveBeenLastCalledWith(new Set([existing.signing_key]));
-    const predicate = vi.mocked(findWebhook).mock.lastCall?.[0];
+    const predicate = vi.mocked(findWebhook).mock.calls.find(([, network]) => network === chain.alchemyNetwork)?.[0];
     expect(
       [
         { ...existing, webhook_url: `${appOrigin}/hooks/block` },
@@ -208,7 +232,7 @@ describe("initialization", () => {
         : readContract(parameters),
     );
     await createBlockHook(defaults).ready;
-    const options = vi.mocked(createWebhook).mock.lastCall?.[0];
+    const options = created().at(-1);
     if (!options || !("graphql_query" in options)) throw new Error("missing webhook");
 
     expect(options.graphql_query.query).toContain(
@@ -228,7 +252,7 @@ describe("initialization", () => {
     });
     onTestFinished(() => anvilClient.setCode({ address: legacyFactory, bytecode: "0x" }));
     await createBlockHook({ ...defaults, chainId: optimism.id }).ready;
-    const options = vi.mocked(createWebhook).mock.lastCall?.[0];
+    const options = created().at(-1);
     if (!options || !("graphql_query" in options)) throw new Error("missing webhook");
 
     const { plugins, managers } = await factoryEmitters();
@@ -246,6 +270,30 @@ describe("initialization", () => {
         ].toSorted(),
       )}`,
     );
+  });
+
+  it("watches proposals on every network through its own webhook", async () => {
+    const network = [...chains.values()].find(({ id }) => id !== chain.id);
+    if (!network) throw new Error("missing network");
+    await createBlockHook(defaults).ready;
+    const options = created(network.alchemyNetwork).at(-1);
+    if (!options || !("graphql_query" in options)) throw new Error("missing webhook");
+
+    const { plugins, managers } = await factoryEmitters(network.id);
+    expect(options.webhook_url).toBe(
+      `${appOrigin}/hooks/block/${network.id}?query=${createHash("sha256").update(options.graphql_query.query).digest("hex")}`,
+    );
+    expect(options.graphql_query.query).toContain(
+      `addresses: ${JSON.stringify([...new Set([exaPluginAddress, ...plugins, ...managers])].toSorted())}`,
+    );
+    const predicate = vi
+      .mocked(findWebhook)
+      .mock.calls.findLast(([, current]) => current === network.alchemyNetwork)?.[0];
+    expect(
+      [`${appOrigin}/hooks/block/${network.id}?query=0`, `${appOrigin}/hooks/block`].map((webhook_url) =>
+        predicate?.({ ...existing, network: network.alchemyNetwork, webhook_url }),
+      ),
+    ).toStrictEqual([true, false]);
   });
 
   it("fails without a signing key when initialization fails", async () => {
@@ -4589,18 +4637,26 @@ const legacyPlugins = [
   getAddress("0x87aF7e4892e47a7De34dF689bA5f3bCccED3e5DE"),
 ] as const;
 
-async function factoryEmitters() {
+async function factoryEmitters(chainId = chain.id) {
+  const client = chainId === chain.id ? publicClient : alchemyClient(alchemyChains.get(chainId) as Chain);
   const plugins = await Promise.all(
     [...factories.versions, ...factories.legacy].map((address) =>
-      publicClient.readContract({ address, abi: exaAccountFactoryAbi, functionName: "EXA_PLUGIN" }),
+      client.readContract({ address, abi: exaAccountFactoryAbi, functionName: "EXA_PLUGIN" }).catch(() => zeroAddress),
     ),
-  );
+  ).then((found) => found.filter((plugin) => plugin !== zeroAddress));
   const managers = await Promise.all(
     plugins.map((address) =>
-      publicClient.readContract({ address, abi: exaPluginAbi, functionName: "proposalManager" }),
+      client.readContract({ address, abi: exaPluginAbi, functionName: "proposalManager" }).catch(() => zeroAddress),
     ),
-  );
+  ).then((found) => found.filter((manager) => manager !== zeroAddress));
   return { plugins, managers };
+}
+
+function created(network = chain.alchemyNetwork) {
+  return vi
+    .mocked(createWebhook)
+    .mock.calls.map(([options]) => options)
+    .filter((options) => options.network === network);
 }
 
 function spyZadd() {
