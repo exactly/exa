@@ -428,6 +428,7 @@
   "Here are my crypto account details 👇": "Estos son mis datos de cuenta en cripto 👇",
   "Here are my {{currency}} account details 👇": "Estos son mis datos de cuenta en {{currency}} 👇",
   "Hi, {{name}}": "Hola, {{name}}",
+  "Hi! I can’t activate my Exa Card because I’ve reached the maximum number of cards. Could you help me?": "¡Hola! No puedo activar mi Exa Card porque alcancé el número máximo de tarjetas. ¿Me pueden ayudar?",
   "Hi! I'd like help recovering an asset on a network that isn't supported yet.\n\nNetwork: {{chainName}} (chain ID {{chainId}})\nAsset: {{symbol}}\nToken address: {{address}}\nAmount: {{amount}} {{symbol}}\nCurrent value: ${{usdValue}}": "¡Hola! Quisiera ayuda para recuperar un activo en una red que aún no está soportada.\n\nRed: {{chainName}} (ID de red {{chainId}})\nActivo: {{symbol}}\nDirección del token: {{address}}\nMonto: {{amount}} {{symbol}}\nValor actual: ${{usdValue}}",
   "Hi! I'd like help with a token that isn't supported yet.\n\nNetwork: {{chainName}} (chain ID {{chainId}})\nAsset: {{symbol}}\nToken address: {{address}}\nAmount: {{amount}} {{symbol}}\nCurrent value: ${{usdValue}}": "¡Hola! Quisiera ayuda con un token que aún no está soportado.\n\nRed: {{chainName}} (ID de red {{chainId}})\nActivo: {{symbol}}\nDirección del token: {{address}}\nMonto: {{amount}} {{symbol}}\nValor actual: ${{usdValue}}",
   "Hi! I'm setting up my Exa Card and it's taking longer than expected. Could you check on its status?": "¡Hola! Estoy configurando mi Exa Card y está tardando más de lo esperado. ¿Podrían revisar su estado?",

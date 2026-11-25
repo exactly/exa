@@ -84,6 +84,7 @@ export default function Card() {
   const [disclaimerShown, setDisclaimerShown] = useState(false);
   const [verificationFailureShown, setVerificationFailureShown] = useState(false);
   const [unavailableShown, setUnavailableShown] = useState(false);
+  const [cardLimitShown, setCardLimitShown] = useState(false);
   const [freezeConfirmOpen, setFreezeConfirmOpen] = useState(false);
   const [signal, setSignal] = useState(0);
 
@@ -275,6 +276,7 @@ export default function Card() {
     mutationKey: ["card", "create"],
     retry: (_, error) =>
       error instanceof APIError &&
+      error.code !== 409 &&
       error.code !== 504 &&
       !error.text.includes("already created") &&
       !isOffboarded(error),
@@ -303,6 +305,10 @@ export default function Card() {
       }
       if (isOffboarded(error)) {
         setUnavailableShown(true);
+        return;
+      }
+      if (error.text === "card limit reached") {
+        setCardLimitShown(true);
         return;
       }
       reportError(error);
@@ -658,6 +664,15 @@ export default function Card() {
           open={unavailableShown}
           onClose={() => {
             setUnavailableShown(false);
+          }}
+        />
+        <Unavailable
+          open={cardLimitShown}
+          message={t(
+            "Hi! I can’t activate my Exa Card because I’ve reached the maximum number of cards. Could you help me?",
+          )}
+          onClose={() => {
+            setCardLimitShown(false);
           }}
         />
         <TimeoutSheet

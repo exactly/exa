@@ -9,7 +9,15 @@ import ModalSheet from "../shared/ModalSheet";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 
-export default function Unavailable({ open, onClose }: { onClose: () => void; open: boolean }) {
+export default function Unavailable({
+  open,
+  onClose,
+  message,
+}: {
+  message?: string;
+  onClose: () => void;
+  open: boolean;
+}) {
   const { t } = useTranslation();
   const messageRef = useRef<null | string>(null);
   return (
@@ -28,7 +36,7 @@ export default function Unavailable({ open, onClose }: { onClose: () => void; op
             primary
             width="100%"
             onPress={() => {
-              messageRef.current = t("Hi! My Exa Card is unavailable. Could you tell me more?");
+              messageRef.current = message ?? t("Hi! My Exa Card is unavailable. Could you tell me more?");
               onClose();
             }}
           >
