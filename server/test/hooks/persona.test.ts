@@ -578,6 +578,72 @@ describe("persona hook", () => {
     expect(stored.rows).toStrictEqual([{ [own]: "new-panda-id", [other]: "other" }]);
   });
 
+  it("captures pax and document failures before replying", async () => {
+    const paxError = new Error("pax failed");
+    const documentError = new Error("document failed");
+    const paxCall = Promise.withResolvers<Awaited<ReturnType<typeof pax.addCapita>>>();
+    const documentCall = Promise.withResolvers<Awaited<ReturnType<typeof persona.addDocument>>>();
+    vi.mocked(pax.addCapita).mockReturnValueOnce(paxCall.promise);
+    vi.mocked(persona.addDocument).mockReset().mockReturnValueOnce(documentCall.promise);
+    let replied = false;
+    const reply = postInquiry().finally(() => {
+      replied = true;
+    });
+
+    await vi.waitFor(() => {
+      expect(pax.addCapita).toHaveBeenCalled();
+      expect(persona.addDocument).toHaveBeenCalled();
+    });
+    paxCall.reject(paxError);
+    await new Promise(setImmediate);
+    expect(replied).toBe(false);
+    documentCall.reject(documentError);
+    const response = await reply;
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ id: "new-panda-id" });
+    expect(captureException).toHaveBeenCalledWith(paxError, {
+      level: "error",
+      extra: { pandaId: "new-panda-id", referenceId: "persona-ref" },
+    });
+    expect(captureException).toHaveBeenCalledWith(documentError, {
+      level: "fatal",
+      extra: { referenceId: "persona-ref" },
+    });
+  });
+
+  it("enrolls pax without a phone number", async () => {
+    const { phoneNumber: _, ...fields } = validPayload.data.attributes.payload.data.attributes.fields;
+
+    const response = await appClient.index.$post({
+      header: {
+        "persona-signature": "t=1733865120,v1=debbacfe1b0c5f8797a1d68e8428fba435aa4ca3b5d9a328c3c96ee4d04d84df",
+      },
+      json: {
+        ...validPayload,
+        data: {
+          ...validPayload.data,
+          attributes: {
+            ...validPayload.data.attributes,
+            payload: {
+              ...validPayload.data.attributes.payload,
+              data: {
+                ...validPayload.data.attributes.payload.data,
+                attributes: { ...validPayload.data.attributes.payload.data.attributes, fields },
+              },
+              included: [...validPayload.data.attributes.payload.included],
+            },
+          },
+        },
+      },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ id: "new-panda-id" });
+    expect(pax.addCapita).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ phone: "" }));
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
   it("does not allow very high risk accounts", async () => {
     vi.mocked(sardine.customer).mockReset().mockResolvedValueOnce({
       sessionKey: "test",
