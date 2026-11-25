@@ -20,6 +20,7 @@ import {
   encodeFunctionData,
   erc20Abi,
   getAbiItem,
+  getAddress,
   hexToBigInt,
   http,
   isAddressEqual,
@@ -586,7 +587,7 @@ describe("onchain", () => {
           if (!["NoProposal", "NotNext"].includes(revertReason(error))) throw error;
         });
     }
-    const [[repay, roll], [, rolled]] = await Promise.all([
+    const [[repay, roll], [loaned, rolled]] = await Promise.all([
       client.getContractEvents({
         address: marketUSDCAddress,
         abi: marketAbi,
@@ -604,14 +605,17 @@ describe("onchain", () => {
         strict: true,
       }),
     ]);
+    const [deposit] = parseEventLogs({ abi: marketAbi, eventName: "Deposit", logs: queued });
     assert.ok(repay);
     assert.ok(roll);
+    assert.ok(loaned);
     assert.ok(rolled);
+    assert.ok(deposit);
     const priceFeed = await client
       .readContract({ address: auditorAddress, abi: auditorAbi, functionName: "markets", args: [marketUSDCAddress] })
       .then(({ 4: feed }) => feed);
-    const [repaid, rolledOver] = await Promise.all(
-      [repay, roll].map(({ blockNumber }) =>
+    const [repaid, rolledOver, borrowed, deposited] = await Promise.all(
+      [repay, roll, loaned, deposit].map(({ blockNumber }) =>
         Promise.all([
           client.getBlock({ blockNumber }),
           client.readContract({
@@ -626,6 +630,8 @@ describe("onchain", () => {
     );
     assert.ok(repaid);
     assert.ok(rolledOver);
+    assert.ok(borrowed);
+    assert.ok(deposited);
     await vi.waitFor(
       async () => {
         const status = (await fetch("http://localhost:42069/status").then((response) => response.json())) as Record<
@@ -660,7 +666,7 @@ describe("onchain", () => {
       transactionHash: log.transactionHash,
     }));
 
-    const [response, split, pdf, legacy] = await Promise.all([
+    const [response, split, pdf, legacy, other] = await Promise.all([
       appClient.index.$get({ query: { include: "repay" } }, { headers }),
       appClient.index.$get({ query: { include: ["repay", "rollover"] } }, { headers }),
       appClient.index.$get(
@@ -668,6 +674,7 @@ describe("onchain", () => {
         { headers: { ...headers, accept: "application/pdf" } },
       ),
       appClient.index.$get({}, { headers }),
+      appClient.index.$get({ query: { include: ["received", "loan"] } }, { headers }),
     ]);
 
     expect(legacy.status).toBe(200);
@@ -696,6 +703,33 @@ describe("onchain", () => {
     expect(statement).toHaveBeenCalledWith(
       expect.objectContaining({ maturity: Number(maturity), payments: [rollPayment, payment] }),
     );
+    expect(other.status).toBe(200);
+    await expect(other.json()).resolves.toStrictEqual([
+      {
+        id: `${remote.id}:${loaned.blockNumber}:${loaned.transactionIndex}:${loaned.logIndex}`,
+        chainId: remote.id,
+        type: "loan",
+        currency: "USDC",
+        amount: Number(loaned.args.assets) / 1e6,
+        usdAmount: Number((loaned.args.assets * borrowed.usdPrice) / WAD) / 1e6,
+        fee: Number(loaned.args.fee) / 1e6,
+        maturity: Number(maturity),
+        rate: Number(fixedRate(maturity, loaned.args.assets, loaned.args.fee, borrowed.time)) / 1e18,
+        receiver: getAddress(padHex("0x9a1db", { size: 20 })),
+        transactionHash: loaned.transactionHash,
+        timestamp: new Date(Number(borrowed.time) * 1000).toISOString(),
+      },
+      {
+        id: `${remote.id}:${deposit.blockNumber}:${deposit.transactionIndex}:${deposit.logIndex}`,
+        chainId: remote.id,
+        type: "received",
+        currency: "USDC",
+        amount: Number(deposit.args.assets) / 1e6,
+        usdAmount: Number((deposit.args.assets * deposited.usdPrice) / WAD) / 1e6,
+        transactionHash: deposit.transactionHash,
+        timestamp: new Date(Number(deposited.time) * 1000).toISOString(),
+      },
+    ]);
     expect(captureException).not.toHaveBeenCalled();
   });
 });
@@ -3599,6 +3633,7 @@ describe.concurrent("authenticated", () => {
               amount: Number(bridgeData.minAmount) / 10 ** token.decimals,
               usdAmount: Number((bridgeData.minAmount * usdPrice) / WAD) / 10 ** token.decimals,
               bridge: bridgeData.bridge,
+              ...(chainId === chain.id && { sender: getAddress(account) }),
               receiver: bridgeData.receiver,
               sourceChainId: chainId,
               destinationChainId: Number(bridgeData.destinationChainId),
