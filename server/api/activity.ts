@@ -39,6 +39,7 @@ import {
   encodeEventTopics,
   getAbiItem,
   hexToBigInt,
+  parseAbi,
   slice,
   toFunctionSelector,
   TransactionReceiptNotFoundError,
@@ -265,7 +266,10 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                     ...calls.flatMap((call): (bigint | null | undefined)[] => walk(call, current)),
                   ];
                 }
-                const resolved = new Map<string, (typeof proposed)[number] | null | undefined>();
+                const resolved = new Map<string, (typeof proposed)[number] | Hex | undefined>();
+                let legacy:
+                  | Promise<{ address: Hex; args: { receiver?: Hex }; blockNumber: bigint; logIndex: number }[]>
+                  | undefined;
                 await Promise.all(
                   [
                     ...Map.groupBy(
@@ -306,7 +310,33 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                     if (!scopes) return;
                     for (const log of pending) {
                       const scope = scopes[logs.indexOf(log)];
-                      resolved.set(`${hash}:${log.logIndex}`, scope === null ? null : sent(scope));
+                      resolved.set(
+                        `${hash}:${log.logIndex}`,
+                        scope === null
+                          ? await (legacy ??= publicClient
+                              .getContractEvents({
+                                abi: legacyPluginAbi,
+                                eventName: "Proposed",
+                                address: [...plugins] as Hex[],
+                                args: { account, market: marketWETHAddress },
+                                fromBlock: 0n,
+                                toBlock,
+                                strict: true,
+                              })
+                              .catch((error: unknown) => {
+                                captureException(error, { level: "error" });
+                                return [];
+                              })).then(
+                              (proposals) =>
+                                proposals.findLast(
+                                  ({ address, blockNumber, logIndex }) =>
+                                    address.toLowerCase() === log.args.receiver.toLowerCase() &&
+                                    (blockNumber << 32n) + BigInt(logIndex) <
+                                      (log.blockNumber << 32n) + BigInt(log.logIndex),
+                                )?.args.receiver ?? log.args.receiver,
+                            )
+                          : sent(scope),
+                      );
                     }
                   }),
                 );
@@ -317,12 +347,14 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                       return log;
                     }
                     if (log.address.toLowerCase() === marketWETHAddress.toLowerCase() && plugins.has(receiver)) {
-                      const proposal = resolved.get(`${log.transactionHash}:${log.logIndex}`);
-                      if (proposal === null) return log;
-                      if (!proposal) return;
+                      const resolution = resolved.get(`${log.transactionHash}:${log.logIndex}`);
+                      if (!resolution) return;
                       return {
                         ...log,
-                        args: { ...log.args, receiver: decodeWithdraw(proposal.args.data) },
+                        args: {
+                          ...log.args,
+                          receiver: typeof resolution === "string" ? resolution : decodeWithdraw(resolution.args.data),
+                        },
                       } satisfies Log<bigint, number, false, undefined, true, typeof marketAbi, "Withdraw">;
                     }
                   })
@@ -1013,6 +1045,10 @@ export const WithdrawActivity = pipe(
     type: "sent" as const,
   })),
 );
+
+const legacyPluginAbi = parseAbi([
+  "event Proposed(address indexed account, address indexed market, address indexed receiver, uint256 amount, uint256 unlock)",
+]);
 
 function forbid<T extends object>(value: T) {
   return new Proxy(value, {
