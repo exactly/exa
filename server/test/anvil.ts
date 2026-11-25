@@ -1,6 +1,6 @@
 import { $ } from "execa";
 import { spawn } from "node:child_process";
-import { access, readdir, readFile, writeFile } from "node:fs/promises";
+import { access, glob, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { Agent, createServer, request } from "node:http";
 import { env, stderr, stdout } from "node:process";
 import { text } from "node:stream/consumers";
@@ -132,6 +132,12 @@ async function start(dump = false) {
     if (now > timestamp) await anvilClient.setNextBlockTimestamp({ timestamp: now });
     await anvilClient.mine({ blocks: 1 });
   } else {
+    for await (const run of glob(
+      [anvil.id, moonbeamDev.id].map((id) => `{broadcast,cache/tooling}/*/${id}`),
+      { cwd: shell.cwd },
+    )) {
+      await rm(`${shell.cwd}/${run}`, { recursive: true });
+    }
     await $(shell)`forge compiler resolve`;
     await forge("test/mocks/Protocol.s.sol", "--disable-code-size-limit");
 
