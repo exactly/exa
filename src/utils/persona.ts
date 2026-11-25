@@ -8,7 +8,7 @@ import domain from "@exactly/common/domain";
 
 import queryClient, { type EmbeddingContext } from "./queryClient";
 import reportError from "./reportError";
-import { getKYCTokens, origin, type KYCStatus } from "./server";
+import { getKYCTokens, origin, sessions, type KYCStatus } from "./server";
 import { isBusiness } from "./useIsBusiness";
 
 import type { UseMutationOptions } from "@tanstack/react-query";
@@ -36,6 +36,7 @@ export function startKYC() {
 
   const promise = (async () => {
     const { signal } = controller;
+    const scope = isBusiness() ? "business" : "basic";
     const onPageHide = () => controller.abort(new Error("page unloaded"));
 
     if (Platform.OS === "web") {
@@ -44,7 +45,6 @@ export function startKYC() {
     }
 
     if (Platform.OS === "web") {
-      const scope = isBusiness() ? "business" : "basic";
       const [{ Client }, { inquiryId, sessionToken }] = await Promise.all([
         import("persona"),
         getKYCTokens(scope, await getRedirectURI()),
@@ -66,14 +66,16 @@ export function startKYC() {
             signal.removeEventListener("abort", onAbort);
             globalThis.removeEventListener("pagehide", onPageHide);
             client.destroy();
+            sessions.delete(scope);
             handleComplete();
             resolve({ status: "complete" });
             if (camera) count({ scope, outcome: "complete" });
           },
-          onCancel: () => {
+          onCancel: ({ inquiryId: id, sessionToken: token }) => {
             signal.removeEventListener("abort", onAbort);
             globalThis.removeEventListener("pagehide", onPageHide);
             client.destroy();
+            keep(scope, id, token);
             handleCancel();
             resolve({ status: "cancel" });
             if (camera) count({ scope, outcome: "cancel" });
@@ -89,6 +91,7 @@ export function startKYC() {
             signal.removeEventListener("abort", onAbort);
             globalThis.removeEventListener("pagehide", onPageHide);
             client.destroy();
+            sessions.delete(scope);
             reportError(error);
             reject(new Error("persona inquiry failed", { cause: error }));
             if (camera) count({ scope, outcome: "error" });
@@ -98,7 +101,7 @@ export function startKYC() {
       });
     }
 
-    const { inquiryId, sessionToken } = await getKYCTokens(isBusiness() ? "business" : "basic", await getRedirectURI());
+    const { inquiryId, sessionToken } = await getKYCTokens(scope, await getRedirectURI());
     if (signal.aborted) throw signal.reason;
 
     const { Inquiry } = await import("react-native-persona");
@@ -107,18 +110,21 @@ export function startKYC() {
       signal.addEventListener("abort", onAbort, { once: true });
       Inquiry.fromInquiry(inquiryId)
         .sessionToken(sessionToken)
-        .onCanceled(() => {
+        .onCanceled((id, token) => {
           signal.removeEventListener("abort", onAbort);
+          keep(scope, id, token);
           handleCancel();
           resolve({ status: "cancel" });
         })
         .onComplete(() => {
           signal.removeEventListener("abort", onAbort);
+          sessions.delete(scope);
           handleComplete();
           resolve({ status: "complete" });
         })
         .onError((error) => {
           signal.removeEventListener("abort", onAbort);
+          sessions.delete(scope);
           reportError(error);
           reject(error);
         })
@@ -195,14 +201,16 @@ function startScopedInquiry(
             signal.removeEventListener("abort", onAbort);
             globalThis.removeEventListener("pagehide", onPageHide);
             client.destroy();
+            sessions.delete(scope);
             queryClient.invalidateQueries({ queryKey }).catch(reportError);
             resolve({ status: "complete" });
             if (camera) count({ scope, outcome: "complete" });
           },
-          onCancel: () => {
+          onCancel: ({ inquiryId: id, sessionToken: token }) => {
             signal.removeEventListener("abort", onAbort);
             globalThis.removeEventListener("pagehide", onPageHide);
             client.destroy();
+            keep(scope, id, token);
             queryClient.invalidateQueries({ queryKey }).catch(reportError);
             resolve({ status: "cancel" });
             if (camera) count({ scope, outcome: "cancel" });
@@ -218,6 +226,7 @@ function startScopedInquiry(
             signal.removeEventListener("abort", onAbort);
             globalThis.removeEventListener("pagehide", onPageHide);
             client.destroy();
+            sessions.delete(scope);
             reportError(error);
             resolve({ status: "error" });
             if (camera) count({ scope, outcome: "error" });
@@ -236,18 +245,21 @@ function startScopedInquiry(
       signal.addEventListener("abort", onAbort, { once: true });
       Inquiry.fromInquiry(inquiryId)
         .sessionToken(sessionToken)
-        .onCanceled(() => {
+        .onCanceled((id, token) => {
           signal.removeEventListener("abort", onAbort);
+          keep(scope, id, token);
           queryClient.invalidateQueries({ queryKey }).catch(reportError);
           resolve({ status: "cancel" });
         })
         .onComplete(() => {
           signal.removeEventListener("abort", onAbort);
+          sessions.delete(scope);
           queryClient.invalidateQueries({ queryKey }).catch(reportError);
           resolve({ status: "complete" });
         })
         .onError((error) => {
           signal.removeEventListener("abort", onAbort);
+          sessions.delete(scope);
           reportError(error);
           resolve({ status: "error" });
         })
@@ -277,6 +289,11 @@ async function getRedirectURI() {
       }/exa-app`;
   }
   return Platform.OS === "web" ? origin : undefined;
+}
+
+function keep(scope: string, inquiryId?: string, sessionToken?: string) {
+  if (inquiryId && sessionToken) sessions.set(scope, { inquiryId, sessionToken });
+  else sessions.delete(scope);
 }
 
 function count(attributes: { outcome?: "cancel" | "complete" | "error"; scope: string }) {
