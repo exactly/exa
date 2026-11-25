@@ -10,6 +10,7 @@ export type Job = {
   delayedAt?: number;
   factory: Address;
   origin: "activity" | "allow";
+  pending?: Address[];
   publicKey: Hex;
   salt: Address;
   sentryBaggage?: string;
