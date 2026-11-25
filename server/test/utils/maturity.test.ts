@@ -8,7 +8,7 @@ import { parse } from "valibot";
 import { decodeFunctionData, encodeFunctionData, encodeFunctionResult, getAbiItem, multicall3Abi } from "viem";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import chain, { marketAbi, marketUSDCAddress } from "@exactly/common/generated/chain";
+import chain, { chains, marketAbi, marketUSDCAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 import { MATURITY_INTERVAL } from "@exactly/lib";
 
@@ -19,9 +19,18 @@ import { bullmq, close as closeRedis } from "../../utils/redis";
 
 const mocks = vi.hoisted(() => ({
   readContract: vi.fn(),
+  remote: vi.fn(),
 }));
 
-vi.mock("../../utils/publicClient", () => ({ default: { readContract: mocks.readContract } }));
+vi.mock("../../utils/publicClient", async () => {
+  const { chains: networks, default: home } = await import("@exactly/common/generated/chain");
+  return {
+    default: { readContract: mocks.readContract },
+    clients: new Map(
+      [...networks.keys()].map((id) => [id, { readContract: id === home.id ? mocks.readContract : mocks.remote }]),
+    ),
+  };
+});
 
 setup(createOnesignal("onesignal"));
 
@@ -69,10 +78,13 @@ function mockFixedBorrowPositions(account: Address, position: Position) {
   mockFixedBorrowPositionsMany([[account, position]]);
 }
 
-function mockFixedBorrowPositionsMany(entries: [Address, Position][]) {
+function mockFixedBorrowPositionsMany(entries: [Address, Position][], mock = mocks.readContract) {
+  mock.mockImplementation(aggregate(new Map(entries)));
+}
+
+function aggregate(positions: Map<Address, Position>) {
   const abi = [getAbiItem({ abi: marketAbi, name: "fixedBorrowPositions" })];
-  const positions = new Map(entries);
-  mocks.readContract.mockImplementation(({ args }: { args: readonly [readonly AggregateCall[]] }) =>
+  return ({ args }: { args: readonly [readonly AggregateCall[]] }) =>
     Promise.resolve(
       args[0].map(({ callData }) => {
         const callArguments = decodeFunctionData({ abi, data: callData }).args;
@@ -86,8 +98,7 @@ function mockFixedBorrowPositionsMany(entries: [Address, Position][]) {
           }),
         };
       }),
-    ),
-  );
+    );
 }
 
 function maturityFor(window: Window) {
@@ -288,6 +299,7 @@ describe("worker", () => {
     await database.delete(credentials).where(like(credentials.id, "maturity-test-%"));
     await Promise.all([queue.resume(), notificationQueue.resume()]);
     vi.clearAllMocks();
+    mocks.remote.mockImplementation(aggregate(new Map()));
     sendPushNotification.mockReset();
     sendPushNotification.mockResolvedValue({});
   });
@@ -527,6 +539,99 @@ describe("worker", () => {
     } finally {
       vi.mocked(Date.now).mockRestore();
     }
+  });
+
+  it("enqueues reminder job with debt only on another network", async () => {
+    const account = parse(Address, "0x1234567890123456789012345678901234567890");
+    const window = "24h";
+    const maturity = nextMaturity();
+    const remote = [...chains.values()].find(({ id }) => id !== chain.id);
+    if (!remote) throw new Error("remote network missing");
+
+    await notificationQueue.pause();
+    await insertAccounts([account]);
+    mockFixedBorrowPositionsMany([]);
+    mockFixedBorrowPositionsMany([[account, [100n * USDC, 0n]]], mocks.remote);
+
+    await checkDoneAt("check-debts", maturity, window);
+
+    expect(mocks.remote).toHaveBeenCalledWith(
+      expect.objectContaining({
+        address: chain.contracts.multicall3.address,
+        abi: multicall3Abi,
+        functionName: "aggregate3",
+        args: [
+          expect.arrayContaining([
+            {
+              target: remote.marketUSDC,
+              allowFailure: true,
+              callData: encodeFunctionData({
+                abi: marketAbi,
+                functionName: "fixedBorrowPositions",
+                args: [BigInt(maturity), account],
+              }),
+            },
+          ]),
+        ],
+      }),
+    );
+    expect(sendPushNotification).not.toHaveBeenCalled();
+    const jobs = await notificationJobs();
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]?.id).toBe(reminderChunkJobId(maturity, window, 0));
+    expect(jobs[0]?.data).toMatchObject({ accounts: [account], maturity, window });
+  });
+
+  it("adds debt across networks before checking the threshold", async () => {
+    const [due, small] = testAccounts(2);
+    if (!due || !small) throw new Error("accounts missing");
+    const window = "24h";
+    const maturity = nextMaturity();
+
+    await notificationQueue.pause();
+    await insertAccounts([due, small]);
+    mockFixedBorrowPositionsMany([
+      [due, [USDC, 0n]],
+      [small, [USDC, 0n]],
+    ]);
+    mockFixedBorrowPositionsMany(
+      [
+        [due, [USDC / 2n, USDC / 2n]],
+        [small, [USDC / 2n, USDC / 2n - 1n]],
+      ],
+      mocks.remote,
+    );
+
+    await checkDoneAt("check-debts", maturity, window);
+
+    const jobs = await notificationJobs();
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]?.data).toMatchObject({ accounts: [due], maturity, window });
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("retries rpc failures on another network", async () => {
+    const account = parse(Address, "0x1234567890123456789012345678901234567890");
+    const window = "24h";
+    const maturity = maturityFor(window);
+
+    await notificationQueue.pause();
+    mockFixedBorrowPositionsMany([[account, [100n * USDC, 0n]]]);
+    mocks.remote.mockResolvedValue([{ success: false, returnData: "0x" }]);
+
+    const job = await queue.add(
+      "scan-chunk",
+      { accounts: [account], chunkIndex: 0, maturity, window },
+      { jobId: scanJobId(maturity, window, 0), attempts: 1 },
+    );
+    if (!job.id) throw new Error("job id missing");
+    await waitForFailedJob(queue, job.id);
+
+    expect(captureException).toHaveBeenCalledWith(expect.any(Error), {
+      level: "error",
+      extra: { accounts: 1, kind: "rpc", maturity, window },
+    });
+    expect(await notificationJobs()).toHaveLength(0);
   });
 
   it("retries rpc failures without duplicating reminder jobs", async () => {
