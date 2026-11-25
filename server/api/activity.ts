@@ -396,23 +396,37 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                   .from(indexer.deposits)
                   .where(
                     and(
-                      eq(indexer.deposits.chainId, chain.id),
                       eq(indexer.deposits.account, owner),
                       eq(indexer.deposits.caller, owner),
-                      inArray(indexer.deposits.market, [...markets.keys()]),
-                      notExists(
-                        database
-                          .select({ hash: repayHash.hash })
-                          .from(repayHash)
-                          .where(
-                            and(
-                              eq(repayHash.chainId, indexer.deposits.chainId),
-                              eq(repayHash.account, indexer.deposits.account),
-                              eq(repayHash.hash, indexer.deposits.hash),
-                              inArray(repayHash.caller, [...plugins, debtManagerAddress.toLowerCase() as Hex]),
-                              inArray(repayHash.market, [...markets.keys()]),
-                            ),
-                          ),
+                      or(
+                        sql`false`,
+                        ...[...networks].flatMap(([chainId, assets]) =>
+                          legacy && chainId !== chain.id
+                            ? []
+                            : and(
+                                eq(indexer.deposits.chainId, chainId),
+                                inArray(indexer.deposits.market, [...assets.keys()]),
+                                notExists(
+                                  database
+                                    .select({ hash: repayHash.hash })
+                                    .from(repayHash)
+                                    .where(
+                                      and(
+                                        eq(repayHash.chainId, indexer.deposits.chainId),
+                                        eq(repayHash.account, indexer.deposits.account),
+                                        eq(repayHash.hash, indexer.deposits.hash),
+                                        inArray(
+                                          repayHash.caller,
+                                          chainId === chain.id
+                                            ? [...plugins, debtManagerAddress.toLowerCase() as Hex]
+                                            : [...(installed?.get(chainId) ?? [])],
+                                        ),
+                                        inArray(repayHash.market, [...assets.keys()]),
+                                      ),
+                                    ),
+                                ),
+                              ),
+                        ),
                       ),
                       beyond(indexer.deposits),
                     ),
@@ -424,7 +438,9 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                 .then((rows) =>
                   rows
                     .filter(({ usdPrice }) => !legacy || usdPrice !== null)
-                    .map((row) => parse(DepositActivity, { ...row, market: market(row.market, row.usdPrice) })),
+                    .map((row) =>
+                      parse(DepositActivity, { ...row, market: market(row.market, row.usdPrice, row.chainId) }),
+                    ),
                 ),
           ignore("repay")
             ? []
@@ -557,17 +573,24 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                   .from(indexer.borrows)
                   .where(
                     and(
-                      eq(indexer.borrows.chainId, chain.id),
                       eq(indexer.borrows.account, owner),
                       eq(indexer.borrows.caller, owner),
-                      inArray(indexer.borrows.market, [...markets.keys()]),
                       notInArray(indexer.borrows.receiver, [...collectors]),
+                      or(
+                        sql`false`,
+                        ...[...networks].map(([chainId, assets]) =>
+                          and(
+                            eq(indexer.borrows.chainId, chainId),
+                            inArray(indexer.borrows.market, [...assets.keys()]),
+                          ),
+                        ),
+                      ),
                       notInArray(
                         indexer.borrows.receiver,
                         database
                           .select({ address: indexer.collectors.address })
                           .from(indexer.collectors)
-                          .where(eq(indexer.collectors.chainId, chain.id)),
+                          .where(eq(indexer.collectors.chainId, indexer.borrows.chainId)),
                       ),
                       beyond(indexer.borrows),
                     ),
@@ -576,7 +599,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                 indexer.borrows,
               ).then((rows) =>
                 bound(rows, rows.at(-1)).map((row) =>
-                  parse(LoanActivity, { ...row, market: market(row.market, row.usdPrice) }),
+                  parse(LoanActivity, { ...row, market: market(row.market, row.usdPrice, row.chainId) }),
                 ),
               ),
           ignore("rollover")
@@ -601,10 +624,17 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                   .from(indexer.liquidations)
                   .where(
                     and(
-                      eq(indexer.liquidations.chainId, chain.id),
                       eq(indexer.liquidations.account, owner),
-                      inArray(indexer.liquidations.market, [...markets.keys()]),
-                      inArray(indexer.liquidations.seizeMarket, [...markets.keys()]),
+                      or(
+                        sql`false`,
+                        ...[...networks].map(([chainId, assets]) =>
+                          and(
+                            eq(indexer.liquidations.chainId, chainId),
+                            inArray(indexer.liquidations.market, [...assets.keys()]),
+                            inArray(indexer.liquidations.seizeMarket, [...assets.keys()]),
+                          ),
+                        ),
+                      ),
                       beyond(indexer.liquidations),
                     ),
                   )
@@ -616,8 +646,8 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                   rows.map((row) =>
                     parse(LiquidationActivity, {
                       ...row,
-                      market: market(row.market, row.usdPrice),
-                      seizeMarket: market(row.seizeMarket, row.seizeUsdPrice),
+                      market: market(row.market, row.usdPrice, row.chainId),
+                      seizeMarket: market(row.seizeMarket, row.seizeUsdPrice, row.chainId),
                     }),
                   ),
                 ),
@@ -640,9 +670,9 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                   .where(
                     and(
                       or(
-                        and(eq(indexer.bridges.chainId, chain.id), eq(indexer.bridges.account, owner)),
+                        and(inArray(indexer.bridges.chainId, [...networks.keys()]), eq(indexer.bridges.account, owner)),
                         and(
-                          eq(indexer.bridges.destinationChainId, BigInt(chain.id)),
+                          inArray(indexer.bridges.destinationChainId, [...networks.keys()].map(BigInt)),
                           eq(indexer.bridges.receiver, owner),
                         ),
                       ),
@@ -1451,14 +1481,16 @@ export const BridgeActivity = pipe(
     chainId: number(),
     token: Token,
     usdPrice: nullable(bigint()),
+    account: optional(nullable(Address)),
     bridge: string(),
     receiver: Address,
     destinationChainId: bigint(),
   }),
-  transform(({ chainId, token, usdPrice, bridge, receiver, destinationChainId, ...activity }) => ({
+  transform(({ chainId, token, usdPrice, account, bridge, receiver, destinationChainId, ...activity }) => ({
     ...transformActivity({ ...activity, market: { ...token, usdPrice } }),
     id: `${chainId}:${activity.block}:${activity.transactionIndex}:${activity.logIndex}`,
     bridge,
+    ...(account && { sender: account }),
     receiver,
     sourceChainId: chainId,
     destinationChainId: Number(destinationChainId),
