@@ -44,7 +44,7 @@ export default define({
         "postgres-url",
       ],
       shared: ["manteca-api-url", "persona-api-url", "redis-url"],
-      signers: ["executor"],
+      signers: ["executor", "issuer", "refunder"],
     },
     bridge: {
       secrets: [
@@ -72,7 +72,8 @@ export default define({
         "segment-write-key",
         "webhooks-key",
       ],
-      shared: ["manteca-api-url"],
+      shared: ["manteca-api-url", "redis-url"],
+      signers: ["issuer", "refunder"],
     },
     mockfi: { secrets: ["postgres-url"] },
     panda: {
