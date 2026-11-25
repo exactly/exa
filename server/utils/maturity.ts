@@ -12,11 +12,11 @@ import { v5 } from "uuid";
 import { array, number, object, optional, parse, picklist, string, type InferOutput } from "valibot";
 import { decodeFunctionResult, encodeFunctionData, multicall3Abi } from "viem";
 
-import chain, { marketAbi, marketUSDCAddress } from "@exactly/common/generated/chain";
+import chain, { chains, marketAbi } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 import { MATURITY_INTERVAL } from "@exactly/lib";
 
-import publicClient from "./publicClient";
+import { clients } from "./publicClient";
 import { bullmq as connection } from "./redis";
 import database, { credentials } from "../database";
 import t from "../i18n";
@@ -182,38 +182,43 @@ function createWorker() {
             case "scan-chunk": {
               const scan = parse(scanChunkSchema, job.data);
               let rpcFailures = 0;
-              const accounts = await publicClient
-                .readContract({
-                  address: chain.contracts.multicall3.address,
-                  abi: multicall3Abi,
-                  functionName: "aggregate3",
-                  args: [
-                    scan.accounts.map((account) => ({
-                      target: marketUSDCAddress,
-                      allowFailure: true,
-                      callData: encodeFunctionData({
-                        abi: marketAbi,
-                        functionName: "fixedBorrowPositions",
-                        args: [BigInt(scan.maturity), account],
+              const debts = await Promise.all(
+                [...chains].map(([id, { marketUSDC }]) => {
+                  const client = clients.get(id)!; // eslint-disable-line @typescript-eslint/no-non-null-assertion -- every network has a client
+                  return client
+                    .readContract({
+                      address: chain.contracts.multicall3.address,
+                      abi: multicall3Abi,
+                      functionName: "aggregate3",
+                      args: [
+                        scan.accounts.map((account) => ({
+                          target: marketUSDC,
+                          allowFailure: true,
+                          callData: encodeFunctionData({
+                            abi: marketAbi,
+                            functionName: "fixedBorrowPositions",
+                            args: [BigInt(scan.maturity), account],
+                          }),
+                        })),
+                      ],
+                    })
+                    .then((results) =>
+                      scan.accounts.flatMap((account, index) => {
+                        const result = results[index];
+                        if (!result?.success) {
+                          rpcFailures += 1;
+                          return [];
+                        }
+                        const [principal, fee] = decodeFunctionResult({
+                          abi: marketAbi,
+                          functionName: "fixedBorrowPositions",
+                          data: result.returnData,
+                        });
+                        return [[account, principal + fee] as const];
                       }),
-                    })),
-                  ],
-                })
-                .then((results) =>
-                  scan.accounts.flatMap((userId, index) => {
-                    const result = results[index];
-                    if (!result?.success) {
-                      rpcFailures += 1;
-                      return [];
-                    }
-                    const [principal, fee] = decodeFunctionResult({
-                      abi: marketAbi,
-                      functionName: "fixedBorrowPositions",
-                      data: result.returnData,
-                    });
-                    return principal + fee >= 2_000_000n ? [userId] : [];
-                  }),
-                );
+                    );
+                }),
+              );
               if (rpcFailures > 0) {
                 captureException(new Error("fixed borrow position call failed"), {
                   level: "error",
@@ -221,6 +226,14 @@ function createWorker() {
                 });
                 throw new Error("rpc failed");
               }
+              const accounts = [
+                ...debts
+                  .flat()
+                  .reduce(
+                    (totals, [account, debt]) => totals.set(account, (totals.get(account) ?? 0n) + debt),
+                    new Map<Address, bigint>(),
+                  ),
+              ].flatMap(([account, debt]) => (debt >= 2_000_000n ? [account] : []));
               if (accounts.length > 0) {
                 const id = `maturity-reminders-${scan.maturity}-${scan.window}-${scan.chunkIndex}`;
                 await startSpan(
