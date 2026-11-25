@@ -1,9 +1,18 @@
+import { createRequire } from "node:module";
 import { env } from "node:process";
 import { fileURLToPath } from "node:url";
 import { padHex } from "viem";
 import { defineConfig } from "vitest/config";
 
+const require = createRequire(import.meta.url);
+
 export default defineConfig({
+  resolve: {
+    alias: [
+      { find: /^@sentry\/node$/, replacement: require.resolve("@sentry/node") },
+      { find: /^@sentry\/core$/, replacement: require.resolve("@sentry/core") },
+    ],
+  },
   test: {
     globalSetup: ["test/anvil.ts", "test/database.ts", "test/redis.ts", "test/spotlight.ts"],
     coverage: {
