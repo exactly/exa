@@ -1,5 +1,5 @@
 ---
-"@exactly/server": minor
+"@exactly/server": patch
 ---
 
 🥅 distinguish missing panda users
