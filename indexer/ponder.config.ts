@@ -20,6 +20,8 @@ import chain, {
   webauthnOwnerPluginAbi,
 } from "@exactly/common/generated/chain";
 
+import postgres from "./postgres";
+
 const addresses = [...factories.versions, ...factories.legacy];
 const ownerUpdated = getAbiItem({
   abi: webauthnOwnerPluginAbi,
@@ -55,7 +57,7 @@ const bridgeSources = [
 ];
 
 export default createConfig({
-  database: { kind: "postgres", connectionString: env.POSTGRES_URL, poolConfig: { max: 8 } },
+  database: { kind: "postgres", connectionString: env.POSTGRES_URL, poolConfig: { ...(await postgres()), max: 8 } },
   chains: Object.fromEntries(
     bridgeSources.map(({ network, rpc }) => [
       network.name,
