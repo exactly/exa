@@ -1,0 +1,55 @@
+From bb9c80880965c57ef11b085e8ced5ef30c695af6 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Mon, 23 Nov 2026 22:43:06 +0000
+Subject: [PATCH] fix: report disabled android elements through their
+ descendants
+
+Android marks only the disabled view itself, so the text inside a disabled button still read as enabled and `enabled: true` matched it before the button enabled. Report an element as disabled when it is disabled, or when an ancestor is disabled and the element is not clickable itself, the way users see it.
+---
+ .../src/main/java/maestro/drivers/AndroidDriver.kt     | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt b/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
+index 8822e67..c7c8a44 100644
+--- a/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/AndroidDriver.kt
+@@ -1158,7 +1158,9 @@ class AndroidDriver(
+         }
+     }
+ 
+-    private fun mapHierarchy(node: Node): TreeNode {
++    private fun mapHierarchy(node: Node, disabledAncestor: Boolean = false): TreeNode {
++        val inherited = disabledAncestor && node.getBoolean("clickable") != true
++        val disabled = inherited || (node as? Element)?.getAttribute("enabled") == "false"
+         val attributes = if (node is Element) {
+             val attributesBuilder = mutableMapOf<String, String>()
+ 
+@@ -1194,7 +1196,7 @@ class AndroidDriver(
+             }
+ 
+             if (node.hasAttribute("enabled")) {
+-                attributesBuilder["enabled"] = node.getAttribute("enabled")
++                attributesBuilder["enabled"] = (!disabled).toString()
+             }
+ 
+             if (node.hasAttribute("focused")) {
+@@ -1233,14 +1235,14 @@ class AndroidDriver(
+         val children = mutableListOf<TreeNode>()
+         val childNodes = node.childNodes
+         (0 until childNodes.length).forEach { i ->
+-            children += mapHierarchy(childNodes.item(i))
++            children += mapHierarchy(childNodes.item(i), disabled)
+         }
+ 
+         return TreeNode(
+             attributes = attributes.toMutableMap(),
+             children = children,
+             clickable = node.getBoolean("clickable"),
+-            enabled = node.getBoolean("enabled"),
++            enabled = node.getBoolean("enabled")?.let { it && !inherited },
+             focused = node.getBoolean("focused"),
+             checked = node.getBoolean("checked"),
+             selected = node.getBoolean("selected"),
+-- 
+2.43.0
+
