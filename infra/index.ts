@@ -12,12 +12,13 @@ import {
 } from "@pulumi/gcp";
 import { automation, Config, getStack, interpolate } from "@pulumi/pulumi";
 import { hash } from "node:crypto";
-import { array, optional, parse, picklist } from "valibot";
+import { array, object, optional, parse, picklist, string } from "valibot";
 
 import modules from "./utils/modules.ts";
 import rejectSecrets from "./utils/rejectSecrets.ts";
 
 import type { types } from "@pulumi/gcp";
+import type { Output } from "@pulumi/pulumi";
 
 const stack = getStack();
 await rejectSecrets(stack, await automation.LocalWorkspace.create({ workDir: import.meta.dirname }));
@@ -37,6 +38,7 @@ const disabled = new Set(
     config.getObject("disabled"),
   ),
 );
+const databases = parse(optional(object({ database: string(), indexer: string() })), config.getObject("databases"));
 const features = modules.features.filter((feature) => disabled.has(feature));
 const enabled = <Spec>(specs: Readonly<Record<string, Spec>>) =>
   Object.entries(specs).filter(([name]) => !disabled.has(name));
@@ -77,6 +79,9 @@ const gateway = new compute.RouterNat("egress", {
 });
 export const egressIp = address.address;
 
+const instance = (name: "database" | "indexer") => `${project}:${location}:${stack}-${name}`;
+const user = (email: Output<string>) => email.apply((value) => value.replace(/\.gserviceaccount\.com$/, ""));
+
 const image = interpolate`${
   new artifactregistry.Repository(
     "ghcr",
@@ -96,6 +101,8 @@ function module(
   name: string,
   {
     env,
+    indexer,
+    postgres,
     secrets,
     signers,
   }: {
@@ -123,6 +130,15 @@ function module(
           ],
           envs: [
             { name: "APP_DOMAIN", value: config.get("domain") ?? `${stack}.exactly.app` },
+            ...(databases && (postgres || indexer)
+              ? [
+                  ...(postgres && indexer !== "only"
+                    ? [{ name: "DATABASE_INSTANCE", value: instance("database") }]
+                    : []),
+                  { name: "DATABASE_USER", value: user(account.email) },
+                  ...(indexer ? [{ name: "INDEXER_INSTANCE", value: instance("indexer") }] : []),
+                ]
+              : []),
             { name: "DEBUG", value: "exa:*" },
             ...(features.length > 0 ? [{ name: "DISABLED_MODULES", value: features.join(",") }] : []),
             { name: "NODE_ENV", value: "production" },
@@ -163,6 +179,59 @@ function module(
   };
 }
 
+const pusher = databases && serviceaccount.getAccountOutput({ accountId: `${stack}-db-push` });
+const pushed = pusher
+  ? [
+      new cloudrunv2.Job(
+        "db-push",
+        {
+          deletionProtection: false,
+          location,
+          name: `${stack}-db-push`,
+          runExecutionToken: rollout,
+          template: {
+            template: {
+              serviceAccount: pusher.email,
+              containers: [
+                {
+                  image,
+                  args: ["dist/database/push.cjs"],
+                  envs: [
+                    { name: "APP_DOMAIN", value: config.get("domain") ?? `${stack}.exactly.app` },
+                    { name: "DATABASE_INSTANCE", value: instance("database") },
+                    { name: "DATABASE_USER", value: user(pusher.email) },
+                    { name: "NODE_ENV", value: "production" },
+                    {
+                      name: "SENTRY_DSN",
+                      valueSource: { secretKeyRef: { secret: `${stack}-sentry-dsn`, version: "latest" } },
+                    },
+                  ],
+                },
+              ],
+              maxRetries: 0,
+              timeout: "600s",
+              vpcAccess: {
+                egress: "ALL_TRAFFIC",
+                networkInterfaces: [{ network: network.id, subnetwork: subnet.id }],
+              },
+            },
+          },
+        },
+        {
+          dependsOn: [
+            run,
+            gateway,
+            new secretmanager.SecretIamMember("db-push-sentry-dsn-access", {
+              member: interpolate`serviceAccount:${pusher.email}`,
+              role: "roles/secretmanager.secretAccessor",
+              secretId: `projects/${project}/secrets/${stack}-sentry-dsn`,
+            }),
+          ],
+        },
+      ),
+    ]
+  : [];
+
 export const services = Object.fromEntries(
   enabled(modules.services).map(([name, fields]) => {
     const service = module(name, fields, name === "api" ? "api" : "hook");
@@ -181,7 +250,7 @@ export const services = Object.fromEntries(
           })),
         },
       },
-      { dependsOn: [run, gateway, ...service.dependencies] },
+      { dependsOn: [run, gateway, ...pushed, ...service.dependencies] },
     );
     new cloudrunv2.ServiceIamMember(`${name}-invoker`, {
       location,
@@ -214,7 +283,7 @@ const pools = workers.map(({ dependencies, name, template, timeout }) => {
         },
       },
     },
-    { dependsOn: [run, gateway, ...dependencies] },
+    { dependsOn: [run, gateway, ...pushed, ...dependencies] },
   );
   return {
     name,
@@ -237,7 +306,15 @@ if (!disabled.has("indexer")) {
   const indexerContainer = {
     image,
     workingDir: "/prod/indexer",
-    envs: [{ name: "APP_STACK", value: stack }],
+    envs: [
+      { name: "APP_STACK", value: stack },
+      ...(databases
+        ? [
+            { name: "DATABASE_USER", value: user(indexer.email) },
+            { name: "INDEXER_INSTANCE", value: instance("indexer") },
+          ]
+        : []),
+    ],
   };
   const indexerAccess = modules.indexer.map(
     (secret) =>
