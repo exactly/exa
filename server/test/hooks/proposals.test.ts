@@ -75,6 +75,14 @@ const [usdc] = await database
 if (!usdc) throw new Error("missing anvil2 usdc market");
 const market = parse(Address, usdc.address);
 const asset = parse(Address, usdc.asset);
+const add = redis.zadd.bind(redis);
+const range = redis.zrange.bind(redis);
+vi.spyOn(redis, "zadd").mockImplementation((async (key: string, score: number, member: string) =>
+  key === "proposals" && !owned(member) ? 0 : add(key, score, member)) as typeof redis.zadd);
+vi.spyOn(redis, "zrange").mockImplementation((async (...arguments_: Parameters<typeof redis.zrange>) => {
+  const members = await range(...arguments_);
+  return arguments_[0] === "proposals" ? members.filter((member) => owned(member)) : members;
+}) as typeof redis.zrange);
 const manteca = createManteca("manteca", "https://manteca.test");
 const persona = createPersona("persona", "https://persona.test");
 const hook = createBlockHook({
@@ -104,6 +112,10 @@ beforeAll(async () => {
 afterEach(() => vi.useRealTimers());
 
 afterAll(() => hook.close());
+
+function owned(message: string) {
+  return deserialize<{ account: string }>(message).account === account;
+}
 
 function queued() {
   return redis
