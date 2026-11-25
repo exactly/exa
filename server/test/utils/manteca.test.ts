@@ -730,10 +730,7 @@ describe("manteca utils", () => {
   });
 
   describe("lockQrPayment", () => {
-    const sourceAddress = parse(Address, padHex("0x1", { size: 20 }));
-
-    it.each([optimism.id, optimismSepolia.id])("locks with the real payer as sender on chain %i", async (id) => {
-      chainMock.id = id;
+    it("locks with the real payer as sender", async () => {
       const lock = {
         code: "fa44218d-7b3c-4a1e-bc9f-2d5e8f01c3a7",
         type: "QR3",
@@ -755,7 +752,7 @@ describe("manteca utils", () => {
       const sender = { legalIdNationality: "ARGENTINA", legalId: "12345678", name: "JANE", surname: "DOE" };
 
       await expect(
-        manteca.lockQrPayment({ paymentDestination: "qr3", against: "USDC", sender, sourceAddress }),
+        manteca.lockQrPayment({ paymentDestination: "qr3", against: "USDC", sender }),
       ).resolves.toStrictEqual({ ...lock, sender: { legalId: "12345678" } });
 
       expect(fetchSpy).toHaveBeenCalledOnce();
@@ -765,8 +762,6 @@ describe("manteca utils", () => {
         paymentDestination: "qr3",
         against: "USDC",
         sender,
-        sourceAddress,
-        sourceNetwork: "OPTIMISM",
       });
       expect(captureException).not.toHaveBeenCalled();
     });
@@ -774,7 +769,6 @@ describe("manteca utils", () => {
     it.each([
       [
         ErrorCodes.INVALID_AMOUNT,
-        400,
         {
           internalStatus: "BAD_REQUEST",
           message: "Bad request.",
@@ -783,23 +777,16 @@ describe("manteca utils", () => {
       ],
       [
         ErrorCodes.INVALID_QR,
-        400,
         { internalStatus: "PAYMENT_DESTINATION", message: "Payment destination seems to be invalid" },
       ],
-      [
-        ErrorCodes.RISKY_SOURCE_ADDRESS,
-        403,
-        { internalStatus: "RISKY_SOURCE_ADDRESS", message: "Risky source address" },
-      ],
-    ])("throws %s when manteca rejects the user input", async (code, status, body) => {
-      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchError(status, JSON.stringify(body)));
+    ])("throws %s when manteca rejects the user input", async (code, body) => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchError(400, JSON.stringify(body)));
 
       await expect(
         manteca.lockQrPayment({
           paymentDestination: "qr3",
           amount: "0",
           against: "USDC",
-          sourceAddress,
           sender: { legalIdNationality: "AR", legalId: "12345678", name: "JANE", surname: "DOE" },
         }),
       ).rejects.toThrow(new Error(code));
@@ -816,30 +803,9 @@ describe("manteca utils", () => {
         manteca.lockQrPayment({
           paymentDestination: "qr3",
           against: "USDC",
-          sourceAddress,
           sender: { legalIdNationality: "AR", legalId: "12345678", name: "JANE", surname: "DOE" },
         }),
       ).rejects.toThrow(type);
-    });
-
-    it("throws for unsupported chain id", async () => {
-      chainMock.id = 1;
-      const fetchSpy = vi.spyOn(globalThis, "fetch");
-
-      await expect(
-        manteca.lockQrPayment({
-          paymentDestination: "qr3",
-          against: "USDC",
-          sourceAddress,
-          sender: { legalIdNationality: "AR", legalId: "12345678", name: "JANE", surname: "DOE" },
-        }),
-      ).rejects.toThrow(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
-
-      expect(captureException).toHaveBeenCalledWith(new Error("manteca not supported chain id"), {
-        level: "error",
-        contexts: { chain: { id: 1 } },
-      });
-      expect(fetchSpy).not.toHaveBeenCalled();
     });
   });
 
@@ -866,7 +832,6 @@ describe("manteca utils", () => {
       manteca.lockQrPayment({
         paymentDestination: "qr3manualamount", // cspell:ignore manualamount
         against: "USDC",
-        sourceAddress: parse(Address, padHex("0x1", { size: 20 })),
         sender: { legalIdNationality: "AR", legalId: "30123456", name: "Juan", surname: "Perez" },
       }),
     ).resolves.toStrictEqual({

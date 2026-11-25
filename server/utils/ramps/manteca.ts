@@ -346,29 +346,16 @@ export default function manteca(key: string, url: string) {
   function isDevelopment(): boolean {
     return DevelopmentChainIds.includes(chain.id as (typeof DevelopmentChainIds)[number]);
   }
-  async function lockQrPayment(lock: InferOutput<typeof PaymentLock>) {
-    const sourceNetwork = Supported[chain.id];
-    if (!sourceNetwork) {
-      captureException(new Error("manteca not supported chain id"), { level: "error", contexts: { chain } });
-      throw new Error(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
-    }
-    return await request(
-      QrPaymentResponse,
-      "/crypto/v2/payment-locks",
-      {},
-      { ...lock, sourceNetwork },
-      "POST",
-      10_000,
-    ).catch((error: unknown) => {
-      if (error instanceof ServiceError && typeof error.cause === "string") {
-        if (error.cause.includes(MantecaApiErrorCodes.INVALID_AMOUNT)) throw new Error(ErrorCodes.INVALID_AMOUNT);
-        if (error.cause.includes(MantecaApiErrorCodes.INVALID_QR)) throw new Error(ErrorCodes.INVALID_QR);
-        if (error.cause.includes(MantecaApiErrorCodes.RISKY_SOURCE_ADDRESS)) {
-          throw new Error(ErrorCodes.RISKY_SOURCE_ADDRESS);
+  async function lockQrPayment(lock: InferInput<typeof PaymentLock>) {
+    return await request(QrPaymentResponse, "/crypto/v2/payment-locks", {}, lock, "POST", 10_000).catch(
+      (error: unknown) => {
+        if (error instanceof ServiceError && typeof error.cause === "string") {
+          if (error.cause.includes(MantecaApiErrorCodes.INVALID_AMOUNT)) throw new Error(ErrorCodes.INVALID_AMOUNT);
+          if (error.cause.includes(MantecaApiErrorCodes.INVALID_QR)) throw new Error(ErrorCodes.INVALID_QR);
         }
-      }
-      throw error;
-    });
+        throw error;
+      },
+    );
   }
   async function onboarding(account: Address, credentialId: string, persona: PersonaService) {
     const externalId = account.replace("0x", "");
@@ -667,7 +654,6 @@ export const PaymentLock = object({
   amount: optional(string()),
   against: optional(string()),
   sender: object({ legalIdNationality: string(), legalId: string(), name: string(), surname: string() }),
-  sourceAddress: Address,
 });
 
 export const QrPaymentResponse = object({
@@ -913,7 +899,6 @@ export const ErrorCodes = {
   INVALID_QR: "invalid qr",
   NO_PERSONA_ACCOUNT: "no persona account",
   NO_DOCUMENT: "no document",
-  RISKY_SOURCE_ADDRESS: "risky source address",
 };
 
 const MantecaApiErrorCodes = {
@@ -923,7 +908,6 @@ const MantecaApiErrorCodes = {
   INVALID_LEGAL_ID: "legalId has wrong value",
   INVALID_ORDER_SIZE: "MIN_SIZE",
   INVALID_QR: "PAYMENT_DESTINATION",
-  RISKY_SOURCE_ADDRESS: "RISKY_SOURCE_ADDRESS",
   SYNTHETIC_EXISTS: "SYNTHETIC_EXISTS",
   SYNTHETIC_NOT_FOUND: "SYNTHETIC_NF",
   USER_NOT_FOUND: "USER_NF",

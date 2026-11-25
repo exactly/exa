@@ -2135,7 +2135,6 @@ describe("ramp api", () => {
         expect(lockQrPayment).toHaveBeenCalledWith({
           paymentDestination: "qr3",
           against: "USDC",
-          sourceAddress: account,
           sender: { legalIdNationality: "AR", legalId: "30123456", name: "Jane", surname: "Doe" },
         });
         expect(manteca.getSettlement).toHaveBeenCalledWith("ARS");
@@ -2234,9 +2233,19 @@ describe("ramp api", () => {
         expect(lockQrPayment).not.toHaveBeenCalled();
       });
 
-      it.each(["invalid amount", "invalid qr", "risky source address"])("returns 400 with %s", async (error) => {
+      it.each([
+        [
+          "invalid amount",
+          {
+            internalStatus: "BAD_REQUEST",
+            message: "Bad request.",
+            errors: ["amount has wrong value 0.00. Value should be valid number string in range (0,9007199254740991]."],
+          },
+        ],
+        ["invalid qr", { internalStatus: "PAYMENT_DESTINATION", message: "Payment destination seems to be invalid" }],
+      ])("returns 400 with %s", async (error, body) => {
         vi.spyOn(persona, "getAccount").mockResolvedValueOnce(basicAccount);
-        const lockQrPayment = vi.spyOn(manteca, "lockQrPayment").mockRejectedValueOnce(new Error(error));
+        const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(body, { status: 400 }));
         const getSettlement = vi.spyOn(manteca, "getSettlement");
 
         const response = await appClient.qr.$post(
@@ -2246,7 +2255,10 @@ describe("ramp api", () => {
 
         expect(response.status).toBe(400);
         await expect(response.json()).resolves.toStrictEqual({ code: error });
-        expect(lockQrPayment).toHaveBeenCalledOnce();
+        expect(fetchSpy).toHaveBeenCalledExactlyOnceWith(
+          `${env.MANTECA_API_URL}/crypto/v2/payment-locks`,
+          expect.objectContaining({ method: "POST" }),
+        );
         expect(getSettlement).not.toHaveBeenCalled();
         expect(captureException).not.toHaveBeenCalled();
       });
