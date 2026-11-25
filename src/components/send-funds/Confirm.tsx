@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Platform, StyleSheet } from "react-native";
 import { Easing, useAnimatedStyle, useSharedValue, withSequence, withTiming } from "react-native-reanimated";
@@ -501,7 +501,7 @@ export default function Confirm() {
       if (!calls) throw new Error("no calls ready");
       return estimateCalls(exa, payChain, calls, spend);
     },
-    enabled: enableSimulations && !!calls,
+    enabled: () => enableSimulations && !!calls && (!route || Date.now() < routeUpdatedAt + quoteValidity),
     placeholderData: keepPreviousData,
   });
 
@@ -806,8 +806,10 @@ export default function Confirm() {
   });
   const stalled = !!prepareError && !!route?.wrapped && !!dust && dust > 0n;
   const outage = !!prepareError && classifyError(prepareError).network !== undefined;
+  const expired = useEffectEvent(() => !!route && Date.now() >= routeUpdatedAt + quoteValidity);
   useEffect(() => {
     if (!prepareError) return;
+    if (expired()) return;
     reportError(prepareError, { level: "warning" });
     if (!routed || !tool || stalled || outage) return;
     setDenied((current) => (current.includes(tool) ? current : [...current, tool].slice(0, 3))); // eslint-disable-line @eslint-react/set-state-in-effect

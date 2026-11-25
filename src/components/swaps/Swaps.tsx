@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type RefObject } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { LinearTransition } from "react-native-reanimated";
 
@@ -571,6 +571,7 @@ export default function Swaps() {
         !!toAmount &&
         toAmount > 0n &&
         !!route &&
+        !quoteExpired &&
         fromToken.external &&
         !crossChain &&
         fromChain === chain.id &&
@@ -602,7 +603,13 @@ export default function Swaps() {
       );
       return { calls, spend: route.spend, ...(await estimateCalls(exaConfig, fromChain, calls, route.spend)) };
     },
-    enabled: enableSimulations && routed && !!account && !!route && !isInsufficientBalance,
+    enabled: () =>
+      enableSimulations &&
+      routed &&
+      !!account &&
+      !!route &&
+      !isInsufficientBalance &&
+      Date.now() < routeUpdatedAt + quoteValidity,
     retry: false,
     meta: { dropError: () => true },
   });
@@ -646,8 +653,10 @@ export default function Swaps() {
       current = false;
     };
   }, [insufficientCollateral, overdrawn, prepareError]); // eslint-disable-line @eslint-react/exhaustive-deps -- wagmi query key changes every render
+  const expired = useEffectEvent(() => !!route && Date.now() >= routeUpdatedAt + quoteValidity);
   useEffect(() => {
     if (!prepareError || queued || insufficientCollateral) return;
+    if (expired()) return;
     if (overdrawn && (verified !== prepareError || isInsufficientBalance)) return;
     reportError(prepareError, { level: "warning" });
     if (!tool || stalled || undeployed) return;
