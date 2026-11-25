@@ -2135,7 +2135,6 @@ describe("ramp api", () => {
         expect(lockQrPayment).toHaveBeenCalledWith({
           paymentDestination: "qr3",
           against: "USDC",
-          sourceAddress: account,
           sender: { legalIdNationality: "AR", legalId: "30123456", name: "Jane", surname: "Doe" },
         });
         expect(manteca.getSettlement).toHaveBeenCalledWith("ARS");
@@ -2234,7 +2233,7 @@ describe("ramp api", () => {
         expect(lockQrPayment).not.toHaveBeenCalled();
       });
 
-      it.each(["invalid amount", "invalid qr", "risky source address"])("returns 400 with %s", async (error) => {
+      it.each(["invalid amount", "invalid qr"])("returns 400 with %s", async (error) => {
         vi.spyOn(persona, "getAccount").mockResolvedValueOnce(basicAccount);
         const lockQrPayment = vi.spyOn(manteca, "lockQrPayment").mockRejectedValueOnce(new Error(error));
         const getSettlement = vi.spyOn(manteca, "getSettlement");

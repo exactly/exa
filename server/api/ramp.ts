@@ -577,7 +577,6 @@ The locked payment charges \`amount\` USDC for \`assetAmount\` in \`asset\`, the
                       Manteca.ErrorCodes.NO_DOCUMENT,
                       Manteca.ErrorCodes.NO_PERSONA_ACCOUNT,
                       Manteca.ErrorCodes.NOT_SUPPORTED_CURRENCY,
-                      Manteca.ErrorCodes.RISKY_SOURCE_ADDRESS,
                     ]),
                   }),
                   { errorMode: "ignore" },
@@ -600,8 +599,7 @@ The locked payment charges \`amount\` USDC for \`assetAmount\` in \`asset\`, the
           columns: { account: true },
         });
         if (!credential) return c.json({ code: ErrorCodes.NO_CREDENTIAL }, 400);
-        const account = parse(Address, credential.account);
-        setUser({ id: account });
+        setUser({ id: parse(Address, credential.account) });
 
         const personaAccount = await persona.getAccount(credentialId, "basic").catch((error: unknown) => {
           if (error instanceof ValiError && error.issues.every((issue: BaseIssue<unknown>) => isMissingOrNull(issue))) {
@@ -617,7 +615,6 @@ The locked payment charges \`amount\` USDC for \`assetAmount\` in \`asset\`, the
             paymentDestination: payment.qr,
             amount: payment.amount,
             against: "USDC",
-            sourceAddress: account,
             sender: {
               legalIdNationality: document.id_issuing_country.value,
               legalId: document.id_number.value,
@@ -647,9 +644,7 @@ The locked payment charges \`amount\` USDC for \`assetAmount\` in \`asset\`, the
         } catch (error) {
           if (
             error instanceof Error &&
-            (error.message === Manteca.ErrorCodes.INVALID_AMOUNT ||
-              error.message === Manteca.ErrorCodes.INVALID_QR ||
-              error.message === Manteca.ErrorCodes.RISKY_SOURCE_ADDRESS)
+            (error.message === Manteca.ErrorCodes.INVALID_AMOUNT || error.message === Manteca.ErrorCodes.INVALID_QR)
           ) {
             return c.json({ code: error.message }, 400);
           }
