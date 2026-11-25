@@ -41,7 +41,6 @@ import {
   exaPluginAddress,
   exaPreviewerAbi,
   firewallAbi,
-  marketAbi,
   proposalManagerAbi,
   upgradeableModularAccountAbi,
 } from "@exactly/common/generated/chain";
@@ -158,12 +157,6 @@ describe("indexer source", () => {
     await keeper.waitForTransactionReceipt({
       hash: await keeper.writeContract({ address: account, abi: exaPluginAbi, functionName: "poke", args: [market] }),
     });
-    const held = await target.readContract({
-      address: market,
-      abi: marketAbi,
-      functionName: "maxWithdraw",
-      args: [account],
-    });
     const { timestamp } = await target.getBlock();
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(Number(timestamp - 666n) * 1000);
@@ -185,7 +178,7 @@ describe("indexer source", () => {
         encodeFunctionData({
           abi: exaPluginAbi,
           functionName: "propose",
-          args: [market, held, ProposalType.Withdraw, encodeAbiParameters([{ type: "address" }], [receiver])],
+          args: [market, amount / 2n, ProposalType.Withdraw, encodeAbiParameters([{ type: "address" }], [receiver])],
         }),
       ],
       gas: 6_666_666n,
@@ -203,7 +196,7 @@ describe("indexer source", () => {
     await vi.waitUntil(
       async () =>
         (await target.readContract({ address: asset, abi: erc20Abi, functionName: "balanceOf", args: [receiver] })) ===
-        held,
+        amount / 2n,
       { timeout: 30_000, interval: 200 },
     );
     await expect(
