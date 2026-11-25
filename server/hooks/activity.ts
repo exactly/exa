@@ -13,21 +13,15 @@ import { Hono } from "hono";
 import { validator } from "hono/validator";
 import { v5 } from "uuid";
 import * as v from "valibot";
-import { bytesToHex, hexToBigInt } from "viem";
+import { bytesToHex, hexToBigInt, isAddressEqual } from "viem";
 
-import exaChain, {
-  exaPreviewerAbi,
-  exaPreviewerAddress,
-  factoryChains,
-  lifiURL,
-  wethAddress,
-} from "@exactly/common/generated/chain";
+import { chains, exaPreviewerAbi, factoryChains, lifiURL } from "@exactly/common/generated/chain";
 import { Address, Hash, Hex } from "@exactly/common/validation";
 
 import { credentials } from "../database/schema";
 import t, { f } from "../i18n";
 import { activityChain, activityUrl } from "../utils/alchemy";
-import publicClient from "../utils/publicClient";
+import { clients } from "../utils/publicClient";
 import validatorHook from "../utils/validatorHook";
 import verifySignature from "../utils/verifySignature";
 
@@ -39,7 +33,6 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Redis } from "ioredis";
 
 const ETH = v.parse(Address, "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
-const WETH = v.parse(Address, wethAddress);
 
 const debug = createDebug("exa:activity");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
@@ -171,14 +164,22 @@ export default function hook({
         );
       if (Object.keys(accounts).length === 1) setUser({ id: v.parse(Address, Object.keys(accounts)[0]) });
 
-      const marketsByAsset =
-        chain.id === exaChain.id
-          ? await publicClient
-              .readContract({ address: exaPreviewerAddress, functionName: "assets", abi: exaPreviewerAbi })
-              .then(
-                (p) => new Map<Address, Address>(p.map((m) => [v.parse(Address, m.asset), v.parse(Address, m.market)])),
-              )
-          : new Map<Address, Address>();
+      const network = chains.get(chain.id);
+      const marketsByAsset = network
+        ? // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- every network has a client
+          await clients
+            .get(chain.id)!
+            .readContract({ address: network.exaPreviewer, functionName: "assets", abi: exaPreviewerAbi })
+            .then(
+              (p) =>
+                new Map<Address, Address>(
+                  p.flatMap(({ asset, market }) => {
+                    const entry = [v.parse(Address, asset), v.parse(Address, market)] as const;
+                    return isAddressEqual(market, network.marketWETH) ? [entry, [ETH, entry[1]] as const] : [entry];
+                  }),
+                ),
+            )
+        : new Map<Address, Address>();
       const markets = new Set(marketsByAsset.values());
       const pokes = new Map<
         Address,
@@ -203,14 +204,13 @@ export default function hook({
         category,
       } of transfers) {
         if (!accounts[account]) continue;
-        if (chain.id === exaChain.id && rawContract?.address && markets.has(rawContract.address)) continue;
+        if (rawContract?.address && markets.has(rawContract.address)) continue;
         const asset = rawContract?.address ?? ETH;
-        const underlying = asset === ETH ? WETH : asset;
         const notification = {
           userId: account,
           headings: t("Funds received"),
           contents: t(
-            chain.id === exaChain.id && marketsByAsset.has(underlying)
+            marketsByAsset.has(asset)
               ? "{{amount}} received and instantly started earning yield"
               : "{{amount}} received",
             {
@@ -230,9 +230,7 @@ export default function hook({
           ),
         };
         const known =
-          asset === ETH || marketsByAsset.has(underlying)
-            ? Promise.resolve(true)
-            : isKnownToken(chain.id, underlying, redis);
+          asset === ETH || marketsByAsset.has(asset) ? Promise.resolve(true) : isKnownToken(chain.id, asset, redis);
         known
           .then((isKnown) => (isKnown ? onesignal.sendPushNotification(notification) : undefined))
           .catch((error: unknown) => captureException(error, { level: "error" }));
