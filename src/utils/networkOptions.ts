@@ -7,6 +7,7 @@ import {
   appPreviewerAbi,
   appPreviewerCode,
   appPreviewerDeployedCode,
+  chains,
 } from "@exactly/common/generated/chain";
 
 import { lifiTokensOptions } from "./lifi";
@@ -33,17 +34,27 @@ export default function networkOptions(account: Address | undefined, chainId: nu
               ].map((target) => target.toLowerCase() as Address),
             ),
           ];
-          const { proposalManager, allowed } = await readContract(exaConfig, {
+          const { proposalManager, allowed, markets } = await readContract(exaConfig, {
             chainId,
             abi: appPreviewerAbi,
             address: previewerAddress,
             functionName: "preview",
-            args: [account, zeroAddress, zeroAddress, zeroAddress, zeroAddress, targets],
+            args: [
+              account,
+              chains.get(chainId)?.auditor ?? zeroAddress,
+              zeroAddress,
+              zeroAddress,
+              zeroAddress,
+              targets,
+            ],
             stateOverride: [{ address: previewerAddress, code: appPreviewerDeployedCode }],
           });
           return {
             allowlist:
               proposalManager.proposalManager === zeroAddress ? null : targets.filter((_, index) => allowed[index]),
+            collateral: markets
+              .filter(({ isFrozen, nonCollateral }) => !isFrozen && !nonCollateral)
+              .flatMap(({ asset, symbol }) => [asset.toLowerCase(), ...(symbol === "WETH" ? [zeroAddress] : [])]),
             lifi: tokens !== undefined,
           };
         }
