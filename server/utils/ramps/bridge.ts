@@ -529,13 +529,10 @@ export default function bridge(key: string, url: string) {
     account: Address,
     customer: InferOutput<typeof CustomerResponse>,
     memo?: string,
+    source?: (typeof SourceNetwork)[number],
   ) {
     if (customer.status !== "active") throw new Error(ErrorCodes.NOT_ACTIVE_CUSTOMER);
-    const supportedChain = Supported[chain.id];
-    if (!supportedChain) {
-      captureException(new Error("bridge not supported chain id"), { contexts: { chain }, level: "error" });
-      throw new Error(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
-    }
+    const supportedChain = sourceRail(source);
 
     const paymentRail = parse(picklist(["solana", "stellar", "tron", "base"]), NetworkToOfframpRail[network]);
     if (network === nativeNetwork[supportedChain].network || !CurrencyByPaymentRail[paymentRail].includes(currency)) {
@@ -842,13 +839,10 @@ export default function bridge(key: string, url: string) {
     account: string,
     customer: InferOutput<typeof CustomerResponse>,
     currency: (typeof SupportedCurrency)[number],
+    source?: (typeof SourceNetwork)[number],
   ) {
     if (customer.status !== "active") throw new Error(ErrorCodes.NOT_ACTIVE_CUSTOMER);
-    const supportedChain = Supported[chain.id];
-    if (!supportedChain) {
-      captureException(new Error("bridge not supported chain id"), { contexts: { chain }, level: "error" });
-      throw new Error(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
-    }
+    const supportedChain = sourceRail(source);
 
     const externalAccount = await getExternalAccount(customer.id, externalAccountId);
     if (!externalAccount) throw new Error(ErrorCodes.EXTERNAL_ACCOUNT_NOT_FOUND);
@@ -857,15 +851,40 @@ export default function bridge(key: string, url: string) {
     }
     const paymentRail = PaymentRailByBridgeCurrency[externalAccount.currency];
     if (!paymentRail) throw new Error(ErrorCodes.NOT_AVAILABLE_CURRENCY);
-    const templates = await getStaticTemplates(customer.id);
-    const transfer = templates.find(
-      ({ destination, source, state }) =>
-        destination.external_account_id === externalAccountId &&
-        source.payment_rail === supportedChain &&
-        source.currency === "usdc" &&
-        state !== "canceled",
+    const staticTemplates = await getStaticTemplates(customer.id);
+    const templates = staticTemplates.filter(
+      ({ destination, source: { currency: sourceCurrency }, state }) =>
+        destination.external_account_id === externalAccountId && sourceCurrency === "usdc" && state !== "canceled",
     );
-    if (!transfer) throw new Error(ErrorCodes.OFFRAMP_TRANSFER_NOT_FOUND);
+    const template = templates[0];
+    if (!template) throw new Error(ErrorCodes.OFFRAMP_TRANSFER_NOT_FOUND);
+    const canceled = staticTemplates.filter(
+      ({ destination, source: { payment_rail }, state }) =>
+        destination.external_account_id === externalAccountId &&
+        payment_rail === supportedChain &&
+        state === "canceled",
+    ).length;
+    const transfer =
+      templates.find(({ source: { payment_rail } }) => payment_rail === supportedChain) ??
+      (await createTransfer(
+        {
+          on_behalf_of: customer.id,
+          client_reference_id: account,
+          source: { currency: "usdc", payment_rail: supportedChain },
+          destination: {
+            currency: template.destination.currency,
+            payment_rail: template.destination.payment_rail,
+            external_account_id: externalAccountId,
+            ach_reference: template.destination.ach_reference ?? undefined,
+            wire_message: template.destination.wire_message ?? undefined,
+            sepa_reference: template.destination.sepa_reference ?? undefined,
+            spei_reference: template.destination.spei_reference ?? undefined,
+            reference: template.destination.reference ?? undefined,
+          },
+          features: { flexible_amount: true, static_template: true, allow_any_from_address: true },
+        },
+        `${externalAccountId}-${supportedChain}-${canceled}`,
+      ));
 
     return [
       {
@@ -1241,7 +1260,7 @@ export default function bridge(key: string, url: string) {
         !templates.some(
           ({ destination, source, state }) =>
             destination.external_account_id === account.id &&
-            source.payment_rail === Supported[chain.id] &&
+            (BridgeChain as readonly string[]).includes(source.payment_rail) &&
             source.currency === "usdc" &&
             state !== "canceled",
         )
@@ -1564,6 +1583,16 @@ export default function bridge(key: string, url: string) {
     }
     return result.output;
   }
+  // eslint-disable-next-line unicorn/consistent-function-scoping
+  function sourceRail(source?: (typeof SourceNetwork)[number]) {
+    if (source) return SourceRail[source];
+    const supportedChain = Supported[chain.id];
+    if (!supportedChain) {
+      captureException(new Error("bridge not supported chain id"), { contexts: { chain }, level: "error" });
+      throw new Error(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
+    }
+    return supportedChain;
+  }
   async function updateCustomer(customerId: string, user: Partial<InferInput<typeof CreateCustomer>>) {
     return await request(NewCustomer, `/customers/${customerId}`, {}, user, "PUT");
   }
@@ -1684,6 +1713,12 @@ function fiat(endorsement: (typeof Endorsements)[number], ramp: "offramp" | "onr
 
 export const CryptoPaymentRail = ["evm", "solana", "stellar", "tron", "base"] as const;
 export const BridgeChain = ["base", "optimism"] as const;
+export const SourceNetwork = ["BASE", "OPTIMISM"] as const;
+
+const SourceRail = { BASE: "base", OPTIMISM: "optimism" } as const satisfies Record<
+  (typeof SourceNetwork)[number],
+  (typeof BridgeChain)[number]
+>;
 
 const CurrencyByPaymentRail: Record<(typeof CryptoPaymentRail)[number], (typeof CryptoCurrency)[number][]> = {
   base: ["USDC"],
