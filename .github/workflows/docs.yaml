@@ -3,13 +3,8 @@ on:
   push:
     branches: [sandbox]
 jobs:
-  docs:
-    environment:
-      name: github-pages
-      url: ${{ steps.pages.outputs.page_url }}
-    permissions:
-      pages: write
-      id-token: write
+  build:
+    permissions: { contents: read }
     runs-on: ubuntu-latest
     env: { NX_DAEMON: false }
     steps:
@@ -36,5 +31,13 @@ jobs:
       - uses: actions/upload-pages-artifact@v5
         with:
           path: docs/dist
+  deploy:
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.pages.outputs.page_url }}
+    permissions: { pages: write, id-token: write }
+    runs-on: ubuntu-latest
+    steps:
       - uses: actions/deploy-pages@v5
         id: pages
