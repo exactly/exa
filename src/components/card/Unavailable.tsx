@@ -17,7 +17,7 @@ export default function Unavailable({ open, onClose }: { onClose: () => void; op
       <YStack gap="s7" borderTopLeftRadius="r5" borderTopRightRadius="r5" backgroundColor="backgroundSoft">
         <YStack gap="s5" paddingTop="s7" paddingHorizontal="s5">
           <Text emphasized headline>
-            {t("We can’t issue your card")}
+            {t("Your Exa Card is unavailable")}
           </Text>
           <Text subHeadline color="uiNeutralSecondary">
             {t("Contact our support team for more details.")}
@@ -28,7 +28,7 @@ export default function Unavailable({ open, onClose }: { onClose: () => void; op
             primary
             width="100%"
             onPress={() => {
-              messageRef.current = t("Hi! I can’t get an Exa Card. Could you tell me more?");
+              messageRef.current = t("Hi! My Exa Card is unavailable. Could you tell me more?");
               onClose();
             }}
           >
