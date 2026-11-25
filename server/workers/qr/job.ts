@@ -1,4 +1,6 @@
-import type { Address } from "@exactly/common/validation";
+import { array, digits, number, object, pipe, string } from "valibot";
+
+import { Address, Hash } from "@exactly/common/validation";
 
 export const name = "qr";
 export const attempts = 7 * 24 * 6;
@@ -11,3 +13,11 @@ export type Job = {
   timestamp: number;
   withdraws: { assets: string; receiver: Address }[];
 };
+
+export const Check = object({
+  account: Address,
+  code: string(),
+  timestamp: number(),
+  userOpHash: Hash,
+  withdraws: array(object({ assets: pipe(string(), digits()), receiver: Address })),
+});

@@ -2,18 +2,30 @@ import "../mocks/manteca";
 import sendPushNotificationMock from "../mocks/onesignal";
 import * as segment from "../mocks/segment";
 import "../mocks/sentry";
+import { walletClient } from "../mocks/wallet";
 
 import { captureEvent, captureException, setUser } from "@sentry/core";
 import { testClient } from "hono/testing";
-import { createHmac } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { v5 } from "uuid";
-import { hexToBytes, padHex, zeroAddress, zeroHash } from "viem";
+import { parse } from "valibot";
+import { hexToBytes, padHex, parseAbi, parseEventLogs, zeroAddress, zeroHash, type Hash, type Hex } from "viem";
 import { entryPoint06Address } from "viem/account-abstraction";
-import { privateKeyToAddress } from "viem/accounts";
+import { generatePrivateKey, privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
-import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
+import {
+  exaAccountFactoryAddress,
+  issuerCheckerAddress,
+  marketAbi,
+  marketUSDCAddress,
+  refunderAbi,
+  refunderAddress,
+  usdcAddress,
+} from "@exactly/common/generated/chain";
+import { Address } from "@exactly/common/validation";
 
 import database, { credentials } from "../../database";
 import createMantecaHook from "../../hooks/manteca";
@@ -21,16 +33,26 @@ import t, { f } from "../../i18n";
 import createOnesignal from "../../utils/onesignal";
 import publicClient from "../../utils/publicClient";
 import createManteca from "../../utils/ramps/manteca";
+import redis from "../../utils/redis";
 import createSegment from "../../utils/segment";
+import createQR from "../../workers/qr/queue";
+import anvilClient from "../anvilClient";
 import listen from "../events";
+
+import type * as C from "@exactly/common/generated/chain";
 
 const provider = { key: "manteca", url: "https://manteca.test" };
 const manteca = createManteca(provider.key, provider.url);
+const qr = createQR(redis);
 const mantecaHook = createMantecaHook({
   database,
+  issuer: privateKeyToAccount(padHex("0x420")),
   manteca,
   mantecaWebhookKey: "manteca",
   onesignal: createOnesignal('{"2f79a35c-8b11-4725-84d8-fc096f3f216e":"onesignal"}'),
+  qr,
+  redis,
+  refunder: privateKeyToAccount(padHex("0xfee")),
   segment: createSegment("segment"),
 });
 const appClient = testClient(mantecaHook.app);
@@ -430,6 +452,156 @@ describe("manteca hook", () => {
       expect(captureEvent).toHaveBeenCalledExactlyOnceWith(
         expect.objectContaining({ message: "MantecaSyntheticStatusUpdate", level: "info" }),
       );
+    });
+
+    it("reports a cancelled qr payment without its check", async () => {
+      vi.spyOn(publicClient, "request").mockResolvedValueOnce(operation(account));
+      const getSettlements = vi.spyOn(manteca, "getSettlements");
+      const payload = {
+        event: "SYNTHETIC_STATUS_UPDATE",
+        data: { ...refundedSynthetic, externalId: userOpHash, status: "CANCELLED" },
+      };
+      const response = await appClient.index.$post({
+        header: { "md-webhook-signature": createSignature(payload) },
+        json: payload as never,
+      });
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+      expect(getSettlements).not.toHaveBeenCalled();
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("qr refund payment not found"), {
+        level: "error",
+        contexts: { refund: { userOpHash, synthetic: "6af4a2b4f66675b8af775fbe" } },
+      });
+    });
+
+    describe("when the merchant cancels a qr payment", () => {
+      const settlement = parse(Address, padHex("0x5e7", { size: 20 }));
+      const amount = 2_449_218n;
+
+      beforeAll(async () => {
+        const deployer = parse(Address, padHex("0x9e7c4", { size: 20 }));
+        const { bytecode } = JSON.parse(
+          await readFile("node_modules/@exactly/plugin/out/build/Refunder.sol/Refunder.json", "utf8"),
+        ) as { bytecode: { object: Hex } };
+        await Promise.all([
+          anvilClient.setBalance({ address: deployer, value: 10n ** 24n }),
+          anvilClient.setBalance({ address: walletClient.account.address, value: 10n ** 24n }),
+          anvilClient.impersonateAccount({ address: deployer }),
+        ]);
+        await anvilClient.waitForTransactionReceipt({
+          hash: await anvilClient.deployContract({
+            account: deployer,
+            chain: anvilClient.chain,
+            abi: refunderAbi,
+            bytecode: bytecode.object,
+            args: [deployer, marketUSDCAddress, issuerCheckerAddress, walletClient.account.address],
+          }),
+        });
+        await anvilClient.waitForTransactionReceipt({
+          hash: await anvilClient.writeContract({
+            account: deployer,
+            chain: anvilClient.chain,
+            address: usdcAddress,
+            abi: parseAbi(["function mint(address to, uint256 amount)"]),
+            functionName: "mint",
+            args: [refunderAddress, 100n * amount],
+          }),
+        });
+        await anvilClient.stopImpersonatingAccount({ address: deployer });
+      });
+
+      it("refunds the payment from the refunder at once without the bundler", async () => {
+        const payer = parse(Address, privateKeyToAddress(generatePrivateKey()));
+        const code = randomUUID();
+        const hash = padHex(payer, { size: 32 });
+        const block = await anvilClient.getBlock();
+        const timestamp = Number(block.timestamp);
+        await redis.set(
+          `qr:${code}`,
+          JSON.stringify({
+            account: payer,
+            amount: "2.44921774",
+            asset: "ARS",
+            expireAt: "2026-11-11T11:33:26.000-03:00",
+          }),
+        );
+        await qr.enqueue(
+          { account: payer, code, timestamp, withdraws: [{ receiver: settlement, assets: String(amount) }] },
+          hash,
+          900_000,
+        );
+        const getSettlements = vi.spyOn(manteca, "getSettlements").mockResolvedValue({ ARS: settlement });
+        const { request } = publicClient;
+        vi.spyOn(publicClient, "request").mockImplementation((parameters, options) =>
+          (parameters as { method: string }).method === "eth_getUserOperationReceipt"
+            ? Promise.resolve(null)
+            : request(parameters, options),
+        );
+        const payload = {
+          event: "SYNTHETIC_STATUS_UPDATE",
+          data: { ...refundedSynthetic, externalId: hash, status: "CANCELLED" },
+        };
+        const post = () =>
+          appClient.index.$post({
+            header: { "md-webhook-signature": createSignature(payload) },
+            json: payload as never,
+          });
+
+        const response = await post();
+
+        expect(response.status).toBe(200);
+        expect(getSettlements).toHaveBeenCalledOnce();
+        await expect(redis.get(`qr:${code}:claim`)).resolves.toBe("refund");
+        const refund = await redis.get(`qr:${hash}:refund`);
+        const receipt = await anvilClient.getTransactionReceipt({ hash: refund as Hash });
+        const [deposit] = parseEventLogs({ abi: marketAbi, eventName: "Deposit", logs: receipt.logs });
+        expect(receipt.to).toBe(refunderAddress.toLowerCase());
+        expect(deposit?.args).toStrictEqual({
+          caller: refunderAddress,
+          owner: payer,
+          assets: amount,
+          shares: deposit?.args.shares,
+        });
+        const shares = await anvilClient.readContract({
+          address: marketUSDCAddress,
+          abi: marketAbi,
+          functionName: "balanceOf",
+          args: [payer],
+        });
+        expect(shares).toBe(deposit?.args.shares);
+        expect(captureEvent).toHaveBeenCalledWith(
+          expect.objectContaining({
+            message: "QRPaymentRefund",
+            level: "warning",
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            contexts: expect.objectContaining({ refund: { account: payer, userOpHash: hash, amount: String(amount) } }),
+          }),
+        );
+        expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("qr refund float low"), {
+          level: "warning",
+          contexts: {
+            refund: { account: payer, userOpHash: hash, amount: String(amount), balance: String(99n * amount) },
+          },
+        });
+
+        await expect(post().then(({ status }) => status)).resolves.toBe(200);
+
+        await expect(redis.get(`qr:${hash}:refund`)).resolves.toBe("replay");
+        await expect(
+          anvilClient.readContract({
+            address: marketUSDCAddress,
+            abi: marketAbi,
+            functionName: "balanceOf",
+            args: [payer],
+          }),
+        ).resolves.toBe(shares);
+        expect(captureException).toHaveBeenCalledOnce();
+        await Promise.all([
+          qr.getJob(hash).then((job) => job?.remove()),
+          redis.del(`qr:${code}`, `qr:${code}:claim`, `qr:${hash}:refund`),
+        ]);
+      });
     });
 
     it("returns ok for a qr payment", async () => {
@@ -1097,78 +1269,6 @@ describe("manteca hook", () => {
       expect(segment.track).not.toHaveBeenCalled();
       expect(sendPushNotificationMock).not.toHaveBeenCalled();
     });
-
-    it("reports a cancelled qr refund once without looking up the operation", async () => {
-      const request = vi.spyOn(publicClient, "request");
-      const payload = {
-        event: "WITHDRAW_STATUS_UPDATE",
-        data: {
-          amount: "1.0",
-          asset: "USDC",
-          creationTime: "2026-11-24T10:04:20.034-03:00",
-          destination: account,
-          externalId: `refund-${userOpHash}`,
-          filledAmount: "0.0",
-          id: "6b058b534f2bf5256e10c47f",
-          legalEntity: "WALLET_ARG",
-          network: "BASE",
-          numberId: "100071577",
-          status: "CANCELLED",
-          updatedAt: "2026-11-24T10:04:36.172-03:00",
-          userExternalId: "Exactly-argentina",
-          userId: "6adff39f0ee31861fc20cdaf",
-          userNumberId: "100114168",
-        },
-      };
-      const response = await appClient.index.$post({
-        header: { "md-webhook-signature": createSignature(payload) },
-        json: payload as never,
-      });
-
-      expect(response.status).toBe(200);
-      await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-      expect(captureEvent).toHaveBeenCalledTimes(2);
-      expect(captureEvent).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: "qr refund cancelled",
-          level: "error",
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-          contexts: expect.objectContaining({
-            refund: { userOpHash, withdraw: "6b058b534f2bf5256e10c47f", amount: "1.0" },
-          }),
-        }),
-      );
-      expect(captureEvent).toHaveBeenCalledWith(
-        expect.objectContaining({ message: "MantecaCompanyEvent", level: "info" }),
-      );
-      expect(request).not.toHaveBeenCalled();
-      expect(captureException).not.toHaveBeenCalled();
-    });
-
-    it.each(["PENDING", "EXECUTED"] as const)("doesn't report a %s qr refund", async (status) => {
-      const payload = {
-        event: "WITHDRAW_STATUS_UPDATE",
-        data: {
-          amount: "1.0",
-          asset: "USDC",
-          destination: account,
-          externalId: `refund-${userOpHash}`,
-          id: "6b058b534f2bf5256e10c47f",
-          status,
-          userExternalId: "Exactly-argentina",
-          userNumberId: "100114168",
-        },
-      };
-      const response = await appClient.index.$post({
-        header: { "md-webhook-signature": createSignature(payload) },
-        json: payload as never,
-      });
-
-      expect(response.status).toBe(200);
-      expect(captureEvent).toHaveBeenCalledExactlyOnceWith(
-        expect.objectContaining({ message: "MantecaCompanyEvent", level: "info" }),
-      );
-    });
   });
 
   describe("when a user onboarding is updated", () => {
@@ -1356,6 +1456,12 @@ describe("manteca hook", () => {
 });
 
 vi.mock("@sentry/core", { spy: true });
+vi.mock("@exactly/common/generated/chain", async (importOriginal) => ({
+  ...(await importOriginal<typeof C>()),
+  refunderAddress: await import("viem").then(({ getContractAddress, padHex: pad }) =>
+    getContractAddress({ from: pad("0x9e7c4", { size: 20 }), nonce: 0n }),
+  ),
+}));
 
 const userOpHash = padHex("0x4337", { size: 32 });
 

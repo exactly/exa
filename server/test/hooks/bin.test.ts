@@ -25,7 +25,13 @@ const queue = expect.objectContaining({
   close: expect.any(Function) as unknown,
   enqueue: expect.any(Function) as unknown,
 }) as object;
-const worker = { bullmq: expect.any(Redis) as Redis, manteca, redis: expect.any(Redis) as Redis };
+const worker = {
+  bullmq: expect.any(Redis) as Redis,
+  issuer,
+  manteca,
+  redis: expect.any(Redis) as Redis,
+  refunder: account,
+};
 const mocks = {
   alchemy: vi.fn<(key: string) => object>(),
   bridge: vi.fn<(key: string, url: string) => object>(),
@@ -124,17 +130,19 @@ describe("hook bin", () => {
       secrets: ["activity-alchemy-webhooks-key", "activity-postgres-url", "activity-onesignal-api-keys", "redis-url"],
     },
     {
-      accounts: ["executor"],
+      accounts: ["executor", "issuer", "refunder"],
       config: {
         alchemy,
         blockKey: "block-alchemy-block-key",
         database,
         executor: account,
+        issuer,
         manteca,
         onesignal,
         persona,
         qr: queue,
         redis: expect.any(Redis) as Redis,
+        refunder: account,
       },
       load: () => import("../../hooks/bin/block"),
       name: "block",
@@ -167,8 +175,18 @@ describe("hook bin", () => {
       ],
     },
     {
-      accounts: [],
-      config: { database, manteca, mantecaWebhookKey: "manteca-webhooks-key", onesignal, segment },
+      accounts: ["issuer", "refunder"],
+      config: {
+        database,
+        issuer,
+        manteca,
+        mantecaWebhookKey: "manteca-webhooks-key",
+        onesignal,
+        qr: queue,
+        redis: expect.any(Redis) as Redis,
+        refunder: account,
+        segment,
+      },
       load: () => import("../../hooks/bin/manteca"),
       name: "manteca",
       secrets: [
@@ -177,6 +195,7 @@ describe("hook bin", () => {
         "manteca-api-url",
         "manteca-webhooks-key",
         "manteca-onesignal-api-keys",
+        "redis-url",
         "manteca-segment-write-key",
       ],
     },
@@ -320,7 +339,12 @@ describe("hook bin", () => {
   });
 
   it.each([
-    { accounts: ["executor"], load: () => import("../../hooks/bin/block"), name: "block", role: "executor" },
+    {
+      accounts: ["executor", "issuer", "refunder"],
+      load: () => import("../../hooks/bin/block"),
+      name: "block",
+      role: "executor",
+    },
     { accounts: ["issuer", "settler"], load: () => import("../../hooks/bin/panda"), name: "panda", role: "issuer" },
     { accounts: ["issuer", "settler"], load: () => import("../../hooks/bin/panda"), name: "panda", role: "settler" },
   ])("fails before constructing the $name hook without its $role account", async ({ accounts, load, name, role }) => {

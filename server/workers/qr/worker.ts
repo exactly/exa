@@ -1,25 +1,27 @@
-import { captureEvent, captureException, setUser, withScope } from "@sentry/node";
+import { captureException, setUser, withScope } from "@sentry/node";
 import { UnrecoverableError } from "bullmq";
 import * as v from "valibot";
-import { parseUnits } from "viem";
 
-import { Address, Hash } from "@exactly/common/validation";
-
-import { attempts, name, type Job } from "./job";
-import { ErrorCodes, findOperation, QRRecord } from "../../utils/ramps/manteca";
+import { attempts, Check, name, type Job } from "./job";
+import { findOperation, refundQRPayment } from "../../utils/ramps/manteca";
 import createWorker from "../worker";
 
 import type createManteca from "../../utils/ramps/manteca";
 import type { Redis } from "ioredis";
+import type { LocalAccount } from "viem";
 
 export default function worker({
   bullmq,
+  issuer,
   manteca,
   redis,
+  refunder,
 }: {
   bullmq: Redis;
+  issuer: LocalAccount;
   manteca: ReturnType<typeof createManteca>;
   redis: Redis;
+  refunder: LocalAccount;
 }) {
   return createWorker<Job>({
     attempts,
@@ -40,13 +42,14 @@ export default function worker({
       if (!data.success) {
         throw Object.assign(new UnrecoverableError("invalid job data"), { cause: new v.ValiError(data.issues) });
       }
-      const { account, code, timestamp, userOpHash, withdraws } = data.output;
+      const { account, code, userOpHash } = data.output;
       setUser({ id: account });
-      if (settled(await manteca.getSynthetic(userOpHash))) return;
-      const lock = await manteca.getPaymentLock(code);
-      if (lock) throw new Error("qr lock valid");
       const synthetic = await manteca.getSynthetic(userOpHash);
-      if (settled(synthetic)) return;
+      if (synthetic?.status !== "CANCELLED") {
+        if (settled(synthetic)) return;
+        if (await manteca.getPaymentLock(code)) throw new Error("qr lock valid");
+        if (settled(await manteca.getSynthetic(userOpHash))) return;
+      }
       const operation = await findOperation(userOpHash);
       if (!operation) {
         const error = new Error("qr refund operation not found");
@@ -66,94 +69,17 @@ export default function worker({
         });
         return;
       }
-      const settlements = await manteca.getSettlements();
-      const amount = withdraws
-        .filter(({ receiver }) => receiver === settlements.ARS)
-        .reduce((total, { assets }) => total + assets, 0n);
-      const unsupported = withdraws
-        .filter(({ receiver }) => receiver !== settlements.ARS && Object.values(settlements).includes(receiver))
-        .reduce((total, { assets }) => total + assets, 0n);
-      if (amount === 0n && unsupported === 0n && withdraws.length > 0) {
-        captureException(new Error("qr refund unknown settlement"), {
-          level: "error",
-          contexts: {
-            refund: {
-              account,
-              userOpHash,
-              withdraws: job.data.withdraws.map(({ receiver, assets }) => `${receiver}:${assets}`),
-            },
-          },
-        });
-      }
-      if (amount > 0n) {
-        const record = v.safeParse(QRRecord, await redis.get(`qr:${code}`));
-        if (!record.success) {
-          captureException(new Error("qr refund unknown lock"), {
-            level: "error",
-            contexts: { refund: { account, userOpHash, amount: String(amount) } },
-          });
-          return;
-        }
-        const gas =
-          record.output.account === account &&
-          record.output.asset === "ARS" &&
-          amount * 100n >= parseUnits(record.output.amount, 8) &&
-          timestamp * 1000 <= Date.parse(record.output.expireAt) &&
-          (await redis.get(`qr:${code}:op`)) === userOpHash
-            ? "exa"
-            : "user";
-        const withdraw = await manteca.refundQRPayment(userOpHash, account, amount, gas).catch((error: unknown) => {
-          if (error instanceof Error && error.message === ErrorCodes.NO_FUNDS) {
-            captureException(new Error("qr refund no funds"), {
-              level: "error",
-              fingerprint: ["qr-refund-no-funds"],
-              contexts: { refund: { account, userOpHash, amount: String(amount), gas } },
-            });
-          }
-          throw error;
-        });
-        if (withdraw) {
-          captureEvent({
-            message: "QRPaymentRefund",
-            level: "warning",
-            contexts: {
-              refund: {
-                account,
-                userOpHash,
-                amount: String(amount),
-                gas,
-                reason: synthetic ? "synthetic cancelled" : lock === null ? ErrorCodes.EXPIRED_LOCK : "lock not found",
-                withdraw: withdraw.id,
-              },
-            },
-          });
-        }
-      }
-      if (unsupported > 0n) {
-        captureException(new Error("qr refund unsupported entity"), {
-          level: "error",
-          contexts: { refund: { account, userOpHash, amount: String(unsupported) } },
-        });
-      }
-
-      function settled(current: Awaited<ReturnType<typeof manteca.getSynthetic>>) {
-        if (!current || current.status === "CANCELLED") return false;
-        if (current.status === "COMPLETED") return true;
-        throw new Error("qr synthetic pending");
-      }
+      await refundQRPayment(
+        { issuer, redis, refunder },
+        { ...data.output, settlements: await manteca.getSettlements() },
+        true,
+      );
     },
   });
 }
 
-const Check = v.object({
-  account: Address,
-  code: v.string(),
-  timestamp: v.number(),
-  userOpHash: Hash,
-  withdraws: v.array(
-    v.object({
-      assets: v.pipe(v.string(), v.digits(), v.toBigint()),
-      receiver: Address,
-    }),
-  ),
-});
+function settled(synthetic: null | { status: string }) {
+  if (!synthetic || synthetic.status === "CANCELLED") return false;
+  if (synthetic.status === "COMPLETED") return true;
+  throw new Error("qr synthetic pending");
+}

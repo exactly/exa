@@ -27,6 +27,7 @@ supervise(
     secret("block-alchemy-block-key", secrets),
     secret("block-postgres-url", secrets).then((url) => publisher(drizzle(url, { schema }))),
     signer("executor", kms),
+    signer("issuer", kms),
     Promise.all([secret("block-manteca-api-key", secrets), secret("manteca-api-url", secrets)]).then(([key, url]) =>
       createManteca(key, url),
     ),
@@ -35,10 +36,23 @@ supervise(
       createPersona(key, url),
     ),
     secret("redis-url", secrets).then((url) => [new Redis(url), connect(url)] as const),
-  ]).then(([alchemy, blockKey, database, executor, manteca, onesignal, persona, [redis, bullmq]]) => {
+    signer("refunder", kms),
+  ]).then(([alchemy, blockKey, database, executor, issuer, manteca, onesignal, persona, [redis, bullmq], refunder]) => {
     const qr = createQR(redis);
-    const worker = createQRWorker({ bullmq, manteca, redis });
-    const hook = block({ alchemy, blockKey, database, executor, manteca, onesignal, persona, qr, redis });
+    const worker = createQRWorker({ bullmq, issuer, manteca, redis, refunder });
+    const hook = block({
+      alchemy,
+      blockKey,
+      database,
+      executor,
+      issuer,
+      manteca,
+      onesignal,
+      persona,
+      qr,
+      redis,
+      refunder,
+    });
     return own(
       own({ ...hook, ready: Promise.all([hook.ready, qr.ready(), worker.ready]) }, () => worker.close()),
       () => database.$client.end(),

@@ -92,11 +92,13 @@ const hook = createBlockHook({
   alchemy: createAlchemy("webhooks"),
   database,
   executor: owner,
+  issuer: owner,
   manteca,
   onesignal: createOnesignal('{"2f79a35c-8b11-4725-84d8-fc096f3f216e":"onesignal"}'),
   persona,
   qr,
   redis,
+  refunder: owner,
   source: "indexer",
 });
 
@@ -320,11 +322,13 @@ describe("indexer source", () => {
       alchemy: createAlchemy("webhooks"),
       database,
       executor: owner,
+      issuer: owner,
       manteca,
       onesignal: createOnesignal('{"2f79a35c-8b11-4725-84d8-fc096f3f216e":"onesignal"}'),
       persona,
       qr,
       redis,
+      refunder: owner,
       source: "indexer",
     });
 
@@ -470,11 +474,13 @@ describe("indexer source", () => {
       blockKey: "block",
       database,
       executor: owner,
+      issuer: owner,
       manteca,
       onesignal: createOnesignal('{"2f79a35c-8b11-4725-84d8-fc096f3f216e":"onesignal"}'),
       persona,
       qr,
       redis,
+      refunder: owner,
       source,
     });
     await other.ready;
@@ -552,11 +558,13 @@ describe("indexer source", () => {
       alchemy: createAlchemy("webhooks"),
       database,
       executor: owner,
+      issuer: owner,
       manteca,
       onesignal: createOnesignal('{"2f79a35c-8b11-4725-84d8-fc096f3f216e":"onesignal"}'),
       persona,
       qr,
       redis,
+      refunder: owner,
       source: "alchemy",
     });
     onTestFinished(() => watcher.close());
@@ -610,11 +618,13 @@ describe("indexer source", () => {
       alchemy: createAlchemy("webhooks"),
       database,
       executor: owner,
+      issuer: owner,
       manteca,
       onesignal: createOnesignal('{"2f79a35c-8b11-4725-84d8-fc096f3f216e":"onesignal"}'),
       persona,
       qr,
       redis,
+      refunder: owner,
       source: "indexer",
     });
     onTestFinished(() => other.close());
@@ -660,11 +670,13 @@ describe("indexer source", () => {
       alchemy: createAlchemy("webhooks"),
       database,
       executor: owner,
+      issuer: owner,
       manteca,
       onesignal: createOnesignal('{"2f79a35c-8b11-4725-84d8-fc096f3f216e":"onesignal"}'),
       persona,
       qr,
       redis,
+      refunder: owner,
       source: "indexer",
     });
     await other.ready;
