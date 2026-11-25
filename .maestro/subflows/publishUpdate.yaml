@@ -1,0 +1,5 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- evalScript: '${output.update = JSON.parse(http.post("http://localhost:3000/e2e/updates", { body: "" }).body)}'
+- assertTrue: ${output.update.n > 0}
+- evalScript: '${output.update.marker = output.update.release.replace(/[.+]/g, (c) => "\\" + c)}'

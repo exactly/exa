@@ -3,6 +3,7 @@ env:
   method: ${method ?? "webauthn"}
 tags: [critical]
 ---
+- assertTrue: '${http.post("http://localhost:3000/e2e/updates/reset", { body: "" }).ok}'
 - runFlow: ../subflows/launch.yaml
 - runFlow: ../subflows/assertNotifications.yaml
 - runFlow: ../subflows/transfer.yaml
@@ -17,3 +18,4 @@ tags: [critical]
 - runFlow: ../subflows/assertBenefits.yaml
 - runFlow: ../subflows/ach.yaml
 - runFlow: ../subflows/storeCoverage.yaml
+- runFlow: ../subflows/updates.yaml
