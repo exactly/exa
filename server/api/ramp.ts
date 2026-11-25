@@ -617,7 +617,6 @@ The locked payment charges \`amount\` USDC for \`assetAmount\` in \`asset\`, the
             paymentDestination: payment.qr,
             amount: payment.amount,
             against: "USDC",
-            sourceAddress: account,
             sender: {
               legalIdNationality: document.id_issuing_country.value,
               legalId: document.id_number.value,

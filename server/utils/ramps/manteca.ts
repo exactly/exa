@@ -347,28 +347,22 @@ export default function manteca(key: string, url: string) {
     return DevelopmentChainIds.includes(chain.id as (typeof DevelopmentChainIds)[number]);
   }
   async function lockQrPayment(lock: InferOutput<typeof PaymentLock>) {
-    const sourceNetwork = Supported[chain.id];
-    if (!sourceNetwork) {
+    if (!Supported[chain.id]) {
       captureException(new Error("manteca not supported chain id"), { level: "error", contexts: { chain } });
       throw new Error(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
     }
-    return await request(
-      QrPaymentResponse,
-      "/crypto/v2/payment-locks",
-      {},
-      { ...lock, sourceNetwork },
-      "POST",
-      10_000,
-    ).catch((error: unknown) => {
-      if (error instanceof ServiceError && typeof error.cause === "string") {
-        if (error.cause.includes(MantecaApiErrorCodes.INVALID_AMOUNT)) throw new Error(ErrorCodes.INVALID_AMOUNT);
-        if (error.cause.includes(MantecaApiErrorCodes.INVALID_QR)) throw new Error(ErrorCodes.INVALID_QR);
-        if (error.cause.includes(MantecaApiErrorCodes.RISKY_SOURCE_ADDRESS)) {
-          throw new Error(ErrorCodes.RISKY_SOURCE_ADDRESS);
+    return await request(QrPaymentResponse, "/crypto/v2/payment-locks", {}, lock, "POST", 10_000).catch(
+      (error: unknown) => {
+        if (error instanceof ServiceError && typeof error.cause === "string") {
+          if (error.cause.includes(MantecaApiErrorCodes.INVALID_AMOUNT)) throw new Error(ErrorCodes.INVALID_AMOUNT);
+          if (error.cause.includes(MantecaApiErrorCodes.INVALID_QR)) throw new Error(ErrorCodes.INVALID_QR);
+          if (error.cause.includes(MantecaApiErrorCodes.RISKY_SOURCE_ADDRESS)) {
+            throw new Error(ErrorCodes.RISKY_SOURCE_ADDRESS);
+          }
         }
-      }
-      throw error;
-    });
+        throw error;
+      },
+    );
   }
   async function onboarding(account: Address, credentialId: string, persona: PersonaService) {
     const externalId = account.replace("0x", "");
@@ -667,7 +661,6 @@ export const PaymentLock = object({
   amount: optional(string()),
   against: optional(string()),
   sender: object({ legalIdNationality: string(), legalId: string(), name: string(), surname: string() }),
-  sourceAddress: Address,
 });
 
 export const QrPaymentResponse = object({

@@ -2135,7 +2135,6 @@ describe("ramp api", () => {
         expect(lockQrPayment).toHaveBeenCalledWith({
           paymentDestination: "qr3",
           against: "USDC",
-          sourceAddress: account,
           sender: { legalIdNationality: "AR", legalId: "30123456", name: "Jane", surname: "Doe" },
         });
         expect(manteca.getSettlement).toHaveBeenCalledWith("ARS");

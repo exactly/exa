@@ -730,8 +730,6 @@ describe("manteca utils", () => {
   });
 
   describe("lockQrPayment", () => {
-    const sourceAddress = parse(Address, padHex("0x1", { size: 20 }));
-
     it.each([optimism.id, optimismSepolia.id])("locks with the real payer as sender on chain %i", async (id) => {
       chainMock.id = id;
       const lock = {
@@ -755,7 +753,7 @@ describe("manteca utils", () => {
       const sender = { legalIdNationality: "ARGENTINA", legalId: "12345678", name: "JANE", surname: "DOE" };
 
       await expect(
-        manteca.lockQrPayment({ paymentDestination: "qr3", against: "USDC", sender, sourceAddress }),
+        manteca.lockQrPayment({ paymentDestination: "qr3", against: "USDC", sender }),
       ).resolves.toStrictEqual({ ...lock, sender: { legalId: "12345678" } });
 
       expect(fetchSpy).toHaveBeenCalledOnce();
@@ -765,8 +763,6 @@ describe("manteca utils", () => {
         paymentDestination: "qr3",
         against: "USDC",
         sender,
-        sourceAddress,
-        sourceNetwork: "OPTIMISM",
       });
       expect(captureException).not.toHaveBeenCalled();
     });
@@ -799,7 +795,6 @@ describe("manteca utils", () => {
           paymentDestination: "qr3",
           amount: "0",
           against: "USDC",
-          sourceAddress,
           sender: { legalIdNationality: "AR", legalId: "12345678", name: "JANE", surname: "DOE" },
         }),
       ).rejects.toThrow(new Error(code));
@@ -816,7 +811,6 @@ describe("manteca utils", () => {
         manteca.lockQrPayment({
           paymentDestination: "qr3",
           against: "USDC",
-          sourceAddress,
           sender: { legalIdNationality: "AR", legalId: "12345678", name: "JANE", surname: "DOE" },
         }),
       ).rejects.toThrow(type);
@@ -830,7 +824,6 @@ describe("manteca utils", () => {
         manteca.lockQrPayment({
           paymentDestination: "qr3",
           against: "USDC",
-          sourceAddress,
           sender: { legalIdNationality: "AR", legalId: "12345678", name: "JANE", surname: "DOE" },
         }),
       ).rejects.toThrow(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
@@ -866,7 +859,6 @@ describe("manteca utils", () => {
       manteca.lockQrPayment({
         paymentDestination: "qr3manualamount", // cspell:ignore manualamount
         against: "USDC",
-        sourceAddress: parse(Address, padHex("0x1", { size: 20 })),
         sender: { legalIdNationality: "AR", legalId: "30123456", name: "Juan", surname: "Perez" },
       }),
     ).resolves.toStrictEqual({
