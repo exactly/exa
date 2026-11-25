@@ -1360,7 +1360,7 @@ describe("ramp api", () => {
 
       it.each([
         bridge.ErrorCodes.EMAIL_ALREADY_EXISTS,
-        bridge.ErrorCodes.NOT_SUPPORTED_ACCOUNT_TYPE,
+        bridge.ErrorCodes.DENYLISTED_COUNTRY,
         bridge.ErrorCodes.NOT_SUPPORTED_CHAIN_ID,
       ])("returns 400 for %s", async (code) => {
         await setBridgeCredential({ bridgeId: null, salt: business });

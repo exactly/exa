@@ -456,7 +456,6 @@ export default function route({
                   case Bridge.ErrorCodes.DENYLISTED_COUNTRY:
                   case Bridge.ErrorCodes.EMAIL_ALREADY_EXISTS:
                   case Bridge.ErrorCodes.NOT_ENABLED:
-                  case Bridge.ErrorCodes.NOT_SUPPORTED_ACCOUNT_TYPE:
                   case Bridge.ErrorCodes.NOT_SUPPORTED_CHAIN_ID:
                     return c.json({ code: error.message }, 400);
                   case Bridge.ErrorCodes.INVALID_ADDRESS: {
