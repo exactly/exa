@@ -215,10 +215,6 @@ describe("bridge utils", () => {
   });
 
   describe("business onboarding", () => {
-    beforeEach(() => {
-      chainMock.id = base.id;
-    });
-
     afterEach(() => database.update(credentials).set({ bridgeId: null }).where(eq(credentials.id, "cred-1")));
 
     it("creates the business customer from an approved persona inquiry and stores the bridge id", async () => {
@@ -521,22 +517,18 @@ describe("bridge utils", () => {
       );
     });
 
-    it.each([
-      { accountType: "business" as const, chain: optimism },
-      { accountType: "business" as const, chain: optimismSepolia },
-      { accountType: "consumer" as const, chain: base },
-      { accountType: "consumer" as const, chain: baseSepolia },
-    ])("returns NOT_AVAILABLE for $accountType on $chain.name", async ({ accountType, chain }) => {
+    it.each([optimism, optimismSepolia])("offers business onboarding on $name", async (chain) => {
       chainMock.id = chain.id;
-      const fetchSpy = vi.spyOn(globalThis, "fetch");
-      const getAccount = vi.spyOn(persona, "getAccount");
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
       vi.mocked(captureException).mockClear();
 
-      await expect(
-        bridge.getProvider({ accountType, credentialId: "cred-1", customerId: "cust-1" }),
-      ).resolves.toStrictEqual({ status: "NOT_AVAILABLE", onramp: { currencies: [] }, offramp: { currencies: [] } });
-      expect(fetchSpy).not.toHaveBeenCalled();
-      expect(getAccount).not.toHaveBeenCalled();
+      await expect(bridge.getProvider({ accountType: "business", credentialId: "cred-1" })).resolves.toMatchObject({
+        status: "NOT_STARTED",
+        tosLink: "https://tos.link/agree",
+      });
+      expect(fetchSpy.mock.calls[0]?.[0]).toBe("https://bridge.test/customers/tos_links");
       expect(captureException).not.toHaveBeenCalled();
     });
 
@@ -2851,30 +2843,6 @@ describe("bridge utils", () => {
         expect.objectContaining({ message: "bridge not supported chain id" }),
         expect.objectContaining({ level: "error" }),
       );
-    });
-
-    it.each([
-      { accountType: "business" as const, chain: optimism },
-      { accountType: "business" as const, chain: optimismSepolia },
-      { accountType: "consumer" as const, chain: base },
-      { accountType: "consumer" as const, chain: baseSepolia },
-    ])("throws NOT_SUPPORTED_ACCOUNT_TYPE for $accountType on $chain.name", async ({ accountType, chain }) => {
-      chainMock.id = chain.id;
-      const fetchSpy = vi.spyOn(globalThis, "fetch");
-      const getAccount = vi.spyOn(persona, "getAccount");
-      const getInquiry = vi.spyOn(persona, "getInquiry");
-      vi.mocked(captureException).mockClear();
-
-      await expect(
-        bridge.onboarding({ accountType, acceptedTermsId: "terms-1", credentialId: "cred-1", customerId: null }),
-      ).rejects.toThrow(bridge.ErrorCodes.NOT_SUPPORTED_ACCOUNT_TYPE);
-      expect(fetchSpy).not.toHaveBeenCalled();
-      expect(getAccount).not.toHaveBeenCalled();
-      expect(getInquiry).not.toHaveBeenCalled();
-      expect(captureException).not.toHaveBeenCalled();
-      await expect(
-        database.query.credentials.findFirst({ columns: { bridgeId: true }, where: eq(credentials.id, "cred-1") }),
-      ).resolves.toStrictEqual({ bridgeId: null });
     });
 
     it("throws when persona account not found", async () => {
