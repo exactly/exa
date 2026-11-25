@@ -10,10 +10,12 @@ import {
   getAbiItem,
   getAddress,
   http,
+  isAddressEqual,
   keccak256,
   maxUint256,
   padHex,
   parseAbi,
+  parseEventLogs,
   parseUnits,
   publicActions,
   toHex,
@@ -45,8 +47,7 @@ import type * as Chain from "@exactly/common/generated/chain";
 const { app } = createMockfi({ database });
 const mintAbi = parseAbi(["function mint(address to, uint256 value)"]);
 const feeCollectorAbi = parseAbi([
-  "function getTokenBalance(address integrator, address token) view returns (uint256)",
-  "function getLifiTokenBalance(address token) view returns (uint256)",
+  "event FeesCollected(address indexed token, address indexed integrator, uint256 integratorFee, uint256 lifiFee)",
 ]);
 const account = privateKeyToAccount(generatePrivateKey());
 const clients = new Map(
@@ -166,25 +167,14 @@ function gross(amount: bigint, rate = 2500n) {
   return (amount * 1_000_000n) / (1_000_000n - rate);
 }
 
-async function collected(asset: Address, integrator?: Address) {
-  const collector = await client(anvil.id).readContract({
-    address: swapperAddress,
-    abi: mockSwapperAbi,
-    functionName: "FEE_COLLECTOR",
-  });
-  return integrator
-    ? client(anvil.id).readContract({
-        address: collector,
-        abi: feeCollectorAbi,
-        functionName: "getTokenBalance",
-        args: [integrator, asset],
-      })
-    : client(anvil.id).readContract({
-        address: collector,
-        abi: feeCollectorAbi,
-        functionName: "getLifiTokenBalance",
-        args: [asset],
-      });
+async function collected(hash: Hash) {
+  const [collector, { logs }] = await Promise.all([
+    client(anvil.id).readContract({ address: swapperAddress, abi: mockSwapperAbi, functionName: "FEE_COLLECTOR" }),
+    client(anvil.id).getTransactionReceipt({ hash }),
+  ]);
+  return parseEventLogs({ abi: feeCollectorAbi, eventName: "FeesCollected", logs })
+    .filter(({ address }) => isAddressEqual(address, collector))
+    .map(({ args }) => args);
 }
 
 afterEach(() => {
@@ -343,9 +333,15 @@ describe("quote", () => {
       }),
     ).resolves.toBe(BigInt(body.estimate.toAmount));
     const before = await balanceOf(anvil.id, usdc.address, account.address);
-    const fees = await collected(usdc.address);
     const hash = await execute(body, usdc.address);
-    await expect(collected(usdc.address)).resolves.toBe(fees + fee);
+    await expect(collected(hash)).resolves.toStrictEqual([
+      {
+        token: usdc.address,
+        integrator: getAddress(accounts.collector[anvil.id]),
+        integratorFee: 0n,
+        lifiFee: fee,
+      },
+    ]);
     await expect(balanceOf(anvil.id, weth.address, receiver)).resolves.toBe(BigInt(body.estimate.toAmount));
     await expect(balanceOf(anvil.id, usdc.address, account.address)).resolves.toBe(before);
     await expect(get(`/v1/status?fromChain=${anvil.id}&txHash=${hash}`)).resolves.toMatchObject({
@@ -464,9 +460,10 @@ describe("quote", () => {
         feeSplit: { integratorFee: String(integratorFee), lifiFee: String(lifiFee(fromAmount)) },
       },
     ]);
-    const before = await collected(usdc.address, collector);
     const hash = await execute(body, usdc.address);
-    await expect(collected(usdc.address, collector)).resolves.toBe(before + integratorFee);
+    await expect(collected(hash)).resolves.toStrictEqual([
+      { token: usdc.address, integrator: collector, integratorFee, lifiFee: lifiFee(fromAmount) },
+    ]);
     await expect(get(`/v1/status?fromChain=${anvil.id}&txHash=${hash}`)).resolves.toMatchObject({
       body: { metadata: { integrator: "exa_app" }, feeCosts: [{ percentage: "0.005" }] },
     });
