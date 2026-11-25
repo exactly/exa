@@ -1,10 +1,10 @@
 import { Hono } from "hono";
 import { serializeSigned } from "hono/utils/cookie";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import AUTH_EXPIRY from "@exactly/common/AUTH_EXPIRY";
 
-import createAuth, { LEGACY_CUTOFF } from "../../middleware/auth";
+import createAuth from "../../middleware/auth";
 import authSecret from "../../utils/authSecret";
 
 const app = new Hono().get("/", createAuth(authSecret), (c) => c.json(c.req.valid("cookie")));
@@ -37,33 +37,9 @@ describe("auth middleware", () => {
     expect(response.status).toBe(401);
   });
 
-  describe("without expiry", () => {
-    afterEach(() => {
-      vi.useRealTimers();
-    });
-
-    it("accepts cookie before legacy cutoff", async () => {
-      vi.useFakeTimers({ now: LEGACY_CUTOFF - 1, toFake: ["Date"] });
-      const response = await request("credential");
-      expect(response.status).toBe(200);
-      await expect(response.json()).resolves.toStrictEqual({ credentialId: "credential" });
-    });
-
-    it("checks expiry of new cookies before legacy cutoff", async () => {
-      vi.useFakeTimers({ now: LEGACY_CUTOFF - 1, toFake: ["Date"] });
-      const expired = await request(`credential.${Date.now() - 1}`);
-      expect(expired.status).toBe(401);
-      const valid = await request(`credential.${Date.now() + 60_000}`);
-      expect(valid.status).toBe(200);
-      await expect(valid.json()).resolves.toStrictEqual({ credentialId: "credential" });
-    });
-
-    it("rejects cookie at legacy cutoff", async () => {
-      vi.useFakeTimers({ now: LEGACY_CUTOFF, toFake: ["Date"] });
-      const response = await request("credential");
-      expect(response.status).toBe(401);
-      await expect(response.json()).resolves.toStrictEqual({ code: "unauthorized", legacy: "unauthorized" });
-    });
+  it("rejects cookie without expiry", async () => {
+    const response = await request("credential");
+    expect(response.status).toBe(401);
   });
 
   it("rejects cookie with tampered expiry", async () => {
