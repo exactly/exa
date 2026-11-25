@@ -4528,14 +4528,87 @@ describe("bridge utils", () => {
       expect(fetchSpy.mock.calls.every((call) => call[1]?.method !== "POST")).toBe(true);
     });
 
-    it("ignores static templates with mismatched source payment rail", async () => {
+    it.each([
+      {
+        currency: "usd" as const,
+        reference: "invoice 4021",
+        rail: "ach" as const,
+        destination: { currency: "usd", payment_rail: "ach", ach_reference: "invoice 4021" },
+      },
+      {
+        currency: "eur" as const,
+        reference: undefined,
+        rail: undefined,
+        destination: { currency: "eur", payment_rail: "sepa" },
+      },
+    ])(
+      "creates a static template on the build network from another network $currency template",
+      async ({ currency, reference, rail, destination }) => {
+        const created = parse(Address, padHex("0xde8", { size: 20 }));
+        const fetchSpy = vi
+          .spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(fetchResponse(externalAccountResponse(currency)))
+          .mockResolvedValueOnce(
+            fetchResponse({
+              count: 1,
+              data: [
+                staticTemplate({
+                  externalAccountId: "ext-acc-1",
+                  currency,
+                  toAddress: deposit,
+                  sourcePaymentRail: "base",
+                  reference,
+                }),
+              ],
+            }),
+          )
+          .mockResolvedValueOnce(
+            fetchResponse(staticTemplate({ externalAccountId: "ext-acc-1", currency, toAddress: created, reference })),
+          );
+
+        const result = await bridge.getOfframpDepositDetails(
+          "ext-acc-1",
+          account,
+          activeCustomer,
+          currency === "usd" ? "USD" : "EUR",
+        );
+
+        expect(result).toStrictEqual([
+          {
+            network: "OPTIMISM",
+            displayName: "Optimism",
+            address: created,
+            fee: "0.0",
+            estimatedProcessingTime: "300",
+            rail,
+            reference,
+          },
+        ]);
+        expect(fetchSpy).toHaveBeenCalledTimes(3);
+        expect(fetchSpy.mock.calls[2]?.[0]).toBe("https://bridge.test/transfers");
+        expect(fetchSpy.mock.calls[2]?.[1]?.method).toBe("POST");
+        expect(fetchSpy.mock.calls[2]?.[1]?.headers).toMatchObject({ "Idempotency-Key": "ext-acc-1-optimism" });
+        expect(JSON.parse(fetchSpy.mock.calls[2]?.[1]?.body as string)).toStrictEqual({
+          on_behalf_of: activeCustomer.id,
+          client_reference_id: account,
+          source: { currency: "usdc", payment_rail: "optimism" },
+          destination: { ...destination, external_account_id: "ext-acc-1" },
+          features: { flexible_amount: true, static_template: true, allow_any_from_address: true },
+        });
+      },
+    );
+
+    it("returns deposit details on the requested source network", async () => {
+      const optimismDeposit = parse(Address, padHex("0xde7", { size: 20 }));
+      chainMock.id = 1;
       const fetchSpy = vi
         .spyOn(globalThis, "fetch")
         .mockResolvedValueOnce(fetchResponse(externalAccountResponse("usd")))
         .mockResolvedValueOnce(
           fetchResponse({
-            count: 1,
+            count: 2,
             data: [
+              staticTemplate({ externalAccountId: "ext-acc-1", currency: "usd", toAddress: optimismDeposit }),
               staticTemplate({
                 externalAccountId: "ext-acc-1",
                 currency: "usd",
@@ -4546,10 +4619,21 @@ describe("bridge utils", () => {
           }),
         );
 
-      await expect(bridge.getOfframpDepositDetails("ext-acc-1", account, activeCustomer, "USD")).rejects.toThrow(
-        bridge.ErrorCodes.OFFRAMP_TRANSFER_NOT_FOUND,
-      );
+      const result = await bridge.getOfframpDepositDetails("ext-acc-1", account, activeCustomer, "USD", "BASE");
+
+      expect(result).toStrictEqual([
+        {
+          network: "BASE",
+          displayName: "Base",
+          address: deposit,
+          fee: "0.0",
+          estimatedProcessingTime: "300",
+          rail: "ach",
+          reference: undefined,
+        },
+      ]);
       expect(fetchSpy).toHaveBeenCalledTimes(2);
+      expect(captureException).not.toHaveBeenCalled();
     });
 
     it("ignores static templates for a different external account", async () => {
@@ -4863,6 +4947,51 @@ describe("bridge utils", () => {
         destination: { currency: "usdt", payment_rail: "tron", to_address: tronAddress },
         features: { flexible_amount: true, allow_any_from_address: true },
       });
+    });
+
+    it("creates a transfer from the requested source network", async () => {
+      chainMock.id = 1;
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        fetchResponse({
+          id: "tr-tron-1",
+          state: "awaiting_funds",
+          on_behalf_of: activeCustomer.id,
+          source: { payment_rail: "base", currency: "usdc" },
+          destination: { payment_rail: "tron", currency: "usdt", to_address: tronAddress },
+          source_deposit_instructions: { payment_rail: "base", currency: "usdc", to_address: deposit },
+        }),
+      );
+
+      const result = await bridge.getCryptoOfframpDepositDetails(
+        "USDT",
+        "TRON",
+        tronAddress,
+        account,
+        activeCustomer,
+        undefined,
+        "BASE",
+      );
+
+      expect(result).toStrictEqual([
+        { network: "BASE", displayName: "Base", address: deposit, fee: "0.0", estimatedProcessingTime: "300" },
+      ]);
+      expect(JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string)).toStrictEqual({
+        on_behalf_of: activeCustomer.id,
+        client_reference_id: account,
+        source: { currency: "usdc", payment_rail: "base" },
+        destination: { currency: "usdt", payment_rail: "tron", to_address: tronAddress },
+        features: { flexible_amount: true, allow_any_from_address: true },
+      });
+      expect(captureException).not.toHaveBeenCalled();
+    });
+
+    it("throws NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL for USDC on BASE from base", async () => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+      await expect(
+        bridge.getCryptoOfframpDepositDetails("USDC", "BASE", deposit, account, activeCustomer, undefined, "BASE"),
+      ).rejects.toThrow(bridge.ErrorCodes.NOT_AVAILABLE_CRYPTO_PAYMENT_RAIL);
+      expect(fetchSpy).not.toHaveBeenCalled();
     });
 
     it("throws on a bad source deposit to_address", async () => {
@@ -6069,11 +6198,12 @@ describe("bridge utils", () => {
 
       expect(result).toStrictEqual([
         { addressValid: true, bankName: "Test Bank", currency: "USD", id: "ext-acc-ready", ownerName: "John Doe" },
+        { addressValid: true, bankName: "Test Bank", currency: "USD", id: "ext-acc-base", ownerName: "John Doe" },
       ]);
       expect(captureException).not.toHaveBeenCalled();
     });
 
-    it("lists accounts with a static template on base for base sepolia chain", async () => {
+    it("lists accounts with a static template on any network", async () => {
       chainMock.id = baseSepolia.id;
       vi.spyOn(globalThis, "fetch")
         .mockResolvedValueOnce(
@@ -6104,6 +6234,7 @@ describe("bridge utils", () => {
 
       expect(result).toStrictEqual([
         { addressValid: true, bankName: "Test Bank", currency: "USD", id: "ext-acc-base", ownerName: "John Doe" },
+        { addressValid: true, bankName: "Test Bank", currency: "USD", id: "ext-acc-optimism", ownerName: "John Doe" },
       ]);
     });
 

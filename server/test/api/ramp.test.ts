@@ -954,6 +954,73 @@ describe("ramp api", () => {
             expect.any(String),
             bridgeCustomer,
             "USD",
+            undefined,
+          );
+        });
+
+        it("forwards the source network on offramp quotes", async () => {
+          vi.spyOn(bridge, "getCustomer").mockResolvedValue(bridgeCustomer);
+          vi.spyOn(bridge, "getQuote").mockResolvedValue({ buyRate: "1.00", sellRate: "1.00" });
+          vi.spyOn(bridge, "getOfframpDepositDetails").mockResolvedValue([
+            {
+              network: "BASE",
+              displayName: "Base",
+              address: deposit,
+              fee: "0.0",
+              estimatedProcessingTime: "300",
+              rail: undefined,
+              reference: undefined,
+            },
+          ]);
+          vi.spyOn(bridge, "getCryptoOfframpDepositDetails").mockResolvedValue([
+            { network: "BASE", displayName: "Base", address: deposit, fee: "0.0", estimatedProcessingTime: "300" },
+          ]);
+
+          const [fiat, crypto] = await Promise.all([
+            appClient.quote.$get(
+              {
+                query: {
+                  provider: "bridge",
+                  currency: "USD",
+                  direction: "offramp",
+                  externalAccountId: "ext-acc-1",
+                  source: "BASE",
+                },
+              },
+              { headers: { "test-credential-id": "ramp-bridge" } },
+            ),
+            appClient.quote.$get(
+              {
+                query: {
+                  provider: "bridge",
+                  currency: "USDT",
+                  direction: "offramp",
+                  network: "TRON",
+                  address: "TXYZdestinationTRONAddress",
+                  source: "BASE",
+                },
+              },
+              { headers: { "test-credential-id": "ramp-bridge" } },
+            ),
+          ]);
+
+          expect(fiat.status).toBe(200);
+          expect(crypto.status).toBe(200);
+          expect(bridge.getOfframpDepositDetails).toHaveBeenCalledWith(
+            "ext-acc-1",
+            expect.any(String),
+            bridgeCustomer,
+            "USD",
+            "BASE",
+          );
+          expect(bridge.getCryptoOfframpDepositDetails).toHaveBeenCalledWith(
+            "USDT",
+            "TRON",
+            "TXYZdestinationTRONAddress",
+            expect.any(String),
+            bridgeCustomer,
+            undefined,
+            "BASE",
           );
         });
 
