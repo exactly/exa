@@ -5,64 +5,48 @@ import "../mocks/traceClient";
 import "../mocks/wallet";
 
 import * as core from "@sentry/core";
-import { captureException, continueTrace, getActiveSpan, setExtra, withScope } from "@sentry/node";
-import { deserialize } from "@wagmi/core";
+import { captureException, getActiveSpan, setExtra, startSpan } from "@sentry/node";
+import { serialize } from "@wagmi/core";
+import { Queue } from "bullmq";
 import { testClient } from "hono/testing";
-import { Redis } from "ioredis";
 import { createHash } from "node:crypto";
 import { inspect } from "node:util";
-import { v5 } from "uuid";
 import { parse } from "valibot";
 import {
-  ContractFunctionExecutionError,
-  ContractFunctionRevertedError,
   createWalletClient,
-  decodeEventLog,
   encodeAbiParameters,
-  encodeErrorResult,
   encodeEventTopics,
   encodeFunctionData,
   encodePacked,
-  erc20Abi,
   ExecutionRevertedError,
-  formatUnits,
   getAbiItem,
   getAddress,
-  getContractError,
   hexToBigInt,
   hexToBytes,
   http,
   HttpRequestError,
-  maxUint256,
   nonceManager,
   padHex,
   parseAbi,
   parseEventLogs,
-  RawContractError,
   toEventSelector,
   zeroAddress,
   zeroHash,
   type Address,
-  type Hash,
   type Hex,
-  type Log,
   type TransactionReceipt,
 } from "viem";
 import { entryPoint06Abi, entryPoint06Address, getUserOperationHash } from "viem/account-abstraction";
 import { generatePrivateKey, privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
-import { anvil, optimism } from "viem/chains";
-import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { optimism } from "viem/chains";
+import { afterAll, afterEach, beforeAll, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import chain, {
-  auditorAbi,
   exaAccountFactoryAbi,
   exaAccountFactoryAddress,
   exaPluginAbi,
   exaPluginAddress,
-  exaPreviewerAbi,
-  exaPreviewerAddress,
-  issuerCheckerAbi,
   marketAbi,
   marketUSDCAddress,
   marketWETHAddress,
@@ -72,28 +56,23 @@ import chain, {
   usdcAddress,
 } from "@exactly/common/generated/chain";
 import * as nonceKey from "@exactly/common/nonceKey";
-import ProposalType, { decodeWithdraw } from "@exactly/common/ProposalType";
-import shortenHex from "@exactly/common/shortenHex";
+import ProposalType from "@exactly/common/ProposalType";
 import * as validation from "@exactly/common/validation";
-import deploy from "@exactly/plugin/deploy.json";
 
 import database, { credentials } from "../../database";
 import createBlockHook from "../../hooks/block";
-import t, { f } from "../../i18n";
 import createAlchemy from "../../utils/alchemy";
 import appOrigin from "../../utils/appOrigin";
-import ensClient from "../../utils/ensClient";
-import createOnesignal from "../../utils/onesignal";
 import createPersona from "../../utils/persona";
 import publicClient from "../../utils/publicClient";
 import createManteca from "../../utils/ramps/manteca";
-import redis from "../../utils/redis";
-import revertFingerprint from "../../utils/revertFingerprint";
+import redis, { bullmq } from "../../utils/redis";
 import ServiceError from "../../utils/ServiceError";
 import wallet from "../../utils/wallet";
+import createProposal from "../../workers/proposal/queue";
 import anvilClient from "../anvilClient";
 
-import type * as sentry from "@sentry/node";
+import type { Job } from "../../workers/proposal/job";
 
 let keeper: ReturnType<typeof wallet>;
 
@@ -102,19 +81,12 @@ const bob = createWalletClient({
   transport: http(),
   account: privateKeyToAccount(padHex("0xb0b"), { nonceManager }),
 });
-const bobAccount = deriveAddress(exaAccountFactoryAddress, { x: padHex(bob.account.address), y: zeroHash });
 const manteca = createManteca("manteca", "https://manteca.test");
 const persona = createPersona("persona", "https://persona.test");
 const settlement = parse(validation.Address, padHex("0x5e7", { size: 20 }));
-const defaults = {
-  alchemy: createAlchemy("webhooks"),
-  database,
-  executor: bob.account,
-  manteca,
-  onesignal: createOnesignal("onesignal"),
-  persona,
-  redis,
-};
+const proposal = createProposal(redis);
+const queue = new Queue<Job, void, "proposal">("proposal", { connection: bullmq });
+const defaults = { alchemy: createAlchemy("webhooks"), database, manteca, persona, proposal, redis };
 vi.mocked(findWebhook).mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined -- create path
 const blockHook = createBlockHook(defaults);
 const appClient = testClient(blockHook.app);
@@ -122,6 +94,10 @@ const appClient = testClient(blockHook.app);
 beforeAll(async () => {
   await blockHook.ready;
   keeper = wallet(privateKeyToAccount(padHex("0x69")));
+});
+
+afterAll(async () => {
+  await Promise.all([queue.close(), proposal.close()]);
 });
 
 describe("initialization", () => {
@@ -275,1476 +251,264 @@ describe("validation", () => {
 });
 
 describe("proposal", () => {
-  let proposals: Log<bigint, number, false, (typeof proposalManagerAbi)[29], true>[];
+  const proposer = deriveAddress(exaAccountFactoryAddress, { x: padHex("0xb10c"), y: zeroHash });
+  const receiver = getAddress(padHex("0xcafe", { size: 20 }));
+  const unlock = BigInt(Math.floor(Date.now() / 1000) + 365 * 24 * 60 * 60);
+  let nonce = 0n;
 
-  describe("with valid proposals", () => {
-    beforeEach(async () => {
-      const hashes = await Promise.all(
-        [3_000_000n, 4_000_000n].map((amount) =>
-          execute(
-            encodeFunctionData({
-              abi: exaPluginAbi,
-              functionName: "propose",
-              args: [
-                marketUSDCAddress,
-                amount,
-                ProposalType.Withdraw,
-                encodeAbiParameters([{ type: "address" }], [padHex("0x69", { size: 20 })]),
-              ],
-            }),
-          ),
-        ),
-      );
-      proposals = await getLogs(hashes);
-      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
-      const unlock = proposals[0]?.args.unlock ?? 0n;
-      vi.setSystemTime(new Date(Number(unlock + 10n) * 1000));
-    });
-
-    afterEach(() => vi.useRealTimers());
-
-    it("execute withdraws", async () => {
-      const setUser = await spyScopeSetUser();
-      const withdraw = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-      const anotherWithdraw = proposals[1]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-      const sendPushNotification = sendPushNotificationMock.mockResolvedValue({});
-      const receiver = getAddress(decodeWithdraw(withdraw.args.data));
-      vi.spyOn(ensClient, "getEnsName").mockResolvedValueOnce("alice.eth").mockResolvedValueOnce(null);
-
-      const expected = [
-        {
-          receiver,
-          amount: withdraw.args.amount,
-        },
-        {
-          receiver: getAddress(decodeWithdraw(anotherWithdraw.args.data)),
-          amount: anotherWithdraw.args.amount,
-        },
-      ];
-      const proposalExecutions = waitForSuccessfulProposalExecutions([withdraw.args.nonce, anotherWithdraw.args.nonce]);
-      const proposalRemovals = waitForProposalRemovals([
-        { account: withdraw.args.account, nonce: withdraw.args.nonce },
-        { account: anotherWithdraw.args.account, nonce: anotherWithdraw.args.nonce },
-      ]);
-
-      const [, receipts, removals] = await Promise.all([
-        appClient.index.$post({
-          ...withdrawProposal,
-          json: {
-            ...withdrawProposal.json,
-            event: {
-              ...withdrawProposal.json.event,
-              data: {
-                ...withdrawProposal.json.event.data,
-                block: {
-                  ...withdrawProposal.json.event.data.block,
-                  logs: [
-                    { topics: withdraw.topics, data: withdraw.data, account: { address: withdraw.address } },
-                    {
-                      topics: anotherWithdraw.topics,
-                      data: anotherWithdraw.data,
-                      account: { address: anotherWithdraw.address },
-                    },
-                  ],
-                },
-              },
-            },
-          },
-        }),
-        proposalExecutions,
-        proposalRemovals,
-      ]);
-
-      await vi.waitUntil(() => sendPushNotification.mock.calls.length === 2, 26_666);
-
-      expect(sendPushNotification).toHaveBeenCalledWith({
-        userId: bobAccount,
-        headings: t("Withdraw completed"),
-        contents: t("{{amount}} {{symbol}} sent to {{recipient}}", {
-          amount: f("3"),
-          symbol: "USDC",
-          recipient: "alice.eth",
-        }),
-        idempotencyKey: v5(
-          `https://exact.ly/proposal/${chain.id}/${proposalManagerAddress}/${withdraw.args.account}/${withdraw.args.nonce}`,
-          v5.URL,
-        ),
-      });
-      expect(sendPushNotification).toHaveBeenCalledWith({
-        userId: bobAccount,
-        headings: t("Withdraw completed"),
-        contents: t("{{amount}} {{symbol}} sent to {{recipient}}", {
-          amount: f("4"),
-          symbol: "USDC",
-          recipient: shortenHex(receiver),
-        }),
-        idempotencyKey: v5(
-          `https://exact.ly/proposal/${chain.id}/${proposalManagerAddress}/${anotherWithdraw.args.account}/${anotherWithdraw.args.nonce}`,
-          v5.URL,
-        ),
-      });
-      expect(hasExpectedTransfers(receipts, expected)).toBe(true);
-      expect(removals).toStrictEqual([1, 1]);
-      expect(setUser).toHaveBeenCalledWith({ id: bobAccount });
-    });
-
-    it("executes withdrawals despite a notification failure", async () => {
-      const setUser = await spyScopeSetUser();
-      const error = new Error("push failed");
-      const sendPushNotification = sendPushNotificationMock.mockResolvedValue({}).mockRejectedValueOnce(error);
-      vi.spyOn(ensClient, "getEnsName").mockResolvedValue("alice.eth");
-      const executions = waitForSuccessfulProposalExecutions(proposals.map(({ args }) => args.nonce));
-      const removals = waitForProposalRemovals(proposals.map(({ args }) => args));
-
-      const [response, receipts, removed] = await Promise.all([
-        appClient.index.$post({
-          ...withdrawProposal,
-          json: {
-            ...withdrawProposal.json,
-            event: {
-              ...withdrawProposal.json.event,
-              data: {
-                ...withdrawProposal.json.event.data,
-                block: {
-                  ...withdrawProposal.json.event.data.block,
-                  logs: proposals.map(({ topics, data, address }) => ({ topics, data, account: { address } })),
-                },
-              },
-            },
-          },
-        }),
-        executions,
-        removals,
-      ]);
-
-      expect(response.status).toBe(200);
-      expect(await response.json()).toStrictEqual({});
-      await vi.waitFor(() => {
-        expect(sendPushNotification).toHaveBeenCalledTimes(2);
-        expect(captureException).toHaveBeenCalledExactlyOnceWith(error);
-      }, 26_666);
-
-      for (const [index, amount] of ["3", "4"].entries()) {
-        expect(sendPushNotification).toHaveBeenCalledWith({
-          userId: bobAccount,
-          headings: t("Withdraw completed"),
-          contents: t("{{amount}} {{symbol}} sent to {{recipient}}", {
-            amount: f(amount),
-            symbol: "USDC",
-            recipient: "alice.eth",
-          }),
-          idempotencyKey: v5(
-            `https://exact.ly/proposal/${chain.id}/${proposalManagerAddress}/${proposals[index]?.args.account}/${proposals[index]?.args.nonce}`,
-            v5.URL,
-          ),
-        });
-      }
-      expect(
-        hasExpectedTransfers(
-          receipts,
-          proposals.map(({ args }) => ({ receiver: getAddress(decodeWithdraw(args.data)), amount: args.amount })),
-        ),
-      ).toBe(true);
-      expect(removed).toStrictEqual([1, 1]);
-      expect(setUser).toHaveBeenCalledWith({ id: bobAccount });
-    });
-
-    it("ignores proposals emitted by another contract", async () => {
-      vi.spyOn(ensClient, "getEnsName").mockResolvedValue(null);
-      sendPushNotificationMock.mockResolvedValue({});
-      const zadd = spyZadd();
-
-      const response = await post(logs(marketUSDCAddress));
-
-      expect(response.status).toBe(200);
-      expect(
-        zadd.mock.calls.filter(
-          ([key, , member]) => key === "proposals" && proposals.some(({ args }) => member.includes(args.account)),
-        ),
-      ).toStrictEqual([]);
-
-      const removals = waitForProposalRemovals(proposals.map(({ args }) => args));
-      await post(logs());
-      await removals;
-      await vi.waitUntil(() => sendPushNotificationMock.mock.calls.length === 2, 26_666);
-    });
-
-    it("executes proposals emitted by a legacy plugin on optimism", async () => {
-      vi.spyOn(ensClient, "getEnsName").mockResolvedValue(null);
-      sendPushNotificationMock.mockResolvedValue({});
-      const currentHook = createBlockHook({ ...defaults, chainId: optimism.id });
-      await currentHook.ready;
-
-      const removals = waitForProposalRemovals(proposals.map(({ args }) => args));
-      const response = await testClient(currentHook.app).index.$post(blockPayloadWith(logs(legacyPlugins[0])));
-
-      expect(response.status).toBe(200);
-      await removals;
-      await vi.waitUntil(() => sendPushNotificationMock.mock.calls.length === 2, 26_666);
-    });
-
-    it.each([
-      ["an unknown error", new Error("rpc unavailable")],
-      ["an rpc error", new HttpRequestError({ url: "https://rpc.test" })],
-    ])("fails until the emitters can be read after %s", async (_, error) => {
-      vi.spyOn(ensClient, "getEnsName").mockResolvedValue(null);
-      sendPushNotificationMock.mockResolvedValue({});
-      const { readContract } = publicClient;
-      const lookup = vi
-        .spyOn(publicClient, "readContract")
-        .mockImplementation((parameters) =>
-          parameters.functionName === "EXA_PLUGIN" ? Promise.reject(error) : readContract(parameters),
-        );
-      const zadd = spyZadd();
-      const currentHook = createBlockHook(defaults);
-      const currentClient = testClient(currentHook.app);
-      await currentHook.ready.catch(() => undefined);
-
-      const response = await currentClient.index.$post(blockPayloadWith(logs()));
-
-      expect(response.status).toBe(500);
-      expect(
-        zadd.mock.calls.filter(
-          ([key, , member]) => key === "proposals" && proposals.some(({ args }) => member.includes(args.account)),
-        ),
-      ).toStrictEqual([]);
-      lookup.mockRestore();
-
-      const removals = waitForProposalRemovals(proposals.map(({ args }) => args));
-      await currentClient.index.$post(blockPayloadWith(logs()));
-      await removals;
-      await vi.waitUntil(() => sendPushNotificationMock.mock.calls.length === 2, 26_666);
+  beforeAll(async () => {
+    await database.insert(credentials).values({
+      id: "block-proposer",
+      publicKey: new Uint8Array(hexToBytes(proposer)),
+      account: proposer,
+      factory: exaAccountFactoryAddress,
     });
   });
 
-  function logs(emitter?: Address) {
-    return proposals.map(({ topics, data, address }) => ({ topics, data, account: { address: emitter ?? address } }));
+  function proposedLog(
+    proposalType: number,
+    amount: bigint,
+    data: Hex,
+    emitter: Address = proposalManagerAddress,
+    current = (nonce += 1n),
+  ) {
+    return {
+      topics: encodeEventTopics({
+        abi: proposalManagerAbi,
+        eventName: "Proposed",
+        args: { account: proposer, nonce: current, market: marketUSDCAddress },
+      }) as [Hex, ...Hex[]],
+      data: encodeAbiParameters(
+        [{ type: "uint8" }, { type: "uint256" }, { type: "bytes" }, { type: "uint256" }],
+        [proposalType, amount, data, unlock],
+      ),
+      account: { address: emitter },
+    };
   }
 
-  describe("with a withdraw in the block", () => {
-    beforeEach(async () => {
-      proposals = await getLogs([await proposeWithdraw(3_000_000n, padHex("0x69", { size: 20 }))]);
-      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
-      vi.setSystemTime(new Date(Number((proposals[0]?.args.unlock ?? 0n) + 10n) * 1000));
+  function withdrawal(emitter?: Address) {
+    return proposedLog(
+      ProposalType.Withdraw,
+      3_000_000n,
+      encodeAbiParameters([{ type: "address" }], [receiver]),
+      emitter,
+    );
+  }
+
+  function scheduled(add: ReturnType<typeof spyAdd>) {
+    return add(proposer, "proposal").map(({ jobId }) => jobId);
+  }
+
+  it("schedules proposals in nonce order", async () => {
+    const add = spyAdd();
+    const later = nonce + 2n;
+    const earlier = nonce + 1n;
+    nonce += 2n;
+
+    const response = await post([
+      proposedLog(ProposalType.Swap, 20n, "0x", proposalManagerAddress, later),
+      proposedLog(
+        ProposalType.Withdraw,
+        10n,
+        encodeAbiParameters([{ type: "address" }], [receiver]),
+        proposalManagerAddress,
+        earlier,
+      ),
+    ]);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({});
+    expect(scheduled(add)).toStrictEqual([`${proposer}-${earlier}-0`, `${proposer}-${later}-0`]);
+    const job = await queue.getJob(`${proposer}-${earlier}-0`);
+    if (!job) throw new Error("job not found");
+    expect(job.data).toStrictEqual({
+      account: proposer,
+      amount: "10",
+      data: encodeAbiParameters([{ type: "address" }], [receiver]),
+      market: marketUSDCAddress,
+      nonce: String(earlier),
+      proposalType: ProposalType.Withdraw,
+      retryCount: 0,
+      timestamp: withdrawProposal.json.event.data.block.timestamp,
+      unlock: String(unlock),
+      sentryBaggage: expect.any(String) as string,
+      sentryTrace: expect.any(String) as string,
     });
-
-    afterEach(() => vi.useRealTimers());
-
-    it("executes the proposal", async () => {
-      const sendPushNotification = sendPushNotificationMock.mockResolvedValue({});
-      vi.spyOn(ensClient, "getEnsName").mockResolvedValue(null);
-      const getSettlements = vi.spyOn(manteca, "getSettlements").mockResolvedValueOnce({ ARS: settlement });
-      const getPaymentLock = vi.spyOn(manteca, "getPaymentLock");
-      const executions = waitForSuccessfulProposalExecutions(proposals.map(({ args }) => args.nonce));
-      const removals = waitForProposalRemovals(proposals.map(({ args }) => args));
-
-      const [response, receipts, removed] = await Promise.all([
-        appClient.index.$post(
-          withLogs([
-            ...proposals.map(({ topics, data, address }) => ({ topics, data, account: { address } })),
-            withdrawLog({ receiver: getAddress(padHex("0x69", { size: 20 })), owner: bobAccount }),
-          ]),
-        ),
-        executions,
-        removals,
-      ]);
-
-      expect(response.status).toBe(200);
-      await expect(response.json()).resolves.toStrictEqual({});
-      expect(
-        hasExpectedTransfers(receipts, [{ receiver: getAddress(padHex("0x69", { size: 20 })), amount: 3_000_000n }]),
-      ).toBe(true);
-      expect(removed).toStrictEqual([1]);
-      expect(getSettlements).toHaveBeenCalledOnce();
-      expect(getPaymentLock).not.toHaveBeenCalled();
-      expect(setExtra).not.toHaveBeenCalledWith("exa.ignore", true);
-      await vi.waitFor(
-        () =>
-          expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
-            userId: bobAccount,
-            headings: t("Withdraw completed"),
-            contents: t("{{amount}} {{symbol}} sent to {{recipient}}", {
-              amount: f("3"),
-              symbol: "USDC",
-              recipient: shortenHex(padHex("0x69", { size: 20 })),
-            }),
-            idempotencyKey: v5(
-              `https://exact.ly/proposal/${chain.id}/${proposalManagerAddress}/${proposals[0]?.args.account}/${proposals[0]?.args.nonce}`,
-              v5.URL,
-            ),
-          }),
-        26_666,
-      );
-    });
-
-    it("executes the proposal when settlements fail", async () => {
-      const sendPushNotification = sendPushNotificationMock.mockResolvedValue({});
-      vi.spyOn(ensClient, "getEnsName").mockResolvedValue(null);
-      const getSettlements = vi.spyOn(manteca, "getSettlements").mockRejectedValueOnce(new Error("manteca down"));
-      const executions = waitForSuccessfulProposalExecutions(proposals.map(({ args }) => args.nonce));
-      const removals = waitForProposalRemovals(proposals.map(({ args }) => args));
-
-      const [response, receipts, removed] = await Promise.all([
-        appClient.index.$post(
-          withLogs([
-            ...proposals.map(({ topics, data, address }) => ({ topics, data, account: { address } })),
-            withdrawLog({ receiver: settlement, owner: bobAccount }),
-          ]),
-        ),
-        executions,
-        removals,
-      ]);
-
-      expect(response.status).toBe(500);
-      expect(
-        hasExpectedTransfers(receipts, [{ receiver: getAddress(padHex("0x69", { size: 20 })), amount: 3_000_000n }]),
-      ).toBe(true);
-      expect(removed).toStrictEqual([1]);
-      expect(getSettlements).toHaveBeenCalledOnce();
-      expect(setExtra).not.toHaveBeenCalledWith("exa.ignore", true);
-      await vi.waitFor(() => expect(sendPushNotification).toHaveBeenCalledOnce(), 26_666);
-    });
+    await expect(job.getState()).resolves.toBe("delayed");
+    expect(startSpan).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "schedule proposal", op: "queue.publish" }),
+      expect.any(Function),
+    );
+    await Promise.all([queue.remove(`${proposer}-${earlier}-0`), queue.remove(`${proposer}-${later}-0`)]);
   });
 
-  describe("with weth withdraw proposal", () => {
-    beforeEach(async () => {
-      const hash = await proposeWithdraw(69n, padHex("0x69", { size: 20 }), marketWETHAddress);
-      proposals = await getLogs([hash]);
-      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
-      const unlock = proposals[0]?.args.unlock ?? 0n;
-      vi.setSystemTime(new Date(Number(unlock + 10n) * 1000));
-    });
+  it("captures invalid proposals without scheduling them", async () => {
+    const add = spyAdd();
 
-    afterEach(() => vi.useRealTimers());
+    const response = await post([proposedLog(99, 1n, "0x")]);
 
-    it("increments nonce", async () => {
-      const withdraw = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-      const sendPushNotification = sendPushNotificationMock.mockResolvedValue({});
-      vi.spyOn(ensClient, "getEnsName").mockResolvedValue(null);
-      const nonceSkip = waitForProposalNonce(withdraw.args.account, withdraw.args.nonce);
-      const proposalRemovals = waitForProposalRemovals([
-        { account: withdraw.args.account, nonce: withdraw.args.nonce },
-      ]);
-      const [, removals] = await Promise.all([
-        appClient.index.$post({
-          ...withdrawProposal,
-          json: {
-            ...withdrawProposal.json,
-            event: {
-              ...withdrawProposal.json.event,
-              data: {
-                ...withdrawProposal.json.event.data,
-                block: {
-                  ...withdrawProposal.json.event.data.block,
-                  logs: [{ topics: withdraw.topics, data: withdraw.data, account: { address: withdraw.address } }],
-                },
-              },
-            },
-          },
-        }),
-        proposalRemovals,
-        nonceSkip,
-      ]);
-
-      expect(removals).toStrictEqual([1]);
-      await expect(
-        publicClient.readContract({
-          address: proposalManagerAddress,
-          abi: proposalManagerAbi,
-          functionName: "nonces",
-          args: [bobAccount],
-        }),
-      ).resolves.toBe(withdraw.args.nonce + 1n);
-      await vi.waitFor(
-        () =>
-          expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
-            userId: bobAccount,
-            headings: t("Withdraw completed"),
-            contents: t("{{amount}} {{symbol}} sent to {{recipient}}", {
-              amount: f(formatUnits(withdraw.args.amount, 18)),
-              symbol: "WETH",
-              recipient: shortenHex(padHex("0x69", { size: 20 })),
-            }),
-            idempotencyKey: v5(
-              `https://exact.ly/proposal/${chain.id}/${proposalManagerAddress}/${withdraw.args.account}/${withdraw.args.nonce}`,
-              v5.URL,
-            ),
-          }),
-        26_666,
-      );
-    });
+    expect(response.status).toBe(200);
+    expect(scheduled(add)).toStrictEqual([]);
+    expect(captureException).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ kind: "schema", type: "enum" })]),
+      { level: "error" },
+    );
   });
 
-  describe("with weth redeem proposal", () => {
-    beforeEach(async () => {
-      const hash = await proposeWithdraw(69n, padHex("0x69", { size: 20 }), marketWETHAddress, ProposalType.Redeem);
-      proposals = await getLogs([hash]);
-      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
-      vi.setSystemTime(new Date(Number((proposals[0]?.args.unlock ?? 0n) + 10n) * 1000));
-    });
+  it("ignores proposals emitted by another contract", async () => {
+    const add = spyAdd();
+    const ignored = withdrawal(marketUSDCAddress);
 
-    afterEach(() => vi.useRealTimers());
+    const response = await post([ignored]);
 
-    it("increments nonce and notifies redeemed assets", async () => {
-      const redeem = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-      const sendPushNotification = sendPushNotificationMock.mockResolvedValue({});
-      vi.spyOn(ensClient, "getEnsName").mockResolvedValue(null);
-      const executions = waitForSuccessfulProposalExecutions([redeem.args.nonce]);
-      const removals = waitForProposalRemovals([{ account: redeem.args.account, nonce: redeem.args.nonce }]);
-
-      const [, [receipt], removed] = await Promise.all([postProposal(redeem), executions, removals]);
-      const [withdraw] = parseEventLogs({ abi: marketAbi, eventName: "Withdraw", logs: receipt?.logs ?? [] });
-      await vi.waitUntil(() => sendPushNotification.mock.calls.length === 1, 26_666);
-
-      expect(withdraw?.args.shares).toBe(redeem.args.amount);
-      expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
-        userId: bobAccount,
-        headings: t("Withdraw completed"),
-        contents: t("{{amount}} {{symbol}} sent to {{recipient}}", {
-          amount: f(formatUnits(withdraw?.args.assets ?? 0n, 18)),
-          symbol: "WETH",
-          recipient: shortenHex(padHex("0x69", { size: 20 })),
-        }),
-        idempotencyKey: v5(
-          `https://exact.ly/proposal/${chain.id}/${proposalManagerAddress}/${redeem.args.account}/${redeem.args.nonce}`,
-          v5.URL,
-        ),
-      });
-      expect(removed).toStrictEqual([1]);
-      await expect(
-        publicClient.readContract({
-          address: proposalManagerAddress,
-          abi: proposalManagerAbi,
-          functionName: "nonces",
-          args: [bobAccount],
-        }),
-      ).resolves.toBe(redeem.args.nonce + 1n);
-      expect(captureException).not.toHaveBeenCalled();
-    });
+    expect(response.status).toBe(200);
+    expect(scheduled(add)).toStrictEqual([]);
   });
 
-  describe("with redeem proposal", () => {
-    beforeEach(async () => {
-      const hash = await proposeWithdraw(
-        69_000_000n,
-        padHex("0x69", { size: 20 }),
-        marketUSDCAddress,
-        ProposalType.Redeem,
-      );
-      proposals = await getLogs([hash]);
-      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
-      vi.setSystemTime(new Date(Number((proposals[0]?.args.unlock ?? 0n) + 10n) * 1000));
-    });
+  it("schedules proposals emitted by a legacy plugin on optimism", async () => {
+    const add = spyAdd();
+    const currentHook = createBlockHook({ ...defaults, chainId: optimism.id });
+    await currentHook.ready;
 
-    afterEach(() => vi.useRealTimers());
+    const response = await testClient(currentHook.app).index.$post(blockPayloadWith([withdrawal(legacyPlugins[0])]));
 
-    it("notifies redeemed assets", async () => {
-      const redeem = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-      const sendPushNotification = sendPushNotificationMock.mockResolvedValue({});
-      vi.spyOn(ensClient, "getEnsName").mockResolvedValue(null);
-      const executions = waitForSuccessfulProposalExecutions([redeem.args.nonce]);
-      const removals = waitForProposalRemovals([{ account: redeem.args.account, nonce: redeem.args.nonce }]);
-
-      const [, [receipt], removed] = await Promise.all([postProposal(redeem), executions, removals]);
-      const [withdraw] = parseEventLogs({ abi: marketAbi, eventName: "Withdraw", logs: receipt?.logs ?? [] });
-      await vi.waitUntil(() => sendPushNotification.mock.calls.length === 1, 26_666);
-
-      expect(withdraw?.args.shares).toBe(redeem.args.amount);
-      expect(withdraw?.args.assets).toBeGreaterThan(redeem.args.amount);
-      expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
-        userId: bobAccount,
-        headings: t("Withdraw completed"),
-        contents: t("{{amount}} {{symbol}} sent to {{recipient}}", {
-          amount: f(formatUnits(withdraw?.args.assets ?? 0n, 6)),
-          symbol: "USDC",
-          recipient: shortenHex(padHex("0x69", { size: 20 })),
-        }),
-        idempotencyKey: v5(
-          `https://exact.ly/proposal/${chain.id}/${proposalManagerAddress}/${redeem.args.account}/${redeem.args.nonce}`,
-          v5.URL,
-        ),
-      });
-      expect(removed).toStrictEqual([1]);
-    });
-
-    it.each<[string, (receipt: TransactionReceipt) => null | TransactionReceipt, null | string]>([
-      ["withdraw logs", (receipt) => ({ ...receipt, logs: [] }), "alice.eth"],
-      [
-        "withdraw logs from this market and owner",
-        (receipt) => ({
-          ...receipt,
-          logs: receipt.logs.flatMap((log) => {
-            const [signature, caller, receiver] = log.topics;
-            return signature === toEventSelector(getAbiItem({ abi: marketAbi, name: "Withdraw" })) && caller && receiver
-              ? [
-                  { ...log, address: marketWETHAddress },
-                  {
-                    ...log,
-                    topics: [signature, caller, receiver, encodeAbiParameters([{ type: "address" }], [zeroAddress])],
-                  },
-                ]
-              : [log];
-          }),
-        }),
-        null,
-      ],
-      ["receipt", () => null, null],
-    ])("reports and notifies without amount when execution has no %s", async (_, synthetic, ensName) => {
-      const redeem = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-      const sendPushNotification = sendPushNotificationMock.mockResolvedValue({});
-      vi.spyOn(ensClient, "getEnsName").mockResolvedValue(ensName);
-      if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
-      const exaSend = keeper.exaSend.bind(keeper);
-      let hash: Hash | undefined;
-      vi.spyOn(keeper, "exaSend").mockImplementation(async (span, call, options) => {
-        const receipt = await exaSend(span, call, options);
-        if (call.functionName !== "executeProposal" || !receipt) return receipt;
-        const executed = synthetic(receipt);
-        hash = executed?.transactionHash;
-        return executed;
-      });
-      const removals = waitForProposalRemovals([{ account: redeem.args.account, nonce: redeem.args.nonce }]);
-
-      const [, removed] = await Promise.all([postProposal(redeem), removals]);
-      await vi.waitUntil(() => sendPushNotification.mock.calls.length === 1, 26_666);
-
-      expect(sendPushNotification).toHaveBeenCalledExactlyOnceWith({
-        userId: bobAccount,
-        headings: t("Withdraw completed"),
-        contents: t("{{symbol}} sent to {{recipient}}", {
-          symbol: "USDC",
-          recipient: ensName ?? shortenHex(padHex("0x69", { size: 20 })),
-        }),
-        idempotencyKey: v5(
-          `https://exact.ly/proposal/${chain.id}/${proposalManagerAddress}/${redeem.args.account}/${redeem.args.nonce}`,
-          v5.URL,
-        ),
-      });
-      expect(captureException).toHaveBeenCalledWith(new Error("missing withdraw event"), {
-        level: "error",
-        contexts: {
-          proposal: { account: redeem.args.account, market: marketUSDCAddress, nonce: Number(redeem.args.nonce), hash },
-        },
-      });
-      expect(removed).toStrictEqual([1]);
-    });
+    expect(response.status).toBe(200);
+    expect(scheduled(add)).toStrictEqual([`${proposer}-${nonce}-0`]);
+    await queue.remove(`${proposer}-${nonce}-0`);
   });
 
-  describe("with reverting proposals", () => {
-    beforeEach(async () => {
-      const hash = await proposeWithdraw(maxUint256, padHex("0x69", { size: 20 }));
-      proposals = await getLogs([hash]);
-      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
-      const unlock = proposals[0]?.args.unlock ?? 0n;
-      vi.setSystemTime(new Date(Number(unlock + 10n) * 1000));
-    });
-
-    afterEach(() => vi.useRealTimers());
-
-    it("increments nonce", async () => {
-      const revert = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-      const nonceSkip = waitForProposalNonce(revert.args.account, revert.args.nonce);
-      const proposalRemovals = waitForProposalRemovals([{ account: revert.args.account, nonce: revert.args.nonce }]);
-
-      const [removals] = await Promise.all([
-        proposalRemovals,
-        appClient.index.$post({
-          ...withdrawProposal,
-          json: {
-            ...withdrawProposal.json,
-            event: {
-              ...withdrawProposal.json.event,
-              data: {
-                ...withdrawProposal.json.event.data,
-                block: {
-                  ...withdrawProposal.json.event.data.block,
-                  logs: [{ topics: revert.topics, data: revert.data, account: { address: revert.address } }],
-                },
-              },
-            },
-          },
-        }),
-        nonceSkip,
-      ]);
-
-      expect(removals).toStrictEqual([1]);
-      await expect(
-        publicClient.readContract({
-          address: proposalManagerAddress,
-          abi: proposalManagerAbi,
-          functionName: "nonces",
-          args: [bobAccount],
-        }),
-      ).resolves.toBe(revert.args.nonce + 1n);
-      expect(captureException).toHaveBeenCalledWith(
-        expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "executeProposal" }),
-        expect.objectContaining({ level: "warning", fingerprint: ["{{ default }}", "execution reverted"] }),
+  it.each([
+    ["an unknown error", new Error("rpc unavailable")],
+    ["an rpc error", new HttpRequestError({ url: "https://rpc.test" })],
+  ])("fails until the emitters can be read after %s", async (_, error) => {
+    const { readContract } = publicClient;
+    const lookup = vi
+      .spyOn(publicClient, "readContract")
+      .mockImplementation((parameters) =>
+        parameters.functionName === "EXA_PLUGIN" ? Promise.reject(error) : readContract(parameters),
       );
-    });
+    const add = spyAdd();
+    const currentHook = createBlockHook(defaults);
+    const currentClient = testClient(currentHook.app);
+    await currentHook.ready.catch(() => undefined);
+    const logs = [withdrawal()];
 
-    it("handles NonceTooLow as success in outer catch", async () => {
-      const setUser = await spyScopeSetUser();
-      const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-      const match = matchProposal(proposal.args.account, proposal.args.nonce);
-      const errorAbi = [{ type: "error", name: "NonceTooLow", inputs: [] }] as const;
-      const removals = waitForRemovals([match]);
-      vi.spyOn(publicClient, "simulateContract").mockImplementationOnce(() => {
-        // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
-        throw getContractError(
-          new RawContractError({ data: encodeErrorResult({ abi: errorAbi, errorName: "NonceTooLow" }) }),
-          { abi: errorAbi, address: bobAccount, functionName: "executeProposal", args: [proposal.args.nonce] },
-        );
-      });
+    const response = await currentClient.index.$post(blockPayloadWith(logs));
 
-      await appClient.index.$post({
-        ...withdrawProposal,
-        json: {
-          ...withdrawProposal.json,
-          event: {
-            ...withdrawProposal.json.event,
-            data: {
-              ...withdrawProposal.json.event.data,
-              block: {
-                ...withdrawProposal.json.event.data.block,
-                logs: [{ topics: proposal.topics, data: proposal.data, account: { address: proposal.address } }],
-              },
-            },
-          },
-        },
-      });
+    expect(response.status).toBe(500);
+    expect(scheduled(add)).toStrictEqual([]);
+    lookup.mockRestore();
 
-      expect(await removals).toStrictEqual([1]);
+    const retried = await currentClient.index.$post(blockPayloadWith(logs));
 
-      expect(vi.mocked(captureException).mock.calls.filter((call) => match.capture(call))).toEqual([]);
-      expect(setUser).toHaveBeenCalledWith({ id: bobAccount });
-    });
-
-    it("handles NoProposal as success in outer catch", async () => {
-      const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-      const match = matchProposal(proposal.args.account, proposal.args.nonce);
-      const removals = waitForRemovals([match]);
-      vi.spyOn(publicClient, "simulateContract").mockImplementationOnce(() => {
-        // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
-        throw getContractError(
-          new RawContractError({ data: encodeErrorResult({ abi: proposalManagerAbi, errorName: "NoProposal" }) }),
-          {
-            abi: proposalManagerAbi,
-            address: bobAccount,
-            functionName: "executeProposal",
-            args: [proposal.args.nonce],
-          },
-        );
-      });
-
-      await appClient.index.$post({
-        ...withdrawProposal,
-        json: {
-          ...withdrawProposal.json,
-          event: {
-            ...withdrawProposal.json.event,
-            data: {
-              ...withdrawProposal.json.event.data,
-              block: {
-                ...withdrawProposal.json.event.data.block,
-                logs: [{ topics: proposal.topics, data: proposal.data, account: { address: proposal.address } }],
-              },
-            },
-          },
-        },
-      });
-
-      expect(await removals).toStrictEqual([1]);
-
-      expect(vi.mocked(captureException).mock.calls.filter((call) => match.capture(call))).toEqual([]);
-    });
-
-    it("requeues Timelocked proposals without nonce skipping", async () => {
-      const setUser = await spyScopeSetUser();
-      const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-      const match = matchProposal(proposal.args.account, proposal.args.nonce);
-      const { simulateContract } = publicClient;
-      const add: (key: string, score: number, member: string) => Promise<number> = redis.zadd.bind(redis);
-      const zadd = vi.spyOn<{ zadd: typeof add }, "zadd">(Redis.prototype, "zadd");
-      const removals = waitForRemovals([match]);
-      if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
-      const exaSend = keeper.exaSend.bind(keeper);
-      const exaSendSpy = vi
-        .spyOn(keeper, "exaSend")
-        .mockImplementation((span, call, options) => exaSend(span, call, options));
-      vi.spyOn(publicClient, "simulateContract").mockImplementation((params) => {
-        if (params.functionName !== "executeProposal") return simulateContract(params);
-        zadd.mockImplementationOnce(async (...args) => {
-          await add(...args);
-          return add(...args);
-        });
-        // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
-        throw getContractError(
-          new RawContractError({ data: encodeErrorResult({ abi: proposalManagerAbi, errorName: "Timelocked" }) }),
-          { ...params, abi: proposalManagerAbi, args: [proposal.args.nonce] },
-        );
-      });
-
-      await appClient.index.$post({
-        ...withdrawProposal,
-        json: {
-          ...withdrawProposal.json,
-          event: {
-            ...withdrawProposal.json.event,
-            data: {
-              ...withdrawProposal.json.event.data,
-              block: {
-                ...withdrawProposal.json.event.data.block,
-                logs: [{ topics: proposal.topics, data: proposal.data, account: { address: proposal.address } }],
-              },
-            },
-          },
-        },
-      });
-
-      expect(await removals).toStrictEqual([1]);
-      const queued = zadd.mock.calls.find(([key, , message]) => {
-        if (key !== "proposals" || typeof message !== "string") return false;
-        const proposalPayload = deserialize(message);
-        if (typeof proposalPayload !== "object" || proposalPayload === null) return false;
-        return (
-          "account" in proposalPayload &&
-          proposalPayload.account === proposal.args.account &&
-          "nonce" in proposalPayload &&
-          proposalPayload.nonce === proposal.args.nonce &&
-          "retryCount" in proposalPayload &&
-          proposalPayload.retryCount === 1
-        );
-      });
-      if (!queued || typeof queued[2] !== "string") throw new Error("missing requeued proposal");
-      const payload = deserialize(queued[2]);
-      if (
-        typeof payload !== "object" ||
-        payload === null ||
-        !("unlock" in payload) ||
-        typeof payload.unlock !== "bigint"
-      ) {
-        throw new Error("missing requeued proposal");
-      }
-      expect(await redis.zrem("proposals", queued[2])).toBe(1);
-      expect(payload.unlock).toBeGreaterThanOrEqual(proposal.args.unlock);
-      const proposalCaptureCalls = vi.mocked(captureException).mock.calls.filter((call) => match.capture(call));
-      expect(proposalCaptureCalls).toContainEqual([
-        expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "executeProposal" }),
-        expect.objectContaining({ level: "warning", fingerprint: ["{{ default }}", "Timelocked"] }),
-      ]);
-      expect(exaSendSpy.mock.calls.some(([, call]) => call.functionName === "setProposalNonce")).toBe(false);
-      expect(setUser).toHaveBeenCalledWith({ id: bobAccount });
-    });
-
-    it("fingerprints outer catch by reason", async () => {
-      const setUser = await spyScopeSetUser();
-      const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-      const match = matchProposal(proposal.args.account, proposal.args.nonce);
-      const simulateContract = vi.spyOn(publicClient, "simulateContract");
-      vi.mocked(continueTrace).mockImplementationOnce(() => {
-        throw new ContractFunctionExecutionError(
-          new ContractFunctionRevertedError({
-            abi: [],
-            functionName: "executeProposal",
-            message: "execution reverted: proposal outer reason fallback",
-          }),
-          { abi: [], contractAddress: bobAccount, functionName: "executeProposal", args: [proposal.args.nonce] },
-        );
-      });
-
-      await appClient.index.$post({
-        ...withdrawProposal,
-        json: {
-          ...withdrawProposal.json,
-          event: {
-            ...withdrawProposal.json.event,
-            data: {
-              ...withdrawProposal.json.event.data,
-              block: {
-                ...withdrawProposal.json.event.data.block,
-                logs: [{ topics: proposal.topics, data: proposal.data, account: { address: proposal.address } }],
-              },
-            },
-          },
-        },
-      });
-
-      await vi.waitUntil(
-        () =>
-          vi
-            .mocked(captureException)
-            .mock.calls.some(
-              ([error, hint]) =>
-                match.capture([error, hint]) &&
-                typeof hint === "object" &&
-                "fingerprint" in hint &&
-                Array.isArray(hint.fingerprint) &&
-                hint.fingerprint.includes("execution reverted: proposal outer reason fallback"),
-            ),
-        26_666,
-      );
-
-      const proposalCaptureCalls = vi.mocked(captureException).mock.calls.filter((call) => match.capture(call));
-      const captureExceptionFingerprints = proposalCaptureCalls.flatMap(([, hint]) =>
-        typeof hint === "object" && "fingerprint" in hint && Array.isArray(hint.fingerprint) ? [hint.fingerprint] : [],
-      );
-
-      expect(simulateContract).not.toHaveBeenCalledWith(
-        expect.objectContaining({ functionName: "executeProposal", args: [proposal.args.nonce] }),
-      );
-      expect(captureExceptionFingerprints).toEqual([
-        ["{{ default }}", "execution reverted: proposal outer reason fallback"],
-      ]);
-      expect(captureException).toHaveBeenCalledWith(
-        expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "executeProposal" }),
-        expect.objectContaining({
-          level: "error",
-          fingerprint: ["{{ default }}", "execution reverted: proposal outer reason fallback"],
-        }),
-      );
-      expect(setUser).toHaveBeenCalledWith({ id: bobAccount });
-    });
-
-    it("fingerprints outer catch by signature", async () => {
-      const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-      const match = matchProposal(proposal.args.account, proposal.args.nonce);
-      const simulateContract = vi.spyOn(publicClient, "simulateContract");
-      vi.mocked(continueTrace).mockImplementationOnce(() => {
-        // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
-        throw getContractError(new RawContractError({ data: "0x12345678" }), {
-          abi: [],
-          address: bobAccount,
-          functionName: "executeProposal",
-          args: [proposal.args.nonce],
-        });
-      });
-
-      await appClient.index.$post({
-        ...withdrawProposal,
-        json: {
-          ...withdrawProposal.json,
-          event: {
-            ...withdrawProposal.json.event,
-            data: {
-              ...withdrawProposal.json.event.data,
-              block: {
-                ...withdrawProposal.json.event.data.block,
-                logs: [{ topics: proposal.topics, data: proposal.data, account: { address: proposal.address } }],
-              },
-            },
-          },
-        },
-      });
-
-      await vi.waitUntil(
-        () =>
-          vi
-            .mocked(captureException)
-            .mock.calls.some(
-              ([error, hint]) =>
-                match.capture([error, hint]) &&
-                typeof hint === "object" &&
-                "fingerprint" in hint &&
-                Array.isArray(hint.fingerprint) &&
-                hint.fingerprint.includes("0x12345678"),
-            ),
-        26_666,
-      );
-
-      const proposalCaptureCalls = vi.mocked(captureException).mock.calls.filter((call) => match.capture(call));
-      const captureExceptionFingerprints = proposalCaptureCalls.flatMap(([, hint]) =>
-        typeof hint === "object" && "fingerprint" in hint && Array.isArray(hint.fingerprint) ? [hint.fingerprint] : [],
-      );
-
-      expect(simulateContract).not.toHaveBeenCalledWith(
-        expect.objectContaining({ functionName: "executeProposal", args: [proposal.args.nonce] }),
-      );
-      expect(captureExceptionFingerprints).toEqual([["{{ default }}", "0x12345678"]]);
-      expect(captureException).toHaveBeenCalledWith(
-        expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "executeProposal" }),
-        expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "0x12345678"] }),
-      );
-    });
-
-    it("fingerprints outer catch as unknown contract revert", async () => {
-      const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-      const match = matchProposal(proposal.args.account, proposal.args.nonce);
-      const simulateContract = vi.spyOn(publicClient, "simulateContract");
-      vi.mocked(continueTrace).mockImplementationOnce(() => {
-        // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
-        throw getContractError(new RawContractError({ data: "0x" }), {
-          abi: [],
-          address: bobAccount,
-          functionName: "executeProposal",
-          args: [proposal.args.nonce],
-        });
-      });
-
-      await appClient.index.$post({
-        ...withdrawProposal,
-        json: {
-          ...withdrawProposal.json,
-          event: {
-            ...withdrawProposal.json.event,
-            data: {
-              ...withdrawProposal.json.event.data,
-              block: {
-                ...withdrawProposal.json.event.data.block,
-                logs: [{ topics: proposal.topics, data: proposal.data, account: { address: proposal.address } }],
-              },
-            },
-          },
-        },
-      });
-
-      await vi.waitUntil(
-        () =>
-          vi
-            .mocked(captureException)
-            .mock.calls.some(
-              ([error, hint]) =>
-                match.capture([error, hint]) &&
-                typeof hint === "object" &&
-                "fingerprint" in hint &&
-                Array.isArray(hint.fingerprint) &&
-                hint.fingerprint.includes("unknown"),
-            ),
-        26_666,
-      );
-
-      const proposalCaptureCalls = vi.mocked(captureException).mock.calls.filter((call) => match.capture(call));
-      const captureExceptionFingerprints = proposalCaptureCalls.flatMap(([, hint]) =>
-        typeof hint === "object" && "fingerprint" in hint && Array.isArray(hint.fingerprint) ? [hint.fingerprint] : [],
-      );
-
-      expect(simulateContract).not.toHaveBeenCalledWith(
-        expect.objectContaining({ functionName: "executeProposal", args: [proposal.args.nonce] }),
-      );
-      expect(captureExceptionFingerprints).toEqual([["{{ default }}", "unknown"]]);
-      expect(captureException).toHaveBeenCalledWith(
-        expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "executeProposal" }),
-        expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "unknown"] }),
-      );
-    });
-
-    it("fingerprints outer catch as unknown", async () => {
-      const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-      const simulateContract = vi.spyOn(publicClient, "simulateContract");
-      const error = new Error("nonce reset failed");
-      vi.mocked(continueTrace).mockImplementationOnce(() => {
-        throw error;
-      });
-
-      await appClient.index.$post({
-        ...withdrawProposal,
-        json: {
-          ...withdrawProposal.json,
-          event: {
-            ...withdrawProposal.json.event,
-            data: {
-              ...withdrawProposal.json.event.data,
-              block: {
-                ...withdrawProposal.json.event.data.block,
-                logs: [{ topics: proposal.topics, data: proposal.data, account: { address: proposal.address } }],
-              },
-            },
-          },
-        },
-      });
-
-      await vi.waitUntil(
-        () =>
-          vi
-            .mocked(captureException)
-            .mock.calls.some(
-              ([captured, hint]) =>
-                captured === error &&
-                typeof hint === "object" &&
-                "fingerprint" in hint &&
-                Array.isArray(hint.fingerprint) &&
-                hint.fingerprint.includes("unknown"),
-            ),
-        26_666,
-      );
-
-      const proposalCaptureCalls = vi.mocked(captureException).mock.calls.filter(([captured]) => captured === error);
-      const captureExceptionFingerprints = proposalCaptureCalls.flatMap(([, hint]) =>
-        typeof hint === "object" && "fingerprint" in hint && Array.isArray(hint.fingerprint) ? [hint.fingerprint] : [],
-      );
-
-      expect(simulateContract).not.toHaveBeenCalledWith(
-        expect.objectContaining({ functionName: "executeProposal", args: [proposal.args.nonce] }),
-      );
-      expect(captureExceptionFingerprints).toEqual([["{{ default }}", "unknown"]]);
-      expect(captureException).toHaveBeenCalledWith(
-        expect.objectContaining({ message: "nonce reset failed" }),
-        expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "unknown"] }),
-      );
-    });
-
-    it("handles recovery NonceTooLow as success", async () => {
-      const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-      const match = matchProposal(proposal.args.account, proposal.args.nonce);
-      const errorAbi = [{ type: "error", name: "NonceTooLow", inputs: [] }] as const;
-      const removals = waitForRemovals([match]);
-      vi.spyOn(publicClient, "simulateContract")
-        .mockImplementationOnce(() => {
-          // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
-          throw getContractError(new RawContractError({ data: "0x" }), {
-            abi: [],
-            address: bobAccount,
-            functionName: "executeProposal",
-            args: [proposal.args.nonce],
-          });
-        })
-        .mockImplementationOnce(() => {
-          // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
-          throw getContractError(
-            new RawContractError({ data: encodeErrorResult({ abi: errorAbi, errorName: "NonceTooLow" }) }),
-            {
-              abi: errorAbi,
-              address: bobAccount,
-              functionName: "setProposalNonce",
-              args: [proposal.args.nonce + 1n],
-            },
-          );
-        });
-
-      await appClient.index.$post({
-        ...withdrawProposal,
-        json: {
-          ...withdrawProposal.json,
-          event: {
-            ...withdrawProposal.json.event,
-            data: {
-              ...withdrawProposal.json.event.data,
-              block: {
-                ...withdrawProposal.json.event.data.block,
-                logs: [{ topics: proposal.topics, data: proposal.data, account: { address: proposal.address } }],
-              },
-            },
-          },
-        },
-      });
-
-      expect(await removals).toStrictEqual([1]);
-
-      const recoveryCapture = vi
-        .mocked(captureException)
-        .mock.calls.find(
-          ([error, hint]) =>
-            match.capture([error, hint]) &&
-            error instanceof Error &&
-            "functionName" in error &&
-            error.functionName === "setProposalNonce" &&
-            typeof hint === "object" &&
-            "contexts" in hint,
-        );
-
-      expect(recoveryCapture).toBeUndefined();
-    });
+    expect(retried.status).toBe(200);
+    expect(scheduled(add)).toStrictEqual([`${proposer}-${nonce}-0`]);
+    await queue.remove(`${proposer}-${nonce}-0`);
   });
 
-  describe("with wrapped error", () => {
-    beforeEach(async () => {
-      const hash = await proposeWithdraw(3_000_000n, padHex("0x69", { size: 20 }));
-      proposals = await getLogs([hash]);
-      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
-      const unlock = proposals[0]?.args.unlock ?? 0n;
-      vi.setSystemTime(new Date(Number(unlock + 10n) * 1000));
-    });
+  it("schedules the proposal with a withdraw in the block", async () => {
+    const add = spyAdd();
+    const getSettlements = vi.spyOn(manteca, "getSettlements").mockResolvedValueOnce({ ARS: settlement });
+    const getPaymentLock = vi.spyOn(manteca, "getPaymentLock");
 
-    afterEach(() => vi.useRealTimers());
+    const response = await appClient.index.$post(
+      withLogs([withdrawal(), withdrawLog({ receiver: getAddress(padHex("0x69", { size: 20 })), owner: proposer })]),
+    );
 
-    it("fingerprints with inner selector", async () => {
-      const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-
-      vi.spyOn(publicClient, "simulateContract").mockImplementationOnce(() => {
-        // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
-        throw getContractError(
-          new RawContractError({
-            data: encodeErrorResult({
-              abi: wrappedErrorAbi,
-              errorName: "WrappedError",
-              args: [zeroAddress, "0x931997cf", "0x", "0x"],
-            }),
-          }),
-          { abi: wrappedErrorAbi, address: bobAccount, functionName: "executeProposal", args: [proposal.args.nonce] },
-        );
-      });
-
-      const waitForTransactionReceipt = vi.spyOn(publicClient, "waitForTransactionReceipt");
-
-      await appClient.index.$post({
-        ...withdrawProposal,
-        json: {
-          ...withdrawProposal.json,
-          event: {
-            ...withdrawProposal.json.event,
-            data: {
-              ...withdrawProposal.json.event.data,
-              block: {
-                ...withdrawProposal.json.event.data.block,
-                logs: [{ topics: proposal.topics, data: proposal.data, account: { address: proposal.address } }],
-              },
-            },
-          },
-        },
-      });
-
-      await vi.waitUntil(
-        () => waitForTransactionReceipt.mock.settledResults.some(({ type }) => type !== "incomplete"),
-        26_666,
-      );
-
-      expect(captureException).toHaveBeenCalledWith(
-        expect.objectContaining({ name: "ContractFunctionExecutionError" }),
-        expect.objectContaining({ level: "warning", fingerprint: ["{{ default }}", "WrappedError", "0x931997cf"] }),
-      );
-    });
-
-    it("fingerprints zero data errors", async () => {
-      const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-
-      vi.spyOn(publicClient, "simulateContract").mockImplementationOnce(() => {
-        // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
-        throw getContractError(new RawContractError({ data: "0x" }), {
-          abi: [],
-          address: bobAccount,
-          functionName: "executeProposal",
-          args: [proposal.args.nonce],
-        });
-      });
-
-      const waitForTransactionReceipt = vi.spyOn(publicClient, "waitForTransactionReceipt");
-
-      await appClient.index.$post({
-        ...withdrawProposal,
-        json: {
-          ...withdrawProposal.json,
-          event: {
-            ...withdrawProposal.json.event,
-            data: {
-              ...withdrawProposal.json.event.data,
-              block: {
-                ...withdrawProposal.json.event.data.block,
-                logs: [{ topics: proposal.topics, data: proposal.data, account: { address: proposal.address } }],
-              },
-            },
-          },
-        },
-      });
-
-      await vi.waitUntil(
-        () => waitForTransactionReceipt.mock.settledResults.some(({ type }) => type !== "incomplete"),
-        26_666,
-      );
-
-      expect(captureException).toHaveBeenCalledWith(
-        expect.objectContaining({ name: "ContractFunctionExecutionError" }),
-        expect.objectContaining({ level: "warning", fingerprint: ["{{ default }}", "unknown"] }),
-      );
-    });
-
-    it("fingerprints non-contract errors", async () => {
-      const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-
-      vi.spyOn(publicClient, "simulateContract").mockImplementationOnce(() => {
-        throw new Error("test");
-      });
-
-      await appClient.index.$post({
-        ...withdrawProposal,
-        json: {
-          ...withdrawProposal.json,
-          event: {
-            ...withdrawProposal.json.event,
-            data: {
-              ...withdrawProposal.json.event.data,
-              block: {
-                ...withdrawProposal.json.event.data.block,
-                logs: [{ topics: proposal.topics, data: proposal.data, account: { address: proposal.address } }],
-              },
-            },
-          },
-        },
-      });
-
-      await vi.waitUntil(
-        () =>
-          vi
-            .mocked(captureException)
-            .mock.calls.some(
-              ([error, context]) =>
-                error instanceof Error &&
-                error.message === "test" &&
-                typeof context === "object" &&
-                "fingerprint" in context,
-            ),
-        26_666,
-      );
-
-      expect(captureException).toHaveBeenCalledWith(
-        expect.objectContaining({ message: "test" }),
-        expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "unknown"] }),
-      );
-    });
-
-    it("fingerprints unknown signatures", async () => {
-      const proposal = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-
-      vi.spyOn(publicClient, "simulateContract").mockImplementationOnce(() => {
-        // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
-        throw getContractError(new RawContractError({ data: "0x12345678" }), {
-          abi: [],
-          address: bobAccount,
-          functionName: "executeProposal",
-          args: [proposal.args.nonce],
-        });
-      });
-
-      const waitForTransactionReceipt = vi.spyOn(publicClient, "waitForTransactionReceipt");
-
-      await appClient.index.$post({
-        ...withdrawProposal,
-        json: {
-          ...withdrawProposal.json,
-          event: {
-            ...withdrawProposal.json.event,
-            data: {
-              ...withdrawProposal.json.event.data,
-              block: {
-                ...withdrawProposal.json.event.data.block,
-                logs: [{ topics: proposal.topics, data: proposal.data, account: { address: proposal.address } }],
-              },
-            },
-          },
-        },
-      });
-
-      await vi.waitUntil(
-        () => waitForTransactionReceipt.mock.settledResults.some(({ type }) => type !== "incomplete"),
-        26_666,
-      );
-
-      expect(captureException).toHaveBeenCalledWith(
-        expect.objectContaining({ name: "ContractFunctionExecutionError" }),
-        expect.objectContaining({ level: "warning", fingerprint: ["{{ default }}", "0x12345678"] }),
-      );
-    });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({});
+    expect(scheduled(add)).toStrictEqual([`${proposer}-${nonce}-0`]);
+    expect(getSettlements).toHaveBeenCalledOnce();
+    expect(getPaymentLock).not.toHaveBeenCalled();
+    expect(setExtra).not.toHaveBeenCalledWith("exa.ignore", true);
+    await queue.remove(`${proposer}-${nonce}-0`);
   });
 
-  describe.todo("with none proposal", () => {
-    beforeEach(async () => {
-      const hash = await execute(
-        encodeFunctionData({
-          abi: exaPluginAbi,
-          functionName: "propose",
-          args: [marketUSDCAddress, 1n, ProposalType.None, "0x"],
-        }),
-      );
-      proposals = await getLogs([hash]);
-      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
-      const unlock = proposals[0]?.args.unlock ?? 0n;
-      vi.setSystemTime(new Date(Number(unlock + 10n) * 1000));
-    });
+  it("schedules the proposal when settlements fail", async () => {
+    const add = spyAdd();
+    const getSettlements = vi.spyOn(manteca, "getSettlements").mockRejectedValueOnce(new Error("manteca down"));
 
-    it("increments nonce", async () => {
-      const none = proposals[0]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-      const waitForTransactionReceipt = vi.spyOn(publicClient, "waitForTransactionReceipt");
-      await Promise.all([
-        appClient.index.$post({
-          ...withdrawProposal,
-          json: {
-            ...withdrawProposal.json,
-            event: {
-              ...withdrawProposal.json.event,
-              data: {
-                ...withdrawProposal.json.event.data,
-                block: {
-                  ...withdrawProposal.json.event.data.block,
-                  logs: [{ topics: none.topics, data: none.data, account: { address: none.address } }],
-                },
-              },
-            },
-          },
-        }),
-        vi.waitUntil(
-          () => waitForTransactionReceipt.mock.settledResults.some(({ type }) => type !== "incomplete"),
-          6666,
-        ),
-      ]);
+    const response = await appClient.index.$post(
+      withLogs([withdrawal(), withdrawLog({ receiver: settlement, owner: proposer })]),
+    );
 
-      await expect(
-        publicClient.readContract({
-          address: proposalManagerAddress,
-          abi: proposalManagerAbi,
-          functionName: "nonces",
-          args: [bobAccount],
-        }),
-      ).resolves.toBe(none.args.nonce + 1n);
-    });
+    expect(response.status).toBe(500);
+    expect(scheduled(add)).toStrictEqual([`${proposer}-${nonce}-0`]);
+    expect(getSettlements).toHaveBeenCalledOnce();
+    expect(setExtra).not.toHaveBeenCalledWith("exa.ignore", true);
+    await queue.remove(`${proposer}-${nonce}-0`);
   });
 
-  describe("with idle proposals", () => {
-    beforeEach(async () => {
-      const hash = await bob.writeContract({
-        address: bobAccount,
-        functionName: "executeBatch",
-        args: [
-          [4000n, 5000n, 6000n, 7000n, 8000n, 9000n].map((value) => ({
-            target: bobAccount,
-            value: 0n,
-            data: encodeFunctionData({
-              abi: exaPluginAbi,
-              functionName: "propose",
-              args: [
-                marketUSDCAddress,
-                value,
-                ProposalType.Withdraw,
-                encodeAbiParameters([{ type: "address" }], [padHex("0x69", { size: 20 })]),
-              ],
-            }),
-          })),
-        ],
-        abi: upgradeableModularAccountAbi,
-        gas: 6_666_666n,
-      });
-      proposals = await getLogs([hash]);
-      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
-      const maxUnlock = proposals.reduce((max, proposal) => {
-        if (proposal.args.unlock > max) return proposal.args.unlock;
-        return max;
-      }, 0n);
-      const block = await anvilClient.getBlock();
-      if (block.timestamp <= maxUnlock) {
-        await anvilClient.mine({ blocks: 1, interval: Number(maxUnlock - block.timestamp + 1n) });
-      }
-      vi.setSystemTime(new Date(Number(maxUnlock + 10n) * 1000));
+  it("moves scheduled messages from redis into the queue", async () => {
+    const stale = getAddress(padHex("0x57a1e", { size: 20 }));
+    const proposed = serialize({
+      account: stale,
+      amount: 40n,
+      data: "0x",
+      id: "legacy",
+      market: marketUSDCAddress,
+      nonce: 4n,
+      proposalType: ProposalType.Swap,
+      retryCount: 2,
+      sentryTrace: "trace",
+      timestamp: 1,
+      unlock,
     });
+    const withdrawn = serialize({ account: stale, amount: 50n, market: marketUSDCAddress, receiver, unlock });
+    const invalid = serialize({ account: stale, amount: 60n, market: marketUSDCAddress, unlock });
+    await Promise.all([
+      redis.zadd("proposals", Number(unlock), proposed),
+      redis.zadd("withdraw", 1, invalid, Number(unlock), withdrawn),
+    ]);
 
-    afterEach(() => vi.useRealTimers());
+    await createBlockHook(defaults).ready;
 
-    it("executes idle proposals and captures NotNext warning", async () => {
-      const setUser = await spyScopeSetUser();
-      const idle = proposals[1]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-      const withdraw = proposals[3]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-      const another = proposals[4]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-      const pending = proposals[5]!; // eslint-disable-line @typescript-eslint/no-non-null-assertion
-      const match = matchProposal(another.args.account, another.args.nonce);
-      const expected = [
-        {
-          receiver: getAddress(decodeWithdraw(withdraw.args.data)),
-          amount: withdraw.args.amount,
-        },
-        {
-          receiver: getAddress(decodeWithdraw(idle.args.data)),
-          amount: idle.args.amount,
-        },
-      ];
-      const notNextAbi = [{ type: "error", name: "NotNext", inputs: [] }] as const;
-      const { simulateContract } = publicClient;
-      let injected = false;
-      vi.spyOn(publicClient, "simulateContract").mockImplementation((params) => {
-        if (
-          !injected &&
-          params.functionName === "executeProposal" &&
-          params.args?.length === 1 &&
-          params.args[0] === another.args.nonce
-        ) {
-          injected = true;
-          // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
-          throw getContractError(
-            new RawContractError({ data: encodeErrorResult({ abi: notNextAbi, errorName: "NotNext" }) }),
-            { abi: notNextAbi, address: bobAccount, functionName: "executeProposal", args: [another.args.nonce] },
-          );
-        }
-        return simulateContract(params);
-      });
-
-      const proposalExecutions = waitForSuccessfulProposalExecutions([
-        withdraw.args.nonce,
-        idle.args.nonce,
-        another.args.nonce,
-      ]);
-      const notNextCapture = vi.waitUntil(
-        () =>
-          vi
-            .mocked(captureException)
-            .mock.calls.filter((call) => match.capture(call))
-            .some(
-              ([, hint]) =>
-                typeof hint === "object" &&
-                "fingerprint" in hint &&
-                Array.isArray(hint.fingerprint) &&
-                hint.fingerprint[1] === "NotNext",
-            ),
-        26_666,
-      );
-
-      const [response, receipts] = await Promise.all([
-        appClient.index.$post({
-          ...withdrawProposal,
-          json: {
-            ...withdrawProposal.json,
-            event: {
-              ...withdrawProposal.json.event,
-              data: {
-                ...withdrawProposal.json.event.data,
-                block: {
-                  ...withdrawProposal.json.event.data.block,
-                  logs: [
-                    { topics: withdraw.topics, data: withdraw.data, account: { address: withdraw.address } },
-                    { topics: another.topics, data: another.data, account: { address: another.address } },
-                  ],
-                },
-              },
-            },
-          },
-        }),
-        proposalExecutions,
-        notNextCapture,
-      ]);
-
-      expect(response.status).toBe(200);
-      expect(hasExpectedTransfers(receipts, expected)).toBe(true);
-      expect(setUser).toHaveBeenCalledWith({ id: bobAccount });
-      const proposalCaptureCalls = vi.mocked(captureException).mock.calls.filter((call) => match.capture(call));
-      expect(proposalCaptureCalls).toContainEqual([
-        expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "executeProposal" }),
-        expect.objectContaining({ level: "warning", fingerprint: ["{{ default }}", "NotNext"] }),
-      ]);
-      await expect(
-        publicClient.readContract({
-          address: exaPreviewerAddress,
-          abi: exaPreviewerAbi,
-          functionName: "pendingProposals",
-          args: [bobAccount],
-        }),
-      ).resolves.toStrictEqual([
-        {
-          nonce: pending.args.nonce,
-          unlock: pending.args.unlock,
-          proposal: {
-            amount: pending.args.amount,
-            market: pending.args.market,
-            timestamp: pending.args.unlock - BigInt(deploy.proposalManager.delay[anvil.id]),
-            proposalType: pending.args.proposalType,
-            data: pending.args.data,
-          },
-        },
-      ]);
+    await expect(redis.zscore("proposals", proposed)).resolves.toBeNull(); // cspell:ignore zscore
+    await expect(redis.zscore("withdraw", withdrawn)).resolves.toBeNull();
+    await expect(redis.zscore("withdraw", invalid)).resolves.toBe("1");
+    expect(captureException).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "schema", path: [expect.objectContaining({ key: "receiver" })] }),
+      ]),
+      { level: "error", contexts: { migrate: { key: "withdraw" } } },
+    );
+    const [proposalJob, withdrawJob] = await Promise.all([
+      queue.getJob(`${stale}-4-2`),
+      queue.getJob(`${stale}-${marketUSDCAddress}-${unlock}`),
+    ]);
+    expect(proposalJob?.data).toStrictEqual({
+      account: stale,
+      amount: "40",
+      data: "0x",
+      market: marketUSDCAddress,
+      nonce: "4",
+      proposalType: ProposalType.Swap,
+      retryCount: 2,
+      timestamp: 1,
+      unlock: String(unlock),
+      sentryBaggage: expect.any(String) as string,
+      sentryTrace: expect.any(String) as string,
     });
+    expect(withdrawJob?.data).toStrictEqual({
+      account: stale,
+      amount: "50",
+      market: marketUSDCAddress,
+      receiver,
+      retryCount: 0,
+      unlock: String(unlock),
+      sentryBaggage: expect.any(String) as string,
+      sentryTrace: expect.any(String) as string,
+    });
+    await Promise.all([proposalJob?.remove(), withdrawJob?.remove(), redis.zrem("withdraw", invalid)]);
   });
 });
 
 describe("legacy withdraw", () => {
-  const withdrawUnlock = 1000n;
+  const withdrawUnlock = BigInt(Math.floor(Date.now() / 1000) + 365 * 24 * 60 * 60);
   const withdrawOwner = padHex("0xdead", { size: 20 });
   const withdrawAccount = deriveAddress(exaAccountFactoryAddress, { x: padHex(withdrawOwner), y: zeroHash });
   const withdrawMarket = getAddress(padHex("0xbeef", { size: 20 }));
   const withdrawReceiver = getAddress(padHex("0xcafe", { size: 20 }));
-  const { simulateContract } = publicClient;
 
   beforeAll(async () => {
     await database.insert(credentials).values({
@@ -1784,15 +548,43 @@ describe("legacy withdraw", () => {
     };
   }
 
+  it("schedules legacy withdraws", async () => {
+    const add = spyAdd();
+
+    const response = await appClient.index.$post(legacyPayload(1_500_000n));
+
+    expect(response.status).toBe(200);
+    expect(add(withdrawAccount, "withdraw").map(({ jobId }) => jobId)).toStrictEqual([
+      `${withdrawAccount}-${withdrawMarket}-${withdrawUnlock}`,
+    ]);
+    const job = await queue.getJob(`${withdrawAccount}-${withdrawMarket}-${withdrawUnlock}`);
+    if (!job) throw new Error("job not found");
+    expect(job.data).toStrictEqual({
+      account: withdrawAccount,
+      amount: "1500000",
+      market: withdrawMarket,
+      receiver: withdrawReceiver,
+      retryCount: 0,
+      timestamp: Number(withdrawUnlock),
+      unlock: String(withdrawUnlock),
+      sentryBaggage: expect.any(String) as string,
+      sentryTrace: expect.any(String) as string,
+    });
+    await expect(job.getState()).resolves.toBe("delayed");
+    expect(startSpan).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "schedule withdraw", op: "queue.publish" }),
+      expect.any(Function),
+    );
+    await job.remove();
+  });
+
   it("ignores withdrawals emitted by an untrusted contract", async () => {
-    const zadd = spyZadd();
+    const add = spyAdd();
 
     const response = await appClient.index.$post(legacyPayload(1_500_000n, withdrawAccount, zeroAddress));
 
     expect(response.status).toBe(200);
-    expect(
-      zadd.mock.calls.filter(([key, , member]) => key === "withdraw" && member.includes(withdrawAccount)),
-    ).toStrictEqual([]);
+    expect(add(withdrawAccount)).toStrictEqual([]);
   });
 
   it("ignores proposals from unknown accounts", async () => {
@@ -1803,6 +595,7 @@ describe("legacy withdraw", () => {
     onTestFinished(() => {
       vi.mocked(getActiveSpan).mockReset();
     });
+    const add = spyAdd();
     const payload = legacyPayload(1n, unknownAccount);
     payload.json.event.data.block.logs.push({
       topics: encodeEventTopics({
@@ -1811,7 +604,7 @@ describe("legacy withdraw", () => {
       }) as [Hex, ...Hex[]],
       data: encodeAbiParameters(
         proposed.inputs.filter(({ indexed }) => !indexed),
-        [ProposalType.Withdraw, 1n, encodeAbiParameters([{ type: "address" }], [unknownAccount]), 1n],
+        [ProposalType.Withdraw, 1n, encodeAbiParameters([{ type: "address" }], [unknownAccount]), withdrawUnlock],
       ),
       account: { address: proposalManagerAddress },
     });
@@ -1819,8 +612,7 @@ describe("legacy withdraw", () => {
     const response = await appClient.index.$post(payload);
 
     expect(response.status).toBe(200);
-    const queued = [...(await redis.zrange("proposals", 0, -1)), ...(await redis.zrange("withdraw", 0, -1))];
-    expect(queued.map((message) => deserialize<{ account: string }>(message).account)).not.toContain(unknownAccount);
+    expect(add(unknownAccount)).toStrictEqual([]);
     expect(setAttribute).toHaveBeenCalledWith("exa.unknown", [unknownAccount]);
     expect(vi.mocked(captureException).mock.calls.filter((call) => inspect(call).includes(unknownAccount))).toEqual([]);
     expect(sendPushNotificationMock).not.toHaveBeenCalledWith(expect.objectContaining({ userId: unknownAccount }));
@@ -1862,7 +654,7 @@ describe("legacy withdraw", () => {
       }) as [Hex, ...Hex[]],
       data: encodeAbiParameters(
         proposed.inputs.filter(({ indexed }) => !indexed),
-        [ProposalType.Withdraw, 1n, encodeAbiParameters([{ type: "address" }], [account]), 1n],
+        [ProposalType.Withdraw, 1n, encodeAbiParameters([{ type: "address" }], [account]), withdrawUnlock],
       ),
       account: { address: proposalManagerAddress },
     };
@@ -1872,13 +664,13 @@ describe("legacy withdraw", () => {
     const account = await createFactoryAccount();
     const payload = await payloadAtHead(1n, account);
     payload.json.event.data.block.logs = [proposedLog(account)];
-    const zadd = spyZadd();
+    const add = spyAdd();
     const setAttribute = spySetAttribute();
 
     const response = await appClient.index.$post(payload);
 
     expect(response.status).toBe(200);
-    expect(zadd.mock.calls.filter((call) => call[0] === "proposals" && call[2].includes(account))).toHaveLength(1);
+    expect(add(account, "proposal")).toHaveLength(1);
     expect(setAttribute).not.toHaveBeenCalledWith("exa.unknown", expect.anything());
     expect(capturedFor(account)).toEqual([]);
   });
@@ -1886,7 +678,7 @@ describe("legacy withdraw", () => {
   it("looks up each factory account once", async () => {
     const account = await createFactoryAccount();
     const lookups = vi.spyOn(publicClient, "getLogs");
-    const zadd = spyZadd();
+    const add = spyAdd();
     const setAttribute = spySetAttribute();
 
     const first = await appClient.index.$post(await payloadAtHead(1_100_000n, account));
@@ -1895,11 +687,7 @@ describe("legacy withdraw", () => {
     expect(first.status).toBe(200);
     expect(second.status).toBe(200);
     expect(lookups.mock.calls.filter(([parameters]) => inspect(parameters?.args).includes(account))).toHaveLength(1);
-    expect(
-      zadd.mock.calls
-        .filter(([key, , member]) => key === "withdraw" && member.includes(account))
-        .map((call) => deserialize<{ amount: bigint }>(call[2]).amount),
-    ).toStrictEqual([1_100_000n, 1_200_000n]);
+    expect(add(account, "withdraw").map(({ amount }) => amount)).toStrictEqual(["1100000", "1200000"]);
     expect(setAttribute).not.toHaveBeenCalledWith("exa.unknown", expect.anything());
   });
 
@@ -1915,11 +703,11 @@ describe("legacy withdraw", () => {
         inspect(parameters?.args).includes(account) ? original(parameters) : Promise.reject(new Error("rpc failure")),
       );
 
-    const zadd = spyZadd();
+    const add = spyAdd();
     const setAttribute = spySetAttribute();
 
     const failed = await appClient.index.$post(payload);
-    const queuedOnFailure = zadd.mock.calls.filter((call) => call[0] === "proposals" && call[2].includes(account));
+    const queuedOnFailure = add(account);
     lookups.mockClear();
     lookups.mockImplementation(original);
     const retried = await appClient.index.$post(payload);
@@ -1928,10 +716,8 @@ describe("legacy withdraw", () => {
     expect(queuedOnFailure).toEqual([]);
     expect(retried.status).toBe(200);
     expect(lookups.mock.calls.map(([parameters]) => parameters?.args)).toEqual([{ account: accounts.slice(100) }]);
-    expect(zadd.mock.calls.filter((call) => call[0] === "proposals" && call[2].includes(account))).toHaveLength(1);
-    expect(
-      zadd.mock.calls.filter((call) => accounts.slice(1).some((foreign) => call[2].includes(foreign))),
-    ).toStrictEqual([]);
+    expect(add(account, "proposal")).toHaveLength(1);
+    expect(accounts.slice(1).flatMap((foreign) => add(foreign))).toStrictEqual([]);
     expect(setAttribute.mock.calls.filter(([key]) => key === "exa.unknown")).toEqual([
       ["exa.unknown", accounts.slice(1)],
     ]);
@@ -1940,7 +726,7 @@ describe("legacy withdraw", () => {
   it("looks up each foreign account once", async () => {
     const account = privateKeyToAccount(generatePrivateKey()).address;
     const lookups = vi.spyOn(publicClient, "getLogs");
-    const zadd = spyZadd();
+    const add = spyAdd();
     const setAttribute = spySetAttribute();
 
     const first = await appClient.index.$post(await proposedAtHead(account));
@@ -1949,7 +735,7 @@ describe("legacy withdraw", () => {
     expect(first.status).toBe(200);
     expect(second.status).toBe(200);
     expect(lookups.mock.calls.filter(([parameters]) => inspect(parameters?.args).includes(account))).toHaveLength(1);
-    expect(zadd.mock.calls.filter((call) => call[2].includes(account))).toStrictEqual([]);
+    expect(add(account)).toStrictEqual([]);
     expect(setAttribute.mock.calls.filter(([key]) => key === "exa.unknown")).toEqual([
       ["exa.unknown", [account]],
       ["exa.unknown", [account]],
@@ -1960,7 +746,7 @@ describe("legacy withdraw", () => {
   it("looks up a foreign account again after a while", async () => {
     const account = privateKeyToAccount(generatePrivateKey()).address;
     const lookups = vi.spyOn(publicClient, "getLogs");
-    const zadd = spyZadd();
+    const add = spyAdd();
     const setAttribute = spySetAttribute();
 
     const first = await appClient.index.$post(await proposedAtHead(account));
@@ -1970,7 +756,7 @@ describe("legacy withdraw", () => {
     expect(first.status).toBe(200);
     expect(second.status).toBe(200);
     expect(lookups.mock.calls.filter(([parameters]) => inspect(parameters?.args).includes(account))).toHaveLength(2);
-    expect(zadd.mock.calls.filter((call) => call[2].includes(account))).toStrictEqual([]);
+    expect(add(account)).toStrictEqual([]);
     expect(setAttribute.mock.calls.filter(([key]) => key === "exa.unknown")).toEqual([
       ["exa.unknown", [account]],
       ["exa.unknown", [account]],
@@ -1984,7 +770,7 @@ describe("legacy withdraw", () => {
     const payload = await payloadAtHead(1n, withdrawAccount);
     payload.json.event.data.block.logs = accounts.map((address) => proposedLog(address));
     const lookups = vi.spyOn(publicClient, "getLogs");
-    const zadd = spyZadd();
+    const add = spyAdd();
     const setAttribute = spySetAttribute();
 
     const response = await appClient.index.$post(payload);
@@ -1994,10 +780,8 @@ describe("legacy withdraw", () => {
       { account: accounts.slice(0, 100) },
       { account: [account] },
     ]);
-    expect(zadd.mock.calls.filter((call) => call[0] === "proposals" && call[2].includes(account))).toHaveLength(1);
-    expect(
-      zadd.mock.calls.filter((call) => accounts.slice(0, 100).some((foreign) => call[2].includes(foreign))),
-    ).toStrictEqual([]);
+    expect(add(account, "proposal")).toHaveLength(1);
+    expect(accounts.slice(0, 100).flatMap((foreign) => add(foreign))).toStrictEqual([]);
     expect(setAttribute.mock.calls.filter(([key]) => key === "exa.unknown")).toEqual([
       ["exa.unknown", accounts.slice(0, 100)],
     ]);
@@ -2007,7 +791,7 @@ describe("legacy withdraw", () => {
     const account = await createFactoryAccount();
     const payload = legacyPayload(1_312_500n, account);
     const { number: _, ...block } = payload.json.event.data.block;
-    const zadd = spyZadd();
+    const add = spyAdd();
     const setAttribute = spySetAttribute();
 
     const response = await appClient.index.$post({
@@ -2016,7 +800,7 @@ describe("legacy withdraw", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(zadd.mock.calls.filter((call) => call[0] === "withdraw" && call[2].includes(account))).toHaveLength(1);
+    expect(add(account, "withdraw")).toHaveLength(1);
     expect(setAttribute).not.toHaveBeenCalledWith("exa.unknown", expect.anything());
     expect(capturedFor(account)).toEqual([]);
   });
@@ -2025,995 +809,37 @@ describe("legacy withdraw", () => {
     const account = await createFactoryAccount();
     const payload = await payloadAtHead(1_375_000n, account);
     payload.json.event.data.block.number += 1000;
-    const zadd = spyZadd();
+    const add = spyAdd();
 
     const response = await appClient.index.$post(payload);
 
     expect(response.status).toBe(500);
-    expect(zadd.mock.calls.filter((call) => call[2].includes(account))).toEqual([]);
+    expect(add(account)).toEqual([]);
   });
 
   it("schedules withdrawals from factory accounts without credentials", async () => {
     const account = await createFactoryAccount();
-    const zadd = spyZadd();
+    const add = spyAdd();
     const setAttribute = spySetAttribute();
 
     const response = await appClient.index.$post(await payloadAtHead(1_250_000n, account));
 
     expect(response.status).toBe(200);
-    expect(zadd.mock.calls.filter((call) => call[0] === "withdraw" && call[2].includes(account))).toHaveLength(1);
+    expect(add(account, "withdraw")).toHaveLength(1);
     expect(setAttribute).not.toHaveBeenCalledWith("exa.unknown", expect.anything());
     expect(capturedFor(account)).toEqual([]);
   });
 
   it("fails without queueing when credentials lookup fails", async () => {
-    const amount = 1_125_000n;
+    const add = spyAdd();
     vi.spyOn(database.query.credentials, "findMany").mockReturnValueOnce(
       Promise.reject(new Error("credentials lookup failed")) as never,
     );
 
-    const response = await appClient.index.$post(legacyPayload(amount));
+    const response = await appClient.index.$post(legacyPayload(1_125_000n));
 
     expect(response.status).toBe(500);
-    const queued = [...(await redis.zrange("proposals", 0, -1)), ...(await redis.zrange("withdraw", 0, -1))];
-    expect(
-      queued
-        .map((message) => deserialize<{ account: string; amount: bigint }>(message))
-        .filter((message) => message.account === withdrawAccount && message.amount === amount),
-    ).toEqual([]);
-  });
-
-  it("removes withdraw from queue on InsufficientAccountLiquidity", async () => {
-    const setUser = await spyScopeSetUser();
-    const amount = 1_000_000n;
-    const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
-    const removals = waitForRemovals([match]);
-    const insufficientAccountLiquidityError = getContractError(
-      new RawContractError({
-        data: encodeErrorResult({ abi: auditorAbi, errorName: "InsufficientAccountLiquidity" }),
-      }),
-      { abi: auditorAbi, address: withdrawAccount, functionName: "withdraw", args: [] },
-    );
-    vi.spyOn(publicClient, "simulateContract").mockImplementation(async (params) => {
-      if (params.functionName !== "withdraw") return simulateContract(params);
-      // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
-      throw insufficientAccountLiquidityError;
-    });
-
-    await appClient.index.$post(legacyPayload(amount));
-
-    expect(await removals).toStrictEqual([1]);
-
-    expect(vi.mocked(captureException).mock.calls.filter((call) => match.capture(call))).toEqual([]);
-    expect(revertFingerprint(insufficientAccountLiquidityError)).toEqual([
-      "{{ default }}",
-      "InsufficientAccountLiquidity",
-    ]);
-    expect(setUser).toHaveBeenCalledWith({ id: withdrawAccount });
-  });
-
-  it("removes withdraw from queue on NoProposal", async () => {
-    const amount = 1_250_000n;
-    const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
-    const removals = waitForRemovals([match]);
-    const noProposalError = getContractError(
-      new RawContractError({
-        data: encodeErrorResult({
-          abi: upgradeableModularAccountAbi,
-          errorName: "PreExecHookReverted",
-          args: [withdrawAccount, 0, encodeErrorResult({ abi: proposalManagerAbi, errorName: "NoProposal" })],
-        }),
-      }),
-      { abi: upgradeableModularAccountAbi, address: withdrawAccount, functionName: "withdraw", args: [] },
-    );
-    vi.spyOn(publicClient, "simulateContract").mockImplementation(async (params) => {
-      if (params.functionName !== "withdraw") return simulateContract(params);
-      // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
-      throw noProposalError;
-    });
-
-    await appClient.index.$post(legacyPayload(amount));
-
-    expect(await removals).toStrictEqual([1]);
-
-    expect(vi.mocked(captureException).mock.calls.filter((call) => match.capture(call))).toEqual([]);
-    expect(revertFingerprint(noProposalError)).toEqual(["{{ default }}", "PreExecHookReverted"]);
-    expect(
-      noProposalError instanceof ContractFunctionExecutionError &&
-        noProposalError.cause instanceof ContractFunctionRevertedError &&
-        noProposalError.cause.data?.errorName === "PreExecHookReverted" &&
-        noProposalError.cause.data.args?.[2] ===
-          encodeErrorResult({ abi: proposalManagerAbi, errorName: "NoProposal" }),
-    ).toBe(true);
-  });
-
-  it("removes withdraw from queue on RuntimeValidationFunctionMissing", async () => {
-    const amount = 1_313_000n;
-    const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
-    const removals = waitForRemovals([match]);
-    const runtimeValidationFunctionMissingError = getContractError(
-      new RawContractError({
-        data: encodeErrorResult({
-          abi: upgradeableModularAccountAbi,
-          errorName: "RuntimeValidationFunctionMissing",
-          args: ["0x3ccfd60b"],
-        }),
-      }),
-      { abi: upgradeableModularAccountAbi, address: withdrawAccount, functionName: "withdraw", args: [] },
-    );
-    vi.spyOn(publicClient, "simulateContract").mockImplementation(async (params) => {
-      if (params.functionName !== "withdraw") return simulateContract(params);
-      // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
-      throw runtimeValidationFunctionMissingError;
-    });
-
-    await appClient.index.$post(legacyPayload(amount));
-
-    expect(await removals).toStrictEqual([1]);
-
-    expect(vi.mocked(captureException).mock.calls.filter((call) => match.capture(call))).toEqual([]);
-    expect(revertFingerprint(runtimeValidationFunctionMissingError)).toEqual([
-      "{{ default }}",
-      "RuntimeValidationFunctionMissing",
-    ]);
-  });
-
-  it("sends withdraw notification when keeper returns receipt", async () => {
-    const setUser = await spyScopeSetUser();
-    const amount = 1_375_000n;
-    const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
-    const removals = waitForRemovals([match]);
-    const sendPushNotification = sendPushNotificationMock.mockResolvedValue({});
-    vi.spyOn(ensClient, "getEnsName").mockResolvedValue("alice.eth");
-    if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
-    const exaSend = keeper.exaSend.bind(keeper);
-    vi.spyOn(keeper, "exaSend").mockImplementation((span, call, options) =>
-      call.functionName === "withdraw"
-        ? Promise.resolve({ status: "success" } as TransactionReceipt)
-        : exaSend(span, call, options),
-    );
-    vi.spyOn(publicClient, "readContract").mockImplementation(({ functionName }) => {
-      if (functionName === "decimals") return Promise.resolve(6);
-      if (functionName === "symbol") return Promise.resolve("exaUSDC");
-      return Promise.reject(new Error("unexpected readContract call"));
-    });
-
-    await appClient.index.$post(legacyPayload(amount));
-
-    expect(await removals).toStrictEqual([1]);
-    expect(sendPushNotification).toHaveBeenCalledWith({
-      userId: withdrawAccount,
-      headings: t("Withdraw completed"),
-      contents: t("{{amount}} {{symbol}} sent to {{recipient}}", {
-        amount: f("1.375"),
-        symbol: "USDC",
-        recipient: "alice.eth",
-      }),
-      idempotencyKey: v5(
-        `https://exact.ly/withdraw/${chain.id}/${withdrawAccount}/${withdrawMarket}/${withdrawReceiver}/${amount}/${withdrawUnlock}`,
-        v5.URL,
-      ),
-    });
-    expect(vi.mocked(captureException).mock.calls.filter((call) => match.capture(call))).toEqual([]);
-    expect(setUser).toHaveBeenCalledWith({ id: withdrawAccount });
-  });
-
-  it("sends withdraw notification with shortened receiver when ens is missing", async () => {
-    const amount = 1_375_000n;
-    const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
-    const removals = waitForRemovals([match]);
-    const sendPushNotification = sendPushNotificationMock.mockResolvedValue({});
-    vi.spyOn(ensClient, "getEnsName").mockResolvedValue(null);
-    if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
-    const exaSend = keeper.exaSend.bind(keeper);
-    vi.spyOn(keeper, "exaSend").mockImplementation((span, call, options) =>
-      call.functionName === "withdraw"
-        ? Promise.resolve({ status: "success" } as TransactionReceipt)
-        : exaSend(span, call, options),
-    );
-    vi.spyOn(publicClient, "readContract").mockImplementation(({ functionName }) => {
-      if (functionName === "decimals") return Promise.resolve(6);
-      if (functionName === "symbol") return Promise.resolve("exaUSDC");
-      return Promise.reject(new Error("unexpected readContract call"));
-    });
-
-    await appClient.index.$post(legacyPayload(amount));
-
-    expect(await removals).toStrictEqual([1]);
-    expect(sendPushNotification).toHaveBeenCalledWith({
-      userId: withdrawAccount,
-      headings: t("Withdraw completed"),
-      contents: t("{{amount}} {{symbol}} sent to {{recipient}}", {
-        amount: f("1.375"),
-        symbol: "USDC",
-        recipient: shortenHex(withdrawReceiver),
-      }),
-      idempotencyKey: v5(
-        `https://exact.ly/withdraw/${chain.id}/${withdrawAccount}/${withdrawMarket}/${withdrawReceiver}/${amount}/${withdrawUnlock}`,
-        v5.URL,
-      ),
-    });
-    expect(vi.mocked(captureException).mock.calls.filter((call) => match.capture(call))).toEqual([]);
-  });
-
-  it("sends withdraw notification with shortened receiver when ens lookup fails", async () => {
-    const amount = 1_375_000n;
-    const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
-    const removals = waitForRemovals([match]);
-    const sendPushNotification = sendPushNotificationMock.mockResolvedValue({});
-    vi.spyOn(ensClient, "getEnsName").mockRejectedValue(new Error("ens failed"));
-    if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
-    const exaSend = keeper.exaSend.bind(keeper);
-    vi.spyOn(keeper, "exaSend").mockImplementation((span, call, options) =>
-      call.functionName === "withdraw"
-        ? Promise.resolve({ status: "success" } as TransactionReceipt)
-        : exaSend(span, call, options),
-    );
-    vi.spyOn(publicClient, "readContract").mockImplementation(({ functionName }) => {
-      if (functionName === "decimals") return Promise.resolve(6);
-      if (functionName === "symbol") return Promise.resolve("exaUSDC");
-      return Promise.reject(new Error("unexpected readContract call"));
-    });
-
-    await appClient.index.$post(legacyPayload(amount));
-
-    expect(await removals).toStrictEqual([1]);
-    expect(sendPushNotification).toHaveBeenCalledWith({
-      userId: withdrawAccount,
-      headings: t("Withdraw completed"),
-      contents: t("{{amount}} {{symbol}} sent to {{recipient}}", {
-        amount: f("1.375"),
-        symbol: "USDC",
-        recipient: shortenHex(withdrawReceiver),
-      }),
-      idempotencyKey: v5(
-        `https://exact.ly/withdraw/${chain.id}/${withdrawAccount}/${withdrawMarket}/${withdrawReceiver}/${amount}/${withdrawUnlock}`,
-        v5.URL,
-      ),
-    });
-    expect(vi.mocked(captureException).mock.calls.filter((call) => match.capture(call))).toEqual([]);
-  });
-
-  it("captures withdraw notification errors", async () => {
-    const error = new Error("push failed");
-    const amount = 1_375_000n;
-    const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
-    const removals = waitForRemovals([match]);
-    sendPushNotificationMock.mockImplementation(({ userId }) =>
-      userId === withdrawAccount ? Promise.reject(error) : Promise.resolve({}),
-    );
-    vi.spyOn(ensClient, "getEnsName").mockResolvedValue("alice.eth");
-    if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
-    const exaSend = keeper.exaSend.bind(keeper);
-    vi.spyOn(keeper, "exaSend").mockImplementation((span, call, options) =>
-      call.functionName === "withdraw"
-        ? Promise.resolve({ status: "success" } as TransactionReceipt)
-        : exaSend(span, call, options),
-    );
-    vi.spyOn(publicClient, "readContract").mockImplementation(({ functionName }) => {
-      if (functionName === "decimals") return Promise.resolve(6);
-      if (functionName === "symbol") return Promise.resolve("exaUSDC");
-      return Promise.reject(new Error("unexpected readContract call"));
-    });
-
-    await appClient.index.$post(legacyPayload(amount));
-
-    expect(await removals).toStrictEqual([1]);
-    await vi.waitUntil(() => vi.mocked(captureException).mock.calls.some(([captured]) => captured === error), 26_666);
-
-    expect(captureException).toHaveBeenCalledWith(error);
-  });
-
-  it("removes withdraw from queue when keeper returns reverted receipt", async () => {
-    const amount = 1_385_000n;
-    const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
-    const removals = waitForRemovals([match]);
-    if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
-    const exaSend = keeper.exaSend.bind(keeper);
-    vi.spyOn(keeper, "exaSend").mockImplementation((span, call, options) =>
-      call.functionName === "withdraw"
-        ? Promise.resolve({ status: "reverted" } as TransactionReceipt)
-        : exaSend(span, call, options),
-    );
-
-    await appClient.index.$post(legacyPayload(amount));
-
-    expect(await removals).toStrictEqual([1]);
-
-    expect(vi.mocked(captureException).mock.calls.filter((call) => match.capture(call))).toEqual([]);
-  });
-
-  it("captures withdraw errors without contract revert details", async () => {
-    const amount = 1_625_000n;
-    const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
-    const zrem = vi.spyOn(Redis.prototype, "zrem");
-    vi.spyOn(publicClient, "simulateContract").mockImplementation(async (params) => {
-      if (params.functionName !== "withdraw") return simulateContract(params);
-      throw new Error("plain withdraw error");
-    });
-
-    await appClient.index.$post(legacyPayload(amount));
-
-    await vi.waitUntil(
-      () =>
-        vi
-          .mocked(captureException)
-          .mock.calls.some(
-            ([error, hint]) =>
-              error instanceof Error &&
-              error.message === "plain withdraw error" &&
-              typeof hint === "object" &&
-              "contexts" in hint,
-          ),
-      26_666,
-    );
-
-    expect(captureException).toHaveBeenCalledWith(
-      expect.objectContaining({ message: "plain withdraw error" }),
-      expect.objectContaining({
-        level: "error",
-        contexts: {
-          withdraw: {
-            account: withdrawAccount,
-            market: withdrawMarket,
-            receiver: withdrawReceiver,
-            amount: String(amount),
-            retryCount: 0,
-          },
-        },
-        fingerprint: ["{{ default }}", "unknown"],
-      }),
-    );
-    expect(zrem.mock.calls.some((call) => match.zrem(call))).toBe(false);
-  });
-
-  it("captures withdraw non-error throwables", async () => {
-    const amount = 1_626_000n;
-    const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
-    const zrem = vi.spyOn(Redis.prototype, "zrem");
-    if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
-    const exaSend = keeper.exaSend.bind(keeper);
-    vi.spyOn(keeper, "exaSend").mockImplementation((span, call, options) => {
-      // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors -- validates non-error throwables
-      if (call.functionName === "withdraw") return Promise.reject("plain withdraw value");
-      return exaSend(span, call, options);
-    });
-
-    await appClient.index.$post(legacyPayload(amount));
-
-    await vi.waitUntil(
-      () =>
-        vi
-          .mocked(captureException)
-          .mock.calls.some(
-            ([error, hint]) => error === "plain withdraw value" && typeof hint === "object" && "contexts" in hint,
-          ),
-      26_666,
-    );
-
-    expect(captureException).toHaveBeenCalledWith(
-      "plain withdraw value",
-      expect.objectContaining({
-        level: "error",
-        contexts: {
-          withdraw: {
-            account: withdrawAccount,
-            market: withdrawMarket,
-            receiver: withdrawReceiver,
-            amount: String(amount),
-            retryCount: 0,
-          },
-        },
-        fingerprint: ["{{ default }}", "unknown"],
-      }),
-    );
-    expect(zrem.mock.calls.some((call) => match.zrem(call))).toBe(false);
-  });
-
-  it("captures keeper errors even when message matches terminal reason", async () => {
-    const amount = 1_627_000n;
-    const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
-    const zrem = vi.spyOn(Redis.prototype, "zrem");
-    if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
-    const exaSend = keeper.exaSend.bind(keeper);
-    const withdrawSend: () => ReturnType<typeof keeper.exaSend> = () =>
-      Promise.reject(new Error("InsufficientAccountLiquidity()"));
-    vi.spyOn(keeper, "exaSend").mockImplementation((span, call, options) =>
-      call.functionName === "withdraw" ? withdrawSend() : exaSend(span, call, options),
-    );
-
-    await appClient.index.$post(legacyPayload(amount));
-
-    await vi.waitUntil(
-      () =>
-        vi
-          .mocked(captureException)
-          .mock.calls.some(
-            ([error, hint]) =>
-              error instanceof Error &&
-              error.message === "InsufficientAccountLiquidity()" &&
-              typeof hint === "object" &&
-              "contexts" in hint,
-          ),
-      26_666,
-    );
-
-    expect(captureException).toHaveBeenCalledWith(
-      expect.objectContaining({ message: "InsufficientAccountLiquidity()" }),
-      expect.objectContaining({
-        level: "error",
-        contexts: {
-          withdraw: {
-            account: withdrawAccount,
-            market: withdrawMarket,
-            receiver: withdrawReceiver,
-            amount: String(amount),
-            retryCount: 0,
-          },
-        },
-        fingerprint: ["{{ default }}", "unknown"],
-      }),
-    );
-    expect(zrem.mock.calls.some((call) => match.zrem(call))).toBe(false);
-  });
-
-  it("captures PreExecHookReverted without NoProposal as failed precondition", async () => {
-    const amount = 1_955_000n;
-    const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
-    const zrem = vi.spyOn(Redis.prototype, "zrem");
-    vi.spyOn(publicClient, "simulateContract").mockImplementation(async (params) => {
-      if (params.functionName !== "withdraw") return simulateContract(params);
-      // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
-      throw getContractError(
-        new RawContractError({
-          data: encodeErrorResult({
-            abi: upgradeableModularAccountAbi,
-            errorName: "PreExecHookReverted",
-            args: [withdrawAccount, 0, "0x1234"],
-          }),
-        }),
-        { abi: upgradeableModularAccountAbi, address: withdrawAccount, functionName: "withdraw", args: [] },
-      );
-    });
-
-    await appClient.index.$post(legacyPayload(amount));
-
-    await vi.waitUntil(
-      () =>
-        vi
-          .mocked(captureException)
-          .mock.calls.some(
-            ([error, hint]) =>
-              error instanceof Error &&
-              "functionName" in error &&
-              error.functionName === "withdraw" &&
-              typeof hint === "object" &&
-              "contexts" in hint &&
-              "fingerprint" in hint &&
-              Array.isArray(hint.fingerprint) &&
-              hint.fingerprint.includes("PreExecHookReverted"),
-          ),
-      26_666,
-    );
-
-    expect(captureException).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "withdraw" }),
-      expect.objectContaining({
-        level: "error",
-        contexts: {
-          withdraw: {
-            account: withdrawAccount,
-            market: withdrawMarket,
-            receiver: withdrawReceiver,
-            amount: String(amount),
-            retryCount: 0,
-          },
-        },
-        fingerprint: ["{{ default }}", "PreExecHookReverted"],
-      }),
-    );
-    expect(zrem.mock.calls.some((call) => match.zrem(call))).toBe(false);
-  });
-
-  it("removes withdraw from queue on terminal revert thrown by keeper", async () => {
-    const amount = 1_965_000n;
-    const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
-    const removals = waitForRemovals([match]);
-    const terminalError = getContractError(
-      new RawContractError({
-        data: encodeErrorResult({ abi: auditorAbi, errorName: "InsufficientAccountLiquidity" }),
-      }),
-      { abi: auditorAbi, address: withdrawAccount, functionName: "withdraw", args: [] },
-    );
-    if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
-    const exaSend = keeper.exaSend.bind(keeper);
-    const withdrawSend: () => ReturnType<typeof keeper.exaSend> = () => Promise.reject(terminalError as Error);
-    vi.spyOn(keeper, "exaSend").mockImplementation((span, call, options) =>
-      call.functionName === "withdraw" ? withdrawSend() : exaSend(span, call, options),
-    );
-
-    await appClient.index.$post(legacyPayload(amount));
-
-    expect(await removals).toStrictEqual([1]);
-
-    expect(vi.mocked(captureException).mock.calls.filter((call) => match.capture(call))).toEqual([]);
-  });
-
-  it("removes withdraw from queue on NoProposal thrown by keeper", async () => {
-    const amount = 1_975_000n;
-    const match = matchWithdraw(amount, withdrawAccount, withdrawMarket, withdrawReceiver);
-    const removals = waitForRemovals([match]);
-    const noProposalError = getContractError(
-      new RawContractError({
-        data: encodeErrorResult({
-          abi: upgradeableModularAccountAbi,
-          errorName: "PreExecHookReverted",
-          args: [withdrawAccount, 0, encodeErrorResult({ abi: proposalManagerAbi, errorName: "NoProposal" })],
-        }),
-      }),
-      { abi: upgradeableModularAccountAbi, address: withdrawAccount, functionName: "withdraw", args: [] },
-    );
-    if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
-    const exaSend = keeper.exaSend.bind(keeper);
-    const withdrawSend: () => ReturnType<typeof keeper.exaSend> = () => Promise.reject(noProposalError as Error);
-    vi.spyOn(keeper, "exaSend").mockImplementation((span, call, options) =>
-      call.functionName === "withdraw" ? withdrawSend() : exaSend(span, call, options),
-    );
-
-    await appClient.index.$post(legacyPayload(amount));
-
-    expect(await removals).toStrictEqual([1]);
-
-    expect(vi.mocked(captureException).mock.calls.filter((call) => match.capture(call))).toEqual([]);
-  });
-
-  it("fingerprints withdraw wrapped errors with inner selector", async () => {
-    vi.spyOn(publicClient, "simulateContract").mockImplementation(async (params) => {
-      if (params.functionName !== "withdraw") return simulateContract(params);
-      // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
-      throw getContractError(
-        new RawContractError({
-          data: encodeErrorResult({
-            abi: wrappedErrorAbi,
-            errorName: "WrappedError",
-            args: [zeroAddress, "0x931997cf", "0x", "0x"],
-          }),
-        }),
-        { abi: wrappedErrorAbi, address: withdrawAccount, functionName: "withdraw", args: [] },
-      );
-    });
-
-    await appClient.index.$post(legacyPayload(1_500_000n));
-
-    await vi.waitUntil(
-      () =>
-        vi
-          .mocked(captureException)
-          .mock.calls.some(
-            ([error, hint]) =>
-              error instanceof Error &&
-              "functionName" in error &&
-              error.functionName === "withdraw" &&
-              typeof hint === "object" &&
-              "fingerprint" in hint &&
-              Array.isArray(hint.fingerprint) &&
-              hint.fingerprint.includes("WrappedError"),
-          ),
-      26_666,
-    );
-
-    expect(captureException).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "withdraw" }),
-      expect.objectContaining({
-        level: "error",
-        contexts: {
-          withdraw: {
-            account: withdrawAccount,
-            market: withdrawMarket,
-            receiver: withdrawReceiver,
-            amount: String(1_500_000n),
-            retryCount: 0,
-          },
-        },
-        fingerprint: ["{{ default }}", "WrappedError", "0x931997cf"],
-      }),
-    );
-  });
-
-  it("fingerprints withdraw revert by reason", async () => {
-    vi.spyOn(publicClient, "simulateContract").mockImplementation(async (params) => {
-      if (params.functionName !== "withdraw") return simulateContract(params);
-      throw new ContractFunctionExecutionError(
-        new ContractFunctionRevertedError({
-          abi: [],
-          functionName: "withdraw",
-          message: "execution reverted: withdraw reason fallback",
-        }),
-        { abi: [], contractAddress: withdrawAccount, functionName: "withdraw" },
-      );
-    });
-
-    await appClient.index.$post(legacyPayload(1_600_000n));
-
-    await vi.waitUntil(
-      () =>
-        vi
-          .mocked(captureException)
-          .mock.calls.some(
-            ([error, hint]) =>
-              error instanceof Error &&
-              "functionName" in error &&
-              error.functionName === "withdraw" &&
-              typeof hint === "object" &&
-              "fingerprint" in hint &&
-              Array.isArray(hint.fingerprint) &&
-              hint.fingerprint.includes("execution reverted: withdraw reason fallback"),
-          ),
-      26_666,
-    );
-
-    expect(captureException).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "withdraw" }),
-      expect.objectContaining({
-        level: "error",
-        contexts: {
-          withdraw: {
-            account: withdrawAccount,
-            market: withdrawMarket,
-            receiver: withdrawReceiver,
-            amount: String(1_600_000n),
-            retryCount: 0,
-          },
-        },
-        fingerprint: ["{{ default }}", "execution reverted: withdraw reason fallback"],
-      }),
-    );
-  });
-
-  it("fingerprints withdraw revert by signature", async () => {
-    vi.spyOn(publicClient, "simulateContract").mockImplementation(async (params) => {
-      if (params.functionName !== "withdraw") return simulateContract(params);
-      // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
-      throw getContractError(new RawContractError({ data: "0x12345678" }), {
-        abi: [],
-        address: withdrawAccount,
-        functionName: "withdraw",
-        args: [],
-      });
-    });
-
-    await appClient.index.$post(legacyPayload(1_700_000n));
-
-    await vi.waitUntil(
-      () =>
-        vi
-          .mocked(captureException)
-          .mock.calls.some(
-            ([error, hint]) =>
-              error instanceof Error &&
-              "functionName" in error &&
-              error.functionName === "withdraw" &&
-              typeof hint === "object" &&
-              "fingerprint" in hint &&
-              Array.isArray(hint.fingerprint) &&
-              hint.fingerprint.includes("0x12345678"),
-          ),
-      26_666,
-    );
-
-    expect(captureException).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "withdraw" }),
-      expect.objectContaining({
-        level: "error",
-        contexts: {
-          withdraw: {
-            account: withdrawAccount,
-            market: withdrawMarket,
-            receiver: withdrawReceiver,
-            amount: String(1_700_000n),
-            retryCount: 0,
-          },
-        },
-        fingerprint: ["{{ default }}", "0x12345678"],
-      }),
-    );
-  });
-
-  it("fingerprints withdraw revert by unknown contract data", async () => {
-    vi.spyOn(publicClient, "simulateContract").mockImplementation(async (params) => {
-      if (params.functionName !== "withdraw") return simulateContract(params);
-      // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
-      throw getContractError(new RawContractError({ data: "0x" }), {
-        abi: [],
-        address: withdrawAccount,
-        functionName: "withdraw",
-        args: [],
-      });
-    });
-
-    await appClient.index.$post(legacyPayload(1_750_000n));
-
-    await vi.waitUntil(
-      () =>
-        vi
-          .mocked(captureException)
-          .mock.calls.some(
-            ([error, hint]) =>
-              error instanceof Error &&
-              "functionName" in error &&
-              error.functionName === "withdraw" &&
-              typeof hint === "object" &&
-              "fingerprint" in hint &&
-              Array.isArray(hint.fingerprint) &&
-              hint.fingerprint.includes("unknown"),
-          ),
-      26_666,
-    );
-
-    expect(captureException).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "withdraw" }),
-      expect.objectContaining({
-        level: "error",
-        contexts: {
-          withdraw: {
-            account: withdrawAccount,
-            market: withdrawMarket,
-            receiver: withdrawReceiver,
-            amount: String(1_750_000n),
-            retryCount: 0,
-          },
-        },
-        fingerprint: ["{{ default }}", "unknown"],
-      }),
-    );
-  });
-
-  it("fingerprints withdraw revert as unknown", async () => {
-    vi.spyOn(publicClient, "simulateContract").mockImplementation(async (params) => {
-      if (params.functionName !== "withdraw") return simulateContract(params);
-      throw new Error("withdraw failed");
-    });
-
-    await appClient.index.$post(legacyPayload(2_000_000n));
-
-    await vi.waitUntil(
-      () =>
-        vi
-          .mocked(captureException)
-          .mock.calls.some(
-            ([error, hint]) =>
-              error instanceof Error &&
-              error.message === "withdraw failed" &&
-              typeof hint === "object" &&
-              "contexts" in hint,
-          ),
-      26_666,
-    );
-
-    expect(captureException).toHaveBeenCalledWith(
-      expect.objectContaining({ message: "withdraw failed" }),
-      expect.objectContaining({
-        level: "error",
-        contexts: {
-          withdraw: {
-            account: withdrawAccount,
-            market: withdrawMarket,
-            receiver: withdrawReceiver,
-            amount: String(2_000_000n),
-            retryCount: 0,
-          },
-        },
-        fingerprint: ["{{ default }}", "unknown"],
-      }),
-    );
-  });
-
-  it("fingerprints withdraw outer catch with contract revert", async () => {
-    const errorAbi = [{ type: "error", name: "Unauthorized", inputs: [] }] as const;
-    vi.mocked(continueTrace).mockImplementationOnce(() => {
-      // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
-      throw getContractError(
-        new RawContractError({
-          data: encodeErrorResult({ abi: errorAbi, errorName: "Unauthorized" }),
-        }),
-        { abi: errorAbi, address: withdrawAccount, functionName: "withdraw", args: [] },
-      );
-    });
-
-    await appClient.index.$post(legacyPayload(3_000_000n));
-
-    await vi.waitUntil(
-      () =>
-        vi
-          .mocked(captureException)
-          .mock.calls.some(
-            ([, hint]) =>
-              typeof hint === "object" &&
-              "fingerprint" in hint &&
-              Array.isArray(hint.fingerprint) &&
-              hint.fingerprint.includes("Unauthorized"),
-          ),
-      26_666,
-    );
-
-    const captureExceptionFingerprints = vi
-      .mocked(captureException)
-      .mock.calls.flatMap(([, hint]) =>
-        typeof hint === "object" && "fingerprint" in hint && Array.isArray(hint.fingerprint) ? [hint.fingerprint] : [],
-      );
-
-    expect(captureExceptionFingerprints).toEqual([["{{ default }}", "Unauthorized"]]);
-    expect(captureException).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "withdraw" }),
-      expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "Unauthorized"] }),
-    );
-  });
-
-  it("fingerprints withdraw outer catch by reason", async () => {
-    const setUser = await spyScopeSetUser();
-    vi.mocked(continueTrace).mockImplementationOnce(() => {
-      throw new ContractFunctionExecutionError(
-        new ContractFunctionRevertedError({
-          abi: [],
-          functionName: "withdraw",
-          message: "execution reverted: outer withdraw reason fallback",
-        }),
-        { abi: [], contractAddress: withdrawAccount, functionName: "withdraw" },
-      );
-    });
-
-    await appClient.index.$post(legacyPayload(3_500_000n));
-
-    await vi.waitUntil(
-      () =>
-        vi
-          .mocked(captureException)
-          .mock.calls.some(
-            ([, hint]) =>
-              typeof hint === "object" &&
-              "fingerprint" in hint &&
-              Array.isArray(hint.fingerprint) &&
-              hint.fingerprint.includes("execution reverted: outer withdraw reason fallback"),
-          ),
-      26_666,
-    );
-
-    const captureExceptionFingerprints = vi
-      .mocked(captureException)
-      .mock.calls.flatMap(([, hint]) =>
-        typeof hint === "object" && "fingerprint" in hint && Array.isArray(hint.fingerprint) ? [hint.fingerprint] : [],
-      );
-
-    expect(captureExceptionFingerprints).toEqual([
-      ["{{ default }}", "execution reverted: outer withdraw reason fallback"],
-    ]);
-    expect(captureException).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "withdraw" }),
-      expect.objectContaining({
-        level: "error",
-        fingerprint: ["{{ default }}", "execution reverted: outer withdraw reason fallback"],
-      }),
-    );
-    expect(setUser).toHaveBeenCalledWith({ id: withdrawAccount });
-  });
-
-  it("fingerprints withdraw outer catch by signature", async () => {
-    vi.mocked(continueTrace).mockImplementationOnce(() => {
-      // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
-      throw getContractError(new RawContractError({ data: "0x12345678" }), {
-        abi: [],
-        address: withdrawAccount,
-        functionName: "withdraw",
-        args: [],
-      });
-    });
-
-    await appClient.index.$post(legacyPayload(3_600_000n));
-
-    await vi.waitUntil(
-      () =>
-        vi
-          .mocked(captureException)
-          .mock.calls.some(
-            ([, hint]) =>
-              typeof hint === "object" &&
-              "fingerprint" in hint &&
-              Array.isArray(hint.fingerprint) &&
-              hint.fingerprint.includes("0x12345678"),
-          ),
-      26_666,
-    );
-
-    const captureExceptionFingerprints = vi
-      .mocked(captureException)
-      .mock.calls.flatMap(([, hint]) =>
-        typeof hint === "object" && "fingerprint" in hint && Array.isArray(hint.fingerprint) ? [hint.fingerprint] : [],
-      );
-
-    expect(captureExceptionFingerprints).toEqual([["{{ default }}", "0x12345678"]]);
-    expect(captureException).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "withdraw" }),
-      expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "0x12345678"] }),
-    );
-  });
-
-  it("fingerprints withdraw outer catch as unknown contract revert", async () => {
-    vi.mocked(continueTrace).mockImplementationOnce(() => {
-      // eslint-disable-next-line @typescript-eslint/only-throw-error -- returns error
-      throw getContractError(new RawContractError({ data: "0x" }), {
-        abi: [],
-        address: withdrawAccount,
-        functionName: "withdraw",
-        args: [],
-      });
-    });
-
-    await appClient.index.$post(legacyPayload(3_700_000n));
-
-    await vi.waitUntil(
-      () =>
-        vi
-          .mocked(captureException)
-          .mock.calls.some(
-            ([, hint]) =>
-              typeof hint === "object" &&
-              "fingerprint" in hint &&
-              Array.isArray(hint.fingerprint) &&
-              hint.fingerprint.includes("unknown"),
-          ),
-      26_666,
-    );
-
-    const captureExceptionFingerprints = vi
-      .mocked(captureException)
-      .mock.calls.filter(
-        ([error]) => error instanceof ContractFunctionExecutionError && error.functionName === "withdraw",
-      )
-      .flatMap(([, hint]) =>
-        typeof hint === "object" && "fingerprint" in hint && Array.isArray(hint.fingerprint) ? [hint.fingerprint] : [],
-      );
-
-    expect(captureExceptionFingerprints).toEqual([["{{ default }}", "unknown"]]);
-    expect(captureException).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "ContractFunctionExecutionError", functionName: "withdraw" }),
-      expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "unknown"] }),
-    );
-  });
-
-  it("fingerprints withdraw outer catch as unknown", async () => {
-    vi.mocked(continueTrace).mockImplementationOnce(() => {
-      throw new Error("withdraw outer catch failed");
-    });
-
-    await appClient.index.$post(legacyPayload(4_000_000n));
-
-    await vi.waitUntil(
-      () =>
-        vi
-          .mocked(captureException)
-          .mock.calls.some(
-            ([error, hint]) =>
-              error instanceof Error &&
-              error.message === "withdraw outer catch failed" &&
-              typeof hint === "object" &&
-              "fingerprint" in hint &&
-              Array.isArray(hint.fingerprint) &&
-              hint.fingerprint.includes("unknown"),
-          ),
-      26_666,
-    );
-
-    const captureExceptionFingerprints = vi
-      .mocked(captureException)
-      .mock.calls.flatMap(([, hint]) =>
-        typeof hint === "object" && "fingerprint" in hint && Array.isArray(hint.fingerprint) ? [hint.fingerprint] : [],
-      );
-
-    expect(captureExceptionFingerprints).toEqual([["{{ default }}", "unknown"]]);
-    expect(captureException).toHaveBeenCalledWith(
-      expect.objectContaining({ message: "withdraw outer catch failed" }),
-      expect.objectContaining({ level: "error", fingerprint: ["{{ default }}", "unknown"] }),
-    );
+    expect(add(withdrawAccount)).toStrictEqual([]);
   });
 });
 
@@ -3716,158 +1542,6 @@ const withdrawProposal = {
   },
 };
 
-function hasExpectedTransfers(
-  receipts: readonly TransactionReceipt[],
-  expected: { amount: bigint; receiver: Address }[],
-) {
-  const transferred = receipts
-    .flatMap((receipt) =>
-      receipt.logs
-        .filter((l) => l.address.toLowerCase() === usdcAddress.toLowerCase())
-        .map((l) => decodeEventLog({ abi: erc20Abi, eventName: "Transfer", topics: l.topics, data: l.data }))
-        .map((l) => ({ receiver: getAddress(l.args.to), amount: l.args.value })),
-    )
-    .filter(({ amount }) => amount > 0n);
-  const transferCountByKey = new Map<string, number>();
-  for (const transfer of transferred) {
-    const key = `${transfer.receiver}:${transfer.amount}`;
-    transferCountByKey.set(key, (transferCountByKey.get(key) ?? 0) + 1);
-  }
-  for (const transfer of expected) {
-    const key = `${transfer.receiver}:${transfer.amount}`;
-    const count = transferCountByKey.get(key) ?? 0;
-    if (count === 0) return false;
-    transferCountByKey.set(key, count - 1);
-  }
-  return true;
-}
-
-async function waitForSuccessfulProposalExecutions(expectedNonces: bigint[]) {
-  if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
-  const exaSend = keeper.exaSend.bind(keeper);
-  const expected = new Set(expectedNonces);
-  const successfulReceipts = new Map<bigint, TransactionReceipt>();
-  const failures = new Map<bigint, unknown>();
-  vi.spyOn(keeper, "exaSend").mockImplementation(async (span, call, options) => {
-    const nonce =
-      call.functionName === "executeProposal" &&
-      call.args?.length === 1 &&
-      typeof call.args[0] === "bigint" &&
-      expected.has(call.args[0])
-        ? call.args[0]
-        : undefined;
-    const receipt = await exaSend(span, call, options).catch((error: unknown) => {
-      if (nonce !== undefined) failures.set(nonce, error);
-      throw error;
-    });
-    if (nonce !== undefined && receipt?.status === "success") successfulReceipts.set(nonce, receipt);
-    return receipt;
-  });
-  await vi.waitUntil(() => expectedNonces.every((nonce) => successfulReceipts.has(nonce)), 26_666).catch(() => null);
-  return expectedNonces.map((nonce) => {
-    const receipt = successfulReceipts.get(nonce);
-    if (!receipt)
-      throw new Error(`missing successful receipt for nonce ${String(nonce)}`, { cause: failures.get(nonce) });
-    return receipt;
-  });
-}
-
-function waitForProposalNonce(account: Address, nonce: bigint) {
-  const settled = Promise.withResolvers<boolean>();
-  if (vi.isMockFunction(keeper.exaSend)) throw new Error("unexpected keeper exaSend mock");
-  const exaSend = keeper.exaSend.bind(keeper);
-  vi.spyOn(keeper, "exaSend").mockImplementation(async (span, call, options) => {
-    const matched =
-      call.functionName === "setProposalNonce" &&
-      call.address.toLowerCase() === account.toLowerCase() &&
-      call.args?.[0] === nonce + 1n;
-    try {
-      const receipt = await exaSend(span, call, options);
-      if (matched) settled.resolve(true);
-      return receipt;
-    } catch (error) {
-      if (matched) settled.reject(error);
-      throw error;
-    }
-  });
-  return settled.promise;
-}
-
-function waitForProposalRemovals(expected: { account: Address; nonce: bigint }[]) {
-  return waitForRemovals(expected.map(({ account, nonce }) => matchProposal(account, nonce)));
-}
-
-function waitForRemovals(matches: { zrem(args: unknown[]): boolean }[]) {
-  const remove = redis.zrem.bind(redis);
-  const removals = matches.map((match) => ({
-    ...Promise.withResolvers<number>(),
-    match,
-  }));
-  vi.spyOn(Redis.prototype, "zrem").mockImplementation(async (...args) => {
-    const removal = removals.find(({ match }) => match.zrem(args));
-    try {
-      const count = await remove(...args);
-      removal?.resolve(count);
-      return count;
-    } catch (error) {
-      removal?.reject(error);
-      throw error;
-    }
-  });
-  return Promise.all(removals.map(({ promise }) => promise));
-}
-
-function execute(calldata: Hex) {
-  return bob.writeContract({
-    address: bobAccount,
-    functionName: "execute",
-    args: [bobAccount, 0n, calldata],
-    abi: [...exaPluginAbi, ...issuerCheckerAbi, ...upgradeableModularAccountAbi, ...auditorAbi, ...marketAbi],
-    gas: 6_666_666n,
-  });
-}
-
-function proposeWithdraw(
-  amount: bigint,
-  receiver: Address,
-  market: Address = marketUSDCAddress,
-  proposalType: ProposalType.Redeem | ProposalType.Withdraw = ProposalType.Withdraw,
-) {
-  return execute(
-    encodeFunctionData({
-      abi: exaPluginAbi,
-      functionName: "propose",
-      args: [market, amount, proposalType, encodeAbiParameters([{ type: "address" }], [receiver])],
-    }),
-  );
-}
-
-function postProposal({ address, data, topics }: { address: Address; data: Hex; topics: [Hex, ...Hex[]] }) {
-  return appClient.index.$post({
-    ...withdrawProposal,
-    json: {
-      ...withdrawProposal.json,
-      event: {
-        ...withdrawProposal.json.event,
-        data: {
-          ...withdrawProposal.json.event.data,
-          block: { ...withdrawProposal.json.event.data.block, logs: [{ topics, data, account: { address } }] },
-        },
-      },
-    },
-  });
-}
-
-async function getLogs(hashes: Hex[]) {
-  const receipts = await Promise.all(hashes.map((hash) => anvilClient.waitForTransactionReceipt({ hash })));
-  return parseEventLogs<typeof proposalManagerAbi, true, "Proposed">({
-    logs: receipts.flatMap((r) => r.logs),
-    abi: proposalManagerAbi,
-    eventName: "Proposed",
-    strict: true,
-  });
-}
-
 function withLogs(
   logs: { account: { address: Address }; data: Hex; topics: [Hex, ...Hex[]]; transaction?: { hash: Hex } }[],
 ) {
@@ -4060,111 +1734,6 @@ afterEach(() => vi.restoreAllMocks());
 vi.mock("@sentry/core", { spy: true });
 vi.mock("@sentry/node", { spy: true });
 
-const wrappedErrorAbi = [
-  {
-    type: "error",
-    name: "WrappedError",
-    inputs: [
-      { name: "target", type: "address" },
-      { name: "selector", type: "bytes4" },
-      { name: "reason", type: "bytes" },
-      { name: "details", type: "bytes" },
-    ],
-  },
-] as const;
-
-function matchProposal(account: Address, nonce: bigint) {
-  return {
-    capture([error, hint]: unknown[]) {
-      if (typeof hint === "object" && hint !== null && "contexts" in hint) {
-        const contexts = (hint as { contexts?: unknown }).contexts;
-        if (typeof contexts === "object" && contexts !== null && "proposal" in contexts) {
-          const proposal = (contexts as { proposal?: unknown }).proposal;
-          return (
-            typeof proposal === "object" &&
-            proposal !== null &&
-            "account" in proposal &&
-            proposal.account === account &&
-            "nonce" in proposal &&
-            proposal.nonce === Number(nonce)
-          );
-        }
-      }
-      return (
-        typeof error === "object" &&
-        error !== null &&
-        "functionName" in error &&
-        error.functionName === "executeProposal" &&
-        "contractAddress" in error &&
-        (error.contractAddress as string).toLowerCase() === account.toLowerCase() &&
-        "args" in error &&
-        Array.isArray(error.args) &&
-        error.args[0] === nonce
-      );
-    },
-    zrem([key, message]: unknown[]) {
-      if (key !== "proposals" || typeof message !== "string") return false;
-      const payload = deserialize(message);
-      if (typeof payload !== "object" || payload === null) return false;
-      return "account" in payload && payload.account === account && "nonce" in payload && payload.nonce === nonce;
-    },
-  };
-}
-
-function matchWithdraw(amount: bigint, account: Address, market: Address, receiver: Address) {
-  return {
-    capture([, hint]: unknown[]) {
-      if (typeof hint !== "object" || hint === null || !("contexts" in hint)) return false;
-      const contexts = (hint as { contexts?: unknown }).contexts;
-      if (typeof contexts !== "object" || contexts === null || !("withdraw" in contexts)) return false;
-      const withdraw = (contexts as { withdraw?: unknown }).withdraw;
-      return (
-        typeof withdraw === "object" &&
-        withdraw !== null &&
-        "account" in withdraw &&
-        withdraw.account === account &&
-        "market" in withdraw &&
-        withdraw.market === market &&
-        "receiver" in withdraw &&
-        withdraw.receiver === receiver &&
-        "amount" in withdraw &&
-        withdraw.amount === String(amount)
-      );
-    },
-    zrem([key, message]: unknown[]) {
-      if (key !== "withdraw" || typeof message !== "string") return false;
-      const payload = deserialize(message);
-      if (typeof payload !== "object" || payload === null) return false;
-      return (
-        "account" in payload &&
-        payload.account === account &&
-        "market" in payload &&
-        payload.market === market &&
-        "receiver" in payload &&
-        payload.receiver === receiver &&
-        "amount" in payload &&
-        payload.amount === amount
-      );
-    },
-  };
-}
-
-async function spyScopeSetUser() {
-  const { withScope: realWithScope } = await vi.importActual<typeof sentry>("@sentry/node");
-  const setUser = vi.fn();
-  vi.mocked(withScope).mockImplementation((_scopeOrCallback, _callback?) =>
-    realWithScope((scope) => {
-      const originalSetUser = scope.setUser.bind(scope);
-      scope.setUser = (...args: Parameters<typeof scope.setUser>) => {
-        setUser(...args);
-        return originalSetUser(...args);
-      };
-      return ((_callback ?? _scopeOrCallback) as NonNullable<typeof _callback>)(scope);
-    }),
-  );
-  return setUser;
-}
-
 const legacyFactory = getAddress("0x8D493AF799162Ac3f273e8918B2842447f702163");
 const legacyFactoryPlugin = getAddress("0xBeE265c71EDdaEfa035b6966D8f744261E5dd182");
 const legacyPlugins = [
@@ -4172,11 +1741,15 @@ const legacyPlugins = [
   getAddress("0x87aF7e4892e47a7De34dF689bA5f3bCccED3e5DE"),
 ] as const;
 
-function spyZadd() {
-  return vi.spyOn<{ zadd: (key: string, score: number, member: string) => Promise<number> }, "zadd">(
-    Redis.prototype,
-    "zadd",
-  );
+function spyAdd() {
+  const add = vi.spyOn(Queue.prototype, "add");
+  return (account: Address, kind?: "proposal" | "withdraw") =>
+    add.mock.calls.flatMap(([, data, options]) => {
+      const job = data as Job;
+      return job.account === account && (kind === undefined || "nonce" in job === (kind === "proposal"))
+        ? [{ ...job, jobId: options?.jobId }]
+        : [];
+    });
 }
 
 function post(logs: Parameters<typeof blockPayloadWith>[0]) {

@@ -43,6 +43,8 @@ import createCredit from "./workers/credit/queue";
 import createHook from "./workers/hook/queue";
 import createHookWorker from "./workers/hook/worker";
 import createPoke from "./workers/poke/queue";
+import createProposal from "./workers/proposal/queue";
+import createProposalWorker from "./workers/proposal/worker";
 import createRefund from "./workers/refund/queue";
 import createSubscribe from "./workers/subscribe/queue";
 
@@ -70,6 +72,7 @@ const persona = createPersona(
 const allow = createAllow(redis);
 const credit = createCredit(redis);
 const poke = createPoke(redis);
+const proposal = createProposal(redis);
 const refund = createRefund(redis);
 const webhook = createHook(redis);
 const sardine = createSardine(
@@ -88,10 +91,9 @@ const hooks = {
       alchemy,
       blockKey: env.ALCHEMY_BLOCK_KEY,
       database,
-      executor: keeper,
       manteca,
-      onesignal,
       persona,
+      proposal,
       redis,
     }),
   bridge: () =>
@@ -139,6 +141,7 @@ const hooks = {
 const workers = {
   hook: () => createHookWorker({ bullmq, database, panda }),
   maturity: () => createMaturity(onesignal),
+  proposal: () => createProposalWorker({ bullmq, executor: keeper, onesignal }),
 };
 const disabled = new Set<string>(
   parse(
@@ -504,6 +507,7 @@ export const close = supervise(
             allow.ready(),
             credit.ready(),
             poke.ready(),
+            proposal.ready(),
             refund.ready(),
             subscribe.ready(),
             webhook.ready(),
@@ -515,6 +519,7 @@ export const close = supervise(
         () => credit.close(),
         ...enabledWorkers.map((worker) => () => worker.close()),
         () => poke.close(),
+        () => proposal.close(),
         () => refund.close(),
         () => segment.close(),
         () => subscribe.close(),
