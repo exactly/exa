@@ -312,7 +312,7 @@ describe("authenticated", () => {
       .values({ id: cardId, credentialId, tenant: "OP", lastFour: "9994", productId: SIGNATURE_PRODUCT_ID });
 
     vi.spyOn(panda, "getCard").mockResolvedValueOnce({ ...cardTemplate, id: cardId, status: "canceled" });
-    vi.spyOn(panda, "getUser").mockResolvedValueOnce(userTemplate);
+    const getUser = vi.spyOn(panda, "getUser").mockResolvedValue(userTemplate);
 
     const response = await appClient.index.$get({ header: {} }, { headers: { "test-credential-id": credentialId } });
 
@@ -322,6 +322,48 @@ describe("authenticated", () => {
       database.query.cards.findFirst({ columns: { status: true }, where: eq(cards.id, cardId) }),
     ).resolves.toStrictEqual({ status: "DELETED" });
     expect(captureException).not.toHaveBeenCalled();
+    expect(getUser).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 no card and deletes a card canceled on panda when secrets fail", async () => {
+    const credentialId = "get-canceled-secrets";
+    const cardId = "00000000-0000-4000-8000-0000000000e6";
+    await database.insert(credentials).values({
+      id: credentialId,
+      publicKey: new Uint8Array(),
+      account: padHex("0x40a6", { size: 20 }),
+      factory: exaAccountFactoryAddress,
+      pandaId: credentialId,
+    });
+    await database
+      .insert(cards)
+      .values({ id: cardId, credentialId, tenant: "OP", lastFour: "9996", productId: SIGNATURE_PRODUCT_ID });
+
+    vi.spyOn(panda, "getCard").mockResolvedValueOnce({ ...cardTemplate, id: cardId, status: "canceled" });
+    const getUser = vi.spyOn(panda, "getUser").mockResolvedValue(userTemplate);
+    vi.spyOn(panda, "getSecrets").mockRejectedValueOnce(
+      new ServiceError(
+        "Panda",
+        400,
+        '{"message":"Cannot retrieve details for a non-active card","error":"BadRequestError","statusCode":400}',
+        "BadRequestError",
+        "Cannot retrieve details for a non-active card",
+      ),
+    );
+    vi.spyOn(panda, "getPIN").mockResolvedValueOnce(pinTemplate);
+
+    const response = await appClient.index.$get(
+      { header: { sessionid: "fakeSession" } },
+      { headers: { "test-credential-id": credentialId } },
+    );
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toStrictEqual({ code: "no card" });
+    await expect(
+      database.query.cards.findFirst({ columns: { status: true }, where: eq(cards.id, cardId) }),
+    ).resolves.toStrictEqual({ status: "DELETED" });
+    expect(captureException).not.toHaveBeenCalled();
+    expect(getUser).not.toHaveBeenCalled();
   });
 
   it.each(tenants)("returns 404 card not found when the card belongs to $other tenant", async ({ isBase, other }) => {

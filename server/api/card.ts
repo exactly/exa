@@ -337,35 +337,38 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
           const { id, lastFour, status, mode, productId } = credential.cards[0];
           if (status === "DELETED") throw new Error("card deleted");
           if (!is(CardUUID, id)) return c.json({ code: "no card" }, 404);
-          const details = panda.getCard(id).then(async (card) => ({
-            ...card,
-            user: await panda.getUser(card.userId).catch((error: unknown) => {
-              const issue = noUser(error);
-              if (!issue) throw error;
-              const shouldCapture = issue.error.status === 404 || status === "ACTIVE";
-              if (shouldCapture) {
-                withScope((s) => {
-                  s.addEventProcessor((event) => {
-                    if (event.exception?.values?.[0]) event.exception.values[0].type = issue.type;
-                    return event;
+          const details = panda.getCard(id).then(async (card) => {
+            if (card.status === "canceled") return;
+            return {
+              ...card,
+              user: await panda.getUser(card.userId).catch((error: unknown) => {
+                const issue = noUser(error);
+                if (!issue) throw error;
+                const shouldCapture = issue.error.status === 404 || status === "ACTIVE";
+                if (shouldCapture) {
+                  withScope((s) => {
+                    s.addEventProcessor((event) => {
+                      if (event.exception?.values?.[0]) event.exception.values[0].type = issue.type;
+                      return event;
+                    });
+                    captureException(issue.error, {
+                      level: "warning",
+                      fingerprint: ["{{ default }}", issue.type],
+                      extra: {
+                        cardId: id,
+                        credentialId,
+                        pandaId: credential.pandaId,
+                        status,
+                        shouldCapture,
+                        userIssue: issue.type,
+                      },
+                    });
                   });
-                  captureException(issue.error, {
-                    level: "warning",
-                    fingerprint: ["{{ default }}", issue.type],
-                    extra: {
-                      cardId: id,
-                      credentialId,
-                      pandaId: credential.pandaId,
-                      status,
-                      shouldCapture,
-                      userIssue: issue.type,
-                    },
-                  });
-                });
-              }
-              return issue.error;
-            }),
-          }));
+                }
+                return issue.error;
+              }),
+            };
+          });
           const extras = Promise.all([
             sessionid && panda.getSecrets(id, sessionid),
             sessionid && panda.getPIN(id, sessionid),
@@ -395,15 +398,14 @@ function decrypt(base64Secret: string, base64Iv: string, secretKey: string): str
               : undefined,
           ]);
           extras.catch(() => undefined);
-          const { expirationMonth, expirationYear, limit, status: state, user } = await details;
-          if (state !== "canceled" && user instanceof ServiceError && user.status === 404) {
-            return c.json({ code: "offboarded" }, 403);
-          }
-          const [pan, pin, challenge, provisioning] = await extras;
-          if (state === "canceled") {
+          const card = await details;
+          if (!card) {
             await database.update(cards).set({ status: "DELETED" }).where(eq(cards.id, id));
             return c.json({ code: "no card" }, 404);
           }
+          const { expirationMonth, expirationYear, limit, user } = card;
+          if (user instanceof ServiceError && user.status === 404) return c.json({ code: "offboarded" }, 403);
+          const [pan, pin, challenge, provisioning] = await extras;
           if (user instanceof ServiceError) return c.json({ code: "no panda" }, 403);
           if (include("siwe") || include("webauthn") || include("provisioning")) c.header("Cache-Control", "no-store");
 
