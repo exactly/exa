@@ -1,28 +1,18 @@
-From 9fc8945754f5fbb23ccd6110dbcfcdddc0a34d55 Mon Sep 17 00:00:00 2001
+From 26c0e12b17857e26d3fba9e611a54a0fe55f1917 Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Fri, 20 Nov 2026 02:05:35 +0000
-Subject: [PATCH] fix: hold Android taps for 50 ms
+Subject: [PATCH] fix: lift Android taps right after touching down
 
-Android taps went through clickNoSync, which holds the touch down for 100 ms before it lifts it. A tap that short is still a tap to every view: the framework clicks on the lift, not on the hold, and long presses take 400 ms or more. Hold for 50 ms, the same as the iOS driver, which halves the hold on every tap.
+Android taps went through clickNoSync, which holds the touch down for 100 ms before it lifts it. Views click on the lift, not on the hold, and long presses take 400 ms or more, so a tap needs no hold. Touch down and lift right away, which takes the hold out of every tap.
 ---
- .../java/androidx/test/uiautomator/UiDeviceExt.kt     | 11 ++++++++---
- 1 file changed, 8 insertions(+), 3 deletions(-)
+ .../java/androidx/test/uiautomator/UiDeviceExt.kt           | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
 
 diff --git a/maestro-android/src/androidTest/java/androidx/test/uiautomator/UiDeviceExt.kt b/maestro-android/src/androidTest/java/androidx/test/uiautomator/UiDeviceExt.kt
-index a8b8f48..c2cd9a4 100644
+index a8b8f48..4477410 100644
 --- a/maestro-android/src/androidTest/java/androidx/test/uiautomator/UiDeviceExt.kt
 +++ b/maestro-android/src/androidTest/java/androidx/test/uiautomator/UiDeviceExt.kt
-@@ -1,15 +1,20 @@
- package androidx.test.uiautomator
- 
-+import android.os.SystemClock
-+
- object UiDeviceExt {
- 
-+    private const val TAP_HOLD_MILLIS = 50L
-+
-     /**
-      * Fix for a UiDevice.click() method that discards taps that happen outside of the screen bounds.
+@@ -7,9 +7,9 @@ object UiDeviceExt {
       * The issue with the original method is that it was computing screen bounds incorrectly.
       */
      fun UiDevice.clickExt(x: Int, y: Int) {
@@ -30,7 +20,6 @@ index a8b8f48..c2cd9a4 100644
 -            x, y
 -        )
 +        if (interactionController.touchDown(x, y)) {
-+            SystemClock.sleep(TAP_HOLD_MILLIS)
 +            interactionController.touchUp(x, y)
 +        }
      }
