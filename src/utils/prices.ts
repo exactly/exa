@@ -11,12 +11,7 @@ import { arbitrum, base, bsc, mainnet, optimism, polygon } from "viem/chains";
 import { useReadContract } from "wagmi";
 
 import alchemyAPIKey from "@exactly/common/alchemyAPIKey";
-import chain, {
-  alchemyChains,
-  auditorAddress,
-  pricePreviewerAbi,
-  pricePreviewerCode,
-} from "@exactly/common/generated/chain";
+import chain, { alchemyChains, chains, pricePreviewerAbi, pricePreviewerCode } from "@exactly/common/generated/chain";
 
 import { isStock, marketOpen, type Allowlists } from "./lifi";
 import useAllowlists from "./useAllowlists";
@@ -98,14 +93,15 @@ export function useHistory(
 
 export function useFeed(token?: { address: string; chainId: number; symbol: string }) {
   const chainId = token?.chainId ?? chain.id;
+  const auditor = chains.get(chainId)?.auditor;
   const allowlists = useAllowlists();
   const markets = useReadContract({
     abi: pricePreviewerAbi,
     functionName: "feeds",
     code: pricePreviewerCode,
-    chainId: chain.id,
-    args: [auditorAddress],
-    query: { enabled: chainId === chain.id, staleTime: 24 * 60 * 60_000 },
+    chainId,
+    args: auditor ? [auditor] : undefined,
+    query: { enabled: !!auditor, staleTime: 24 * 60 * 60_000 },
   });
   const feeds = useQuery({
     queryKey: ["feeds", chainId],
@@ -161,9 +157,9 @@ export function useFeed(token?: { address: string; chainId: number; symbol: stri
     },
   });
   if (!token) return null;
-  if ((chainId === chain.id && !markets.isFetched) || !feeds.isFetched) return;
+  if ((auditor && !markets.isFetched) || !feeds.isFetched) return;
   const address = getAddress(token.address);
-  const market = chainId === chain.id ? markets.data?.find(({ asset }) => asset === address)?.feed : undefined;
+  const market = markets.data?.find(({ asset }) => asset === address)?.feed;
   if (address !== zeroAddress && !market && !allowlists[chainId]?.has(address.toLowerCase())) return null;
   const symbol = token.symbol.toLowerCase();
   const named = isStock(allowlists, token)
