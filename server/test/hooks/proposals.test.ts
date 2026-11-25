@@ -33,6 +33,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import deriveAddress from "@exactly/common/deriveAddress";
 import {
   activityChains,
+  appPreviewerAbi,
+  appPreviewerCode,
   auditorAbi,
   chains,
   exaAccountFactoryAbi,
@@ -515,6 +517,65 @@ describe("indexer source", () => {
     await expect(response.json()).resolves.toStrictEqual({});
     expect(readContract).toHaveBeenCalledWith(expect.objectContaining({ functionName: "proposalManager" }));
     readContract.mockRestore();
+  });
+
+  it("schedules webhook proposals on their network", async () => {
+    await database
+      .insert(credentials)
+      .values({
+        id: "webhook-proposals",
+        publicKey: new Uint8Array(hexToBytes(owner.address)),
+        account,
+        factory: exaAccountFactoryAddress,
+      })
+      .onConflictDoNothing();
+    const { proposalManager } = await target.readContract({
+      abi: appPreviewerAbi,
+      code: appPreviewerCode,
+      functionName: "proposalManager",
+      args: [account],
+    });
+    const zadd = vi.spyOn(redis, "zadd");
+    zadd.mockClear();
+    const nonce = 778n;
+
+    const response = await hook.app.request(`/${anvil2.id}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        type: "GRAPHQL",
+        event: {
+          data: {
+            block: {
+              number: 1,
+              timestamp: 0,
+              logs: [
+                {
+                  topics: encodeEventTopics({
+                    abi: proposalManagerAbi,
+                    eventName: "Proposed",
+                    args: { account, nonce, market },
+                  }),
+                  data: encodeAbiParameters(
+                    [{ type: "uint8" }, { type: "uint256" }, { type: "bytes" }, { type: "uint256" }],
+                    [ProposalType.None, 1n, "0x", 1n],
+                  ),
+                  account: { address: proposalManager },
+                },
+              ],
+            },
+          },
+        },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({});
+    expect(
+      zadd.mock.calls
+        .filter(([key]) => key === "proposals")
+        .map((call) => deserialize<{ account: string; chainId: number; nonce: bigint }>(String(call.at(-1)))),
+    ).toStrictEqual([expect.objectContaining({ account, chainId: anvil2.id, nonce })]);
   });
 
   it("captures sync failures", async () => {
