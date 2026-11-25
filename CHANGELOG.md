@@ -1,5 +1,16 @@
 # @exactly/mobile
 
+## 1.2.65
+
+### Patch Changes
+
+- [#2088](https://github.com/exactly/exa/pull/2088) [`dea3feb`](https://github.com/exactly/exa/commit/dea3febba1f51e3d56377081fc8d9365bb2e110f) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🚸 dismiss keyboard when a sheet opens on ios
+
+- [#2053](https://github.com/exactly/exa/pull/2053) [`39e2677`](https://github.com/exactly/exa/commit/39e26772e27c44ba380d45d3f64943b2b8d868e3) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 route missing panda users to support
+
+- Updated dependencies [[`cd87bd7`](https://github.com/exactly/exa/commit/cd87bd7a167b99b4070a64be2d2138577d09f5bd)]:
+  - @exactly/server@0.7.2
+
 ## 1.2.64
 
 ### Patch Changes

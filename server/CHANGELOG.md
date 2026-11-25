@@ -1,5 +1,11 @@
 # @exactly/server
 
+## 0.7.2
+
+### Patch Changes
+
+- [#2053](https://github.com/exactly/exa/pull/2053) [`cd87bd7`](https://github.com/exactly/exa/commit/cd87bd7a167b99b4070a64be2d2138577d09f5bd) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 distinguish missing panda users
+
 ## 0.7.1
 
 ### Patch Changes
