@@ -21,12 +21,13 @@ import {
   type PrivateKeyAccount,
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { anvil } from "viem/chains";
+import { anvil, moonbeamDev } from "viem/chains";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
 import {
   allowlists,
+  chains,
   exaAccountFactoryAddress,
   lifiURL,
   marketWETHAddress,
@@ -626,6 +627,53 @@ describe("address activity", () => {
 
     expect(sendPushNotification).not.toHaveBeenCalled();
     expect(setUser).toHaveBeenCalledWith({ id: account });
+    expect(response.status).toBe(200);
+  });
+
+  it("notifies yield and skips market shares on another protocol network", async () => {
+    const network = chains.get(moonbeamDev.id);
+    if (!network) throw new Error("missing network");
+    const eth = activityPayload.json.event.activity[0];
+    const json = {
+      ...activityPayload.json,
+      webhookId: "ANVIL2",
+      event: {
+        network: "ANVIL2",
+        activity: [
+          { ...eth, toAddress: account },
+          {
+            ...activityPayload.json.event.activity[1],
+            toAddress: account,
+            rawContract: { address: network.marketWETH, rawValue: "0x1" as const },
+          },
+        ],
+      },
+    };
+
+    const response = await appClient.index.$post({ ...activityPayload, json });
+
+    await vi.waitUntil(() => sendPushNotificationMock.mock.calls.length > 0);
+
+    expect(sendPushNotificationMock).toHaveBeenCalledExactlyOnceWith({
+      userId: account,
+      headings: t("Funds received"),
+      contents: t("{{amount}} received and instantly started earning yield", {
+        amount: Object.fromEntries(
+          Object.entries(f(eth.value)).map(([language, amount]) => [language, `${amount} ETH`]),
+        ),
+      }),
+      idempotencyKey: v5(`https://exact.ly/activity/${moonbeamDev.id}/${eth.hash}/external/${account}`, v5.URL),
+    });
+    expect(poke.enqueue).toHaveBeenCalledExactlyOnceWith({
+      account,
+      assets: [ETH],
+      chainId: moonbeamDev.id,
+      factory: exaAccountFactoryAddress,
+      salt: zeroAddress,
+      origin: "activity",
+      publicKey: owner.address.toLowerCase(),
+      source: null,
+    });
     expect(response.status).toBe(200);
   });
 
