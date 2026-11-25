@@ -1,5 +1,34 @@
 # @exactly/mobile
 
+## 1.2.63
+
+### Patch Changes
+
+- [#2114](https://github.com/exactly/exa/pull/2114) [`6c5a416`](https://github.com/exactly/exa/commit/6c5a41647b238a95a243f23040ae886c14bce39f) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 skip expired quotes in repay and add funds
+
+- [#1946](https://github.com/exactly/exa/pull/1946) [`2550332`](https://github.com/exactly/exa/commit/255033241aaad1a77aed7f766daf9cba608f753d) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 warn before repeating recent send
+
+- [#2085](https://github.com/exactly/exa/pull/2085) [`88a0bcd`](https://github.com/exactly/exa/commit/88a0bcda4514f6f16ea25bb43c4aebe77a6a1836) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 filter swap tokens by chain allowlist
+
+- [#2082](https://github.com/exactly/exa/pull/2082) [`97159fe`](https://github.com/exactly/exa/commit/97159fe3e518edb46fb92eb706407600114e16fe) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 explain passkeys from another tenant
+
+- [#1946](https://github.com/exactly/exa/pull/1946) [`46782ed`](https://github.com/exactly/exa/commit/46782ed96ff153b21b794565e16234b0704bf7dd) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🩹 recheck calls status before timing out
+
+- [`2003200`](https://github.com/exactly/exa/commit/2003200a3bed628977a34ee9229f2a3801049027) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 renew rejected sessions
+
+- [#2087](https://github.com/exactly/exa/pull/2087) [`fbaeca5`](https://github.com/exactly/exa/commit/fbaeca5773034481fcb3ebf9289bd858b2a58ff2) Thanks [@dieguezguille](https://github.com/dieguezguille)! - 🐛 guard card details against double taps
+
+- [#2079](https://github.com/exactly/exa/pull/2079) [`310ef83`](https://github.com/exactly/exa/commit/310ef8342e365743835258c8893aa824930fa794) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 reject empty price feeds response
+
+- [#2063](https://github.com/exactly/exa/pull/2063) [`9e7c0b9`](https://github.com/exactly/exa/commit/9e7c0b9abd02ff4826fabea3b2477e825fc9be32) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🩹 skip add mini app on unsupported hosts
+
+- [#1988](https://github.com/exactly/exa/pull/1988) [`f7e424a`](https://github.com/exactly/exa/commit/f7e424a90d6ad25370783535344ba2f61f5c7453) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🩹 prevent duplicate fiat withdraw
+
+- [#2077](https://github.com/exactly/exa/pull/2077) [`c097db0`](https://github.com/exactly/exa/commit/c097db0df783e7925656f09348b17a3b6df9095f) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 wait for fresh quote before estimating
+
+- Updated dependencies [[`c9bdc8b`](https://github.com/exactly/exa/commit/c9bdc8b005cbdfab0809af3c2d725b42847423d3), [`66ed943`](https://github.com/exactly/exa/commit/66ed94384799f2fa40183967c611686312b2532a), [`d1bfcff`](https://github.com/exactly/exa/commit/d1bfcff371b02e7fdae5394644de4f22891036a8), [`2c0e001`](https://github.com/exactly/exa/commit/2c0e001c110346165cc624279c3138fbe94ec031), [`cd7469f`](https://github.com/exactly/exa/commit/cd7469f083c49a6020006d69bed32947566e0006), [`5cebaa9`](https://github.com/exactly/exa/commit/5cebaa92c77d93e8cf628a4be6632a30a68da7b9), [`d1f8db9`](https://github.com/exactly/exa/commit/d1f8db9ccc2e9416b539e4f13867a2fd3dfbd7d4), [`797c3d2`](https://github.com/exactly/exa/commit/797c3d26f0c85b0788680d51e559f6fe7b176174), [`3edfc03`](https://github.com/exactly/exa/commit/3edfc03bd5b5b44b6e2b6e7369af6fc2c4c4fe3d), [`e5ebd2a`](https://github.com/exactly/exa/commit/e5ebd2a2106254f2112210a8927140f9c2fd6ae2), [`4b5ba75`](https://github.com/exactly/exa/commit/4b5ba75defa81c68576c715c0e7a506dfe9f358f), [`43a849f`](https://github.com/exactly/exa/commit/43a849f892372f88046a09687a18532557b33cb0), [`4e4aa7f`](https://github.com/exactly/exa/commit/4e4aa7fb296cd816e2473a71f963c4762068d685), [`f2492b1`](https://github.com/exactly/exa/commit/f2492b1fd8a37736673abb9efcdd23ade1e55b3d)]:
+  - @exactly/server@0.7.0
+
 ## 1.2.62
 
 ### Patch Changes

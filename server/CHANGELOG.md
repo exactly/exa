@@ -1,5 +1,39 @@
 # @exactly/server
 
+## 0.7.0
+
+### Minor Changes
+
+- [#2109](https://github.com/exactly/exa/pull/2109) [`c9bdc8b`](https://github.com/exactly/exa/commit/c9bdc8b005cbdfab0809af3c2d725b42847423d3) Thanks [@pikonha](https://github.com/pikonha)! - ✨ quote qr payments in local currency
+
+- [#2014](https://github.com/exactly/exa/pull/2014) [`797c3d2`](https://github.com/exactly/exa/commit/797c3d26f0c85b0788680d51e559f6fe7b176174) Thanks [@dieguezguille](https://github.com/dieguezguille)! - ✨ notify bridge funds received
+
+### Patch Changes
+
+- [#2095](https://github.com/exactly/exa/pull/2095) [`66ed943`](https://github.com/exactly/exa/commit/66ed94384799f2fa40183967c611686312b2532a) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 reject replaced transactions
+
+- [`d1bfcff`](https://github.com/exactly/exa/commit/d1bfcff371b02e7fdae5394644de4f22891036a8) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 👔 keep card mode per purchase
+
+- [#1980](https://github.com/exactly/exa/pull/1980) [`2c0e001`](https://github.com/exactly/exa/commit/2c0e001c110346165cc624279c3138fbe94ec031) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 fix nonce reuse after nonce zero
+
+- [#2103](https://github.com/exactly/exa/pull/2103) [`cd7469f`](https://github.com/exactly/exa/commit/cd7469f083c49a6020006d69bed32947566e0006) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 👽️ skip deposit on qr payments
+
+- [#2084](https://github.com/exactly/exa/pull/2084) [`5cebaa9`](https://github.com/exactly/exa/commit/5cebaa92c77d93e8cf628a4be6632a30a68da7b9) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🦺 normalize and validate iban
+
+- [`d1f8db9`](https://github.com/exactly/exa/commit/d1f8db9ccc2e9416b539e4f13867a2fd3dfbd7d4) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🛂 enforce session expiry
+
+- [#1980](https://github.com/exactly/exa/pull/1980) [`3edfc03`](https://github.com/exactly/exa/commit/3edfc03bd5b5b44b6e2b6e7369af6fc2c4c4fe3d) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 fix weth withdraws executed by account
+
+- [#2070](https://github.com/exactly/exa/pull/2070) [`e5ebd2a`](https://github.com/exactly/exa/commit/e5ebd2a2106254f2112210a8927140f9c2fd6ae2) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ⚡️ cache and batch factory lookups
+
+- [`4b5ba75`](https://github.com/exactly/exa/commit/4b5ba75defa81c68576c715c0e7a506dfe9f358f) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🧵 scope card lock to transaction
+
+- [#2082](https://github.com/exactly/exa/pull/2082) [`43a849f`](https://github.com/exactly/exa/commit/43a849f892372f88046a09687a18532557b33cb0) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🛂 scope credentials by origin tenant
+
+- [`4e4aa7f`](https://github.com/exactly/exa/commit/4e4aa7fb296cd816e2473a71f963c4762068d685) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🦺 validate external account ids
+
+- [#2103](https://github.com/exactly/exa/pull/2103) [`f2492b1`](https://github.com/exactly/exa/commit/f2492b1fd8a37736673abb9efcdd23ade1e55b3d) Thanks [@nfmelendez](https://github.com/nfmelendez)! - 👽️ send payer source on qr payment locks
+
 ## 0.6.2
 
 ### Patch Changes
