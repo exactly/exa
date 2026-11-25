@@ -922,9 +922,6 @@ export default function bridge(key: string, url: string) {
       captureException(new Error("bridge not supported chain id"), { contexts: { chain }, level: "error" });
       return { onramp: { currencies: [] }, offramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
     }
-    if (params.accountType !== (supportedChain === "base" ? "business" : "consumer")) {
-      return { onramp: { currencies: [] }, offramp: { currencies: [] }, status: "NOT_AVAILABLE" as const };
-    }
 
     const currencies = {
       onramp: [
@@ -1356,9 +1353,6 @@ export default function bridge(key: string, url: string) {
     if (!Supported[chain.id]) {
       captureException(new Error("bridge not supported chain id"), { contexts: { chain }, level: "error" });
       throw new Error(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
-    }
-    if (params.accountType !== (Supported[chain.id] === "base" ? "business" : "consumer")) {
-      throw new Error(ErrorCodes.NOT_SUPPORTED_ACCOUNT_TYPE);
     }
 
     switch (params.accountType) {
@@ -2679,7 +2673,6 @@ export const ErrorCodes = {
   NOT_AVAILABLE_EVM_NETWORK: "not available evm network",
   NOT_ENABLED: "not enabled",
   NOT_FOUND_IDENTIFICATION_CLASS: "not found identification class",
-  NOT_SUPPORTED_ACCOUNT_TYPE: "not supported account type",
   NOT_SUPPORTED_CHAIN_ID: "not supported chain id",
   OFFRAMP_TRANSFER_NOT_FOUND: "offramp transfer not found",
   POSTAL_CODE_REQUIRED: "postal code required",
