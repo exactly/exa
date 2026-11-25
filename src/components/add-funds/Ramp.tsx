@@ -24,7 +24,6 @@ import { Copy } from "../../generated/icons/Copy";
 import { Percent } from "../../generated/icons/Percent";
 import { QrCode } from "../../generated/icons/QrCode";
 import { Repeat } from "../../generated/icons/Repeat";
-import { Share as ShareIcon } from "../../generated/icons/Share";
 import { TriangleAlert } from "../../generated/icons/TriangleAlert";
 import { isValidCurrency, fees as rampFees } from "../../utils/currencies";
 import queryClient from "../../utils/queryClient";
@@ -36,6 +35,7 @@ import IconButton from "../shared/IconButton";
 import InfoAlert from "../shared/InfoAlert";
 import ModalSheet, { Inset } from "../shared/ModalSheet";
 import SafeView from "../shared/SafeView";
+import ShareButton from "../shared/ShareButton";
 import Skeleton from "../shared/Skeleton";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -284,20 +284,13 @@ export default function Ramp() {
         </ScrollView>
         <YStack gap="s4" padding="s2">
           <XStack alignItems="center" gap="s3">
-            <Button
-              secondary
-              flex={1}
+            <ShareButton
               disabled={isPending || !deposit}
               onPress={() => {
                 if (!message) return;
                 Share.share({ message, title: t("Share account details") }).catch(reportError);
               }}
-            >
-              <Button.Text>{t("Share")}</Button.Text>
-              <Button.Icon>
-                <ShareIcon size={18 * fontScale} />
-              </Button.Icon>
-            </Button>
+            />
             <Button
               primary
               flex={1}

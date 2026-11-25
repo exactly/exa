@@ -19,7 +19,6 @@ import EducationSheet from "./EducationSheet";
 import { Copy } from "../../generated/icons/Copy";
 import { Info } from "../../generated/icons/Info";
 import { RefreshCw } from "../../generated/icons/RefreshCw";
-import { Share as ShareIcon } from "../../generated/icons/Share";
 import { X } from "../../generated/icons/X";
 import { lifiChainsOptions } from "../../utils/lifi";
 import networkLogos from "../../utils/networkLogos";
@@ -33,6 +32,7 @@ import CopyAddressSheet from "../shared/CopyAddressSheet";
 import IconButton from "../shared/IconButton";
 import Image from "../shared/Image";
 import SafeView from "../shared/SafeView";
+import ShareButton from "../shared/ShareButton";
 import Skeleton from "../shared/Skeleton";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
@@ -356,19 +356,12 @@ export default function AddCrypto() {
             </Button>
           ) : (
             <XStack alignItems="center" gap="s3">
-              <Button
-                secondary
-                flex={1}
+              <ShareButton
                 disabled={!address}
                 onPress={() => {
                   share().catch(reportError);
                 }}
-              >
-                <Button.Text>{t("Share")}</Button.Text>
-                <Button.Icon>
-                  <ShareIcon size={18 * fontScale} />
-                </Button.Icon>
-              </Button>
+              />
               <Button primary flex={1} onPress={copy} disabled={!address}>
                 <Button.Text>{t("Copy")}</Button.Text>
                 <Button.Icon>
