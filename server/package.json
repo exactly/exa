@@ -49,7 +49,7 @@
     "@mastra/observability": "^1.17.4",
     "@mastra/sentry": "^1.2.14",
     "@onesignal/node-onesignal": "^5.4.0",
-    "@react-pdf/renderer": "^4.3.2",
+    "@react-pdf/renderer": "^4.9.0",
     "@segment/analytics-node": "^3.0.0",
     "@sentry/core": "catalog:",
     "@sentry/node": "catalog:",
