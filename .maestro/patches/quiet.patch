@@ -1,45 +1,22 @@
-From 2dc1ca34d3b90c433310b5d6b5b7b571274cc29f Mon Sep 17 00:00:00 2001
+From c66afa91a2007b077247bfd86b73b20ed9bcad00 Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Thu, 19 Nov 2026 23:44:37 +0000
-Subject: [PATCH] fix: read Android hierarchies after 200 ms of accessibility
- quiet
+Subject: [PATCH] fix: read Android hierarchies without waiting for idle
 
-Each view hierarchy read waited for the device to go 500 ms without accessibility events, up to 500 ms. Android sends content changes at most every 100 ms, so an app that changed anything in the last half second, as it does right after every tap, made each read wait its full 500 ms, and a settle needs at least two reads. Wait for 200 ms of quiet, two of those intervals, still up to 500 ms.
+Each view hierarchy read first waited for the device to go 500 ms without accessibility events, up to 500 ms. Android sends content changes at most every 100 ms, so an app that changed anything in the last half second, as it does right after every tap, made each read wait its full 500 ms, and a settle needs at least two reads. Callers that need a stable screen already compare consecutive reads until two match, so read right away.
 ---
- .../java/dev/mobile/maestro/MaestroDriverService.kt      | 9 ++++++++-
- 1 file changed, 8 insertions(+), 1 deletion(-)
+ .../androidTest/java/dev/mobile/maestro/MaestroDriverService.kt  | 1 -
+ 1 file changed, 1 deletion(-)
 
 diff --git a/maestro-android/src/androidTest/java/dev/mobile/maestro/MaestroDriverService.kt b/maestro-android/src/androidTest/java/dev/mobile/maestro/MaestroDriverService.kt
-index 9e75fec..18aff2d 100644
+index 9e75fec..df3b277 100644
 --- a/maestro-android/src/androidTest/java/dev/mobile/maestro/MaestroDriverService.kt
 +++ b/maestro-android/src/androidTest/java/dev/mobile/maestro/MaestroDriverService.kt
-@@ -18,6 +18,7 @@ import android.view.KeyEvent.KEYCODE_7
- import android.view.KeyEvent.KEYCODE_APOSTROPHE
- import android.view.KeyEvent.KEYCODE_AT
- import java.util.concurrent.TimeUnit
-+import java.util.concurrent.TimeoutException
- import android.view.KeyEvent.KEYCODE_BACKSLASH
- import android.view.KeyEvent.KEYCODE_COMMA
- import android.view.KeyEvent.KEYCODE_DEL
-@@ -129,6 +130,8 @@ class Service(
-     companion object {
-         private const val TAG = "Maestro"
-         private const val UPDATE_INTERVAL_IN_MILLIS = 2000L
-+        private const val IDLE_QUIET_MILLIS = 200L
-+        private const val IDLE_TIMEOUT_MILLIS = 500L
- 
-         private val ERROR_TYPE_KEY: Metadata.Key<String> =
-             Metadata.Key.of("error-type", Metadata.ASCII_STRING_MARSHALLER)
-@@ -243,7 +246,11 @@ class Service(
+@@ -243,7 +243,6 @@ class Service(
       */
      private fun refreshAccessibilityCache() {
          try {
 -            uiDevice.waitForIdle(500)
-+            try {
-+                uiAutomation.waitForIdle(IDLE_QUIET_MILLIS, IDLE_TIMEOUT_MILLIS)
-+            } catch (_: TimeoutException) {
-+                Log.d(TAG, "App still busy after $IDLE_TIMEOUT_MILLIS ms")
-+            }
              uiAutomation.serviceInfo = null
          } catch (nullExp: NullPointerException) {
              /* no-op */
