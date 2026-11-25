@@ -1,7 +1,7 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
 - tapOn: Home
-- tapOn: Send
+- tapOn: { text: Send, enabled: true }
 - tapOn: Bank transfers
 - tapOn: Dollars via ACH or WIRE
 - runFlow:
