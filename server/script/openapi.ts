@@ -43,6 +43,7 @@ import("../api")
       sardine: createSardine("sardine", "https://api.sardine.ai"),
       segment,
       subscribe: { close: () => Promise.resolve(), ready: () => Promise.resolve(), enqueue: () => Promise.resolve() },
+      views: database,
       walletExtension: createWalletExtension(zeroHash),
     });
     const spec = await generateSpecs(handle.app, {

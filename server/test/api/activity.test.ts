@@ -109,7 +109,7 @@ function removeUndefined(object: unknown): unknown {
   return result;
 }
 
-const appClient = testClient(route({ auth: authenticate(""), database }));
+const appClient = testClient(route({ auth: authenticate(""), database, views: database }));
 const account = deriveAddress(exaAccountFactoryAddress, {
   x: padHex(privateKeyToAddress(padHex("0xb0b"))),
   y: zeroHash,

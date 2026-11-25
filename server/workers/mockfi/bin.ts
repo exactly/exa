@@ -6,6 +6,7 @@ import { name } from "./job";
 import worker from "./worker";
 import * as schema from "../../database/schema";
 import supervise, { own } from "../../supervise";
+import { indexer } from "../../utils/postgres";
 import secret from "../../utils/secret";
 import { signer } from "../../utils/wallet";
 import { connect } from "../worker";
@@ -17,7 +18,7 @@ supervise(
   name,
   Promise.all([
     secret("redis-url", secrets).then((url) => connect(url)),
-    secret("mockfi-postgres-url", secrets).then((url) => drizzle(url, { schema })),
+    indexer("mockfi", secrets).then((client) => drizzle({ client, schema })),
     signer("bridger", kms),
   ]).then(([bullmq, database, bridger]) =>
     own(

@@ -6,6 +6,7 @@ import supervise, { own } from "../../supervise";
 import { publisher } from "../../utils/events";
 import createOnesignal from "../../utils/onesignal";
 import createPersona from "../../utils/persona";
+import postgres from "../../utils/postgres";
 import createBridge from "../../utils/ramps/bridge";
 import secret from "../../utils/secret";
 import createSegment from "../../utils/segment";
@@ -19,7 +20,7 @@ supervise(
     Promise.all([secret("bridge-bridge-api-key", secrets), secret("bridge-api-url", secrets)]).then(([key, url]) =>
       createBridge(key, url),
     ),
-    secret("bridge-postgres-url", secrets).then((url) => publisher(drizzle(url, { schema }))),
+    postgres("bridge", secrets).then((client) => publisher(drizzle({ client, schema }))),
     secret("bridge-onesignal-api-keys", secrets).then((key) => createOnesignal(key)),
     Promise.all([secret("bridge-persona-api-key", secrets), secret("persona-api-url", secrets)]).then(([key, url]) =>
       createPersona(key, url),

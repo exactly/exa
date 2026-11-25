@@ -8,6 +8,7 @@ import * as schema from "../../database/schema";
 import supervise, { own } from "../../supervise";
 import createOnesignal from "../../utils/onesignal";
 import createPanda from "../../utils/panda";
+import postgres from "../../utils/postgres";
 import createSardine from "../../utils/sardine";
 import secret from "../../utils/secret";
 import createSegment from "../../utils/segment";
@@ -21,7 +22,7 @@ supervise(
   name,
   Promise.all([
     secret("redis-url", secrets).then((url) => connect(url)),
-    secret("refund-postgres-url", secrets).then((url) => drizzle(url, { schema })),
+    postgres("refund", secrets).then((client) => drizzle({ client, schema })),
     secret("refund-onesignal-api-keys", secrets).then((key) => createOnesignal(key)),
     Promise.all([
       secret("refund-panda-api-key", secrets),

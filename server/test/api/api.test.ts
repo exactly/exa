@@ -185,6 +185,7 @@ describe("api", () => {
           sardine: undefined as never,
           segment: undefined as never,
           subscribe: undefined as never,
+          views: database,
           walletExtension: undefined as never,
         }).app,
       );

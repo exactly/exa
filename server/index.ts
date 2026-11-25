@@ -97,7 +97,7 @@ const walletExtension = createWalletExtension(
 );
 const source = chain.testnet ? "indexer" : "alchemy";
 const hooks = {
-  activity: () => createActivityHook({ alchemy, database, onesignal, poke, redis }),
+  activity: () => createActivityHook({ alchemy, database, onesignal, poke, redis, views: database }),
   block: () =>
     createBlockHook({
       alchemy,
@@ -110,6 +110,7 @@ const hooks = {
       qr,
       redis,
       source,
+      views: database,
     }),
   bridge: () =>
     createBridgeHook({
@@ -139,6 +140,7 @@ const hooks = {
       sardine,
       segment,
       settler: keeper,
+      views: database,
       webhook,
       webhookKey: parse(pipe(string("panda webhooks"), nonEmpty("panda webhooks")), env.PANDA_WEBHOOKS_KEY),
     }),
@@ -191,6 +193,7 @@ const api = createApi({
   sardine,
   segment,
   subscribe,
+  views: database,
   walletExtension,
 });
 const enabledHooks = Object.entries(hooks)

@@ -134,6 +134,7 @@ describe("api bin", () => {
       sardine,
       segment,
       subscribe: queue,
+      views: database,
       walletExtension,
     });
     const redis = mocks.api.mock.calls[0]?.[0].redis;
