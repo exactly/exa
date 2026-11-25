@@ -13,6 +13,7 @@ import {
   parse,
   picklist,
   pipe,
+  safeParse,
   string,
   union,
   url,
@@ -34,8 +35,11 @@ import findOperation from "../utils/findOperation";
 import { BusinessApplicationError } from "../utils/panda";
 import {
   ADDRESS_TEMPLATE,
+  IdClassToBridge,
+  IdentificationClasses,
   isMissingOrNull,
   MANTECA_TEMPLATE_EXTRA_FIELDS,
+  MANTECA_TEMPLATE_WITH_ID_CLASS,
   PANDA_TEMPLATE,
   syncing,
 } from "../utils/persona";
@@ -428,7 +432,13 @@ export default function route({
                       })
                   : undefined;
               if (syncing(inquiry)) return c.json({ code: "pending" }, 200);
-              if (!(error instanceof Error && error.message === Bridge.ErrorCodes.MISSING_FIELDS)) {
+              if (
+                !(
+                  error instanceof Error &&
+                  (error.message === Bridge.ErrorCodes.MISSING_FIELDS ||
+                    error.message === Bridge.ErrorCodes.NO_DOCUMENT)
+                )
+              ) {
                 captureException(error, { level: "error", contexts: { credential } });
               }
               if (error instanceof ServiceError && error.status === 422)
@@ -448,6 +458,50 @@ export default function route({
                       ADDRESS_TEMPLATE,
                       persona,
                       await persona.getInquiry(credentialId, ADDRESS_TEMPLATE),
+                    );
+                    return c.json({ code: error.message, inquiryId, sessionToken }, 400);
+                  }
+                  case Bridge.ErrorCodes.NO_DOCUMENT: {
+                    const verification = await persona.getLatestInquiry(credentialId, MANTECA_TEMPLATE_WITH_ID_CLASS);
+                    const idClass = safeParse(
+                      picklist(IdentificationClasses),
+                      verification?.attributes.fields?.["selected-id-class-1"],
+                    );
+                    const documented =
+                      verification?.attributes.status === "approved" &&
+                      idClass.success &&
+                      !!IdClassToBridge[idClass.output];
+                    if (
+                      verification?.attributes.status === "completed" ||
+                      verification?.attributes.status === "needs_review" ||
+                      (documented && syncing(verification))
+                    ) {
+                      return c.json({ code: "pending" }, 200);
+                    }
+                    captureException(documented ? new Error("document not added", { cause: error }) : error, {
+                      level: documented ? "error" : "warning",
+                      fingerprint: ["{{ default }}", documented ? "document not added" : "no document"],
+                      contexts: {
+                        credential,
+                        inquiry: {
+                          id: verification?.id,
+                          status: verification?.attributes.status,
+                          idClass: idClass.output,
+                        },
+                      },
+                    });
+                    if (
+                      verification?.attributes.status === "declined" ||
+                      (verification?.attributes.status === "failed" &&
+                        !(await canRetry(credentialId, MANTECA_TEMPLATE_WITH_ID_CLASS, persona)))
+                    ) {
+                      return c.json({ code: "failed" }, 400);
+                    }
+                    const { inquiryId, sessionToken } = await getOrCreateInquiry(
+                      credentialId,
+                      MANTECA_TEMPLATE_WITH_ID_CLASS,
+                      persona,
+                      verification,
                     );
                     return c.json({ code: error.message, inquiryId, sessionToken }, 400);
                   }

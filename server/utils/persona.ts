@@ -547,14 +547,6 @@ export const BridgeAccount = object({
   }),
 });
 
-export const BridgeRequirements = object({
-  attributes: object({
-    "country-code": string(),
-    "social-security-number": nullish(string()),
-    fields: object({ documents: AccountBasicFields.entries.documents }),
-  }),
-});
-
 const UnknownAccount = object({
   data: array(
     object({

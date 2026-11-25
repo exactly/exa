@@ -2361,22 +2361,19 @@ describe("bridge utils", () => {
         expect(setContext).not.toHaveBeenCalled();
       });
 
-      it("returns NOT_AVAILABLE when incomplete account has unsupported id class", async () => {
-        const fetchSpy = vi.spyOn(globalThis, "fetch");
+      it("returns NOT_STARTED when incomplete account has unsupported id class", async () => {
         vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({
           data: [withDocumentClass(incompletePersonaAccount, "wp")],
         });
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
 
         await expect(bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" })).resolves.toStrictEqual({
-          onramp: { currencies: [] },
-          offramp: { currencies: [] },
-          status: "NOT_AVAILABLE",
+          status: "NOT_STARTED",
+          tosLink: "https://tos.link/agree",
+          onramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
+          offramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
         });
-        expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("bridge not found identification class"), {
-          contexts: { bridge: { credentialId: "cred-1", idClasses: ["wp"] } },
-          level: "warning",
-        });
-        expect(fetchSpy).not.toHaveBeenCalled();
+        expect(captureException).not.toHaveBeenCalled();
       });
 
       it("throws when incomplete US account has no SSN", async () => {
@@ -2586,46 +2583,45 @@ describe("bridge utils", () => {
         expect(fetchSpy).not.toHaveBeenCalled();
       });
 
-      it("returns NOT_AVAILABLE when id class is not mappable to bridge type", async () => {
+      it.each(["wp", "unknown_type"])(
+        "returns NOT_STARTED when id class %s is not supported by bridge",
+        async (idClass) => {
+          vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({
+            data: [withDocumentClass(enabledPersonaAccount, idClass)],
+          });
+          vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
+
+          await expect(bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" })).resolves.toStrictEqual({
+            status: "NOT_STARTED",
+            tosLink: "https://tos.link/agree",
+            onramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
+            offramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
+          });
+          expect(captureException).not.toHaveBeenCalled();
+        },
+      );
+
+      it("returns NOT_STARTED when enabled account has no documents", async () => {
         vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({
-          data: [withDocumentClass(enabledPersonaAccount, "wp")],
+          data: [
+            {
+              ...enabledPersonaAccount,
+              attributes: {
+                ...enabledPersonaAccount.attributes,
+                fields: { ...enabledPersonaAccount.attributes.fields, documents: { value: [] } },
+              },
+            },
+          ],
         });
+        vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(fetchResponse({ url: "https://tos.link/agree" }));
 
-        const result = await bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" });
-
-        expect(result).toStrictEqual({
-          onramp: { currencies: [] },
-          offramp: { currencies: [] },
-          status: "NOT_AVAILABLE",
+        await expect(bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" })).resolves.toStrictEqual({
+          status: "NOT_STARTED",
+          tosLink: "https://tos.link/agree",
+          onramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
+          offramp: { currencies: [...baseCurrencies, "USD", "EUR"] },
         });
-        expect(captureException).toHaveBeenCalledWith(
-          expect.objectContaining({ message: "bridge not found identification class" }),
-          expect.objectContaining({
-            contexts: { bridge: { credentialId: "cred-1", idClasses: ["wp"] } },
-            level: "warning",
-          }),
-        );
-      });
-
-      it("returns NOT_AVAILABLE when id class is not listed in IdentificationClasses", async () => {
-        vi.spyOn(persona, "getUnknownAccount").mockResolvedValueOnce({
-          data: [withDocumentClass(enabledPersonaAccount, "unknown_type")],
-        });
-
-        const result = await bridge.getProvider({ accountType: "consumer", credentialId: "cred-1" });
-
-        expect(result).toStrictEqual({
-          onramp: { currencies: [] },
-          offramp: { currencies: [] },
-          status: "NOT_AVAILABLE",
-        });
-        expect(captureException).toHaveBeenCalledWith(
-          expect.objectContaining({ message: "bridge not found identification class" }),
-          expect.objectContaining({
-            contexts: { bridge: { credentialId: "cred-1", idClasses: ["unknown_type"] } },
-            level: "warning",
-          }),
-        );
+        expect(captureException).not.toHaveBeenCalled();
       });
 
       it("throws when country alpha3 conversion fails", async () => {
