@@ -36,6 +36,7 @@ import {
   type InferOutput,
 } from "valibot";
 import {
+  encodeEventTopics,
   getAbiItem,
   hexToBigInt,
   slice,
@@ -68,6 +69,7 @@ import { collectors as cryptomateCollectors } from "../utils/cryptomate";
 import { declineMessage, collectors as pandaCollectors } from "../utils/panda";
 import publicClient from "../utils/publicClient";
 import Statement from "../utils/Statement";
+import traceClient, { type CallFrame } from "../utils/traceClient";
 import validatorHook from "../utils/validatorHook";
 
 import type * as schema from "../database/schema";
@@ -224,53 +226,113 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                   fromBlock: 0n,
                   strict: true,
                 }),
-              ]).then(([withdraw, proposed, executed]) =>
-                Promise.all(
-                  withdraw.map(async (log) => {
+              ]).then(async ([withdraw, proposed, executed]) => {
+                const sent = (nonce: bigint | undefined) =>
+                  proposed.find(
+                    ({ args }) =>
+                      args.nonce === nonce &&
+                      (args.proposalType === (ProposalType.Withdraw as number) ||
+                        args.proposalType === (ProposalType.Redeem as number)),
+                  );
+                const executions = Map.groupBy(executed, ({ transactionHash }) => transactionHash);
+                const withdrawal = [
+                  marketWETHAddress.toLowerCase(),
+                  ...encodeEventTopics({
+                    abi: marketAbi,
+                    eventName: "Withdraw",
+                    args: { caller: account, owner: account },
+                  }).filter((topic) => topic !== null),
+                ].join(":");
+                function frame(to: null | string, input: Hex, context?: bigint | null) {
+                  if (to?.toLowerCase() !== account.toLowerCase()) return context;
+                  if (input.startsWith("0x3ccfd60b")) return null;
+                  return input.startsWith(
+                    toFunctionSelector(getAbiItem({ abi: exaPluginAbi, name: "executeProposal" })),
+                  )
+                    ? hexToBigInt(slice(input, 4, 36))
+                    : context;
+                }
+                function walk({ to, input, error, logs: events = [], calls = [] }: CallFrame, context?: bigint | null) {
+                  if (error) return [];
+                  const current = frame(to, input, context);
+                  return [
+                    ...events
+                      .filter(({ address, topics }) => {
+                        const [signature, from, , holder] = String(topics).split(",");
+                        return `${address.toLowerCase()}:${signature}:${from}:${holder}` === withdrawal;
+                      })
+                      .map(() => current),
+                    ...calls.flatMap((call): (bigint | null | undefined)[] => walk(call, current)),
+                  ];
+                }
+                const resolved = new Map<string, (typeof proposed)[number] | null | undefined>();
+                await Promise.all(
+                  [
+                    ...Map.groupBy(
+                      withdraw.filter(({ address }) => address.toLowerCase() === marketWETHAddress.toLowerCase()),
+                      ({ transactionHash }) => transactionHash,
+                    ),
+                  ].map(async ([hash, logs]) => {
+                    const pending = logs
+                      .filter(({ args }) => plugins.has(args.receiver.toLowerCase() as Hex))
+                      .filter((log) => {
+                        const nonce = executions.get(hash)?.findLast(({ logIndex }) => logIndex < log.logIndex)
+                          ?.args.nonce;
+                        const proposal = nonce === undefined ? undefined : sent(nonce - 1n);
+                        if (proposal) resolved.set(`${hash}:${log.logIndex}`, proposal);
+                        return !proposal;
+                      });
+                    if (pending.length === 0) return;
+                    const scopes = await publicClient
+                      .getTransaction({ hash })
+                      .then(async ({ to, input }) => {
+                        if (
+                          to?.toLowerCase() === account.toLowerCase() &&
+                          input.startsWith(
+                            toFunctionSelector(getAbiItem({ abi: exaPluginAbi, name: "collectCollateral" })),
+                          )
+                        ) {
+                          return logs.map(() => undefined);
+                        }
+                        const direct = frame(to, input);
+                        if (direct !== undefined) return logs.map(() => direct);
+                        const result = walk(await traceClient.traceTransaction(hash));
+                        if (result.length !== logs.length) throw new Error("withdraw trace mismatch");
+                        return result;
+                      })
+                      .catch((error: unknown) => {
+                        captureException(error, { level: "error" });
+                      });
+                    if (!scopes) return;
+                    for (const log of pending) {
+                      const scope = scopes[logs.indexOf(log)];
+                      resolved.set(`${hash}:${log.logIndex}`, scope === null ? null : sent(scope));
+                    }
+                  }),
+                );
+                return withdraw
+                  .map((log) => {
                     const receiver = log.args.receiver.toLowerCase() as Hex;
                     if (!collectors.has(receiver) && !plugins.has(receiver) && receiver !== account.toLowerCase()) {
                       return log;
                     }
                     if (log.address.toLowerCase() === marketWETHAddress.toLowerCase() && plugins.has(receiver)) {
-                      let nonce = executed.findLast(
-                        ({ transactionHash, logIndex }) =>
-                          transactionHash === log.transactionHash && logIndex < log.logIndex,
-                      )?.args.nonce;
-                      if (nonce === undefined) {
-                        const { input } = await publicClient.getTransaction({ hash: log.transactionHash });
-                        if (input.startsWith("0x3ccfd60b")) return log;
-                        if (
-                          !input.startsWith(
-                            toFunctionSelector(getAbiItem({ abi: exaPluginAbi, name: "executeProposal" })),
-                          )
-                        ) {
-                          return;
-                        }
-                        nonce = hexToBigInt(slice(input, 4, 36)) + 1n;
-                      }
-                      const proposal = proposed.find(
-                        ({ args }) =>
-                          args.nonce + 1n === nonce &&
-                          (args.proposalType === (ProposalType.Withdraw as number) ||
-                            args.proposalType === (ProposalType.Redeem as number)),
-                      );
+                      const proposal = resolved.get(`${log.transactionHash}:${log.logIndex}`);
+                      if (proposal === null) return log;
                       if (!proposal) return;
                       return {
                         ...log,
                         args: { ...log.args, receiver: decodeWithdraw(proposal.args.data) },
                       } satisfies Log<bigint, number, false, undefined, true, typeof marketAbi, "Withdraw">;
                     }
-                  }),
-                ).then((logs) =>
-                  logs
-                    .filter((log) => !!log)
-                    .map((log) =>
-                      parse(WithdrawActivity, { ...log, market: market(log.address) } satisfies InferInput<
-                        typeof WithdrawActivity
-                      >),
-                    ),
-                ),
-              ),
+                  })
+                  .filter((log) => !!log)
+                  .map((log) =>
+                    parse(WithdrawActivity, { ...log, market: market(log.address) } satisfies InferInput<
+                      typeof WithdrawActivity
+                    >),
+                  );
+              }),
             ),
         ignore("card")
           ? undefined
