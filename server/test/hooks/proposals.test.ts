@@ -1,4 +1,4 @@
-import { headerValidator } from "../mocks/alchemy";
+import { createWebhook, headerValidator } from "../mocks/alchemy";
 import "../mocks/onesignal";
 import "../mocks/sentry";
 import "../mocks/wallet";
@@ -28,11 +28,13 @@ import {
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { moonbeamDev } from "viem/chains";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import deriveAddress from "@exactly/common/deriveAddress";
-import {
+import chain, {
   activityChains,
+  appPreviewerAbi,
+  appPreviewerCode,
   auditorAbi,
   chains,
   exaAccountFactoryAbi,
@@ -522,6 +524,104 @@ describe("indexer source", () => {
     await expect(response.json()).resolves.toStrictEqual({});
     expect(readContract).toHaveBeenCalledWith(expect.objectContaining({ functionName: "proposalManager" }));
     readContract.mockRestore();
+  });
+
+  it("schedules webhook proposals on their network", async () => {
+    await database
+      .insert(credentials)
+      .values({
+        id: "webhook-proposals",
+        publicKey: new Uint8Array(hexToBytes(owner.address)),
+        account,
+        factory: exaAccountFactoryAddress,
+      })
+      .onConflictDoNothing();
+    const { proposalManager } = await target.readContract({
+      abi: appPreviewerAbi,
+      code: appPreviewerCode,
+      functionName: "proposalManager",
+      args: [account],
+    });
+    const watcher = createBlockHook({
+      alchemy: createAlchemy("webhooks"),
+      database,
+      executor: owner,
+      manteca,
+      onesignal: createOnesignal('{"2f79a35c-8b11-4725-84d8-fc096f3f216e":"onesignal"}'),
+      persona,
+      redis,
+      source: "alchemy",
+    });
+    onTestFinished(() => watcher.close());
+    await watcher.ready;
+    const zadd = vi.spyOn(redis, "zadd");
+    zadd.mockClear();
+    const nonce = 778n;
+
+    const response = await watcher.app.request(`/${anvil2.id}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        type: "GRAPHQL",
+        event: {
+          data: {
+            block: {
+              number: 1,
+              timestamp: 0,
+              logs: [
+                {
+                  topics: encodeEventTopics({
+                    abi: proposalManagerAbi,
+                    eventName: "Proposed",
+                    args: { account, nonce, market },
+                  }),
+                  data: encodeAbiParameters(
+                    [{ type: "uint8" }, { type: "uint256" }, { type: "bytes" }, { type: "uint256" }],
+                    [ProposalType.None, 1n, "0x", 1n],
+                  ),
+                  account: { address: proposalManager },
+                },
+              ],
+            },
+          },
+        },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({});
+    expect(
+      zadd.mock.calls
+        .filter(([key]) => key === "proposals")
+        .map((call) => deserialize<{ account: string; chainId: number; nonce: bigint }>(String(call.at(-1)))),
+    ).toStrictEqual([expect.objectContaining({ account, chainId: anvil2.id, nonce })]);
+  });
+
+  it("leaves other networks to the indexer", async () => {
+    vi.mocked(createWebhook).mockClear();
+    const other = createBlockHook({
+      alchemy: createAlchemy("webhooks"),
+      database,
+      executor: owner,
+      manteca,
+      onesignal: createOnesignal('{"2f79a35c-8b11-4725-84d8-fc096f3f216e":"onesignal"}'),
+      persona,
+      redis,
+      source: "indexer",
+    });
+    onTestFinished(() => other.close());
+    await other.ready;
+
+    const response = await other.app.request(`/${anvil2.id}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ type: "GRAPHQL", event: { data: { block: { number: 1, timestamp: 0, logs: [] } } } }),
+    });
+
+    expect(response.status).toBe(404);
+    expect(vi.mocked(createWebhook).mock.calls.map(([options]) => options.network)).toStrictEqual([
+      chain.alchemyNetwork,
+    ]);
   });
 
   it("captures sync failures", async () => {
