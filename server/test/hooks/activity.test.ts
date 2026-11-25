@@ -1169,6 +1169,7 @@ function createHook(current = alchemy, queue: ReturnType<typeof createPokeQueue>
     onesignal,
     poke: queue,
     redis,
+    views: database,
   });
 }
 

@@ -8,6 +8,7 @@ import { publisher } from "../../utils/events";
 import createPanda from "../../utils/panda";
 import createPax from "../../utils/pax";
 import createPersona from "../../utils/persona";
+import postgres from "../../utils/postgres";
 import createSardine from "../../utils/sardine";
 import secret from "../../utils/secret";
 import createAllow from "../../workers/allow/queue";
@@ -18,7 +19,7 @@ const secrets = new SecretManagerServiceClient();
 supervise(
   "persona",
   Promise.all([
-    secret("persona-postgres-url", secrets).then((url) => publisher(drizzle(url, { schema }))),
+    postgres("persona", secrets).then((client) => publisher(drizzle({ client, schema }))),
     Promise.all([secret("persona-panda-api-key", secrets), secret("panda-api-url", secrets)]).then(([key, url]) =>
       createPanda({ key, url }),
     ),

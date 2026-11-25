@@ -96,6 +96,7 @@ const hook = createBlockHook({
   qr,
   redis,
   source: "indexer",
+  views: database,
 });
 
 beforeAll(async () => {
@@ -318,6 +319,7 @@ describe("indexer source", () => {
       qr,
       redis,
       source: "indexer",
+      views: database,
     });
 
     try {
@@ -466,6 +468,7 @@ describe("indexer source", () => {
       qr,
       redis,
       source,
+      views: database,
     });
     await other.ready;
 
@@ -556,6 +559,7 @@ describe("indexer source", () => {
       qr,
       redis,
       source: "indexer",
+      views: database,
     });
     await other.ready;
 

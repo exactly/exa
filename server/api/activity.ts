@@ -94,7 +94,15 @@ const legacyTypes = new Set<InferInput<typeof ActivityTypes>>(["card", "received
 const fromToken = alias(indexer.tokens, "from_token");
 const toToken = alias(indexer.tokens, "to_token");
 
-export default function route({ auth, database }: { auth: Auth; database: NodePgDatabase<typeof schema> }) {
+export default function route({
+  auth,
+  database,
+  views,
+}: {
+  auth: Auth;
+  database: NodePgDatabase<typeof schema>;
+  views: NodePgDatabase<typeof schema>;
+}) {
   return new Hono().get(
     "/",
     auth,
@@ -159,9 +167,9 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
       setUser({ id: account });
 
       const owner = account.toLowerCase() as Hex;
-      const deployed = database.selectDistinct({ chainId: indexer.markets.chainId }).from(indexer.markets);
+      const deployed = views.selectDistinct({ chainId: indexer.markets.chainId }).from(indexer.markets);
       const [networks, installed] = await Promise.all([
-        database
+        views
           .select({
             chainId: indexer.markets.chainId,
             address: indexer.markets.address,
@@ -177,11 +185,11 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
           ),
         !ignore("repay") || !ignore("sent") || !ignore("received") || !ignore("rollover")
           ? Promise.all([
-              database
+              views
                 .select({ chainId: indexer.accounts.chainId, plugin: indexer.accounts.owner })
                 .from(indexer.accounts)
                 .where(and(inArray(indexer.accounts.chainId, deployed), eq(indexer.accounts.address, owner))),
-              database
+              views
                 .select({ chainId: indexer.plugins.chainId, plugin: indexer.plugins.address })
                 .from(indexer.plugins)
                 .innerJoin(
@@ -254,7 +262,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
         return rows;
       }
 
-      const repayHash = database
+      const repayHash = views
         .select({
           chainId: indexer.repays.chainId,
           account: indexer.repays.account,
@@ -265,7 +273,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
         .from(indexer.repays)
         .as("repay_hash");
 
-      const nextBorrow = database
+      const nextBorrow = views
         .select({
           chainId: indexer.borrows.chainId,
           account: indexer.borrows.account,
@@ -282,7 +290,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
           : and(
               notInArray(indexer.repays.caller, [...(installed?.get(chainId) ?? []), owner]),
               exists(
-                database
+                views
                   .select({ logIndex: nextBorrow.logIndex })
                   .from(nextBorrow)
                   .where(
@@ -302,7 +310,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
         const rolloverPromise = ignore("rollover")
           ? Promise.resolve(forbid([]))
           : paged(
-              database
+              views
                 .select({
                   repay: getViewSelectedFields(indexer.repays),
                   borrow: {
@@ -319,7 +327,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                     eq(indexer.borrows.hash, indexer.repays.hash),
                     eq(
                       indexer.borrows.logIndex,
-                      database
+                      views
                         .select({ logIndex: min(nextBorrow.logIndex) })
                         .from(nextBorrow)
                         .where(
@@ -358,7 +366,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
         const swapPromise = ignore("swap")
           ? Promise.resolve(forbid([]))
           : paged(
-              database
+              views
                 .select({
                   swap: getViewSelectedFields(indexer.swaps),
                   from: { symbol: fromToken.symbol, decimals: fromToken.decimals },
@@ -388,7 +396,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
           ignore("received")
             ? []
             : paged(
-                database
+                views
                   .select()
                   .from(indexer.deposits)
                   .where(
@@ -398,7 +406,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                       eq(indexer.deposits.caller, owner),
                       inArray(indexer.deposits.market, [...markets.keys()]),
                       notExists(
-                        database
+                        views
                           .select({ hash: repayHash.hash })
                           .from(repayHash)
                           .where(
@@ -427,7 +435,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
             ? []
             : Promise.all([
                 paged(
-                  database
+                  views
                     .select()
                     .from(indexer.repays)
                     .where(
@@ -468,7 +476,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
             ? []
             : Promise.all([
                 paged(
-                  database
+                  views
                     .select()
                     .from(indexer.withdraws)
                     .where(
@@ -503,7 +511,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                     .$dynamic(),
                   indexer.withdraws,
                 ).then((rows) => bound(rows, rows.at(-1))),
-                database
+                views
                   .select()
                   .from(indexer.proposals)
                   .where(
@@ -541,7 +549,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
               ),
           ignore("card") || !first
             ? undefined
-            : database
+            : views
                 .select({
                   hash: indexer.borrows.hash,
                   timestamp: indexer.borrows.timestamp,
@@ -570,7 +578,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
           ignore("loan")
             ? []
             : paged(
-                database
+                views
                   .select()
                   .from(indexer.borrows)
                   .where(
@@ -582,7 +590,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                       notInArray(indexer.borrows.receiver, collectors(chain.id)),
                       notInArray(
                         indexer.borrows.receiver,
-                        database
+                        views
                           .select({ address: indexer.collectors.address })
                           .from(indexer.collectors)
                           .where(eq(indexer.collectors.chainId, chain.id)),
@@ -614,7 +622,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
           ignore("liquidation")
             ? []
             : paged(
-                database
+                views
                   .select()
                   .from(indexer.liquidations)
                   .where(
@@ -642,7 +650,7 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
           ignore("bridge")
             ? []
             : paged(
-                database
+                views
                   .select({
                     bridge: getViewSelectedFields(indexer.bridges),
                     token: { symbol: indexer.tokens.symbol, decimals: indexer.tokens.decimals },

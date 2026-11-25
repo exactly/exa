@@ -6,6 +6,7 @@ import worker from "./worker";
 import * as schema from "../../database/schema";
 import supervise, { own } from "../../supervise";
 import createOnesignal from "../../utils/onesignal";
+import postgres from "../../utils/postgres";
 import secret from "../../utils/secret";
 import { connect } from "../worker";
 
@@ -15,7 +16,7 @@ supervise(
   name,
   Promise.all([
     secret("redis-url", secrets).then((url) => connect(url)),
-    secret("credit-postgres-url", secrets).then((url) => drizzle(url, { schema })),
+    postgres("credit", secrets).then((client) => drizzle({ client, schema })),
     secret("credit-onesignal-api-key", secrets).then((key) => createOnesignal(key)),
   ]).then(([bullmq, database, onesignal]) =>
     own(

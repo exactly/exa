@@ -118,6 +118,7 @@ const dependencies = {
   sardine: createSardine(sardineConfig.key, sardineConfig.url),
   segment: createSegment("segment"),
   settler: owner.account,
+  views: database,
   webhook: hookQueue,
   webhookKey: "stale,panda",
 };

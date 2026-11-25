@@ -137,6 +137,7 @@ const defaults = {
   persona,
   qr,
   redis,
+  views: database,
 };
 vi.mocked(findWebhook).mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined -- create path
 const blockHook = createBlockHook(defaults);

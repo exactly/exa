@@ -112,6 +112,7 @@ export default function hook({
   sardine,
   segment,
   settler,
+  views,
   webhook,
   webhookKey,
 }: {
@@ -124,12 +125,13 @@ export default function hook({
   sardine: ReturnType<typeof createSardine>;
   segment: ReturnType<typeof createSegment>;
   settler: LocalAccount;
+  views: Database;
   webhook: ReturnType<typeof createHook>;
   webhookKey: string;
 }) {
   const keys = v.parse(v.array(v.pipe(v.string(), v.trim(), v.nonEmpty("panda webhooks"))), webhookKey.split(","));
   const wallet = createWallet(settler);
-  const indexer = indexed(database.$client);
+  const indexer = indexed(views.$client);
   const networks = Promise.all(
     [...chains].map(async ([id, { exaPreviewer }]): Promise<Network> => {
       const clients =

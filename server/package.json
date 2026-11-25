@@ -27,6 +27,7 @@
       "types": "./api/*.ts"
     },
     "./api/bin": "./dist/api/bin.cjs",
+    "./database/push": "./dist/database/push.cjs",
     "./instrument": "./dist/instrument.cjs",
     "./hooks/*/bin": "./dist/hooks/bin/*.cjs",
     "./workers/*/bin": "./dist/workers/*/bin.cjs"

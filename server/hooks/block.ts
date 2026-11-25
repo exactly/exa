@@ -102,6 +102,7 @@ export default function hook({
   qr,
   redis,
   source = "alchemy",
+  views,
 }: {
   alchemy: ReturnType<typeof createAlchemy>;
   blockKey?: string;
@@ -114,6 +115,7 @@ export default function hook({
   qr: ReturnType<typeof createQR>;
   redis: Redis;
   source?: "alchemy" | "indexer";
+  views: NodePgDatabase<typeof schema> & { $client: Pool };
 }) {
   const wallet = createWallet(executor);
   const targets = new Map(
@@ -159,7 +161,7 @@ export default function hook({
     return emitters;
   }
 
-  const listener = source === "indexer" ? listen(database.$client, sync) : undefined;
+  const listener = source === "indexer" ? listen(views.$client, sync) : undefined;
   if (!blockKey) debug("missing alchemy block key");
   const signingKeys = new Set(blockKey && [blockKey]);
   const ready = Promise.all([
@@ -957,7 +959,7 @@ export default function hook({
 
   async function isWETHMarket(chainId: number, market: Address) {
     if (chainId === chain.id) return market.toLowerCase() === marketWETHAddress.toLowerCase();
-    const [found] = await database
+    const [found] = await views
       .select({ symbol: indexer.markets.symbol })
       .from(indexer.markets)
       .where(and(eq(indexer.markets.chainId, chainId), eq(indexer.markets.address, market.toLowerCase() as Address)));
@@ -968,7 +970,7 @@ export default function hook({
     for (const [chainId, target] of targets) {
       const key = `cursor:proposals:${chainId}`;
       const cursor = await redis.get(key);
-      const rows = await database
+      const rows = await views
         .select({
           account: indexer.proposals.account,
           amount: indexer.proposals.amount,

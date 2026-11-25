@@ -1,18 +1,17 @@
 import { SecretManagerServiceClient } from "@google-cloud/secret-manager";
-import { drizzle } from "drizzle-orm/node-postgres";
 import { Hono } from "hono";
 import { Redis } from "ioredis";
 import { env } from "node:process";
 import { array, optional, parse, picklist, pipe, string, transform } from "valibot";
 
 import api from ".";
-import * as schema from "../database/schema";
 import supervise, { own } from "../supervise";
 import { close as drain, listen, publisher } from "../utils/events";
 import createIntercom from "../utils/intercom";
 import createPanda from "../utils/panda";
 import createPax from "../utils/pax";
 import createPersona from "../utils/persona";
+import { databases, end } from "../utils/postgres";
 import createBridge from "../utils/ramps/bridge";
 import createManteca from "../utils/ramps/manteca";
 import createSardine from "../utils/sardine";
@@ -46,7 +45,7 @@ supervise(
         env.DISABLED_MODULES,
       ).includes("business"),
     ),
-    secret("api-postgres-url", secrets).then((url) => drizzle(url, { schema })),
+    databases("api", secrets),
     secret("api-intercom-identity-key", secrets).then((key) => createIntercom(key)),
     Promise.all([secret("api-manteca-api-key", secrets), secret("manteca-api-url", secrets)]).then(([key, url]) =>
       createManteca(key, url),
@@ -73,7 +72,7 @@ supervise(
       authSecret,
       bridge,
       business,
-      database,
+      { database, views },
       intercom,
       manteca,
       panda,
@@ -101,13 +100,14 @@ supervise(
         sardine,
         segment,
         subscribe,
+        views,
         walletExtension,
       });
       return own(
         own({ app: new Hono().route("/api", app), drain, ready: Promise.all([ready, events.ready]) }, () =>
           events.close(),
         ),
-        () => database.$client.end(),
+        () => end(database, views),
         () => secrets.close(),
         () => segment.close(),
         () => Promise.all([credit.close(), qr.close(), subscribe.close()]).finally(() => redis.quit()),
