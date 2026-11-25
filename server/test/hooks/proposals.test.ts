@@ -267,6 +267,12 @@ describe("indexer source", () => {
   it("keeps the network of rescheduled proposals", async () => {
     const receiver = privateKeyToAccount(generatePrivateKey()).address;
     const data = encodeAbiParameters([{ type: "address" }], [receiver]);
+    const rescheduled = Promise.withResolvers<boolean>();
+    const get = redis.get.bind(redis);
+    const cursor = vi.spyOn(redis, "get").mockImplementation((async (key: string) => {
+      if (key === `cursor:proposals:${anvil2.id}`) await rescheduled.promise;
+      return get(key);
+    }) as typeof redis.get);
     const hash = await target.writeContract({
       address: account,
       abi: [...exaPluginAbi, ...upgradeableModularAccountAbi],
@@ -309,7 +315,6 @@ describe("indexer source", () => {
       redis,
       source: "indexer",
     });
-    await other.ready;
 
     try {
       await vi.waitFor(
@@ -328,6 +333,8 @@ describe("indexer source", () => {
         },
         { timeout: 30_000, interval: 200 },
       );
+      rescheduled.resolve(true);
+      await other.ready;
       const { timestamp } = await target.getBlock({ blockNumber: receipt.blockNumber });
       await target.mine({ blocks: 1, interval: Number(proposed.args.unlock - timestamp) });
       await vi.waitUntil(
@@ -341,6 +348,8 @@ describe("indexer source", () => {
         { timeout: 30_000, interval: 200 },
       );
     } finally {
+      rescheduled.resolve(true);
+      cursor.mockRestore();
       await other.close();
     }
     for (const member of await redis.zrange("proposals", 0, -1)) {
