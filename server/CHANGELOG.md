@@ -1,5 +1,15 @@
 # @exactly/server
 
+## 0.7.1
+
+### Patch Changes
+
+- [#2122](https://github.com/exactly/exa/pull/2122) [`a3606c0`](https://github.com/exactly/exa/commit/a3606c0259cd341fcb2a3d8a33eeec77413df037) Thanks [@pikonha](https://github.com/pikonha)! - 👽️ drop source from qr payment locks
+
+- [#2062](https://github.com/exactly/exa/pull/2062) [`fb4a17c`](https://github.com/exactly/exa/commit/fb4a17c79b4eaaedda2bd6192fb095990f6dea9b) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 request missing bridge document
+
+- [#2094](https://github.com/exactly/exa/pull/2094) [`5764e56`](https://github.com/exactly/exa/commit/5764e565a95a4c13d51a7d8f8c4bbaf4fe6119b7) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🥅 ignore send errors once mined
+
 ## 0.7.0
 
 ### Minor Changes

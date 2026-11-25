@@ -1,5 +1,16 @@
 # @exactly/mobile
 
+## 1.2.64
+
+### Patch Changes
+
+- [#2062](https://github.com/exactly/exa/pull/2062) [`0f75d87`](https://github.com/exactly/exa/commit/0f75d878fb588dcc0fe82a927174162cf98d71b4) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 verify missing bridge document
+
+- [#2118](https://github.com/exactly/exa/pull/2118) [`1aebcfb`](https://github.com/exactly/exa/commit/1aebcfb0468a749f1d0d0545acb38a028494f544) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 ask to confirm again when bridge quote expires
+
+- Updated dependencies [[`a3606c0`](https://github.com/exactly/exa/commit/a3606c0259cd341fcb2a3d8a33eeec77413df037), [`fb4a17c`](https://github.com/exactly/exa/commit/fb4a17c79b4eaaedda2bd6192fb095990f6dea9b), [`5764e56`](https://github.com/exactly/exa/commit/5764e565a95a4c13d51a7d8f8c4bbaf4fe6119b7)]:
+  - @exactly/server@0.7.1
+
 ## 1.2.63
 
 ### Patch Changes
