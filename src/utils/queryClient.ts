@@ -35,15 +35,17 @@ function versionAwareDeserialize(cache: string): PersistedClient {
   return persistedClient;
 }
 
+const key = `tanstack.${chain.id}`;
+function serializeClient(client: PersistedClient) {
+  for (const { queryKey, state } of client.clientState.queries) {
+    const trim = queryClient.getQueryDefaults(queryKey).meta?.persist;
+    if (trim && state.data) state.data = trim(state.data as never);
+  }
+  return serialize(client);
+}
 export const persister = createAsyncStoragePersister({
-  key: `tanstack.${chain.id}`,
-  serialize: (client) => {
-    for (const { queryKey, state } of client.clientState.queries) {
-      const trim = queryClient.getQueryDefaults(queryKey).meta?.persist;
-      if (trim && state.data) state.data = trim(state.data as never);
-    }
-    return serialize(client);
-  },
+  key,
+  serialize: serializeClient,
   deserialize: versionAwareDeserialize,
   storage: AsyncStorage,
   throttleTime: 0,
@@ -90,18 +92,20 @@ const dehydrateOptions = {
     !(queryKey[0] === "readContract" && (queryKey[1] as { functionName?: string }).functionName === "prices"),
 };
 
+let restored = false;
 if (typeof window !== "undefined") {
-  const subscribe = () => persistQueryClientSubscribe({ queryClient, persister, dehydrateOptions, buster: release });
+  const subscribe = () => {
+    restored = true;
+    return persistQueryClientSubscribe({ queryClient, persister, dehydrateOptions, buster: release });
+  };
   hydrated.then(subscribe, subscribe);
 }
 
 export function persist() {
-  return Promise.resolve(
-    persister.persistClient({
-      timestamp: Date.now(),
-      buster: release,
-      clientState: dehydrate(queryClient, dehydrateOptions),
-    }),
+  if (!restored) return Promise.resolve();
+  return AsyncStorage.setItem(
+    key,
+    serializeClient({ timestamp: Date.now(), buster: release, clientState: dehydrate(queryClient, dehydrateOptions) }),
   );
 }
 

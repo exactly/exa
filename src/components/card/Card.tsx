@@ -320,7 +320,7 @@ export default function Card() {
           backgroundColor="transparent"
           contentContainerStyle={{ backgroundColor: "backgroundMild", paddingBottom: use(TabBarContext) }}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl onRefresh={refresh} />}
+          refreshControl={<RefreshControl onRefresh={refresh} reloads />}
         >
           <View fullScreen>
             <View flex={1} gap="s5" paddingBottom="s5">

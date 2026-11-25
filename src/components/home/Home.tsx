@@ -43,6 +43,7 @@ import { isPromoActive, PROMO } from "../../utils/promo";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { cardModeMutationOptions, isOffboarded } from "../../utils/server";
+import { check } from "../../utils/update";
 import useAccount from "../../utils/useAccount";
 import useBusiness from "../../utils/useBusiness";
 import useCardLimit from "../../utils/useCardLimit";
@@ -99,6 +100,7 @@ export default function Home() {
   useFocusEffect(
     useCallback(() => {
       setFocused(true);
+      check().catch(reportError);
       return () => {
         setFocused(false);
       };
@@ -254,7 +256,7 @@ export default function Home() {
           onScroll={(event) => {
             scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
           }}
-          refreshControl={<RefreshControl onRefresh={refresh} />}
+          refreshControl={<RefreshControl onRefresh={refresh} reloads />}
         >
           <ProfileHeader />
           <View flex={1} gap="s5" paddingBottom="s5">

@@ -1,4 +1,4 @@
-import { Platform } from "react-native";
+import { NativeEventEmitter, NativeModules, Platform } from "react-native";
 
 import { safeParse } from "valibot";
 
@@ -7,6 +7,7 @@ import { Address } from "@exactly/common/validation";
 import openBrowser from "./openBrowser";
 import queryClient, { hydrated, isServer } from "./queryClient";
 import reportError from "./reportError";
+import { cover } from "./update";
 
 import type * as IntercomNative from "@intercom/intercom-react-native";
 import type * as IntercomWeb from "@intercom/messenger-js-sdk";
@@ -68,8 +69,37 @@ export const { login, loginUnidentified, logout, newMessage, present, presentArt
         const {
           default: Intercom,
           IntercomContent,
+          IntercomEvents,
           Space,
         } = require("@intercom/intercom-react-native") as typeof IntercomNative; // eslint-disable-line unicorn/prefer-module
+        const events =
+          Platform.OS === "ios" ? new NativeEventEmitter(NativeModules.IntercomEventEmitter as never) : undefined;
+        const covering = async (show: () => Promise<boolean>) => {
+          const cleanup = [cover({ native: true })];
+          const done = () => {
+            for (const clean of cleanup.splice(0)) clean();
+          };
+          if (events) {
+            const timeout = setTimeout(done, 5000);
+            const shown = events.addListener(IntercomEvents.IntercomWindowDidShow as string, () => {
+              clearTimeout(timeout);
+            });
+            const hidden = events.addListener(IntercomEvents.IntercomWindowDidHide as string, done);
+            cleanup.push(
+              () => clearTimeout(timeout),
+              () => shown.remove(),
+              () => hidden.remove(),
+            );
+          }
+          try {
+            if (await show()) return true;
+          } catch (error: unknown) {
+            done();
+            throw error;
+          }
+          done();
+          return false;
+        };
         const identified = () =>
           Intercom.fetchLoggedInUserAttributes().then(
             ({ userId }) => safeParse(Address, userId).success,
@@ -104,12 +134,12 @@ export const { login, loginUnidentified, logout, newMessage, present, presentArt
             queryClient.removeQueries({ queryKey: ["intercom"] });
             return true;
           },
-          present: () => Intercom.presentSpace(Space.home),
+          present: () => covering(() => Intercom.presentSpace(Space.home)),
           presentArticle: (articleId: string) =>
-            Intercom.presentContent(IntercomContent.articleWithArticleId(articleId)),
+            covering(() => Intercom.presentContent(IntercomContent.articleWithArticleId(articleId))),
           presentCollection: (collectionId: string) =>
-            Intercom.presentContent(IntercomContent.helpCenterCollectionsWithIds([collectionId])),
-          newMessage: (message: string) => Intercom.presentMessageComposer(message),
+            covering(() => Intercom.presentContent(IntercomContent.helpCenterCollectionsWithIds([collectionId]))),
+          newMessage: (message: string) => covering(() => Intercom.presentMessageComposer(message)),
         };
       }
 )();

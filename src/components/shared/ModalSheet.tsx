@@ -5,6 +5,7 @@ import { FullWindowOverlay } from "react-native-screens";
 
 import { getTokens, Sheet, View } from "tamagui";
 
+import { cover } from "../../utils/update";
 import useInsets from "../../utils/useInsets";
 import SheetContext from "../context/SheetContext";
 
@@ -34,6 +35,7 @@ export default function ModalSheet({
     Keyboard.dismiss();
     return () => Keyboard.dismiss();
   }, [open]);
+  useEffect(() => (open ? cover() : undefined), [open]);
   return (
     <RequestCloseContext value={dismissible ? onClose : undefined}>
       <Sheet

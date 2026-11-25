@@ -102,7 +102,7 @@ export default function Activity() {
             backgroundColor: layout.items.length > 0 ? theme.backgroundMild.val : theme.backgroundSoft.val,
           }}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl onRefresh={refresh} />}
+          refreshControl={<RefreshControl onRefresh={refresh} reloads />}
           ListHeaderComponent={<ListHeader onLayout={onHeaderLayout} title={layout.items.length > 0} />}
           ListEmptyComponent={<Empty />}
           data={layout.items}

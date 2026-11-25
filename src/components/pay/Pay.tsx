@@ -145,7 +145,7 @@ export default function Pay() {
           }}
           showsVerticalScrollIndicator={false}
           flex={1}
-          refreshControl={<RefreshControl onRefresh={refresh} />}
+          refreshControl={<RefreshControl onRefresh={refresh} reloads />}
         >
           {empty ? (
             <Empty />
