@@ -270,5 +270,7 @@
   "Usually 3 to 5 business days once you’ve submitted everything. The card and the USD/EUR transfers are reviewed separately, so one can be approved before the other.": "Suele tardar entre 3 y 5 días hábiles desde que enviás todo. La tarjeta y las transferencias en USD/EUR se revisan por separado, así que una puede aprobarse antes que la otra.",
   "You logged in with {{session}}, but your wallet is now using {{wallet}}. Switch back to {{session}} in your wallet to keep using this account, or continue with {{wallet}}.": "Iniciaste sesión con {{session}}, pero tu billetera ahora usa {{wallet}}. Volvé a {{session}} en tu billetera para seguir usando esta cuenta, o continuá con {{wallet}}.",
   "Use it to sign in on the Exa app. Here, pick the passkey you created your business account with.": "Usala para iniciar sesión en la app de Exa. Acá, elegí la llave de acceso con la que creaste tu cuenta empresarial.",
-  "Use it to sign in on the Exa business website. Here, pick the passkey you created this account with.": "Usala para iniciar sesión en el sitio web empresarial de Exa. Acá, elegí la llave de acceso con la que creaste esta cuenta."
+  "Use it to sign in on the Exa business website. Here, pick the passkey you created this account with.": "Usala para iniciar sesión en el sitio web empresarial de Exa. Acá, elegí la llave de acceso con la que creaste esta cuenta.",
+  "The quote expired. Review the new amount and confirm again.": "La cotización expiró. Revisá el nuevo monto y confirmá de nuevo.",
+  "The quote expired. Nothing was sent. Please try again.": "La cotización expiró. No se envió nada. Intentalo de nuevo."
 }

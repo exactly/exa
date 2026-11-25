@@ -1080,5 +1080,7 @@
   "This passkey is for a personal account": "Esta chave de acesso é de uma conta pessoal",
   "This passkey is for a business account": "Esta chave de acesso é de uma conta empresarial",
   "Use it to sign in on the Exa app. Here, pick the passkey you created your business account with.": "Use-a para entrar no app da Exa. Aqui, escolha a chave de acesso com a qual você criou sua conta empresarial.",
-  "Use it to sign in on the Exa business website. Here, pick the passkey you created this account with.": "Use-a para entrar no site empresarial da Exa. Aqui, escolha a chave de acesso com a qual você criou esta conta."
+  "Use it to sign in on the Exa business website. Here, pick the passkey you created this account with.": "Use-a para entrar no site empresarial da Exa. Aqui, escolha a chave de acesso com a qual você criou esta conta.",
+  "The quote expired. Review the new amount and confirm again.": "A cotação expirou. Revise o novo valor e confirme novamente.",
+  "The quote expired. Nothing was sent. Please try again.": "A cotação expirou. Nada foi enviado. Tente novamente."
 }

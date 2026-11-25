@@ -107,6 +107,9 @@ export default function Bridge() {
   const [sourceAmount, setSourceAmount] = useState(0n);
 
   const [bridgeStatus, setBridgeStatus] = useState<string | undefined>();
+  const [refreshed, setRefreshed] = useState<string>();
+  const sourceKeptRef = useRef(false);
+  const mountedRef = useRef(true);
   const [bridgePreview, setBridgePreview] = useState<
     undefined | { operation: "bridge" | "swap" | "transfer"; sourceAmount: bigint; sourceToken: Token }
   >();
@@ -253,6 +256,7 @@ export default function Bridge() {
   }, [sourceTokenAddress]);
 
   const destinationToken = destinationTokens.find((token) => token.address === effectiveDestinationAddress);
+  const quoteInputs = `${source?.chain}:${sourceToken?.address}:${destinationToken?.address}:${sourceAmount}`;
   const destinationMarketSymbol = destinationToken?.symbol === "WETH" ? "ETH" : destinationToken?.symbol;
   const destinationBalance = destinationToken
     ? (externalAssets.find((asset) => asset.address.toLowerCase() === destinationToken.address.toLowerCase())?.amount ??
@@ -298,6 +302,7 @@ export default function Bridge() {
     dataUpdatedAt: quoteUpdatedAt,
     error: bridgeQuoteError,
     isFetching: isBridgeQuoteFetching,
+    refetch: refetchQuote,
   } = useQuery<RouteFrom>({
     queryKey: [
       "bridge",
@@ -347,6 +352,13 @@ export default function Bridge() {
     return () => clearTimeout(timer);
   }, [quoteUpdatedAt]);
   const quoteExpired = !!quote && now >= quoteUpdatedAt + quoteValidity;
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (sourceKeptRef.current) switchChain(ownerConfig, { chainId: chain.id }).catch(reportError);
+    };
+  }, []);
   const toAmount = quote ? BigInt(quote.estimate.toAmount) : sourceAmount === 0n ? 0n : undefined;
   const approvalTokenAddress = source?.address && isAddress(source.address) ? source.address : undefined;
   const approvalSpenderAddress = quote?.estimate.approvalAddress;
@@ -510,10 +522,10 @@ export default function Bridge() {
     isSuccess: isBridgeSuccess,
     isError: isBridgeError,
     reset: resetBridgeMutation,
-  } = useSingleMutation<unknown, unknown, RouteFrom>({
+  } = useSingleMutation<unknown, unknown, { at: number; route: RouteFrom }>({
     retry: false,
     mutationKey: ["bridge", "execute"],
-    onMutate: (route) => {
+    onMutate: ({ route }) => {
       if (!sourceToken || !destinationToken) return;
       setBridgePreview({
         operation: isSwap ? "swap" : "bridge",
@@ -521,7 +533,7 @@ export default function Bridge() {
         sourceAmount: BigInt(route.estimate.fromAmount),
       });
     },
-    mutationFn: async (from) => {
+    mutationFn: async ({ at, route: from }) => {
       if (!senderAddress || !source || !account) throw new Error("missing bridge context");
       if (isTransfer) throw new Error("invalid bridge context");
       const spender = from.estimate.approvalAddress;
@@ -551,8 +563,16 @@ export default function Bridge() {
         );
         await switchChain(senderConfig, { chainId: source.chain });
       }
-      setBridgeStatus(t("Submitting bridge transaction..."));
+      sourceKeptRef.current = false;
+      let expired = false;
       try {
+        if (Date.now() >= at + quoteValidity) {
+          expired = true;
+          setRefreshed(quoteInputs);
+          refetchQuote().catch(reportError);
+          return false;
+        }
+        setBridgeStatus(t("Submitting bridge transaction..."));
         const calls = routeCalls(from, requiresApproval ? (currentAllowance ?? 0n) : maxUint256);
         const forceAtomic = is(object({ atomic: object({ status: literal("supported") }) }), sourceCapabilities);
         const sent = isExaSender
@@ -570,10 +590,23 @@ export default function Bridge() {
         if (status === "failure") throw new Error("failed to submit bridge transaction");
         setBridgeStatus(t("Bridge transaction submitted"));
       } finally {
-        if (!isExaSender) await switchChain(senderConfig, { chainId: chain.id }).catch(reportError);
+        const keep = !isExaSender && expired && mountedRef.current;
+        sourceKeptRef.current = keep;
+        if (!isExaSender && !keep) await switchChain(senderConfig, { chainId: chain.id }).catch(reportError);
       }
     },
-    onSuccess: () => {
+    onSuccess: (sent) => {
+      if (sent === false) {
+        toast.warning(
+          mountedRef.current
+            ? t("The quote expired. Review the new amount and confirm again.")
+            : t("The quote expired. Nothing was sent. Please try again."),
+          { duration: 3000 },
+        );
+        setBridgePreview(undefined);
+        resetBridgeMutation();
+        return;
+      }
       toast.success(
         bridgePreview?.operation === "swap" ? t("Swap transaction submitted") : t("Bridge transaction submitted"),
         { duration: 1000 },
@@ -1004,6 +1037,11 @@ export default function Bridge() {
                   </Text>
                 </XStack>
               )}
+              {refreshed === quoteInputs && !isBridging && (
+                <Text caption2 color="interactiveOnBaseWarningSoft">
+                  {t("The quote expired. Review the new amount and confirm again.")}
+                </Text>
+              )}
               {bridgeQuoteError && senderAddress && account && sourceAmount > 0n && !insufficientBalance && (
                 <Text caption2 color="interactiveOnBaseWarningSoft">
                   {t("Unable to fetch a bridge quote right now. Please adjust the amount or try again later.")}
@@ -1069,7 +1107,8 @@ export default function Bridge() {
                   return;
                 }
                 if (!quote) return;
-                executeBridge(quote).catch(reportError);
+                setRefreshed(undefined);
+                executeBridge({ at: quoteUpdatedAt, route: quote }).catch(reportError);
               }}
               disabled={isActionDisabled}
               loading={isBridging || isTransferring}
