@@ -327,6 +327,7 @@ export default function Confirm() {
     assetOut: neutralAsset,
     minAmountOut: 0n,
     route: route?.data,
+    fresh: () => Date.now() < routeUpdatedAt + quoteValidity,
     enabled: enableSimulations && routed && !!market && !!address && !!route && !!neutralAsset && fromAmount > 0n,
   });
 

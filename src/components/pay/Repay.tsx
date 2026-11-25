@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useReducer, useState } from "react";
+import React, { useCallback, useEffect, useEffectEvent, useMemo, useReducer, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
@@ -32,7 +32,7 @@ import View from "../../components/shared/View";
 import { ArrowLeft } from "../../generated/icons/ArrowLeft";
 import { ChevronRight } from "../../generated/icons/ChevronRight";
 import { Coins } from "../../generated/icons/Coins";
-import { getRoute, getRouteFrom } from "../../utils/lifi";
+import { getRoute, getRouteFrom, quoteValidity } from "../../utils/lifi";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
@@ -232,6 +232,7 @@ export default function Repay() {
   const maxRepay = borrow ? (repayAssets ? pad(repayAssets, SLIPPAGE_DIVISOR) : undefined) : 0n;
   const {
     data: route,
+    dataUpdatedAt: routeUpdatedAt,
     error: routeError,
     isPending: isRoutePending,
     isFetching: isRouteFetching,
@@ -253,6 +254,17 @@ export default function Repay() {
     enabled: enableSimulations && !!maxRepay && (mode === "crossRepay" || mode === "external") && positionAssets > 0n,
     refetchInterval: 20_000,
   });
+
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    if (!routeUpdatedAt) return;
+    const timer = setTimeout(
+      () => setNow(Math.max(Date.now(), routeUpdatedAt + quoteValidity)),
+      routeUpdatedAt + quoteValidity - Date.now(),
+    );
+    return () => clearTimeout(timer);
+  }, [routeUpdatedAt]);
+  const quoteExpired = !!route && now >= routeUpdatedAt + quoteValidity;
 
   const maxAmountIn = route?.fromAmount ? pad(route.fromAmount, SLIPPAGE_DIVISOR) + 69n : undefined; // HACK try to avoid ZERO_SHARES on dust deposit
 
@@ -285,6 +297,7 @@ export default function Repay() {
     maxRepay,
     route: route?.data,
     enabled: enableSimulations && mode === "crossRepay" && positionAssets > 0n && !!route,
+    fresh: () => Date.now() < routeUpdatedAt + quoteValidity,
   });
 
   const {
@@ -432,6 +445,7 @@ export default function Repay() {
     none: false,
   }[mode];
 
+  const expired = useEffectEvent(() => !!route && Date.now() >= routeUpdatedAt + quoteValidity);
   useEffect(() => {
     if (
       !simulationError ||
@@ -442,6 +456,7 @@ export default function Repay() {
     ) {
       return;
     }
+    if (expired()) return;
     addDeniedExchange(route.tool);
   }, [addDeniedExchange, route?.tool, simulationError]);
 
@@ -459,9 +474,10 @@ export default function Repay() {
     repayAssets === 0n ||
     isSimulating ||
     !!simulationError ||
-    (needsRoute && !route) ||
+    (needsRoute && (!route || quoteExpired)) ||
     repayAssets > maxRepayInput;
-  const loading = isSimulating || isPending || (selectedAsset.external && isRoutePending);
+  const loading =
+    isSimulating || isPending || (selectedAsset.external && isRoutePending) || (needsRoute && quoteExpired);
   const dueDateFormatted = useMemo(
     () =>
       maturity

@@ -31,6 +31,7 @@ export default function useSimulateProposal({
     },
   } = chain,
   enabled = true,
+  fresh,
   market,
   poll = false,
   ...proposal
@@ -39,6 +40,7 @@ export default function useSimulateProposal({
   amount: bigint | undefined;
   chain?: { contracts: { multicall3: { address: Address } } };
   enabled?: boolean;
+  fresh?: () => boolean;
   market: Address | undefined;
   poll?: boolean;
 } & (
@@ -142,14 +144,15 @@ export default function useSimulateProposal({
     blockNumber,
     blocks: blocks(account, calldata, execution, timestamp, delay),
     query: {
-      enabled:
+      enabled: () =>
         enabled &&
         plugins !== undefined &&
         calldata !== undefined &&
         execution !== undefined &&
         blockNumber !== undefined &&
         delay !== undefined &&
-        timestamp !== undefined,
+        timestamp !== undefined &&
+        (fresh?.() ?? true),
     },
   });
   const [propose, execute] = simulation.data?.map(({ calls: [call] }) => call) ?? [];
@@ -193,12 +196,13 @@ export default function useSimulateProposal({
     blockNumber,
     blocks: blocks(account, fallback?.calls[0], fallback?.calls[1], timestamp, delay),
     query: {
-      enabled:
+      enabled: () =>
         enabled &&
         fallback !== undefined &&
         blockNumber !== undefined &&
         delay !== undefined &&
-        timestamp !== undefined,
+        timestamp !== undefined &&
+        (fresh?.() ?? true),
     },
   });
   const [retryPropose, retryExecute] = retry.data?.map(({ calls: [call] }) => call) ?? [];

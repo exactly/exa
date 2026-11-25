@@ -46,6 +46,7 @@ import {
   getRouteFrom,
   lifiChainsOptions,
   lifiTokensOptions,
+  quoteValidity,
   routeCalls,
   tokenAmountsToBalances,
   tokenCorrelation,
@@ -294,6 +295,7 @@ export default function Bridge() {
 
   const {
     data: bridgeQuote,
+    dataUpdatedAt: quoteUpdatedAt,
     error: bridgeQuoteError,
     isFetching: isBridgeQuoteFetching,
   } = useQuery<RouteFrom>({
@@ -335,6 +337,16 @@ export default function Bridge() {
   });
 
   const quote = bridgeQuote && !bridgeQuoteError ? bridgeQuote : undefined;
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    if (!quoteUpdatedAt) return;
+    const timer = setTimeout(
+      () => setNow(Math.max(Date.now(), quoteUpdatedAt + quoteValidity)),
+      quoteUpdatedAt + quoteValidity - Date.now(),
+    );
+    return () => clearTimeout(timer);
+  }, [quoteUpdatedAt]);
+  const quoteExpired = !!quote && now >= quoteUpdatedAt + quoteValidity;
   const toAmount = quote ? BigInt(quote.estimate.toAmount) : sourceAmount === 0n ? 0n : undefined;
   const approvalTokenAddress = source?.address && isAddress(source.address) ? source.address : undefined;
   const approvalSpenderAddress = quote?.estimate.approvalAddress;
@@ -413,7 +425,7 @@ export default function Bridge() {
       if (!source || !batch) throw new Error("missing bridge context");
       return estimateCalls(exaConfig, source.chain, batch, spend);
     },
-    enabled: !!batch,
+    enabled: () => !!batch && Date.now() < quoteUpdatedAt + quoteValidity,
     placeholderData: keepPreviousData,
     retry: false,
     meta: { warnError: () => true },
@@ -675,14 +687,14 @@ export default function Bridge() {
     sourceAmount === 0n ||
     insufficientBalance ||
     (!!batch && (!exaEstimate || stale)) ||
-    (!isTransfer && !bridgeQuoteReady);
+    (!isTransfer && (!bridgeQuoteReady || quoteExpired));
 
   const statusMessage =
     isBridging || isTransferring
       ? (bridgeStatus ?? (isTransferring ? t("Transferring...") : t("Bridging...")))
       : isTransferSimulationPending
         ? t("Simulating transfer...")
-        : isBridgeQuoteLoading
+        : isBridgeQuoteLoading || (!isTransfer && quoteExpired)
           ? t("Fetching best route...")
           : undefined;
 
