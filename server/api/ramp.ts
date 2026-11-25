@@ -169,6 +169,7 @@ export default function route({
             direction: literal("offramp"),
             externalAccountId: Bridge.ExternalAccountId,
             provider: literal("bridge"),
+            source: optional(picklist(Bridge.SourceNetwork)),
           }),
           object({
             address: Address,
@@ -176,6 +177,7 @@ export default function route({
             direction: literal("offramp"),
             network: literal("BASE"),
             provider: literal("bridge"),
+            source: optional(picklist(Bridge.SourceNetwork)),
           }),
           object({
             address: string(),
@@ -183,6 +185,7 @@ export default function route({
             direction: literal("offramp"),
             network: literal("SOLANA"),
             provider: literal("bridge"),
+            source: optional(picklist(Bridge.SourceNetwork)),
           }),
           object({
             address: string(),
@@ -191,6 +194,7 @@ export default function route({
             memo: string(),
             network: literal("STELLAR"),
             provider: literal("bridge"),
+            source: optional(picklist(Bridge.SourceNetwork)),
           }),
           object({
             address: string(),
@@ -198,6 +202,7 @@ export default function route({
             direction: literal("offramp"),
             network: literal("TRON"),
             provider: literal("bridge"),
+            source: optional(picklist(Bridge.SourceNetwork)),
           }),
           object({
             currency: literal("USDT"),
@@ -278,6 +283,7 @@ export default function route({
                         parse(Address, credential.account),
                         bridgeUser,
                         query.network === "STELLAR" ? query.memo : undefined,
+                        query.source,
                       ),
                     } satisfies InferOutput<typeof RampResponse>,
                     200,
@@ -301,6 +307,7 @@ export default function route({
                       credential.account,
                       bridgeUser,
                       query.currency,
+                      query.source,
                     ),
                   } satisfies InferOutput<typeof RampResponse>,
                   200,
