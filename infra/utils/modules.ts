@@ -5,6 +5,7 @@ export default define({
   indexer: ["indexer-postgres-url"],
   services: {
     api: {
+      indexer: "views",
       secrets: [
         "auth-secret",
         "bridge-api-key",
@@ -30,10 +31,12 @@ export default define({
       ],
     },
     activity: {
+      indexer: "views",
       secrets: ["alchemy-webhooks-key", "onesignal-api-key", "onesignal-api-keys", "postgres-url"],
       shared: ["redis-url"],
     },
     block: {
+      indexer: "views",
       secrets: [
         "alchemy-block-key",
         "alchemy-webhooks-key",
@@ -74,8 +77,9 @@ export default define({
       ],
       shared: ["manteca-api-url"],
     },
-    mockfi: { secrets: ["postgres-url"] },
+    mockfi: { indexer: "only", secrets: ["postgres-url"] },
     panda: {
+      indexer: "views",
       secrets: [
         "onesignal-api-key",
         "onesignal-api-keys",
@@ -114,7 +118,7 @@ export default define({
       secrets: ["panda-api-key", "panda-base-api-key", "postgres-url"],
       shared: ["panda-api-url", "panda-base-api-url", "redis-url"],
     },
-    mockfi: { secrets: ["postgres-url"], shared: ["redis-url"], signers: ["bridger"] },
+    mockfi: { indexer: "only", secrets: ["postgres-url"], shared: ["redis-url"], signers: ["bridger"] },
     poke: {
       secrets: ["onesignal-api-key", "onesignal-api-keys", "segment-write-key"],
       shared: ["redis-url"],
@@ -185,15 +189,25 @@ function define({
 
 function modules(specs: Configs, common: readonly string[]) {
   return Object.fromEntries(
-    Object.entries(specs).map(([name, { env = {}, secrets = [], shared = [], signers = [], timeout = "60s" }]) => [
-      name,
-      { env, secrets: [...secrets.map((secret) => `${name}-${secret}`), ...shared, ...common], signers, timeout },
-    ]),
+    Object.entries(specs).map(
+      ([name, { env = {}, indexer, secrets = [], shared = [], signers = [], timeout = "60s" }]) => [
+        name,
+        {
+          env,
+          indexer,
+          postgres: secrets.includes("postgres-url"),
+          secrets: [...secrets.map((secret) => `${name}-${secret}`), ...shared, ...common],
+          signers,
+          timeout,
+        },
+      ],
+    ),
   );
 }
 
 type Config = {
   readonly env?: Readonly<Record<string, string>>;
+  readonly indexer?: "only" | "views";
   readonly secrets?: readonly string[];
   readonly shared?: readonly string[];
   readonly signers?: readonly string[];
@@ -205,6 +219,8 @@ type Exact<Specs extends Configs> = Specs & {
 };
 type Module<Name extends string, Spec extends Config, Common extends readonly string[]> = {
   readonly env: NonNullable<Config["env"]>;
+  readonly indexer: Config["indexer"];
+  readonly postgres: boolean;
   readonly secrets: readonly [
     ...(Spec["secrets"] extends infer Secrets extends readonly string[]
       ? { readonly [Index in keyof Secrets]: Secrets[Index] extends string ? `${Name}-${Secrets[Index]}` : never }
