@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
+import { Redirect, useIsFocused, useLocalSearchParams, useRouter } from "expo-router";
 
 import { getTokens, ScrollView, XStack, YStack } from "tamagui";
 
@@ -24,11 +24,13 @@ import { TrendingUp } from "../../generated/icons/TrendingUp";
 import { isUnsupported, requestDeployment } from "../../utils/deployedOptions";
 import { presentArticle } from "../../utils/intercom";
 import { isSendable, isStock, lifiChainsOptions, lifiTokensOptions, reachOptions } from "../../utils/lifi";
+import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useDeployments from "../../utils/useDeployments";
 import useInsets from "../../utils/useInsets";
-import usePortfolio, { type ExternalAsset } from "../../utils/usePortfolio";
+import useMarkets from "../../utils/useMarkets";
+import usePortfolio, { type ExternalAsset, type PortfolioAsset } from "../../utils/usePortfolio";
 import AssetLogo from "../shared/AssetLogo";
 import ChainLogo from "../shared/ChainLogo";
 import Chip from "../shared/Chip";
@@ -43,6 +45,7 @@ import View from "../shared/View";
 
 export default function AssetSelection() {
   const router = useRouter();
+  const focused = useIsFocused();
   const insets = useInsets();
   const {
     t,
@@ -66,6 +69,37 @@ export default function AssetSelection() {
     isError: isTokensError,
     refetch: refetchTokens,
   } = useQuery(lifiTokensOptions);
+
+  const { hidden, pending } = useMemo(() => {
+    const deposited = new Map(
+      markets
+        ?.filter(({ isFrozen, nonCollateral }) => !isFrozen && !nonCollateral)
+        .flatMap((market) => [
+          [market.asset.toLowerCase(), market] as const,
+          ...(market.market === marketWETHAddress ? [[zeroAddress, market] as const] : []),
+        ]),
+    );
+    const assets = allAssets.flatMap((asset) => {
+      if (asset.type !== "external" || asset.chainId !== chain.id) return [];
+      const market = deposited.get(asset.address.toLowerCase());
+      if (!market) return [];
+      const { totalFloatingDepositAssets: total, totalFloatingDepositShares: shares } = market;
+      return (asset.amount ?? 0n) * (total > 0n ? shares : 1n) >= (total > 0n ? total : 1n) ? [asset] : [];
+    });
+    return {
+      hidden: new Set<PortfolioAsset>(assets.filter(({ address: token }) => !isSendable(token))),
+      pending: assets.map(({ address: token, amount }) => `${token}:${amount}`).join(","),
+    };
+  }, [allAssets, markets]);
+  const { data: waiting = true } = useQuery({
+    queryKey: ["deposits", address, pending],
+    queryFn: ({ queryKey }) => queryClient.getQueryData(queryKey) === undefined,
+    enabled: !!pending,
+    staleTime: Infinity,
+    gcTime: 0,
+    refetchInterval: ({ state }) => (state.data ? 30_000 : false),
+  });
+  useMarkets({ refetchInterval: focused && pending && waiting ? 3000 : undefined });
 
   const crossChainIds = useMemo(
     () => [
@@ -152,8 +186,8 @@ export default function AssetSelection() {
 
   const search = query.trim().toLowerCase();
 
-  const owned = useMemo(
-    () =>
+  const { owned, masked } = useMemo(() => {
+    const matching =
       filter === "stocks"
         ? []
         : allAssets.filter((asset) => {
@@ -164,9 +198,13 @@ export default function AssetSelection() {
               (asset.type === "external" || asset.usdValue > 0) &&
               (!search || asset.symbol.toLowerCase().includes(search))
             );
-          }),
-    [allAssets, compatible, filter, search],
-  );
+          });
+    if (advanced || !waiting) return { owned: matching, masked: false };
+    return {
+      owned: matching.filter((asset) => !hidden.has(asset)),
+      masked: matching.some((asset) => hidden.has(asset)),
+    };
+  }, [advanced, allAssets, compatible, filter, hidden, search, waiting]);
 
   const trending = useMemo(() => {
     if (!advanced) return [];
@@ -360,7 +398,7 @@ export default function AssetSelection() {
           contentContainerStyle={{ paddingBottom: insets.bottom + getTokens().space.s4.val }}
         >
           <YStack flex={1} gap="s6">
-            {(owned.length > 0 || isPending || isBalancesPending) && (
+            {(owned.length > 0 || isPending || isBalancesPending || masked) && (
               <YStack gap="s5">
                 <XStack gap="s3" alignItems="center">
                   <BriefcaseBusiness size={16} color="uiNeutralPlaceholder" />
@@ -461,7 +499,7 @@ export default function AssetSelection() {
                     />
                   );
                 })}
-                {(isPending || isBalancesPending) && <Skeleton width="100%" height={40} />}
+                {(isPending || isBalancesPending || masked) && <Skeleton width="100%" height={40} />}
               </YStack>
             )}
             {advanced && (

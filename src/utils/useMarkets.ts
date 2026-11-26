@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import { multicall3Abi, zeroAddress } from "viem";
+import { multicall3Abi, parseAbi, zeroAddress } from "viem";
 import { useReadContract, useReadContracts } from "wagmi";
 
 import chain, {
@@ -39,6 +39,7 @@ export default function useMarkets(query?: { enabled?: boolean; gcTime?: number;
         chainId: chain.id,
       },
       { address: marketUSDCAddress, abi: marketAbi, functionName: "previewFloatingAssetsAverage", chainId: chain.id },
+      { address: chain.contracts.multicall3.address, abi: blockAbi, functionName: "getBlockNumber", chainId: chain.id },
     ],
     query: { ...query, enabled: query?.enabled ?? true, staleTime: 10_000 },
   });
@@ -81,6 +82,8 @@ export default function useMarkets(query?: { enabled?: boolean; gcTime?: number;
     supportedAssets,
     rateSnapshot: result.data?.[1],
     floatingAssetsAverage: result.data?.[3],
+    blockNumber: result.data?.[4],
+    updatedAt: result.dataUpdatedAt,
     timestamp,
     firstMaturity: nextMaturity + MATURITY_INTERVAL * Number(nextMaturity - now < MIN_BORROW_INTERVAL),
     queryKey: result.queryKey,
@@ -93,3 +96,5 @@ export default function useMarkets(query?: { enabled?: boolean; gcTime?: number;
     },
   };
 }
+
+const blockAbi = parseAbi(["function getBlockNumber() view returns (uint256)"]);
