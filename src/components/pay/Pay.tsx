@@ -1,7 +1,7 @@
 import React, { use, useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 
 import { toast } from "@tamagui/toast";
 import { ScrollView, XStack, YStack } from "tamagui";
@@ -83,6 +83,11 @@ export default function Pay() {
       queryClient.invalidateQueries({ queryKey: ["activity"], exact: true }),
       queryClient.invalidateQueries({ queryKey: ["activity", "statement"] }),
     ]);
+  useFocusEffect(
+    useCallback(() => {
+      refetch().catch(reportError);
+    }, [refetch]),
+  );
   useTabPress("pay-mode", () => {
     scrollRef.current?.scrollTo({ y: 0, animated: true });
     refresh().catch(reportError);
