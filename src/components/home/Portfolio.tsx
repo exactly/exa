@@ -19,8 +19,8 @@ import { ShieldCheck } from "../../generated/icons/ShieldCheck";
 import { revalidateUnsupported } from "../../utils/deployedOptions";
 import { presentArticle } from "../../utils/intercom";
 import { balancesOptions, isStock } from "../../utils/lifi";
+import { refreshNetworks } from "../../utils/networkOptions";
 import openBrowser from "../../utils/openBrowser";
-import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAllowlists from "../../utils/useAllowlists";
@@ -96,13 +96,7 @@ export default function Portfolio() {
         refreshControl={
           <RefreshControl
             onRefresh={() =>
-              address
-                ? Promise.all([
-                    refetchBalances(),
-                    revalidateUnsupported(),
-                    queryClient.refetchQueries({ queryKey: ["network"], type: "active" }),
-                  ])
-                : Promise.resolve()
+              address ? Promise.all([refetchBalances(), revalidateUnsupported(), refreshNetworks()]) : Promise.resolve()
             }
           />
         }

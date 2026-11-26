@@ -33,6 +33,7 @@ import VisaSignatureBanner from "./VisaSignatureBanner";
 import VisaSignatureModal from "./VisaSignatureSheet";
 import { revalidateUnsupported } from "../../utils/deployedOptions";
 import { balancesOptions, restrictedCountries } from "../../utils/lifi";
+import { refreshNetworks } from "../../utils/networkOptions";
 import { isPromoActive, PROMO } from "../../utils/promo";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -213,7 +214,7 @@ export default function Home() {
       queryClient.invalidateQueries({ queryKey: balancesOptions(account).queryKey }),
       business ? queryClient.invalidateQueries({ queryKey: ["kyc", "panda-business"], exact: true }) : undefined,
       revalidateUnsupported(),
-      queryClient.refetchQueries({ queryKey: ["network"], type: "active" }),
+      refreshNetworks(),
       account ? refetchBytecode() : undefined,
       account && bytecode ? refetchPendingProposals() : undefined,
     ]);

@@ -94,6 +94,14 @@ const appPreviewerAddress = getContractAddress({
   salt: zeroHash,
 });
 
+export function refreshNetworks() {
+  return queryClient.refetchQueries({
+    queryKey: ["network"],
+    type: "active",
+    predicate: ({ queryKey }) => chains.has(Number(queryKey[1])),
+  });
+}
+
 export function marketWETH(chainId: number) {
   return chains.get(chainId)?.marketWETH;
 }

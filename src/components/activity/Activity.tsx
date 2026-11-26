@@ -11,10 +11,10 @@ import { format } from "date-fns";
 
 import ActivityItem from "./ActivityItem";
 import Empty from "./Empty";
+import { refreshNetworks } from "../../utils/networkOptions";
 import queryClient, { type ActivityItem as ActivityEvent } from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import { activityOptions, mergeActivity, refreshActivity } from "../../utils/server";
-import useAsset from "../../utils/useAsset";
 import useTabPress from "../../utils/useTabPress";
 import TabBarContext from "../context/TabBarContext";
 import ProcessingBalanceBanner from "../shared/ProcessingBalanceBanner";
@@ -35,7 +35,6 @@ export default function Activity() {
     isFetchNextPageError,
   } = useInfiniteQuery({ ...activityOptions, select: ({ pages }) => pages.flat() });
   const { t } = useTranslation();
-  const { queryKey } = useAsset();
   const { fontScale } = useWindowDimensions();
   const theme = useTheme();
   const [headerHeight, setHeaderHeight] = useState<number>();
@@ -75,12 +74,6 @@ export default function Activity() {
   );
 
   const listRef = useRef<FlatList<ActivityItemType>>(null);
-  const refresh = () =>
-    Promise.all([
-      refreshActivity(),
-      queryClient.invalidateQueries({ queryKey: ["activity", "card"], exact: true }),
-      queryClient.refetchQueries({ queryKey }),
-    ]);
   useFocusEffect(
     useCallback(() => {
       const pages = queryClient.getQueryData(activityOptions.queryKey)?.pages.length ?? 0;
@@ -208,6 +201,14 @@ const HeaderRow = memo(function HeaderRow({ date, height }: { date: string; heig
   );
 });
 HeaderRow.displayName = "HeaderRow";
+
+function refresh() {
+  return Promise.all([
+    refreshActivity(),
+    queryClient.invalidateQueries({ queryKey: ["activity", "card"], exact: true }),
+    refreshNetworks(),
+  ]);
+}
 
 function renderItem({ item }: { item: ActivityItemType }) {
   if (item.type === "header") return <HeaderRow date={item.date} height={item.height} />;
