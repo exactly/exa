@@ -39,9 +39,16 @@ import deploy from "@exactly/plugin/deploy.json";
 import anvilClient from "./anvilClient";
 
 async function start(dump = false) {
-  if (!env.NX_TASK_TARGET_PROJECT) {
-    await $({ cwd: "..", env: { CHAIN_ID: String(foundry.id) }, preferLocal: true })`nx prepare server`;
-  }
+  await Promise.all([
+    $`anvil --version`.then(({ stdout: output }) => {
+      const minimum = "1.10.1";
+      if ((/\d+\.\d+\.\d+/.exec(output)?.[0] ?? "0").localeCompare(minimum, undefined, { numeric: true }) < 0) {
+        throw new Error(`anvil must be v${minimum} or above`);
+      }
+    }),
+    !env.NX_TASK_TARGET_PROJECT &&
+      $({ cwd: "..", env: { CHAIN_ID: String(foundry.id) }, preferLocal: true })`nx prepare server`,
+  ]);
   const state =
     !dump &&
     env.NODE_ENV !== "e2e" &&
