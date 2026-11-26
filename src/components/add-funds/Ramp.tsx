@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PixelRatio, Pressable, Share } from "react-native";
-import QRCode from "react-native-qrcode-styled";
 import { LinearTransition } from "react-native-reanimated";
 
 import { setStringAsync } from "expo-clipboard";
@@ -16,6 +15,7 @@ import { parseISO } from "date-fns";
 
 import BridgeDisclaimer from "./BridgeDisclaimer";
 import MantecaDisclaimer from "./MantecaDisclaimer";
+import QR from "./QR";
 import RampWebView from "./RampWebView";
 import { ArrowLeft } from "../../generated/icons/ArrowLeft";
 import { Banknote } from "../../generated/icons/Banknote";
@@ -326,16 +326,7 @@ export default function Ramp() {
               <Text emphasized headline color="uiNeutralPrimary">
                 {t("Deposit with PIX")}
               </Text>
-              <YStack padding="s3" borderRadius="r4" backgroundColor="white" overflow="hidden">
-                <QRCode
-                  data={qrCode}
-                  size={200}
-                  pieceBorderRadius={2}
-                  innerEyesOptions={{ borderRadius: 2 }}
-                  isPiecesGlued
-                  outerEyesOptions={{ borderRadius: 2 }}
-                />
-              </YStack>
+              <QR data={qrCode} size={224} />
               <Pressable onPress={() => setQRSheetOpen(false)}>
                 <Text emphasized footnote color="uiBrandSecondary">
                   {t("Close")}

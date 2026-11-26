@@ -1,7 +1,6 @@
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PixelRatio, Pressable, Share } from "react-native";
-import QRCode from "react-native-qrcode-styled";
 
 import { setStringAsync } from "expo-clipboard";
 import { selectionAsync } from "expo-haptics";
@@ -16,6 +15,7 @@ import chain, { alchemyChains } from "@exactly/common/generated/chain";
 
 import BridgeDisclaimer from "./BridgeDisclaimer";
 import EducationSheet from "./EducationSheet";
+import QR from "./QR";
 import { Copy } from "../../generated/icons/Copy";
 import { Info } from "../../generated/icons/Info";
 import { RefreshCw } from "../../generated/icons/RefreshCw";
@@ -196,39 +196,19 @@ export default function AddCrypto() {
                   {t("Wallet address")}
                 </Text>
                 {address && !memo ? (
-                  <View alignSelf="center" position="relative">
-                    <QRCode
-                      data={address}
-                      size={204}
-                      pieceBorderRadius={2}
-                      innerEyesOptions={{ borderRadius: 2 }}
-                      isPiecesGlued
-                      outerEyesOptions={{ borderRadius: 2 }}
-                    />
-                    <View
-                      position="absolute"
-                      top="s0"
-                      right="s0"
-                      bottom="s0"
-                      left="s0"
-                      alignItems="center"
-                      justifyContent="center"
-                    >
-                      <View backgroundColor="backgroundSoft" borderRadius="r_0" padding="s2">
-                        {bridgeLogoURI ? (
-                          <Image
-                            source={{ uri: bridgeLogoURI }}
-                            width="s6"
-                            height="s6"
-                            borderRadius="r_0"
-                            overflow="hidden"
-                          />
-                        ) : (
-                          <ChainLogo chainId={receiveChainId} size={32} />
-                        )}
-                      </View>
-                    </View>
-                  </View>
+                  <QR data={address} size={228}>
+                    {bridgeLogoURI ? (
+                      <Image
+                        source={{ uri: bridgeLogoURI }}
+                        width="s6"
+                        height="s6"
+                        borderRadius="r_0"
+                        overflow="hidden"
+                      />
+                    ) : (
+                      <ChainLogo chainId={receiveChainId} size={32} />
+                    )}
+                  </QR>
                 ) : null}
                 <Pressable hitSlop={15} onPress={copy} disabled={!address}>
                   {address ? (
