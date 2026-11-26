@@ -18,7 +18,7 @@ import {
   RpcRequestError,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { waitForTransactionReceipt as waitForReceipt } from "viem/actions";
+import { waitForTransactionReceipt as waitForReceipt, watchBlockNumber } from "viem/actions";
 import { recoverAuthorizationAddress } from "viem/utils";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
@@ -33,7 +33,7 @@ import anvilClient from "../anvilClient";
 import type * as tracing from "../../utils/traceClient";
 import type * as Wallet from "../../utils/wallet";
 import type * as timers from "node:timers/promises";
-import type { Hex } from "viem";
+import type { Hex, WatchBlockNumberParameters, WatchBlockNumberReturnType } from "viem";
 
 const mocks = vi.hoisted(() => ({
   close: vi.fn<() => Promise<void>>(),
@@ -769,8 +769,20 @@ async function replace(
     sent.resolve(null);
     return hash;
   });
+  const inspected = Promise.withResolvers<null>();
+  let head: bigint | undefined;
   const client = {
     ...publicClient,
+    uid: `${publicClient.uid}:replace`,
+    watchBlockNumber: (parameters: WatchBlockNumberParameters): WatchBlockNumberReturnType =>
+      watchBlockNumber(client, parameters),
+    getBlockNumber: async (query: Parameters<typeof publicClient.getBlockNumber>[0]) =>
+      (head ??= await publicClient.getBlockNumber(query)),
+    getBlock: async (query: Parameters<typeof publicClient.getBlock>[0]) => {
+      const block = await publicClient.getBlock(query);
+      inspected.resolve(null);
+      return block;
+    },
     getTransaction: async (query: Parameters<typeof publicClient.getTransaction>[0]) => {
       const transaction = await publicClient.getTransaction(query);
       fetched.resolve(transaction);
@@ -793,8 +805,13 @@ async function replace(
       maxFeePerGas: 2_000_000_000n,
       maxPriorityFeePerGas: 2_000_000n,
     });
-    await publicClient.waitForTransactionReceipt({ hash: await walletClient.sendTransaction({ to: address, nonce }) });
-    await publicClient.waitForTransactionReceipt({ hash });
+    await waitForReceipt(publicClient, {
+      hash: await walletClient.sendTransaction({ to: address, nonce }),
+      pollingInterval: 10,
+    });
+    const { blockNumber } = await waitForReceipt(publicClient, { hash, pollingInterval: 10 });
+    await inspected.promise;
+    head = blockNumber;
     replaced.resolve(hash);
   }
   return { nonce, onHash, replaced };
