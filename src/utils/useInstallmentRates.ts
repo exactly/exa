@@ -79,7 +79,7 @@ export default function useInstallmentRates(amount?: bigint) {
         const poolUtilizations = fixedPools
           .filter(({ maturity }) => maturity >= firstMaturity && maturity < firstMaturity + count * MATURITY_INTERVAL)
           .map(({ supplied, borrowed }) => fixedUtilization(supplied, borrowed, assets));
-        if (poolUtilizations.length === 0) {
+        if (poolUtilizations.length === 0 || amount <= BigInt(poolUtilizations.length)) {
           installments.push({ count, payments: undefined, rate: 0n, total: 0n });
           continue;
         }
