@@ -51,8 +51,9 @@ env:
 - assertVisible: completed
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
 - tapOn: Activity
-- tapOn: Received from another network
+- tapOn: Moved to Anvil
 - assertVisible: { text: Anvil2, rightOf: Source network }
+- assertVisible: { text: Anvil, rightOf: Destination network }
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Back } }
 - tapOn: Home
 - runFlow: ../subflows/assertOnboarding.yaml
