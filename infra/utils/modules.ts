@@ -46,6 +46,7 @@ export default define({
       signers: ["executor"],
     },
     bridge: {
+      cpuIdle: false,
       secrets: [
         "bridge-api-key",
         "onesignal-api-key",
@@ -63,6 +64,7 @@ export default define({
       shared: ["redis-url"],
     },
     manteca: {
+      cpuIdle: false,
       secrets: [
         "manteca-api-key",
         "onesignal-api-key",
@@ -87,6 +89,7 @@ export default define({
       signers: ["settler", "issuer"],
     },
     persona: {
+      cpuIdle: false,
       secrets: [
         "panda-api-key",
         "pax-associate-id-key",
@@ -172,14 +175,23 @@ function define({
 
 function modules(specs: Configs, common: readonly string[]) {
   return Object.fromEntries(
-    Object.entries(specs).map(([name, { env = {}, secrets = [], shared = [], signers = [], timeout = "60s" }]) => [
-      name,
-      { env, secrets: [...secrets.map((secret) => `${name}-${secret}`), ...shared, ...common], signers, timeout },
-    ]),
+    Object.entries(specs).map(
+      ([name, { cpuIdle = true, env = {}, secrets = [], shared = [], signers = [], timeout = "60s" }]) => [
+        name,
+        {
+          cpuIdle,
+          env,
+          secrets: [...secrets.map((secret) => `${name}-${secret}`), ...shared, ...common],
+          signers,
+          timeout,
+        },
+      ],
+    ),
   );
 }
 
 type Config = {
+  readonly cpuIdle?: boolean;
   readonly env?: Readonly<Record<string, string>>;
   readonly secrets?: readonly string[];
   readonly shared?: readonly string[];
@@ -191,6 +203,7 @@ type Exact<Specs extends Configs> = Specs & {
   readonly [Name in keyof Specs]: Record<Exclude<keyof Specs[Name], keyof Config>, never>;
 };
 type Module<Name extends string, Spec extends Config, Common extends readonly string[]> = {
+  readonly cpuIdle: NonNullable<Config["cpuIdle"]>;
   readonly env: NonNullable<Config["env"]>;
   readonly secrets: readonly [
     ...(Spec["secrets"] extends infer Secrets extends readonly string[]
