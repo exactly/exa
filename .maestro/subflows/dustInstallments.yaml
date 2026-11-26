@@ -1,0 +1,12 @@
+appId: ${APP_ID ?? "app.exactly"}
+---
+- tapOn: Borrow
+- tapOn: Explore funding options
+- runFlow: { file: tapAria.yaml, env: { aria: Amount } }
+- inputText: "0.000001"
+- pressKey: enter
+- tapOn: Continue
+- assertVisible: { text: Amount too small, rightOf: "2 installments of", below: "1 installment of" }
+- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: tapAria.yaml, env: { aria: Back } }
+- runFlow: { file: tapAria.yaml, env: { aria: Back } }
