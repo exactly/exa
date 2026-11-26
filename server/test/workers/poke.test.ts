@@ -3,7 +3,7 @@ import "../mocks/sentry";
 import { walletClient } from "../mocks/wallet";
 
 import { SPAN_STATUS_OK } from "@sentry/core";
-import { captureException, continueTrace, startSpan, withScope } from "@sentry/node";
+import { captureException, continueTrace, spanToTraceHeader, startSpan, withScope } from "@sentry/node";
 import { Queue, QueueEvents, Job as QueueJob } from "bullmq";
 import { v5 } from "uuid";
 import { parse } from "valibot";
@@ -136,6 +136,20 @@ function mockLifi(response = Response.json({ priceUSD: "100" })) {
       ? Promise.resolve(response.clone())
       : realFetch(input, init);
   });
+}
+
+async function spyCaptures() {
+  const { captureException: capture, getActiveSpan, spanToJSON } = await vi.importActual<typeof sentry>("@sentry/node");
+  const captures: { parameters: Parameters<typeof captureException>; trace?: string }[] = [];
+  vi.mocked(captureException).mockImplementation((...parameters) => {
+    const span = getActiveSpan();
+    captures.push({ parameters, trace: span && spanToJSON(span).trace_id });
+    return capture(...parameters);
+  });
+  return (...jobs: { data: Poke }[]) =>
+    captures
+      .filter(({ trace }) => trace && jobs.some(({ data }) => data.sentryTrace?.startsWith(`${trace}-`)))
+      .map(({ parameters }) => parameters);
 }
 
 async function spySpanSetAttribute() {
@@ -597,6 +611,7 @@ describe("poke worker", () => {
     const chainId = chain.id;
     const { startSpan: realStartSpan } = await vi.importActual<typeof sentry>("@sentry/node");
     const spans: { attributes: Record<string, unknown>; name: string; op?: string; status: unknown[] }[] = [];
+    let parent: (typeof spans)[number] | undefined;
     vi.mocked(startSpan).mockImplementation(((options, callback) =>
       realStartSpan(options, (span) => {
         const record = {
@@ -605,7 +620,8 @@ describe("poke worker", () => {
           op: options.op,
           status: [] as unknown[],
         };
-        if (options.name === "poke worker" || options.op === "queue.process") spans.push(record);
+        if (options.name === "poke worker") parent = record;
+        if (parent && options.attributes?.["messaging.message.id"] === id) spans.push(parent, record);
         const setAttribute = span.setAttribute.bind(span);
         span.setAttribute = (key, value) => {
           record.attributes[key] = value;
@@ -618,6 +634,7 @@ describe("poke worker", () => {
         };
         return callback(span);
       })) as typeof startSpan);
+    const captured = await spyCaptures();
     Object.assign(chain, { id: 1 });
 
     function delayed() {
@@ -655,24 +672,33 @@ describe("poke worker", () => {
       const current = await queue.getJob(id);
       expect(current?.data.delayedAt).toBe(delayedAt);
       expect(current?.attemptsMade).toBe(0);
-      expect(mocks.track).not.toHaveBeenCalled();
+      expect(
+        mocks.track.mock.calls.filter(([event]) => (event as { userId: string }).userId === account),
+      ).toStrictEqual([]);
 
       await anvilClient.setBalance({ address: keeper, value: funds });
       const result = finished(events, id);
       await job.promote();
       await result;
+      expect(captured(job)).toStrictEqual([
+        [
+          new Error("unaffordable deploy"),
+          {
+            extra: { account, balance: "1", cost: expect.stringMatching(/^\d+$/), id }, // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+            fingerprint: ["{{ default }}", String(network.id)],
+            level: "warning",
+            tags: { queue: "poke", job: "poke" },
+          },
+        ],
+      ]);
     } finally {
+      vi.mocked(captureException).mockRestore();
+      vi.mocked(startSpan).mockRestore();
       Object.assign(chain, { id: chainId });
       await anvilClient.setBalance({ address: keeper, value: funds });
     }
 
     expect(await publicClient.getCode({ address: account })).toBeDefined();
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("unaffordable deploy"), {
-      extra: { account, balance: "1", cost: expect.stringMatching(/^\d+$/), id }, // eslint-disable-line @typescript-eslint/no-unsafe-assignment
-      fingerprint: ["{{ default }}", String(network.id)],
-      level: "warning",
-      tags: { queue: "poke", job: "poke" },
-    });
     const delayedSpans = [
       { attributes: {}, name: "poke worker", op: undefined, status: [{ code: SPAN_STATUS_OK }] },
       {
@@ -688,11 +714,9 @@ describe("poke worker", () => {
       { attributes: {}, name: "poke worker", op: undefined, status: [{ code: SPAN_STATUS_OK }] },
       { attributes: { "exa.new": true }, name: "poke", op: "queue.process", status: [{ code: SPAN_STATUS_OK }] },
     ]);
-    expect(mocks.track).toHaveBeenCalledExactlyOnceWith({
-      event: "AccountFunded",
-      userId: account,
-      properties: { source: null },
-    });
+    expect(mocks.track.mock.calls.filter(([event]) => (event as { userId: string }).userId === account)).toStrictEqual([
+      [{ event: "AccountFunded", userId: account, properties: { source: null } }],
+    ]);
   });
 
   it("delays deploys on other chains while gas costs more than the ceiling", async () => {
@@ -798,6 +822,7 @@ describe("poke worker", () => {
     worker = pokeWorker({ bullmq, onesignal, poker, segment });
     await worker.ready;
     mockLifi(new Response(null, { status: 400 }));
+    const captured = await spyCaptures();
     Object.assign(chain, { testnet: false });
     Object.assign(chain, { id: 1 });
 
@@ -820,6 +845,7 @@ describe("poke worker", () => {
       const job = await queue.getJob(id);
       if (!job) throw new Error("job not found");
       await first;
+      await expect(jobFinished({ ...createRequest().request, chainId: 0 })).rejects.toThrow("unsupported chain 0");
 
       const pending = await queue.getJob(id);
       if (!pending) throw new Error("job not found");
@@ -827,33 +853,43 @@ describe("poke worker", () => {
       const second = delayed();
       await job.promote();
       await second;
-      expect(captureException).toHaveBeenLastCalledWith(new Error("stuck deploy"), {
-        extra: { account, delayedAt, gasPrice: expect.stringMatching(/^\d+$/), id, price: undefined }, // eslint-disable-line @typescript-eslint/no-unsafe-assignment
-        fingerprint: ["{{ default }}", String(network.id)],
-        level: "warning",
-        tags: { queue: "poke", job: "poke" },
-      });
 
       await anvilClient.setBalance({ address: keeper, value: funds });
       const result = finished(events, id);
       await job.promote();
       await result;
+      const lifi = [new Error("lifi token 400"), { level: "error", tags: { queue: "poke", job: "poke" } }];
+      expect(captured(job)).toStrictEqual([
+        lifi,
+        [
+          new Error("unaffordable deploy"),
+          {
+            extra: { account, balance: "1", cost: expect.stringMatching(/^\d+$/), id }, // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+            fingerprint: ["{{ default }}", String(network.id)],
+            level: "warning",
+            tags: { queue: "poke", job: "poke" },
+          },
+        ],
+        lifi,
+        [
+          new Error("stuck deploy"),
+          {
+            extra: { account, delayedAt, gasPrice: expect.stringMatching(/^\d+$/), id, price: undefined }, // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+            fingerprint: ["{{ default }}", String(network.id)],
+            level: "warning",
+            tags: { queue: "poke", job: "poke" },
+          },
+        ],
+        lifi,
+      ]);
     } finally {
+      vi.mocked(captureException).mockRestore();
       Object.assign(chain, { testnet: true });
       Object.assign(chain, { id: chainId });
       await anvilClient.setBalance({ address: keeper, value: funds });
     }
 
     expect(await publicClient.getCode({ address: account })).toBeDefined();
-    const lifi = [new Error("lifi token 400"), { level: "error", tags: { queue: "poke", job: "poke" } }];
-    expect(vi.mocked(captureException).mock.calls.map(([error]) => (error as Error).message)).toStrictEqual([
-      "lifi token 400",
-      "unaffordable deploy",
-      "lifi token 400",
-      "stuck deploy",
-      "lifi token 400",
-    ]);
-    expect(captureException).toHaveBeenNthCalledWith(5, ...lifi);
   });
 
   it("deploys on other chains with the last native price while li.fi fails", async () => {
@@ -861,24 +897,24 @@ describe("poke worker", () => {
     if (!network) throw new Error("missing anvil");
     const chainId = chain.id;
     const next = createRequest();
+    const captured = await spyCaptures();
     Object.assign(chain, { testnet: false });
     Object.assign(chain, { id: 1 });
 
     try {
-      await jobFinished({ ...request, chainId: network.id });
+      const job = await jobFinished({ ...request, chainId: network.id }, undefined, headers());
       mockLifi(new Response(null, { status: 500 }));
-      await jobFinished({ ...next.request, chainId: network.id });
+      expect(
+        captured(job, await jobFinished({ ...next.request, chainId: network.id }, undefined, headers())),
+      ).toStrictEqual([[new Error("lifi token 500"), { level: "error", tags: { queue: "poke", job: "poke" } }]]);
     } finally {
+      vi.mocked(captureException).mockRestore();
       Object.assign(chain, { testnet: true });
       Object.assign(chain, { id: chainId });
     }
 
     expect(await publicClient.getCode({ address: account })).toBeDefined();
     expect(await publicClient.getCode({ address: next.account })).toBeDefined();
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("lifi token 500"), {
-      level: "error",
-      tags: { queue: "poke", job: "poke" },
-    });
   });
 
   it("warns once when deploys stay delayed for twelve hours", async () => {
@@ -1082,6 +1118,10 @@ function createRequest() {
       source: null,
     } satisfies Parameters<ReturnType<typeof createPoke>["enqueue"]>[0],
   };
+}
+
+function headers() {
+  return startSpan({ name: "test" }, (span) => ({ sentryTrace: spanToTraceHeader(span) }));
 }
 
 async function getMarket(address: Address, asset: Address) {
