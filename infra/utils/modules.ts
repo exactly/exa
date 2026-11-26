@@ -1,7 +1,7 @@
 export default define({
   common: ["sentry-dsn"],
   crema: ["redis-address", "redis-password", "redis-username"],
-  features: ["business"],
+  features: ["business", "pax"],
   services: {
     api: {
       secrets: [
