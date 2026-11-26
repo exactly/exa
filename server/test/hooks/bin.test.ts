@@ -45,6 +45,7 @@ const mocks = {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
 });
 
 beforeEach(() => {
@@ -273,6 +274,38 @@ describe("hook bin", () => {
       expect(pings.map(({ status }) => status)).toStrictEqual(clients.map(() => "rejected"));
     },
   );
+
+  it("skips pax in the persona hook when its module is disabled", async () => {
+    vi.stubEnv("DISABLED_MODULES", "pax");
+
+    await import("../../hooks/bin/persona");
+    const handle = await mocks.supervise.mock.calls[0]?.[1];
+    if (!handle) throw new Error("missing persona hook");
+
+    expect(mocks.secret.mock.calls.map(([secret]) => secret)).toStrictEqual([
+      "persona-postgres-url",
+      "persona-panda-api-key",
+      "panda-api-url",
+      "persona-persona-api-key",
+      "persona-api-url",
+      "persona-persona-webhook-secret",
+      "redis-url",
+      "persona-sardine-api-key",
+      "sardine-api-url",
+    ]);
+    expect(mocks.pax).not.toHaveBeenCalled();
+    expect(mocks.hook).toHaveBeenCalledExactlyOnceWith({
+      allow: queue,
+      database,
+      panda,
+      pax: undefined,
+      persona,
+      personaWebhookSecret: "persona-persona-webhook-secret",
+      sardine,
+    });
+
+    await handle.close();
+  });
 
   it("releases the database and secrets when the sponsor hook closes", async () => {
     await import("../../hooks/bin/sponsor");

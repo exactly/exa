@@ -1,6 +1,7 @@
 import { serve } from "@hono/node-server";
 import { captureException, close as closeSentry } from "@sentry/node";
-import process, { exit } from "node:process";
+import process, { env, exit } from "node:process";
+import { array, optional, parse, picklist, pipe, string, transform } from "valibot";
 
 import ServiceError from "./utils/ServiceError";
 
@@ -92,6 +93,19 @@ export function own<Result extends object>(
           }),
         )),
   };
+}
+
+export function disabled() {
+  return new Set(
+    parse(
+      pipe(
+        optional(string(), ""),
+        transform((value) => value.split(",").filter(Boolean)),
+        array(picklist(["business", "pax"], "unknown module")),
+      ),
+      env.DISABLED_MODULES,
+    ),
+  );
 }
 
 type Handle<App extends Hono | undefined = undefined> = {
