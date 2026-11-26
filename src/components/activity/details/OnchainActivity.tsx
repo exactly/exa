@@ -6,23 +6,26 @@ import { Separator, Square, XStack, YStack } from "tamagui";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 
-import chain from "@exactly/common/generated/chain";
 import shortenHex from "@exactly/common/shortenHex";
 
 import TransactionDetails from "./TransactionDetails";
 import { ArrowDownToLine } from "../../../generated/icons/ArrowDownToLine";
 import { ArrowLeftRight } from "../../../generated/icons/ArrowLeftRight";
+import { ArrowRight } from "../../../generated/icons/ArrowRight";
 import { ArrowUpRight } from "../../../generated/icons/ArrowUpRight";
 import { HandCoins } from "../../../generated/icons/HandCoins";
 import { RefreshCw } from "../../../generated/icons/RefreshCw";
 import { TriangleAlert } from "../../../generated/icons/TriangleAlert";
 import { lifiChainsOptions } from "../../../utils/lifi";
+import useAccount from "../../../utils/useAccount";
 import AssetLogo from "../../shared/AssetLogo";
 import ChainLogo from "../../shared/ChainLogo";
 import Text from "../../shared/Text";
+import { bridgeDirection, bridgeOrigin, bridgeTitle } from "../ActivityItem";
 
 import type { ActivityItem } from "../../../utils/queryClient";
 import type { TFunction } from "i18next";
+import type { Address } from "viem";
 
 type Item = Extract<ActivityItem, { type: "bridge" | "liquidation" | "loan" | "rollover" | "swap" }>;
 
@@ -32,26 +35,28 @@ export default function OnchainActivity({ item }: { item: Item }) {
     i18n: { language },
   } = useTranslation();
   const { amount, usdAmount, currency } = item;
+  const { address } = useAccount();
+  const direction = item.type === "bridge" ? bridgeDirection(item, address) : undefined;
   return (
     <>
       <YStack gap="s7" paddingBottom="s9">
         <XStack justifyContent="center" alignItems="center">
           <Square borderRadius="r4" backgroundColor="backgroundStrong" size="s10">
-            {icon(item)}
+            {icon(item, direction)}
           </Square>
         </XStack>
         <YStack gap="s4_5" justifyContent="center" alignItems="center">
-          {item.type === "bridge" && item.destinationChainId !== chain.id ? (
+          {item.type === "bridge" && direction !== "moved" ? (
             <Text secondary body>
-              {t("Sent to")}
+              {direction === "sent" ? t("Sent to") : t("Received from")}
               <Text emphasized primary body>
                 &nbsp;
-                {shortenHex(item.receiver)}
+                {direction === "sent" ? shortenHex(item.receiver) : bridgeOrigin(item)}
               </Text>
             </Text>
           ) : (
             <Text primary body emphasized textAlign="center">
-              {title(item, t)}
+              {title(item, t, address)}
             </Text>
           )}
           {usdAmount !== undefined && (
@@ -115,10 +120,10 @@ function Details({ item }: { item: Item }) {
       ];
       break;
     case "bridge":
-      rows =
-        item.destinationChainId === chain.id
-          ? [[t("Source network"), <Network key="network" chainId={item.sourceChainId} />]]
-          : [[t("Destination network"), <Network key="network" chainId={item.destinationChainId} />]];
+      rows = [
+        [t("Source network"), <Network key="source" chainId={item.sourceChainId} />],
+        [t("Destination network"), <Network key="destination" chainId={item.destinationChainId} />],
+      ];
       break;
   }
   return (
@@ -168,7 +173,7 @@ function Network({ chainId }: { chainId: number }) {
   );
 }
 
-function icon(item: Item) {
+function icon(item: Item, direction?: ReturnType<typeof bridgeDirection>) {
   switch (item.type) {
     case "loan":
       return <HandCoins size={48} color="interactiveOnBaseSuccessSoft" strokeWidth={2} />;
@@ -179,14 +184,14 @@ function icon(item: Item) {
     case "liquidation":
       return <TriangleAlert size={48} color="interactiveOnBaseErrorSoft" strokeWidth={2} />;
     case "bridge":
-      if (item.destinationChainId === chain.id) {
+      if (direction === "moved") return <ArrowRight size={48} color="uiNeutralPrimary" strokeWidth={2} />;
+      if (direction === "received")
         return <ArrowDownToLine size={48} color="interactiveOnBaseSuccessSoft" strokeWidth={2} />;
-      }
-      return <ArrowUpRight size={48} color="interactiveOnBaseErrorSoft" strokeWidth={2} />;
+      return <ArrowUpRight size={48} color="uiNeutralPrimary" strokeWidth={2} />;
   }
 }
 
-function title(item: Item, t: TFunction) {
+function title(item: Item, t: TFunction, address?: Address) {
   switch (item.type) {
     case "loan":
       return t("Loan");
@@ -197,6 +202,6 @@ function title(item: Item, t: TFunction) {
     case "liquidation":
       return t("Liquidation");
     case "bridge":
-      return item.destinationChainId === chain.id ? t("Received from another network") : t("Sent to another network");
+      return bridgeTitle(item, t, address);
   }
 }
