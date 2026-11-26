@@ -19,7 +19,8 @@ appId: ${APP_ID ?? "app.exactly"}
                 commands:
                   - evalScript: ${output.rejected = Array(Math.floor(Date.now() / 60000) - output.passkey + 1).fill(output.passkey).map((minute, index) => new Date((minute + index) * 60000).toISOString().slice(0, 16)).join("|")}
                   - runFlow: { file: backup.yaml, env: { eligible: "true" } }
-                  - tapOn: { text: Try again, below: This passkey can’t be backed up }
+                  - tapOn: { text: Try again|Choose password manager, below: This passkey can’t be backed up }
+                  - runFlow: { when: { platform: android }, commands: [{ assertVisible: Preferred service }, back] }
                   - runFlow: { file: savePasskey.yaml, env: { overwrite: ".*(${output.rejected}).*" } }
       - evalScript: ${output.passkey = Array(Math.floor(Date.now() / 60000) - output.passkey + 1).fill(output.passkey).map((minute, index) => new Date((minute + index) * 60000).toISOString().slice(0, 16)).join("|")}
 - runFlow:
