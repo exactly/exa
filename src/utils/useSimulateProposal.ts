@@ -26,6 +26,7 @@ import ProposalType, {
   outdatedCrossRepayAtMaturityParameters,
 } from "@exactly/common/ProposalType";
 
+import { collectDebit, enterMarket } from "./useExaPlugin";
 import useSimulateBlocks from "./wagmi/useSimulateBlocks";
 
 export default function useSimulateProposal({
@@ -84,7 +85,7 @@ export default function useSimulateProposal({
     delay,
     timestamp,
     blockNumber,
-    plugins,
+    plugin,
     error: previewError,
     refetch: refetchPreview,
   } = useProposalPreview({ account, chainId, enabled, fresh: true });
@@ -115,7 +116,7 @@ export default function useSimulateProposal({
     query: {
       enabled: () =>
         enabled &&
-        plugins !== undefined &&
+        plugin !== undefined &&
         calldata !== undefined &&
         execution !== undefined &&
         blockNumber !== undefined &&
@@ -238,7 +239,18 @@ export function useProposalPreview({
         ],
         functionName: "getBlockNumber",
       },
-      { address: account, abi: upgradeableModularAccountAbi, functionName: "getInstalledPlugins" },
+      {
+        address: account,
+        abi: upgradeableModularAccountAbi,
+        functionName: "getExecutionFunctionConfig",
+        args: [collectDebit],
+      },
+      {
+        address: account,
+        abi: upgradeableModularAccountAbi,
+        functionName: "getExecutionFunctionConfig",
+        args: [enterMarket],
+      },
     ] as const,
     allowFailure: false,
     stateOverride: [{ address: previewerAddress, code: appPreviewerDeployedCode }],
@@ -249,19 +261,20 @@ export function useProposalPreview({
   const data = !fresh || reads.isFetchedAfterMount ? reads.data : undefined;
   const preview = data?.[0].wallet.proposalManager;
   const outdated = preview?.proposalManager === zeroAddress;
+  const plugin = data?.[3].plugin === zeroAddress ? data[4].plugin : data?.[3].plugin;
   const outdatedDelay = useReadContract({
-    address: data?.[3][0],
+    address: plugin,
     abi: outdatedAbi,
     functionName: "PROPOSAL_DELAY",
     chainId,
-    query: { enabled: enabled && outdated && !!data?.[3][0], staleTime: Infinity },
+    query: { enabled: enabled && outdated && !!plugin && plugin !== zeroAddress, staleTime: Infinity },
   });
   return {
     preview,
     delay: outdated ? outdatedDelay.data : preview?.delay,
     timestamp: data?.[1],
     blockNumber: data?.[2],
-    plugins: data?.[3],
+    plugin,
     isLoading: reads.isLoading || outdatedDelay.isLoading,
     error: enabled && !multicall3Address ? chainNotConfigured : (reads.error ?? outdatedDelay.error),
     refetch: () => Promise.all([reads.refetch(), outdatedDelay.error && outdatedDelay.refetch()]),

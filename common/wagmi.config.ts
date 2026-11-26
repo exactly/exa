@@ -370,6 +370,7 @@ export default defineConfig([
                 depositor: loadBroadcast("Depositor", chainId, undefined, false)?.transactions[0]?.contractAddress,
                 exa: loadDeployment("EXA", false)?.address,
                 flashLoanAdapter: loadDeployment("FlashLoanAdapter", false)?.address,
+                mockPlugin: loadBroadcast("Legacy", chainId, undefined, false)?.returns?.mockPlugin?.value,
               }).map(
                 ([key, address]) =>
                   `export const ${key}Address = ${address ? `"${getAddress(address)}"` : "undefined"} as \`0x\${string}\` | undefined`,

@@ -10,13 +10,20 @@ import { ACCOUNT_IMPL, ENTRYPOINT } from "webauthn-owner-plugin/../script/Factor
 import { BaseScript } from "../../script/Base.s.sol";
 import { ExaAccountFactory } from "../../src/ExaAccountFactory.sol";
 import { ProposalManager } from "../../src/ProposalManager.sol";
+import { MockPlugin } from "./MockPlugin.sol";
 
 contract LegacyScript is BaseScript {
   using LibBytes for bytes;
 
   function run()
     external
-    returns (IPlugin plugin, ExaAccountFactory factory, IPlugin v0Plugin, ExaAccountFactory v0Factory)
+    returns (
+      IPlugin plugin,
+      ExaAccountFactory factory,
+      IPlugin v0Plugin,
+      ExaAccountFactory v0Factory,
+      IPlugin mockPlugin
+    )
   {
     address admin = acct("admin");
     IPlugin ownerPlugin = IPlugin(dependency("webauthn-owner-plugin", "WebauthnOwnerPlugin", "Plugin", 0));
@@ -55,6 +62,7 @@ contract LegacyScript is BaseScript {
       v0Plugin := create(0, add(v0Code, 0x20), mload(v0Code))
     }
     v0Factory = new ExaAccountFactory(admin, ownerPlugin, v0Plugin, ACCOUNT_IMPL, ENTRYPOINT);
+    mockPlugin = new MockPlugin();
     vm.stopBroadcast();
   }
 }

@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 
 import { toast } from "@tamagui/toast";
 
-import { useQuery } from "@tanstack/react-query";
 import { readContract } from "@wagmi/core/actions";
 import {
   decodeErrorResult,
@@ -19,45 +18,33 @@ import {
 import { simulateBlocks } from "viem/actions";
 import { useBytecode, useSendCalls } from "wagmi";
 
-import accountInit from "@exactly/common/accountInit";
 import chain, { appPreviewerAbi, appPreviewerCode, exaPluginAddress } from "@exactly/common/generated/chain";
 import {
   exaPluginAbi,
   upgradeableModularAccountAbi,
   useReadExaPluginPluginManifest,
-  useReadUpgradeableModularAccountGetInstalledPlugins,
 } from "@exactly/common/generated/hooks";
 
 import InfoAlert from "./InfoAlert";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
+import useExaPlugin from "../../utils/useExaPlugin";
 import useSingleMutation from "../../utils/useSingleMutation";
 import exa from "../../utils/wagmi/exa";
 import waitForCalls from "../../utils/waitForCalls";
-
-import type { Credential } from "@exactly/common/validation";
 
 export default function PluginUpgrade() {
   const { t } = useTranslation();
   const { mutateAsync: mutateSendCalls } = useSendCalls();
   const { address } = useAccount();
-  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { data: bytecode } = useBytecode({ address, chainId: chain.id, query: { enabled: !!address } });
-  const { data: installedPlugins, refetch: refetchInstalledPlugins } =
-    useReadUpgradeableModularAccountGetInstalledPlugins({
-      address,
-      chainId: chain.id,
-      factory: credential?.factory,
-      factoryData: credential && accountInit(credential),
-      query: { refetchOnMount: true, enabled: !!address && !!credential },
-    });
+  const { plugin, refetch: refetchPlugin } = useExaPlugin(chain.id);
   const { data: pluginManifest } = useReadExaPluginPluginManifest({ address: exaPluginAddress, chainId: chain.id });
-  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
-  const isReady = !!bytecode && !!installedPlugins?.[0] && !!pluginManifest && !isLatestPlugin;
+  const isReady = !!bytecode && !!plugin && !!pluginManifest && plugin !== exaPluginAddress;
   const { mutate: updatePlugin, isPending: isUpdating } = useSingleMutation({
     mutationFn: async () => {
       if (!address) throw new Error("no account address");
-      if (!installedPlugins?.[0]) throw new Error("no installed plugin");
+      if (!plugin) throw new Error("no installed plugin");
       if (!pluginManifest) throw new Error("invalid manifest");
 
       const upgrade = [
@@ -68,7 +55,7 @@ export default function PluginUpgrade() {
             abi: upgradeableModularAccountAbi,
             functionName: "uninstallPlugin",
             args: [
-              installedPlugins[0],
+              plugin,
               encodeAbiParameters(
                 [
                   {
@@ -149,7 +136,7 @@ export default function PluginUpgrade() {
       });
       const { status } = await waitForCalls(exa, id);
       if (status === "failure") throw new Error("failed to upgrade plugin");
-      if (credential) await refetchInstalledPlugins();
+      await refetchPlugin();
     },
     onSuccess(result) {
       if (result === "pending") {

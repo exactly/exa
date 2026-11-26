@@ -6,15 +6,10 @@ import { useRouter } from "expo-router";
 import { toast } from "@tamagui/toast";
 import { XStack } from "tamagui";
 
-import { useQuery } from "@tanstack/react-query";
 import { useBytecode, useReadContract } from "wagmi";
 
-import accountInit from "@exactly/common/accountInit";
 import chain from "@exactly/common/generated/chain";
-import {
-  upgradeableModularAccountAbi,
-  useReadUpgradeableModularAccountGetInstalledPlugins,
-} from "@exactly/common/generated/hooks";
+import { upgradeableModularAccountAbi } from "@exactly/common/generated/hooks";
 
 import { ArrowDownToLine } from "../../generated/icons/ArrowDownToLine";
 import { ArrowUpRight } from "../../generated/icons/ArrowUpRight";
@@ -22,15 +17,13 @@ import { HandCoins } from "../../generated/icons/HandCoins";
 import { Repeat } from "../../generated/icons/Repeat";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
+import useExaPlugin from "../../utils/useExaPlugin";
 import { useProposalManagerQuery } from "../../utils/useProposalManager";
 import Button from "../shared/StyledButton";
-
-import type { Credential } from "@exactly/common/validation";
 
 export default function HomeActions() {
   const router = useRouter();
   const { address: account } = useAccount();
-  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { data: bytecode } = useBytecode({ address: account, chainId: chain.id, query: { enabled: !!account } });
   const { t } = useTranslation();
   const actions = useMemo(
@@ -51,13 +44,7 @@ export default function HomeActions() {
   const widest = Math.max(0, ...actions.map(({ title }) => labels[title] ?? 0));
   const scale = column && widest ? Math.min(1, (column * 0.94) / widest) : 1;
 
-  const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
-    address: account,
-    chainId: chain.id,
-    factory: credential?.factory,
-    factoryData: credential && accountInit(credential),
-    query: { enabled: !!account && !!credential },
-  });
+  const { plugin } = useExaPlugin(chain.id);
   const { proposalManager, failed: managerFailed, refetch: refetchManager } = useProposalManagerQuery(chain.id);
   const retryingRef = useRef(false);
   const [retrying, setRetrying] = useState(false);
@@ -79,9 +66,9 @@ export default function HomeActions() {
         stateMutability: "view",
       },
     ],
-    address: installedPlugins?.[0],
+    address: plugin,
     args: account ? [account] : undefined,
-    query: { enabled: !!account && !!installedPlugins?.[0] && proposalManager === null },
+    query: { enabled: !!account && !!plugin && proposalManager === null },
   });
 
   const handleSend = async () => {
