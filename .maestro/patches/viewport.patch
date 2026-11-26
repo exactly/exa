@@ -1,0 +1,39 @@
+From bf788c37defcf1827f672da1e64305653f981424 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Thu, 26 Nov 2026 14:53:20 +0000
+Subject: [PATCH] fix: read cross-origin iframe viewports where the web script
+ runs
+
+The web driver reads a cross-origin iframe's viewport from window.maestro through chromedriver, which evaluates in the page's main world, while every other read goes through CDP. When the script lives somewhere chromedriver does not reach, such as an isolated world, that read finds no window.maestro, fails, and the iframe is left out of the hierarchy with nothing in it to tap. Read the viewport through the same CDP evaluation as the rest of the script, and leave the iframe out only when it is gone by then.
+---
+ .../src/main/java/maestro/drivers/CdpWebDriver.kt  | 14 +++-----------
+ 1 file changed, 3 insertions(+), 11 deletions(-)
+
+diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+index b33fb13..bab24c1 100644
+--- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+@@ -938,17 +938,9 @@ class CdpWebDriver(
+         }
+ 
+         // Get the iframe's scaled viewport params (accounts for parent viewportWidth/Height scaling)
+-        val paramsJson = try {
+-            jsExecutor.executeScript(
+-                "return JSON.stringify(window.maestro.getIframeViewportParams(arguments[0]));",
+-                iframeSrc
+-            ) as? String
+-        } catch (e: Exception) {
+-            LOGGER.warn("Could not get viewport params for iframe $iframeSrc", e)
+-            return null
+-        } ?: return null
+-
+-        val params = jacksonObjectMapper().readValue(paramsJson, Map::class.java) as Map<String, Any>
++        val params = executeJS(
++            "window.maestro.getIframeViewportParams(${jacksonObjectMapper().writeValueAsString(iframeSrc)})"
++        ) as? Map<String, Any> ?: return null
+         val iframeX = (params["viewportX"]      as? Number)?.toDouble() ?: 0.0
+         val iframeY = (params["viewportY"]      as? Number)?.toDouble() ?: 0.0
+         val iframeW = (params["viewportWidth"]  as? Number)?.toDouble() ?: 0.0
+-- 
+2.43.0
+
