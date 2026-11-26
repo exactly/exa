@@ -4,5 +4,6 @@ concurrency: ${{ github.workflow }}-${{ github.ref }}
 jobs:
   expo:
     uses: ./.github/workflows/mobile-expo.yaml
+    permissions: { contents: read }
     with: { profile: beta }
     secrets: inherit

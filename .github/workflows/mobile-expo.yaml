@@ -17,6 +17,7 @@ jobs:
       name: expo
       url: https://expo.dev/accounts/exactly/projects/exactly
     runs-on: ubuntu-latest
+    permissions: { contents: read }
     env:
       CHAIN_ID: ${{ vars.CHAIN_ID }}
       APP_DOMAIN: ${{ vars.APP_DOMAIN }}
