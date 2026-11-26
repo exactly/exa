@@ -144,14 +144,18 @@ jobs:
           [ "$(cat passkeys.status)" = 0 ] || { cat passkeys.log; exit 1; }
           adb reverse tcp:3000 tcp:3000 && adb reverse tcp:8545 tcp:8545 && adb reverse tcp:8969 tcp:8969 && adb reverse tcp:9944 tcp:9944
           adb install "${{ steps.repack.outputs.output_path }}"
-          adb logcat -v time > emulator.log 2>&1 &
+          adb shell wm logging enable-text WM_DEBUG_FOCUS_LIGHT || true
+          adb logcat -v time -b default,kernel,events > emulator.log 2>&1 &
           for i in {1..420}; do
             curl -f http://localhost:3000/api/auth/authentication > /dev/null 2>&1 && break
             [ $i -eq 420 ] && echo "health check timed out" && cat server.log && exit 1
             sleep 1
           done
-      - run: pnpm e2e:maestro --format junit --output .maestro/junit.xml
-        name: e2e
+      - name: e2e
+        run: | # cspell:ignore dumpsys
+          pnpm e2e:maestro --format junit --output .maestro/junit.xml && exit
+          for s in window input SurfaceFlinger activity; do timeout 20 adb shell dumpsys $s > dumpsys-$s.txt 2>&1 || echo "exit $?" >> dumpsys-$s.txt; done
+          exit 1
       - name: exa teardown
         if: always()
         run: | # cspell:ignore pkill
@@ -178,6 +182,7 @@ jobs:
             server/node_modules/@exactly/.*
             emulator.log
             emulator-process.log
+            dumpsys-*.txt
             ${{ env.HOME }}/.maestro/tests
             .maestro/screenshots
 
