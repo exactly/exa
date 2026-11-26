@@ -1,0 +1,68 @@
+From 227ea3a888d02ec9c9215f8f7c11ec525168f8e9 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Fri, 6 Nov 2026 21:01:27 +0000
+Subject: [PATCH] feat: add media to file inputs on web
+
+addMedia does nothing on web, so a flow can't give a page a file, such as an identity document photo for an upload field, and headless Chrome opens no file chooser to pick one from. Set the media on the page's first file input, looking inside its iframes, nested ones too, when the page itself has none and skipping one that detaches while it is searched, which fires the same change event a picked file does. When no field is there yet, wait for the page to settle and look once more, so a field that mounts right after what the flow waited on is found without making every call wait. Unlike the gallery on Android and iOS, a page only takes files through its upload field, so the command fails as an element not found when the page still has none instead of dropping the media silently, which an optional command still turns into a warning, and an input without multiple takes one file per command, so giving it more fails the command as invalid instead of with the driver's error.
+---
+ .../main/java/maestro/drivers/CdpWebDriver.kt | 37 ++++++++++++++++++-
+ 1 file changed, 36 insertions(+), 1 deletion(-)
+
+diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+index da089aa..ff3bae7 100644
+--- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+@@ -29,6 +29,7 @@ import org.openqa.selenium.By
+ import org.openqa.selenium.InvalidArgumentException
+ import org.openqa.selenium.JavascriptExecutor
+ import org.openqa.selenium.Keys
++import org.openqa.selenium.StaleElementReferenceException
+ import org.openqa.selenium.TimeoutException
+ import org.openqa.selenium.WebDriver
+ import org.openqa.selenium.WebDriverException
+@@ -771,7 +772,41 @@ class CdpWebDriver(
+     }
+ 
+     override fun addMedia(mediaFiles: List<File>) {
+-        // noop for web
++        val driver = ensureOpen()
++        val paths = mediaFiles.joinToString("\n") { it.absolutePath }
++        fun addToFileInput(): Boolean {
++            driver.findElements(By.cssSelector("input[type=file]")).firstOrNull()?.let { input ->
++                try {
++                    input.sendKeys(paths)
++                } catch (e: InvalidArgumentException) {
++                    if (mediaFiles.size > 1 && input.getDomProperty("multiple") != "true") {
++                        throw MaestroException.InvalidCommand("The file input takes one file, so add one media file per addMedia command", e)
++                    }
++                    throw e
++                }
++                return true
++            }
++            for (iframe in driver.findElements(By.tagName("iframe"))) {
++                try {
++                    driver.switchTo().frame(iframe)
++                } catch (e: WebDriverException) {
++                    continue
++                }
++                try {
++                    if (addToFileInput()) return true
++                } catch (e: InvalidArgumentException) {
++                    throw e
++                } catch (e: WebDriverException) {
++                    continue
++                } finally {
++                    driver.switchTo().parentFrame()
++                }
++            }
++            return false
++        }
++        if (addToFileInput()) return
++        val hierarchy = waitForAppToSettle(null, null, null) ?: ViewHierarchy.from(this, false)
++        if (!addToFileInput()) throw MaestroException.ElementNotFound("No file input to add media to", hierarchy.root, "addMedia on web sets the files on the first input[type=file] in the page or any of its iframes")
+     }
+ 
+     override fun isAirplaneModeEnabled(): Boolean {
+-- 
+2.43.0
+
