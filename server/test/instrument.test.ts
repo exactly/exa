@@ -3,6 +3,7 @@ import { DrizzleQueryError } from "drizzle-orm";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 
 import config from "../instrument.cjs";
+import revertFingerprint from "../utils/revertFingerprint";
 
 afterAll(() => close());
 
@@ -124,6 +125,212 @@ describe("instrument", () => {
     });
   });
 
+  it.each([
+    "Secret [projects/1/secrets/sandbox-poke-onesignal-apps] not found or has no versions.",
+    "Secret [projects/1/secrets/sandbox-refund-onesignal-apps] not found or has no versions.",
+  ])("fingerprints missing grpc resources by their details (%s)", (details) => {
+    const event = { exception: { values: [{ type: "Error", value: `5 NOT_FOUND: ${details}` }] } };
+
+    const result = config.beforeSend?.(event as never, { originalException: grpcError(5, details) });
+
+    expect(result).toBe(event);
+    expect(event).toStrictEqual({
+      exception: { values: [{ type: "Error", value: `5 NOT_FOUND: ${details}` }] },
+      fingerprint: ["{{ default }}", "5", details],
+    });
+  });
+
+  it.each([
+    [7, "PERMISSION_DENIED", "Permission 'secretmanager.versions.access' denied for resource 'sandbox-redis-url'"],
+    [
+      9,
+      "FAILED_PRECONDITION",
+      "Secret Version [projects/1/secrets/sandbox-redis-url/versions/2] is in DISABLED state.",
+    ],
+    [
+      9,
+      "FAILED_PRECONDITION",
+      "Secret Version [projects/1/secrets/sandbox-panda-api-key/versions/3] is in DISABLED state.",
+    ],
+  ])("fingerprints unusable grpc resources by their details (%i %s: %s)", (code, name, details) => {
+    const event = { exception: { values: [{ type: "Error", value: `${code} ${name}: ${details}` }] } };
+
+    config.beforeSend?.(event as never, { originalException: grpcError(code, details) });
+
+    expect(event).toStrictEqual({
+      exception: { values: [{ type: "Error", value: `${code} ${name}: ${details}` }] },
+      fingerprint: ["{{ default }}", String(code), details],
+    });
+  });
+
+  it.each([
+    "Deadline exceeded after 60.000s,name resolution: 0.008s,metadata filters: 0.001s,Waiting for LB pick",
+    "Deadline exceeded after 59.999s,name resolution: 0.007s,metadata filters: 0.002s,Waiting for LB pick",
+  ])("fingerprints other grpc failures by their code regardless of details (%s)", (details) => {
+    const event = { exception: { values: [{ type: "Error", value: `4 DEADLINE_EXCEEDED: ${details}` }] } };
+
+    config.beforeSend?.(event as never, { originalException: grpcError(4, details) });
+
+    expect(event).toStrictEqual({
+      exception: { values: [{ type: "Error", value: `4 DEADLINE_EXCEEDED: ${details}` }] },
+      fingerprint: ["{{ default }}", "4"],
+    });
+  });
+
+  it("fingerprints grpc failures found through an outer error", () => {
+    const details = "Secret [projects/1/secrets/sandbox-redis-url] not found or has no versions.";
+    const event = { exception: { values: [{ type: "Error", value: "wrapper" }] } };
+
+    config.beforeSend?.(event as never, {
+      originalException: new Error("wrapper", { cause: grpcError(5, details) }),
+    });
+
+    expect(event).toStrictEqual({
+      exception: { values: [{ type: "Error", value: "wrapper" }] },
+      fingerprint: ["{{ default }}", "5", details],
+    });
+  });
+
+  it("keeps the fingerprint of grpc failures reported with one", () => {
+    const event = {
+      exception: { values: [{ type: "Error", value: "5 NOT_FOUND: missing" }] },
+      fingerprint: ["{{ default }}", "known"],
+    };
+
+    config.beforeSend?.(event as never, { originalException: grpcError(5, "missing") });
+
+    expect(event).toStrictEqual({
+      exception: { values: [{ type: "Error", value: "5 NOT_FOUND: missing" }] },
+      fingerprint: ["{{ default }}", "known"],
+    });
+  });
+
+  it("fingerprints grpc failures reported with an unknown revert fingerprint", () => {
+    const details = "Deadline exceeded after 60.000s";
+    const event = {
+      exception: { values: [{ type: "Error", value: `4 DEADLINE_EXCEEDED: ${details}` }] },
+      fingerprint: ["{{ default }}", "unknown"],
+    };
+
+    config.beforeSend?.(event as never, { originalException: grpcError(4, details) });
+
+    expect(event).toStrictEqual({
+      exception: { values: [{ type: "Error", value: `4 DEADLINE_EXCEEDED: ${details}` }] },
+      fingerprint: ["{{ default }}", "4"],
+    });
+  });
+
+  it("replaces a trailing unknown revert reason of grpc failures", () => {
+    const details = "Secret [projects/1/secrets/sandbox-redis-url] not found or has no versions.";
+    const event = {
+      exception: { values: [{ type: "Error", value: `5 NOT_FOUND: ${details}` }] },
+      fingerprint: ["{{ default }}", "refund.exhausted", "unknown"],
+    };
+
+    config.beforeSend?.(event as never, { originalException: grpcError(5, details) });
+
+    expect(event).toStrictEqual({
+      exception: { values: [{ type: "Error", value: `5 NOT_FOUND: ${details}` }] },
+      fingerprint: ["{{ default }}", "refund.exhausted", "5", details],
+    });
+  });
+
+  it.each([
+    ["google.cloud.secretmanager.v1.SecretManagerService", "14 UNAVAILABLE: No connection established", ["14"]],
+    ["google.cloud.secretmanager.v1.SecretManagerService", "8 RESOURCE_EXHAUSTED: Quota exceeded", ["8"]],
+    ["google.cloud.kms.v1.KeyManagementService", "14 UNAVAILABLE: No connection established", ["14"]],
+  ])("fingerprints exhausted client retries by their api and retried code (%s, %s)", (api, retried, parts) => {
+    const message = `Total timeout of API ${api} exceeded 600000 milliseconds retrying error Error: ${retried} before any response was received.`;
+    const event = { exception: { values: [{ type: "Error", value: message }] } };
+
+    config.beforeSend?.(event as never, { originalException: gaxError(message) });
+
+    expect(event).toStrictEqual({
+      exception: { values: [{ type: "Error", value: message }] },
+      fingerprint: ["{{ default }}", "4", api, ...parts],
+    });
+  });
+
+  it("fingerprints exhausted client retries without a retried error by their api", () => {
+    const message =
+      "Total timeout of API google.cloud.kms.v1.KeyManagementService exceeded 600000 milliseconds before any response was received.";
+    const event = { exception: { values: [{ type: "Error", value: message }] } };
+
+    config.beforeSend?.(event as never, { originalException: gaxError(message) });
+
+    expect(event).toStrictEqual({
+      exception: { values: [{ type: "Error", value: message }] },
+      fingerprint: ["{{ default }}", "4", "google.cloud.kms.v1.KeyManagementService"],
+    });
+  });
+
+  it("fingerprints exhausted client retries without an api by their retried code", () => {
+    const message =
+      "Exceeded maximum number of retries retrying error Error: 14 UNAVAILABLE before any response was received";
+    const event = { exception: { values: [{ type: "Error", value: message }] } };
+
+    config.beforeSend?.(event as never, { originalException: gaxError(message) });
+
+    expect(event).toStrictEqual({
+      exception: { values: [{ type: "Error", value: message }] },
+      fingerprint: ["{{ default }}", "4", "14"],
+    });
+  });
+
+  it("fingerprints grpc failures reported with their revert fingerprint", () => {
+    const error = grpcError(4, "Deadline exceeded after 60.000s");
+    const event = {
+      exception: { values: [{ type: "Error", value: "4 DEADLINE_EXCEEDED" }] },
+      fingerprint: revertFingerprint(error),
+    };
+
+    config.beforeSend?.(event as never, { originalException: error });
+
+    expect(event).toStrictEqual({
+      exception: { values: [{ type: "Error", value: "4 DEADLINE_EXCEEDED" }] },
+      fingerprint: ["{{ default }}", "4"],
+    });
+  });
+
+  it("fingerprints grpc resource failures without details by their code", () => {
+    const event = { exception: { values: [{ type: "Error", value: "5 NOT_FOUND" }] } };
+
+    config.beforeSend?.(event as never, {
+      originalException: Object.assign(new Error("5 NOT_FOUND"), { code: 5, metadata: {} }),
+    });
+
+    expect(event).toStrictEqual({
+      exception: { values: [{ type: "Error", value: "5 NOT_FOUND" }] },
+      fingerprint: ["{{ default }}", "5"],
+    });
+  });
+
+  it("keeps fingerprints of grpc failures ending in a known reason", () => {
+    const event = {
+      exception: { values: [{ type: "Error", value: "5 NOT_FOUND: missing" }] },
+      fingerprint: ["{{ default }}", "unknown", "known"],
+    };
+
+    config.beforeSend?.(event as never, { originalException: grpcError(5, "missing") });
+
+    expect(event).toStrictEqual({
+      exception: { values: [{ type: "Error", value: "5 NOT_FOUND: missing" }] },
+      fingerprint: ["{{ default }}", "unknown", "known"],
+    });
+  });
+
+  it.each([
+    ["string code", Object.assign(new Error("boom"), { code: "5", details: "missing", metadata: {} })],
+    ["no metadata", Object.assign(new Error("boom"), { code: 5, details: "missing" })],
+  ])("keeps errors that are not grpc failures (%s)", (_, error) => {
+    const event = { exception: { values: [{ type: "Error", value: "boom" }] } };
+
+    const result = config.beforeSend?.(event as never, { originalException: error });
+
+    expect(result).toBe(event);
+    expect(event).toStrictEqual({ exception: { values: [{ type: "Error", value: "boom" }] } });
+  });
+
   it("moves synthetic message stacks to threads", () => {
     const stacktrace = { frames: [{ filename: "hooks/panda.ts", lineno: 546 }] };
     const event = {
@@ -206,3 +413,11 @@ describe("instrument", () => {
     expect(transaction.transaction).toBe("POST /");
   });
 });
+
+function grpcError(code: number, details: string) {
+  return Object.assign(new Error(`${code} ${details}`), { code, details, metadata: {} });
+}
+
+function gaxError(message: string) {
+  return Object.assign(new Error(message), { code: 4, metadata: undefined, statusDetails: undefined });
+}

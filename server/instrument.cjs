@@ -62,6 +62,28 @@ const config = {
         break;
       }
     }
+    /** @typedef {{ cause?: unknown; code?: unknown; details?: unknown; message?: unknown; metadata?: unknown }} GrpcError */
+    for (
+      let error = /** @type {GrpcError | undefined} */ (hint.originalException);
+      error;
+      error = /** @type {GrpcError | undefined} */ (error.cause)
+    ) {
+      if (typeof error.code === "number" && (error.metadata || "statusDetails" in error)) {
+        const fingerprint = event.fingerprint ?? ["{{ default }}", "unknown"];
+        if (fingerprint.at(-1) === "unknown") {
+          const api = /^Total timeout of API (\S+)/.exec(String(error.message))?.[1];
+          const retried = /retrying error \S+ (\d+) /.exec(String(error.message))?.[1];
+          event.fingerprint = [
+            ...fingerprint.slice(0, -1),
+            String(error.code),
+            ...([5, 7, 9].includes(error.code) && typeof error.details === "string" ? [error.details] : []),
+            ...(api ? [api] : []),
+            ...(retried ? [retried] : []),
+          ];
+        }
+        break;
+      }
+    }
     const synthetic = event.exception?.values?.[0];
     if (event.message && synthetic?.mechanism?.synthetic && synthetic.stacktrace) {
       event.threads = { values: [{ stacktrace: synthetic.stacktrace, crashed: false, current: true }] };
