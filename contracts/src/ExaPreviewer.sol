@@ -91,18 +91,17 @@ contract ExaPreviewer {
   }
 
   function pendingProposals(address account) external view returns (PendingProposal[] memory proposals) {
-    if (account.code.length == 0) return proposals;
-    IProposalManager proposalManager = _proposalManager(account);
-    if (address(proposalManager) == address(0)) return proposals;
-    uint256 queueNonce = proposalManager.queueNonces(account);
-    uint256 nonce = proposalManager.nonces(account);
-    uint256 delay = proposalManager.delay();
+    IProposalManager proposalManager_ = _proposalManager(account);
+    if (address(proposalManager_) == address(0)) return proposals;
+    uint256 queueNonce = proposalManager_.queueNonces(account);
+    uint256 nonce = proposalManager_.nonces(account);
+    uint256 delay = proposalManager_.delay();
     proposals = new PendingProposal[](queueNonce - nonce);
     for (uint256 i = nonce; i < queueNonce; ++i) {
       // forge-lint: disable-start(calls-loop)
       // slither-disable-next-line calls-loop
       (uint256 amount, IMarket market, uint256 timestamp, ProposalType proposalType, bytes memory data) =
-        proposalManager.proposals(account, i);
+        proposalManager_.proposals(account, i);
       proposals[i - nonce] = PendingProposal({
         nonce: i,
         unlock: timestamp + delay,
@@ -112,6 +111,10 @@ contract ExaPreviewer {
       });
       // forge-lint: disable-end(calls-loop)
     }
+  }
+
+  function proposalManager(address account) external view returns (IProposalManager) {
+    return _proposalManager(account);
   }
 
   function collectCredit(
@@ -183,13 +186,14 @@ contract ExaPreviewer {
     _proposalManager(account).checkLiquidity(account);
   }
 
-  function _proposalManager(address account) internal view returns (IProposalManager proposalManager) {
+  function _proposalManager(address account) internal view returns (IProposalManager proposalManager_) {
+    if (account.code.length == 0) return proposalManager_;
     try IAccountLoupe(account).getExecutionFunctionConfig(IExaAccount.propose.selector) returns (
       IAccountLoupe.ExecutionFunctionConfig memory config
     ) {
-      if (config.plugin.code.length == 0) return proposalManager;
-      try ExaPlugin(payable(config.plugin)).proposalManager() returns (IProposalManager proposalManager_) {
-        return proposalManager_;
+      if (config.plugin.code.length == 0) return proposalManager_;
+      try ExaPlugin(payable(config.plugin)).proposalManager() returns (IProposalManager pluginProposalManager) {
+        return pluginProposalManager;
       } catch { } // solhint-disable-line no-empty-blocks
     } catch { } // solhint-disable-line no-empty-blocks
   }

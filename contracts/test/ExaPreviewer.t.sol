@@ -23,6 +23,7 @@ import {
   Asset,
   Discovery,
   ExaPreviewer,
+  IAuditor,
   ICollectableMarket,
   IDiscoverableFactory,
   IProposalManager,
@@ -443,4 +444,61 @@ contract ExaPreviewerTest is ForkTest {
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
     return abi.encodePacked(r, s, v);
   }
+}
+
+contract ExaPreviewerProposalManagerTest is ForkTest {
+  ExaPreviewer internal previewer;
+  address internal account;
+  address internal plugin;
+
+  function setUp() external {
+    previewer = new ExaPreviewer(IAuditor(address(0)), ICollectableMarket(address(0)));
+    account = makeAddr("account");
+    plugin = makeAddr("plugin");
+    vm.etch(account, hex"00");
+    vm.etch(plugin, hex"00");
+    vm.mockCall(
+      account,
+      abi.encodeCall(IAccountLoupe.getExecutionFunctionConfig, (IExaAccount.propose.selector)),
+      abi.encode(plugin, bytes21(0), bytes21(0))
+    );
+    vm.mockCall(
+      plugin, abi.encodeCall(ExaPlugin(payable(plugin)).proposalManager, ()), abi.encode(makeAddr("proposalManager"))
+    );
+  }
+
+  // solhint-disable func-name-mixedcase
+
+  function test_proposalManager_returnsPluginProposalManager() external {
+    assertEq(address(previewer.proposalManager(account)), makeAddr("proposalManager"));
+  }
+
+  function test_proposalManager_followsPluginProposalManager() external {
+    vm.mockCall(plugin, abi.encodeCall(ExaPlugin(payable(plugin)).proposalManager, ()), abi.encode(makeAddr("other")));
+    assertEq(address(previewer.proposalManager(account)), makeAddr("other"));
+  }
+
+  function test_proposalManager_returnsZero_whenAccountIsNotDeployed() external view {
+    assertEq(address(previewer.proposalManager(address(0xdead))), address(0));
+  }
+
+  function test_proposalManager_returnsZero_whenAddressIsNotAccount() external view {
+    assertEq(address(previewer.proposalManager(address(previewer))), address(0));
+  }
+
+  function test_proposalManager_returnsZero_whenPluginHasNoProposalManager() external {
+    vm.mockCallRevert(plugin, abi.encodeCall(ExaPlugin(payable(plugin)).proposalManager, ()), "");
+    assertEq(address(previewer.proposalManager(account)), address(0));
+  }
+
+  function test_proposalManager_returnsZero_whenAccountHasNoPlugin() external {
+    vm.mockCall(
+      account,
+      abi.encodeCall(IAccountLoupe.getExecutionFunctionConfig, (IExaAccount.propose.selector)),
+      abi.encode(address(0), bytes21(0), bytes21(0))
+    );
+    assertEq(address(previewer.proposalManager(account)), address(0));
+  }
+
+  // solhint-enable func-name-mixedcase
 }
