@@ -223,7 +223,8 @@ export default wrap(function RootLayout() {
     const subscription = AppState.addEventListener("change", (state) => {
       if (state === "active") {
         if (shouldReload) {
-          reloadAsync().catch(reportError);
+          if (!queryClient.getQueryData<boolean>(["provider-choice"]) && !queryClient.isMutating())
+            reloadAsync().catch(reportError);
           return;
         }
         checkForUpdateAsync()

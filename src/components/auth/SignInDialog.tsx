@@ -14,15 +14,19 @@ import ErrorDialog from "../shared/ErrorDialog";
 import type { SignInIssue } from "../../utils/useAuth";
 
 export default function SignInDialog({
+  brand,
   hybrid,
   issue,
   open,
   onClose,
+  onProviders,
   onRetry,
 }: {
+  brand?: string;
   hybrid: boolean;
   issue: SignInIssue;
   onClose: () => void;
+  onProviders: () => void;
   onRetry: () => void;
   open: boolean;
 }) {
@@ -115,17 +119,39 @@ export default function SignInDialog({
         <ErrorDialog
           open={open}
           title={t("This passkey can’t be backed up")}
-          description={`${t(
-            "The password manager you picked keeps this passkey only on this device, so losing the device would mean losing your account. Try again and save it to a password manager that syncs, like Google Password Manager, iCloud Keychain or 1Password.",
-          )}${hybrid ? ` ${t("On a computer, trying again shows a QR code: scan it with your phone to save the passkey there.")}` : Platform.OS === "web" ? ` ${t("You can also save it on your phone.")}` : ""}`}
-          action={{
-            icon: <RefreshCw />,
-            label: t("Try again"),
-            onPress: () => {
-              onClose();
-              onRetry();
-            },
-          }}
+          description={
+            Platform.OS === "android"
+              ? brand
+                ? t(
+                    "The password manager built into your {{brand}} phone keeps this passkey only on this phone, so losing the phone would mean losing your account. Choose a password manager that syncs, like Google Password Manager, 1Password or Bitwarden, and save your passkey there.",
+                    { brand },
+                  )
+                : t(
+                    "The password manager you picked keeps this passkey only on this device, so losing the device would mean losing your account. Choose a password manager that syncs, like Google Password Manager, 1Password or Bitwarden, and save your passkey there.",
+                  )
+              : `${t(
+                  "The password manager you picked keeps this passkey only on this device, so losing the device would mean losing your account. Try again and save it to a password manager that syncs, like Google Password Manager, iCloud Keychain or 1Password.",
+                )}${hybrid ? ` ${t("On a computer, trying again shows a QR code: scan it with your phone to save the passkey there.")}` : Platform.OS === "web" ? ` ${t("You can also save it on your phone.")}` : ""}`
+          }
+          action={
+            Platform.OS === "android"
+              ? {
+                  icon: <Settings />,
+                  label: t("Choose password manager"),
+                  onPress: () => {
+                    onClose();
+                    onProviders();
+                  },
+                }
+              : {
+                  icon: <RefreshCw />,
+                  label: t("Try again"),
+                  onPress: () => {
+                    onClose();
+                    onRetry();
+                  },
+                }
+          }
           onClose={onClose}
           onContact={() => {
             onClose();

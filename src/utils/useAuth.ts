@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Platform } from "react-native";
+import { AppState, Linking, Platform } from "react-native";
 
 import { toast } from "@tamagui/toast";
 
@@ -27,6 +27,9 @@ export default function useAuth(onSuccess?: (credential: Credential) => unknown)
   const [issue, setIssue] = useState<SignInIssue>("domain");
   const [open, setOpen] = useState(false);
   const [hybrid, setHybrid] = useState(false);
+  const [brand, setBrand] = useState<string>();
+  const cancelProvidersRef = useRef<() => void>(undefined);
+  useEffect(() => () => cancelProvidersRef.current?.(), []);
   const { mutateAsync: connectExa } = useConnect();
   const { mutateAsync: connectOwner } = useConnect({ config: ownerConfig });
   const { mutate: signIn, ...mutation } = useMutation({
@@ -45,6 +48,9 @@ export default function useAuth(onSuccess?: (credential: Credential) => unknown)
       await connectExa({ connector: alchemyConnector });
       return credential;
     },
+    onMutate: () => {
+      cancelProvidersRef.current?.();
+    },
     onSuccess,
     onError: (error: unknown, { method, register }) => {
       handleError(
@@ -52,6 +58,7 @@ export default function useAuth(onSuccess?: (credential: Credential) => unknown)
         (value) => {
           setIssue(value);
           setHybrid(value === "backup" && hybridTransport);
+          setBrand(value === "backup" ? brands[aaguid(error) ?? ""] : undefined);
           setOpen(true);
         },
         t,
@@ -59,19 +66,45 @@ export default function useAuth(onSuccess?: (credential: Credential) => unknown)
       );
     },
   });
+  function retry(settings = false) {
+    cancelProvidersRef.current?.();
+    if (!mutation.variables) return;
+    if (issue === "backup") track("Passkey Backup Retried", { hybrid, settings });
+    signIn({ ...mutation.variables, hints: hybrid ? ["hybrid"] : undefined });
+  }
   return {
     signIn,
     dialog: {
       issue,
       open,
       hybrid,
+      brand,
       onClose: () => {
         setOpen(false);
       },
       onRetry: () => {
-        if (!mutation.variables) return;
-        if (issue === "backup") track("Passkey Backup Retried", { hybrid });
-        signIn({ ...mutation.variables, hints: hybrid ? ["hybrid"] : undefined });
+        retry();
+      },
+      onProviders: () => {
+        cancelProvidersRef.current?.();
+        let left = false;
+        const subscription = AppState.addEventListener("change", (state) => {
+          if (state === "background") left = true;
+          else if (state === "active" && left) retry(true);
+        });
+        function cancel() {
+          subscription.remove();
+          if (cancelProvidersRef.current !== cancel) return;
+          cancelProvidersRef.current = undefined;
+          queryClient.setQueryData(["provider-choice"], false);
+        }
+        cancelProvidersRef.current = cancel;
+        queryClient.setQueryData(["provider-choice"], true);
+        Linking.sendIntent("android.settings.SYNC_SETTINGS").catch((error: unknown) => {
+          if (cancelProvidersRef.current !== cancel) return;
+          reportError(error);
+          retry();
+        });
       },
     },
     ...mutation,
@@ -108,7 +141,7 @@ function handleError(error: unknown, onIssue: (issue: SignInIssue) => void, t: T
   }
   if (error instanceof APIError && error.text === "backup eligibility required") {
     reportError(error, { level: "warning" });
-    track("Passkey Backup Rejected");
+    track("Passkey Backup Rejected", { aaguid: aaguid(error) });
     onIssue("backup");
     return;
   }
@@ -134,6 +167,15 @@ function handleError(error: unknown, onIssue: (issue: SignInIssue) => void, t: T
 }
 
 export type SignInIssue = "backup" | "biometrics" | "domain" | "passkey" | "pending" | "stolen" | "tenant" | "unlinked";
+
+const brands: Record<string, string> = {
+  "584d4354-4150-2d30-3030-303030303032": "Xiaomi",
+  "7669766f-7061-7373-6b65-796775696430": "vivo",
+};
+
+function aaguid(error: unknown) {
+  return error instanceof APIError && "aaguid" in error && typeof error.aaguid === "string" ? error.aaguid : undefined;
+}
 
 let hybridTransport = false;
 if (
