@@ -1,8 +1,11 @@
 encryptionsalt: v1::v1:AAAAAAAAAAAAAAAb:rYjVO7/uF2+Qv1LhWq5c2S0ZR4rZaQ==
 config:
   gcp:project: eexxxaa
+  exa:bridgeMinimum: 1
   exa:disabled: [activity, api, block, bridge, business, chat, manteca, panda, persona]
   exa:domain: web.exactly.app
+  exa:mantecaMinimum: 1
+  exa:personaMinimum: 1
   exa:pokeMinimum: 1
   exa:sponsorMinimum: 1
   exa:whatsappPhoneNumberId: "1287864854409817"
