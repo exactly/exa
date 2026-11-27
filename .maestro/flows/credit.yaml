@@ -29,6 +29,7 @@ env:
     file: ../dist/purchase.js
     env: { merchant: Coffee Shop, amount: "90", installments: "3", credentialId: "${output.credential}" }
 - runFlow: { file: ../subflows/assertStatement.yaml, env: { merchant: Coffee Shop } }
+- runFlow: ../subflows/dustInstallments.yaml
 - runFlow: ../subflows/credit.yaml
 - runFlow: ../subflows/assertHistory.yaml
 - runFlow: ../subflows/storeCoverage.yaml

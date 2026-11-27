@@ -72,6 +72,7 @@ function Installment({
     data: installments,
     firstMaturity,
     isFetching: isInstallmentsPending,
+    tooSmall,
   } = useInstallments({ totalAmount, installments: installment, marketAddress: market?.market });
 
   const { data: borrow, isLoading: isBorrowPending } = useReadPreviewerPreviewBorrowAtMaturity({
@@ -82,6 +83,7 @@ function Installment({
   });
 
   const installmentAmount = !isBorrow && installments ? (installments.installments[0] ?? 0n) : (borrow?.assets ?? 0n);
+  const unavailable = !isBorrow && !isInstallmentsPending && !installments;
   return (
     <XStack
       key={installment}
@@ -91,10 +93,16 @@ function Installment({
       gap="s3"
       alignItems="center"
       padding="s4"
-      cursor="pointer"
-      onPress={() => {
-        onSelect(installment);
-      }}
+      cursor={unavailable ? "default" : "pointer"}
+      opacity={unavailable ? 0.5 : 1}
+      aria-disabled={unavailable}
+      onPress={
+        unavailable
+          ? undefined
+          : () => {
+              onSelect(installment);
+            }
+      }
       flex={1}
     >
       <XStack gap="s3_5" alignItems="center" flex={1}>
@@ -113,22 +121,28 @@ function Installment({
           {hasInstallments ? t("{{count}} installments of", { count: installment }) : t("Pay Now")}
         </Text>
       </XStack>
-      <XStack gap="s2" alignItems="center" justifyContent="flex-end" flex={1}>
-        <AssetLogo height={16} symbol={symbol} width={16} />
-        <XStack>
-          {hasInstallments &&
-            (isInstallmentsPending || isBorrowPending ? (
-              <Skeleton height={18} />
-            ) : (
-              <Text headline numberOfLines={1}>
-                {(Number(installmentAmount) / 10 ** (market?.decimals ?? 6)).toLocaleString(language, {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </Text>
-            ))}
+      {unavailable ? (
+        <Text footnote secondary textAlign="right" flex={1}>
+          {tooSmall ? t("Amount too small") : t("Not available")}
+        </Text>
+      ) : (
+        <XStack gap="s2" alignItems="center" justifyContent="flex-end" flex={1}>
+          <AssetLogo height={16} symbol={symbol} width={16} />
+          <XStack>
+            {hasInstallments &&
+              (isInstallmentsPending || isBorrowPending ? (
+                <Skeleton height={18} />
+              ) : (
+                <Text headline numberOfLines={1}>
+                  {(Number(installmentAmount) / 10 ** (market?.decimals ?? 6)).toLocaleString(language, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </Text>
+              ))}
+          </XStack>
         </XStack>
-      </XStack>
+      )}
     </XStack>
   );
 }

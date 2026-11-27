@@ -25,18 +25,21 @@ export default function useInstallments({
 
   return useMemo(() => {
     const isLoading = !market;
+    const utilizations =
+      market?.fixedPools
+        .filter((pool) => pool.maturity >= start && pool.maturity < start + installments * MATURITY_INTERVAL)
+        .map(({ supplied, borrowed }) => fixedUtilization(supplied, borrowed, market.totalFloatingDepositAssets)) ?? [];
+    const tooSmall = !!market && installments > 1 && totalAmount <= BigInt(utilizations.length);
     let data: ReturnType<typeof splitInstallments> | undefined;
 
     try {
-      if (market && totalAmount > 0n && installments > 1) {
+      if (market && installments > 1 && !tooSmall) {
         data = splitInstallments(
           totalAmount,
           market.totalFloatingDepositAssets,
           start,
           market.fixedPools.length,
-          market.fixedPools
-            .filter((pool) => pool.maturity >= start && pool.maturity < start + installments * MATURITY_INTERVAL)
-            .map(({ supplied, borrowed }) => fixedUtilization(supplied, borrowed, market.totalFloatingDepositAssets)),
+          utilizations,
           market.floatingUtilization,
           globalUtilization(
             market.totalFloatingDepositAssets,
@@ -54,7 +57,8 @@ export default function useInstallments({
     return {
       data,
       firstMaturity,
-      isFetching: isLoading || (installments > 1 && !data && totalAmount > 0n),
+      isFetching: isLoading,
+      tooSmall,
     };
   }, [market, firstMaturity, start, now, installments, totalAmount]);
 }
