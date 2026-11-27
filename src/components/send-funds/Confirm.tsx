@@ -65,6 +65,7 @@ import queryClient from "../../utils/queryClient";
 import reportError, { classifyError } from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
+import useDestinations from "../../utils/useDestinations";
 import useSend from "../../utils/useSend";
 import useSimulateProposal from "../../utils/useSimulateProposal";
 import useSingleMutation from "../../utils/useSingleMutation";
@@ -118,6 +119,9 @@ export default function Confirm() {
   const destinationChain = typeof toChain === "string" ? Number(toChain) : chain.id;
   const requestedAmount = typeof amount === "string" && /^\d+$/.test(amount) ? BigInt(amount) : 0n;
   const { data: resolved } = useQuery(ensOptions(name, destinationChain));
+  const remote = useMemo(() => (destinationChain === chain.id ? [] : [destinationChain]), [destinationChain]);
+  const { unsupported, isLoading: isGateLoading } = useDestinations(receiverParameter, remote);
+  const blocked = unsupported.includes(destinationChain);
   const ens = name && resolved === receiverHex ? name : "";
 
   const {
@@ -292,7 +296,8 @@ export default function Confirm() {
       !!payUnderlying &&
       !!destinationAddress &&
       fromAmount > 0n &&
-      !!receiver,
+      !!receiver &&
+      !blocked,
     refetchInterval: ({ state }) => (state.error && classify(state.error) !== "quote" ? false : quoteValidity / 3),
     retry: false,
     meta: { dropError: () => true },
@@ -593,16 +598,18 @@ export default function Confirm() {
   const fillStyle = useAnimatedStyle(() => ({ width: `${hold.value * 100}%` }));
 
   const sendReady = useMemo(() => {
-    if (fromAmount <= 0n || !destination || insufficientGas || quoteExpired) return false;
+    if (fromAmount <= 0n || !destination || insufficientGas || quoteExpired || isGateLoading || blocked) return false;
     const estimated = !!transferEstimate && !isTransferEstimateStale && networkCost !== undefined;
     if (routed) return !!route && (market ? !!bridgePropose : !!payUnderlying && estimated);
     return market ? !!proposeSimulation : !!external && estimated && (isNativeTransfer || !!erc20TransferSimulation);
   }, [
+    blocked,
     bridgePropose,
     destination,
     external,
     fromAmount,
     insufficientGas,
+    isGateLoading,
     isNativeTransfer,
     isTransferEstimateStale,
     market,
@@ -816,21 +823,23 @@ export default function Confirm() {
     setDenied((current) => (current.includes(tool) ? current : [...current, tool].slice(0, 3))); // eslint-disable-line @eslint-react/set-state-in-effect
   }, [outage, prepareError, routed, stalled, tool]);
   const failure =
-    routeError && !transient
-      ? classify(routeError)
-      : prepareError
-        ? stalled
-          ? undefined
-          : routed && tool && !outage
-            ? denied.length < 3 && !denied.includes(tool)
-              ? undefined
-              : "route"
-            : queued
-              ? "queued"
-              : "prepare"
-        : destinationFailure
-          ? "quote"
-          : undefined;
+    blocked && !isGateLoading
+      ? "route"
+      : routeError && !transient
+        ? classify(routeError)
+        : prepareError
+          ? stalled
+            ? undefined
+            : routed && tool && !outage
+              ? denied.length < 3 && !denied.includes(tool)
+                ? undefined
+                : "route"
+              : queued
+                ? "queued"
+                : "prepare"
+          : destinationFailure
+            ? "quote"
+            : undefined;
   const highFee = feePercent !== undefined && feePercent > 3;
   const shortfall = deficit
     ? t(
@@ -1177,13 +1186,14 @@ export default function Confirm() {
                 primary
                 disabled={!sendReady || !!failure || !!shortfall}
                 loading={
-                  routed
+                  isGateLoading ||
+                  (routed
                     ? route
                       ? !market && !transferEstimate && isTransferEstimating
                       : isRouteFetching || (!destination && isTokensFetching)
                     : market
                       ? !proposeSimulation && !proposeError && isProposePending
-                      : isErc20TransferSimulating || isWrapFetching || isTransferEstimating
+                      : isErc20TransferSimulating || isWrapFetching || isTransferEstimating)
                 }
                 overflow="hidden"
                 {...(web

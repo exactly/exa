@@ -1,0 +1,19 @@
+appId: ${APP_ID ?? "app.exactly"}
+onFlowComplete:
+  - runScript:
+      file: ../dist/setCode.js
+      env: { network: "${network}", address: "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1", code: "${output.code}" }
+---
+- runScript:
+    file: ../dist/setCode.js
+    env: { network: "${network}", address: "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1", code: "0x" }
+- runScript: ../dist/createAccount.js
+- runFlow:
+    file: assertReceiver.yaml
+    env: { receiver: "0x000000000000000000000000000000000000dEaD", visible: ".+ on ${network}" }
+- runFlow:
+    file: assertReceiver.yaml
+    env: { receiver: "${output.account}", visible: .+ on .+, hidden: ".+ on ${network}" }
+- runFlow:
+    file: assertReceiver.yaml
+    env: { receiver: "${output.exa}", visible: .+ on .+, hidden: ".+ on ${network}" }

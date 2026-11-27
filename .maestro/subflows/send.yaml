@@ -28,6 +28,10 @@ appId: ${APP_ID ?? "app.exactly"}
       - tapOn: Turn off
       - assertNotVisible: Advanced mode on.
       - evalScript: ${output.advanced = false}
+- runFlow:
+    when: { true: "${!!destination && to === output.account}" }
+    file: assertDestinations.yaml
+    env: { network: "${destination}" }
 - tapOn: Enter ENS or wallet address
 - runFlow:
     when: { true: "${!pay}" }

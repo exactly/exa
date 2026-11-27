@@ -139,6 +139,11 @@ export default function anvil(
   params: readonly [account: Address, balance: string],
   network?: string,
 ): void;
+export default function anvil(
+  method: "anvil_setCode",
+  params: readonly [account: Address, code: Hex],
+  network?: string,
+): void;
 export default function anvil(method: string, params: readonly unknown[], network?: string) {
   const url = network
     ? (urls[network] ??= (

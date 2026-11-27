@@ -27,6 +27,7 @@ import { isSendable, isStock, lifiChainsOptions, lifiTokensOptions, reachOptions
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
 import useDeployments from "../../utils/useDeployments";
+import useDestinations from "../../utils/useDestinations";
 import useInsets from "../../utils/useInsets";
 import usePortfolio, { type ExternalAsset } from "../../utils/usePortfolio";
 import AssetLogo from "../shared/AssetLogo";
@@ -93,13 +94,22 @@ export default function AssetSelection() {
     }
     return totals;
   }, [allAssets]);
-  const targets = useMemo(
+  const reached = useMemo(
     () =>
       new Set(
         [chain.id, ...held].flatMap((id) => (id === chain.id || deployedChains.get(id) ? (reach?.[id] ?? []) : [])),
       ),
     [deployedChains, held, reach],
   );
+  const remote = useMemo(
+    () =>
+      [...reached].filter(
+        (id) => id !== chain.id && chains?.find((item) => item.id === id)?.chainType === ChainType.EVM,
+      ),
+    [chains, reached],
+  );
+  const { unsupported: gated } = useDestinations(receiver, remote);
+  const targets = useMemo(() => new Set([...reached].filter((id) => !gated.includes(id))), [gated, reached]);
 
   const compatible = useCallback(
     (id: number) => {
