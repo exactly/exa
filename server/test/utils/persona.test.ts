@@ -2296,6 +2296,28 @@ describe("parseAccount", () => {
     expect(result?.attributes.fields.card_limit_usd?.value).toBe(5000);
   });
 
+  it.each([
+    { name: "null", documents: { value: null } },
+    { name: "a null document id", documents: { value: [{ value: { id_document_id: { value: null } } }] } },
+  ])("keeps the card limit when documents are $name", ({ documents }) => {
+    const result = persona.parseAccount({
+      data: [{ id: "cl-id", type: "account", attributes: { fields: { card_limit_usd: { value: 5000 }, documents } } }],
+    });
+    expect(result?.attributes.fields).toStrictEqual({ card_limit_usd: { value: 5000 }, documents: undefined });
+  });
+
+  it("keeps valid documents with the card limit", () => {
+    const documents = {
+      value: [
+        { value: { id_class: { value: "pp" }, id_document_id: { value: "doc" }, id_issuing_country: { value: "EG" } } },
+      ],
+    };
+    const result = persona.parseAccount({
+      data: [{ id: "cl-id", type: "account", attributes: { fields: { card_limit_usd: { value: 5000 }, documents } } }],
+    });
+    expect(result?.attributes.fields.documents).toStrictEqual(documents);
+  });
+
   it("returns undefined when cardLimit scope value is not positive", () => {
     expect(
       persona.parseAccount({
