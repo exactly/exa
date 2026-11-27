@@ -58,7 +58,7 @@ const manteca = createManteca(
   parse(pipe(string("manteca key"), nonEmpty("manteca key")), env.MANTECA_API_KEY),
   parse(pipe(string("manteca url"), nonEmpty("manteca url")), env.MANTECA_API_URL),
 );
-const onesignal = createOnesignal(parse(pipe(string("onesignal"), nonEmpty("onesignal")), env.ONESIGNAL_API_KEY));
+const onesignal = createOnesignal(parse(pipe(string("onesignal"), nonEmpty("onesignal")), env.ONESIGNAL_API_KEYS));
 const panda = createPanda({
   key: parse(pipe(string("panda key"), nonEmpty("panda key")), env.PANDA_API_KEY),
   url: parse(pipe(string("panda url"), nonEmpty("panda url")), env.PANDA_API_URL),

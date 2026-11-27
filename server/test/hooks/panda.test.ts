@@ -88,7 +88,7 @@ const owner = createWalletClient({ chain, transport: http(), account: privateKey
 const dependencies = {
   database,
   issuer,
-  onesignal: createOnesignal("onesignal"),
+  onesignal: createOnesignal('{"2f79a35c-8b11-4725-84d8-fc096f3f216e":"onesignal"}'),
   panda,
   redis,
   refund,

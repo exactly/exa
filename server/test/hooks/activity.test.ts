@@ -25,7 +25,7 @@ import type createPoke from "../../workers/poke/queue";
 import type * as C from "@exactly/common/generated/chain";
 
 const alchemy = createAlchemy("webhooks");
-const onesignal = createOnesignal("onesignal");
+const onesignal = createOnesignal('{"2f79a35c-8b11-4725-84d8-fc096f3f216e":"onesignal"}');
 const poke = {
   close: vi.fn<ReturnType<typeof createPoke>["close"]>().mockResolvedValue(),
   ready: vi.fn<() => Promise<void>>().mockResolvedValue(),

@@ -22,7 +22,7 @@ supervise(
   Promise.all([
     secret("redis-url", secrets).then((url) => connect(url)),
     secret("refund-postgres-url", secrets).then((url) => drizzle(url, { schema })),
-    secret("refund-onesignal-api-key", secrets).then((key) => createOnesignal(key)),
+    secret("refund-onesignal-api-keys", secrets).then((key) => createOnesignal(key)),
     Promise.all([secret("refund-panda-api-key", secrets), secret("panda-api-url", secrets)]).then(([key, url]) =>
       createPanda({ key, url }),
     ),

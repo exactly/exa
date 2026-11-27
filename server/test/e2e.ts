@@ -77,7 +77,7 @@ describe("e2e", () => {
       if (!env.REDIS_URL) throw new Error("missing redis url");
       if (!env.POSTGRES_URL) throw new Error("missing postgres url");
       const bullmq = connect(env.REDIS_URL);
-      const onesignal = createOnesignal("onesignal");
+      const onesignal = createOnesignal('{"2f79a35c-8b11-4725-84d8-fc096f3f216e":"onesignal"}');
       const panda = createPanda({ key: "panda", url: "https://panda.test" });
       const sardine = createSardine("sardine", "https://sardine.test");
       const segment = createSegment("segment");

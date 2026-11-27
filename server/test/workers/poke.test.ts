@@ -81,7 +81,7 @@ vi.mock("@segment/analytics-node", () => ({
   },
 }));
 
-const onesignal = createOnesignal("onesignal");
+const onesignal = createOnesignal('{"2f79a35c-8b11-4725-84d8-fc096f3f216e":"onesignal"}');
 let segment: ReturnType<typeof createSegment>;
 let account: Address;
 let request: Parameters<ReturnType<typeof createPoke>["enqueue"]>[0];
