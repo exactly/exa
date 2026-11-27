@@ -1,12 +1,10 @@
 import { useMemo } from "react";
 
+import { useQuery } from "@tanstack/react-query";
 import { multicall3Abi, zeroAddress } from "viem";
-import { useReadContract, useReadContracts } from "wagmi";
+import { useReadContracts } from "wagmi";
 
 import chain, {
-  appPreviewerAbi,
-  appPreviewerCode,
-  auditorAddress,
   marketAbi,
   marketUSDCAddress,
   previewerAbi,
@@ -17,6 +15,7 @@ import { ratePreviewerAbi } from "@exactly/common/generated/hooks";
 import MIN_BORROW_INTERVAL from "@exactly/common/MIN_BORROW_INTERVAL";
 import { MATURITY_INTERVAL } from "@exactly/lib";
 
+import networkOptions from "./networkOptions";
 import useAccount from "./useAccount";
 
 export default function useMarkets(query?: { enabled?: boolean; gcTime?: number; refetchInterval?: number }) {
@@ -42,13 +41,11 @@ export default function useMarkets(query?: { enabled?: boolean; gcTime?: number;
     ],
     query: { ...query, enabled: query?.enabled ?? true, staleTime: 10_000 },
   });
-  const previews = useReadContract({
-    abi: appPreviewerAbi,
-    functionName: "markets",
-    code: appPreviewerCode,
-    args: [auditorAddress],
-    chainId: chain.id,
-    query: { ...query, enabled: query?.enabled ?? true, staleTime: 10_000 },
+  const previews = useQuery({
+    ...networkOptions(account, chain.id),
+    enabled: query?.enabled ?? true,
+    ...(query?.refetchInterval !== undefined && { refetchInterval: query.refetchInterval }),
+    select: ({ markets: rows }) => rows,
   });
   const accountMarkets = result.data?.[0];
   const markets = useMemo(
@@ -56,12 +53,12 @@ export default function useMarkets(query?: { enabled?: boolean; gcTime?: number;
       accountMarkets &&
       previews.data &&
       accountMarkets.map((market) => {
-        const preview = previews.data.find(({ market: address }) => address === market.market);
+        const flags = previews.data.find((row) => row.market.market === market.market);
         return {
           ...market,
-          isCollateral: market.isCollateral && !preview?.nonCollateral,
-          isFrozen: !!preview?.isFrozen,
-          nonCollateral: !!preview?.nonCollateral,
+          isCollateral: market.isCollateral && !flags?.nonCollateral,
+          isFrozen: !!flags?.isFrozen,
+          nonCollateral: !!flags?.nonCollateral,
         };
       }),
     [accountMarkets, previews.data],

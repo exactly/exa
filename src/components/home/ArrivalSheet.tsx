@@ -8,7 +8,7 @@ import { XStack, YStack } from "tamagui";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { zeroAddress } from "viem";
 
-import chain, { alchemyChains, allowlists } from "@exactly/common/generated/chain";
+import chain, { alchemyChains } from "@exactly/common/generated/chain";
 
 import { ArrowRight } from "../../generated/icons/ArrowRight";
 import { X } from "../../generated/icons/X";
@@ -26,6 +26,7 @@ import {
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
+import useAllowlists from "../../utils/useAllowlists";
 import useKYC from "../../utils/useKYC";
 import useMarkets from "../../utils/useMarkets";
 import usePortfolio from "../../utils/usePortfolio";
@@ -53,6 +54,7 @@ export default function ArrivalSheet({ focused }: { focused: boolean }) {
   const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
   const { data: country } = useQuery<string>({ queryKey: ["user", "country"] });
   const { isFetched: kyc } = useKYC();
+  const allowlists = useAllowlists();
   const networks = [...new Set(crossChainAssets.map(({ chainId }) => chainId))].filter(
     (id) => allowlists[String(id)] && alchemyChains.get(id)?.smartAccount,
   );
@@ -65,7 +67,7 @@ export default function ArrivalSheet({ focused }: { focused: boolean }) {
     !isBalancesPending &&
     !!tokens &&
     factories.every(({ isLoading }) => !isLoading);
-  const allowed = swappable(markets);
+  const allowed = swappable(allowlists[chain.id], markets);
   const collateral = (symbol: string) => supportedAssets.includes(correlate(symbol));
   const deposited = new Set(
     markets
@@ -77,10 +79,11 @@ export default function ArrivalSheet({ focused }: { focused: boolean }) {
     .filter(
       (asset) =>
         asset.usdValue > 0 &&
-        !isRestricted(country, asset) &&
+        !isRestricted(country, allowlists, asset) &&
         (asset.chainId === chain.id
           ? allowed.has(asset.address.toLowerCase())
-          : factories[networks.indexOf(asset.chainId)]?.data === true && isSendable(asset.address, asset.chainId)) &&
+          : factories[networks.indexOf(asset.chainId)]?.data === true &&
+            isSendable(allowlists[asset.chainId], asset.address)) &&
         !(asset.chainId === chain.id && (portfolio.collateralUSD > 0n || deposited.has(asset.address.toLowerCase()))) &&
         !dismissed?.includes(`${asset.chainId}:${asset.address.toLowerCase()}`),
     )
