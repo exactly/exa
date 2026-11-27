@@ -123,6 +123,57 @@ describe("sardine", () => {
     });
   });
 
+  it("sends issuing risk terminal, entry info and authentication", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json({ sessionKey: "session", level: "low", status: "Success" }),
+    );
+
+    await sardine.risk({
+      sessionKey: "session",
+      customerId: "user",
+      transaction: {
+        id: "tx",
+        amount: 1,
+        currencyCode: "USD",
+        createdAtMillis: 1,
+        address: { countryCode: "AR" },
+        merchant: { mcc: "5411" },
+        terminal: { id: "T1", type: "electronic_commerce", operator: "customer_operated" },
+        entryInfo: { pan: "apple_pay", card: "card_not_present", cardHolder: "ecommerce" },
+        authentication: { method: "3ds" },
+      },
+    });
+
+    expect(sent()).toStrictEqual({
+      url: "https://sardine.test/v1/issuing/risks",
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${Buffer.from("key:secret").toString("base64")}`,
+        "X-Request-Id": "00000000-0000-4000-8000-000000000000",
+        accept: "application/json",
+        "content-type": "application/json",
+      },
+      body: {
+        sessionKey: "session",
+        customerId: "user",
+        transaction: {
+          id: "tx",
+          amount: 1,
+          currencyCode: "USD",
+          createdAtMillis: 1,
+          address: { countryCode: "AR" },
+          merchant: { mcc: "5411" },
+          terminal: { id: "T1", type: "electronic_commerce", operator: "customer_operated" },
+          entryInfo: { pan: "apple_pay", card: "card_not_present", cardHolder: "ecommerce" },
+          authentication: { method: "3ds" },
+        },
+        partnerId: "EXA",
+        partnerName: "EXA",
+        workflowName: "issuing_risk",
+      },
+    });
+  });
+
   it("rejects invalid custom string keys", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
 

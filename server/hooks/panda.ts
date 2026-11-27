@@ -81,6 +81,14 @@ import type * as schema from "../database/schema";
 import type createOnesignal from "../utils/onesignal";
 import type createPanda from "../utils/panda";
 import type createSardine from "../utils/sardine";
+import type {
+  EntryCard,
+  EntryCardHolder,
+  EntryPan,
+  RiskTransaction,
+  TerminalOperator,
+  TerminalType,
+} from "../utils/sardine";
 import type createSegment from "../utils/segment";
 import type createHook from "../workers/hook/queue";
 import type createRefund from "../workers/refund/queue";
@@ -239,9 +247,16 @@ export default function hook({
                     mcc: payload.body.spend.merchantCategoryCode,
                     name: payload.body.spend.merchantName,
                     ...(payload.body.spend.merchantId && { id: payload.body.spend.merchantId }),
+                    ...(payload.body.spend.merchantCategory && {
+                      mccDescription: payload.body.spend.merchantCategory.slice(0, 100),
+                    }),
                   },
-                  address: { countryCode: payload.body.spend.merchantCountry },
+                  address: {
+                    countryCode: payload.body.spend.merchantCountry,
+                    ...(payload.body.spend.merchantCity && { city: payload.body.spend.merchantCity }),
+                  },
                   status: "pending",
+                  ...cardEntry(payload.body.spend),
                 },
                 card: { id: payload.body.spend.cardId },
                 ...(payload.body.spend.authorizationMethod && {
@@ -1378,4 +1393,125 @@ async function sendDeclinedNotification(
     }),
     idempotencyKey: v5(`https://exact.ly/card-declined/${id}`, v5.URL),
   });
+}
+
+type Condition = {
+  entryInfo?: { card: EntryCard; cardHolder: EntryCardHolder; pan?: EntryPan };
+  terminal?: { operator: TerminalOperator; type: TerminalType };
+  wallet?: { card: EntryCard; cardHolder: EntryCardHolder };
+};
+
+const conditions = new Map<string, Condition>(
+  (
+    [
+      ["00", "Normal presentment", { wallet: { card: "card_present", cardHolder: "customer_present" } }],
+      [
+        "59",
+        "E-commerce request through public network",
+        {
+          terminal: { type: "electronic_commerce", operator: "customer_operated" },
+          entryInfo: { card: "card_not_present", cardHolder: "ecommerce" },
+        },
+      ],
+      [
+        "08",
+        "Mail/telephone order",
+        {
+          terminal: { type: "moto", operator: "unspecified" }, // cspell:ignore moto
+          entryInfo: { card: "card_not_present", cardHolder: "customer_not_present" },
+        },
+      ],
+      ["01", "Customer not present", { entryInfo: { card: "card_not_present", cardHolder: "customer_not_present" } }],
+      [
+        "05",
+        "Customer present, card not present",
+        { entryInfo: { card: "card_not_present", cardHolder: "customer_present" } },
+      ],
+      [
+        "02",
+        "Unattended terminal - card can be retained",
+        {
+          terminal: { type: "self_service", operator: "customer_operated" },
+          wallet: { card: "card_present", cardHolder: "customer_present" },
+        },
+      ],
+      [
+        "27",
+        "Unattended terminal - card cannot be retained",
+        {
+          terminal: { type: "self_service", operator: "customer_operated" },
+          wallet: { card: "card_present", cardHolder: "customer_present" },
+        },
+      ],
+      [
+        "04",
+        "Electronic Cash Register interface",
+        {
+          terminal: { type: "ecr", operator: "unspecified" },
+          wallet: { card: "card_present", cardHolder: "customer_present" },
+        },
+      ],
+      [
+        "14",
+        "Public utility terminal",
+        {
+          terminal: { type: "public_utility", operator: "unspecified" },
+          wallet: { card: "card_present", cardHolder: "customer_present" },
+        },
+      ],
+      ["15", "Customer's terminal", { terminal: { type: "home_terminal", operator: "customer_operated" } }],
+      ["16", "Administrative terminal", { terminal: { type: "administrative_terminal", operator: "administrative" } }],
+      [
+        "06",
+        "Pre-authorized request",
+        { entryInfo: { card: "pre_authorized_purchase", cardHolder: "pre_authorized_purchase" } },
+      ],
+      [
+        "51",
+        "Request for account number verification without authorization, account number verification and address verification without authorization, or account number and CVV2 verification without authorization",
+        { terminal: { type: "authorization", operator: "unspecified" } },
+      ],
+      [
+        "71",
+        "Card present, magnetic stripe cannot be read (key-entered), U.S. only",
+        { entryInfo: { pan: "key_entered", card: "card_present", cardHolder: "customer_present" } },
+      ],
+    ] satisfies [string, string, Condition][]
+  ).flatMap(([code, description, condition]): [string, Condition][] => [
+    [code, condition],
+    [description, condition],
+  ]),
+);
+
+const wallets = new Map<string, EntryPan>([
+  ["ApplePay", "apple_pay"],
+  ["GooglePay", "google_pay"],
+  ["SamsungPay", "samsung_pay"],
+]);
+
+function cardEntry(spend: {
+  authorizationMethod?: string;
+  iso8583?: null | { de41?: null | string };
+  threeDSecure?: boolean | null;
+  tokenizedSource?: null | string;
+}): Pick<RiskTransaction, "authentication" | "entryInfo" | "terminal"> {
+  const condition = conditions.get(spend.authorizationMethod ?? "") ?? {};
+  const terminalId = spend.iso8583?.de41;
+  const pan = spend.tokenizedSource ? (wallets.get(spend.tokenizedSource) ?? "token") : condition.entryInfo?.pan;
+  const entry = (spend.tokenizedSource ? condition.wallet : undefined) ?? condition.entryInfo;
+  return {
+    ...((condition.terminal ?? terminalId) && {
+      terminal: {
+        ...(condition.terminal ?? { type: "unspecified", operator: "unspecified" }),
+        ...(terminalId && { id: terminalId }),
+      },
+    }),
+    ...((entry ?? pan) && {
+      entryInfo: {
+        ...(entry ?? { card: "unspecified", cardHolder: "unspecified" }),
+        pan: pan ?? "unspecified",
+      },
+    }),
+    ...(spend.threeDSecure && { authentication: { method: "3ds" } }),
+  };
 }

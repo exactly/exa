@@ -478,6 +478,350 @@ describe("card operations", () => {
         ]);
       });
 
+      it("scores authorization with terminal, entry info and authentication", async () => {
+        const span = spyRiskSpan();
+        await database
+          .insert(cards)
+          .values([{ id: "risk-entry", credentialId: "cred", tenant: "OP", lastFour: "5678", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: {
+              ...authorization.json.body,
+              spend: {
+                ...authorization.json.body.spend,
+                cardId: "risk-entry",
+                authorizationMethod: "59",
+                tokenizedSource: "ApplePay",
+                threeDSecure: true,
+                iso8583: { de41: "T1" },
+              },
+            },
+          },
+        });
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+        await expect(span).resolves.toStrictEqual([
+          "tx.risk.authorization",
+          { "exa.level": "low", "exa.score": undefined, "exa.status": "Success", "exa.aml": "low" },
+        ]);
+        expect(sardine.risk.mock.calls.filter(([{ card }]) => card?.id === "risk-entry")).toStrictEqual([
+          [
+            {
+              sessionKey: authorization.json.body.id,
+              customerId: "cred",
+              transaction: {
+                id: authorization.json.body.id,
+                currencyCode: "USD",
+                amount: 9,
+                originalCurrencyCode: "USD",
+                originalAmount: 9,
+                type: "purchase",
+                merchant: {
+                  mcc: authorization.json.body.spend.merchantCategoryCode,
+                  name: authorization.json.body.spend.merchantName,
+                  id: authorization.json.body.spend.merchantId,
+                  mccDescription: authorization.json.body.spend.merchantCategory,
+                },
+                address: {
+                  countryCode: authorization.json.body.spend.merchantCountry,
+                  city: authorization.json.body.spend.merchantCity,
+                },
+                status: "pending",
+                terminal: { type: "electronic_commerce", operator: "customer_operated", id: "T1" },
+                entryInfo: { card: "card_not_present", cardHolder: "ecommerce", pan: "apple_pay" },
+                authentication: { method: "3ds" },
+              },
+              card: { id: "risk-entry" },
+              customString: { authorizationMethod: "59" },
+            },
+          ],
+        ]);
+        expect(captureException).not.toHaveBeenCalled();
+      });
+
+      it("caps merchant category and omits missing city", async () => {
+        const span = spyRiskSpan();
+        await database
+          .insert(cards)
+          .values([{ id: "risk-merchant", credentialId: "cred", tenant: "OP", lastFour: "5679", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: {
+              ...authorization.json.body,
+              spend: {
+                ...authorization.json.body.spend,
+                cardId: "risk-merchant",
+                merchantCategory: "m".repeat(120),
+                merchantCity: null,
+              },
+            },
+          },
+        });
+
+        expect(response.status).toBe(200);
+        await expect(span).resolves.toStrictEqual([
+          "tx.risk.authorization",
+          { "exa.level": "low", "exa.score": undefined, "exa.status": "Success", "exa.aml": "low" },
+        ]);
+        expect(
+          sardine.risk.mock.calls
+            .filter(([{ card }]) => card?.id === "risk-merchant")
+            .map(([{ transaction }]) => [transaction.merchant, transaction.address]),
+        ).toStrictEqual([
+          [
+            {
+              mcc: authorization.json.body.spend.merchantCategoryCode,
+              name: authorization.json.body.spend.merchantName,
+              id: authorization.json.body.spend.merchantId,
+              mccDescription: "m".repeat(100),
+            },
+            { countryCode: authorization.json.body.spend.merchantCountry },
+          ],
+        ]);
+        expect(captureException).not.toHaveBeenCalled();
+      });
+
+      it.each<[Record<string, unknown>, Record<string, unknown>]>([
+        [
+          { authorizationMethod: "E-commerce request through public network" },
+          {
+            terminal: { type: "electronic_commerce", operator: "customer_operated" },
+            entryInfo: { pan: "unspecified", card: "card_not_present", cardHolder: "ecommerce" },
+          },
+        ],
+        [
+          { authorizationMethod: "59" },
+          {
+            terminal: { type: "electronic_commerce", operator: "customer_operated" },
+            entryInfo: { pan: "unspecified", card: "card_not_present", cardHolder: "ecommerce" },
+          },
+        ],
+        [
+          { authorizationMethod: "Mail/telephone order" },
+          {
+            terminal: { type: "moto", operator: "unspecified" }, // cspell:ignore moto
+            entryInfo: { pan: "unspecified", card: "card_not_present", cardHolder: "customer_not_present" },
+          },
+        ],
+        [
+          { authorizationMethod: "08" },
+          {
+            terminal: { type: "moto", operator: "unspecified" }, // cspell:ignore moto
+            entryInfo: { pan: "unspecified", card: "card_not_present", cardHolder: "customer_not_present" },
+          },
+        ],
+        [
+          { authorizationMethod: "Customer not present" },
+          { entryInfo: { pan: "unspecified", card: "card_not_present", cardHolder: "customer_not_present" } },
+        ],
+        [
+          { authorizationMethod: "01" },
+          { entryInfo: { pan: "unspecified", card: "card_not_present", cardHolder: "customer_not_present" } },
+        ],
+        [
+          { authorizationMethod: "Customer present, card not present" },
+          { entryInfo: { pan: "unspecified", card: "card_not_present", cardHolder: "customer_present" } },
+        ],
+        [
+          { authorizationMethod: "05" },
+          { entryInfo: { pan: "unspecified", card: "card_not_present", cardHolder: "customer_present" } },
+        ],
+        [
+          { authorizationMethod: "Unattended terminal - card can be retained" },
+          { terminal: { type: "self_service", operator: "customer_operated" } },
+        ],
+        [{ authorizationMethod: "02" }, { terminal: { type: "self_service", operator: "customer_operated" } }],
+        [
+          { authorizationMethod: "Unattended terminal - card cannot be retained" },
+          { terminal: { type: "self_service", operator: "customer_operated" } },
+        ],
+        [{ authorizationMethod: "27" }, { terminal: { type: "self_service", operator: "customer_operated" } }],
+        [
+          { authorizationMethod: "Electronic Cash Register interface" },
+          { terminal: { type: "ecr", operator: "unspecified" } },
+        ],
+        [{ authorizationMethod: "04" }, { terminal: { type: "ecr", operator: "unspecified" } }],
+        [
+          { authorizationMethod: "Public utility terminal" },
+          { terminal: { type: "public_utility", operator: "unspecified" } },
+        ],
+        [{ authorizationMethod: "14" }, { terminal: { type: "public_utility", operator: "unspecified" } }],
+        [
+          { authorizationMethod: "Customer's terminal" },
+          { terminal: { type: "home_terminal", operator: "customer_operated" } },
+        ],
+        [{ authorizationMethod: "15" }, { terminal: { type: "home_terminal", operator: "customer_operated" } }],
+        [
+          { authorizationMethod: "Administrative terminal" },
+          { terminal: { type: "administrative_terminal", operator: "administrative" } },
+        ],
+        [{ authorizationMethod: "16" }, { terminal: { type: "administrative_terminal", operator: "administrative" } }],
+        [
+          { authorizationMethod: "Pre-authorized request" },
+          {
+            entryInfo: { pan: "unspecified", card: "pre_authorized_purchase", cardHolder: "pre_authorized_purchase" },
+          },
+        ],
+        [
+          { authorizationMethod: "06" },
+          {
+            entryInfo: { pan: "unspecified", card: "pre_authorized_purchase", cardHolder: "pre_authorized_purchase" },
+          },
+        ],
+        [
+          {
+            authorizationMethod:
+              "Request for account number verification without authorization, account number verification and address verification without authorization, or account number and CVV2 verification without authorization",
+          },
+          { terminal: { type: "authorization", operator: "unspecified" } },
+        ],
+        [{ authorizationMethod: "51" }, { terminal: { type: "authorization", operator: "unspecified" } }],
+        [
+          { authorizationMethod: "Card present, magnetic stripe cannot be read (key-entered), U.S. only" },
+          { entryInfo: { pan: "key_entered", card: "card_present", cardHolder: "customer_present" } },
+        ],
+        [
+          { authorizationMethod: "71" },
+          { entryInfo: { pan: "key_entered", card: "card_present", cardHolder: "customer_present" } },
+        ],
+        [{ authorizationMethod: "Normal presentment" }, {}],
+        [{ authorizationMethod: "00" }, {}],
+        [{ authorizationMethod: "Merchant suspicious" }, {}],
+        [{ authorizationMethod: "03" }, {}],
+        [{ authorizationMethod: undefined }, {}],
+        [
+          { authorizationMethod: "Normal presentment", tokenizedSource: "ApplePay" },
+          { entryInfo: { pan: "apple_pay", card: "card_present", cardHolder: "customer_present" } },
+        ],
+        [
+          { authorizationMethod: "00", tokenizedSource: "ApplePay" },
+          { entryInfo: { pan: "apple_pay", card: "card_present", cardHolder: "customer_present" } },
+        ],
+        [
+          { authorizationMethod: "Normal presentment", tokenizedSource: "GooglePay" },
+          { entryInfo: { pan: "google_pay", card: "card_present", cardHolder: "customer_present" } },
+        ],
+        [
+          { authorizationMethod: "Normal presentment", tokenizedSource: "SamsungPay" },
+          { entryInfo: { pan: "samsung_pay", card: "card_present", cardHolder: "customer_present" } },
+        ],
+        [
+          { authorizationMethod: "Normal presentment", tokenizedSource: "FidesmoPay" }, // cspell:ignore fidesmo
+          { entryInfo: { pan: "token", card: "card_present", cardHolder: "customer_present" } },
+        ],
+        [
+          { authorizationMethod: "02", tokenizedSource: "ApplePay" },
+          {
+            terminal: { type: "self_service", operator: "customer_operated" },
+            entryInfo: { pan: "apple_pay", card: "card_present", cardHolder: "customer_present" },
+          },
+        ],
+        [
+          { authorizationMethod: "Unattended terminal - card can be retained", tokenizedSource: "GooglePay" },
+          {
+            terminal: { type: "self_service", operator: "customer_operated" },
+            entryInfo: { pan: "google_pay", card: "card_present", cardHolder: "customer_present" },
+          },
+        ],
+        [
+          { authorizationMethod: "27", tokenizedSource: "ApplePay" },
+          {
+            terminal: { type: "self_service", operator: "customer_operated" },
+            entryInfo: { pan: "apple_pay", card: "card_present", cardHolder: "customer_present" },
+          },
+        ],
+        [
+          { authorizationMethod: "04", tokenizedSource: "GooglePay" },
+          {
+            terminal: { type: "ecr", operator: "unspecified" },
+            entryInfo: { pan: "google_pay", card: "card_present", cardHolder: "customer_present" },
+          },
+        ],
+        [
+          { authorizationMethod: "Public utility terminal", tokenizedSource: "ApplePay" },
+          {
+            terminal: { type: "public_utility", operator: "unspecified" },
+            entryInfo: { pan: "apple_pay", card: "card_present", cardHolder: "customer_present" },
+          },
+        ],
+        [
+          { authorizationMethod: "03", tokenizedSource: "ApplePay" },
+          { entryInfo: { pan: "apple_pay", card: "unspecified", cardHolder: "unspecified" } },
+        ],
+        [
+          { authorizationMethod: "08", tokenizedSource: "GooglePay" },
+          {
+            terminal: { type: "moto", operator: "unspecified" }, // cspell:ignore moto
+            entryInfo: { pan: "google_pay", card: "card_not_present", cardHolder: "customer_not_present" },
+          },
+        ],
+        [
+          { authorizationMethod: "05", tokenizedSource: "GooglePay" },
+          { entryInfo: { pan: "google_pay", card: "card_not_present", cardHolder: "customer_present" } },
+        ],
+        [
+          { authorizationMethod: "Normal presentment", iso8583: { de41: "T1" } },
+          { terminal: { type: "unspecified", operator: "unspecified", id: "T1" } },
+        ],
+        [
+          { authorizationMethod: "Mail/telephone order", iso8583: { de41: "T2" } },
+          {
+            terminal: { type: "moto", operator: "unspecified", id: "T2" }, // cspell:ignore moto
+            entryInfo: { pan: "unspecified", card: "card_not_present", cardHolder: "customer_not_present" },
+          },
+        ],
+        [{ authorizationMethod: "Normal presentment", threeDSecure: true }, { authentication: { method: "3ds" } }],
+        [{ authorizationMethod: "Normal presentment", threeDSecure: false, tokenizedSource: null, iso8583: null }, {}],
+        [{ authorizationMethod: "Normal presentment", threeDSecure: "yes", tokenizedSource: 1, iso8583: "T3" }, {}],
+        [{ authorizationMethod: "Normal presentment", iso8583: { de41: 4 } }, {}],
+        [
+          { authorizationMethod: "Normal presentment", iso8583: { de41: "T4      " } },
+          { terminal: { type: "unspecified", operator: "unspecified", id: "T4" } },
+        ],
+        [{ authorizationMethod: "Normal presentment", iso8583: { de41: "        " } }, {}],
+      ])("scores authorization card entry of %j", async (spend, entry) => {
+        const cardId = `risk-entry-${JSON.stringify(spend)}`;
+        const span = spyRiskSpan();
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "5678", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: {
+              ...authorization.json.body,
+              spend: { ...authorization.json.body.spend, ...spend, cardId },
+            },
+          },
+        });
+
+        expect(response.status).toBe(200);
+        await expect(span).resolves.toStrictEqual([
+          "tx.risk.authorization",
+          { "exa.level": "low", "exa.score": undefined, "exa.status": "Success", "exa.aml": "low" },
+        ]);
+        const entries = sardine.risk.mock.calls
+          .filter(([{ card }]) => card?.id === cardId)
+          .map(([{ transaction }]) => ({
+            terminal: transaction.terminal,
+            entryInfo: transaction.entryInfo,
+            authentication: transaction.authentication,
+          }));
+        expect(entries).toStrictEqual([
+          { terminal: undefined, entryInfo: undefined, authentication: undefined, ...entry },
+        ]);
+        expect(captureException).not.toHaveBeenCalled();
+      });
+
       it("authorizes installments", async () => {
         await database
           .insert(cards)
@@ -800,8 +1144,12 @@ describe("card operations", () => {
                   mcc: authorization.json.body.spend.merchantCategoryCode,
                   name: authorization.json.body.spend.merchantName,
                   id: authorization.json.body.spend.merchantId,
+                  mccDescription: authorization.json.body.spend.merchantCategory,
                 },
-                address: { countryCode: authorization.json.body.spend.merchantCountry },
+                address: {
+                  countryCode: authorization.json.body.spend.merchantCountry,
+                  city: authorization.json.body.spend.merchantCity,
+                },
                 status: "pending",
               },
               card: { id: "local-purchase" },
@@ -858,8 +1206,12 @@ describe("card operations", () => {
                   mcc: authorization.json.body.spend.merchantCategoryCode,
                   name: authorization.json.body.spend.merchantName,
                   id: authorization.json.body.spend.merchantId,
+                  mccDescription: authorization.json.body.spend.merchantCategory,
                 },
-                address: { countryCode: authorization.json.body.spend.merchantCountry },
+                address: {
+                  countryCode: authorization.json.body.spend.merchantCountry,
+                  city: authorization.json.body.spend.merchantCity,
+                },
                 status: "pending",
               },
               card: { id: "usd-refund" },
@@ -916,8 +1268,12 @@ describe("card operations", () => {
                   mcc: authorization.json.body.spend.merchantCategoryCode,
                   name: authorization.json.body.spend.merchantName,
                   id: authorization.json.body.spend.merchantId,
+                  mccDescription: authorization.json.body.spend.merchantCategory,
                 },
-                address: { countryCode: authorization.json.body.spend.merchantCountry },
+                address: {
+                  countryCode: authorization.json.body.spend.merchantCountry,
+                  city: authorization.json.body.spend.merchantCity,
+                },
                 status: "pending",
               },
               card: { id: "local-refund" },
@@ -1016,6 +1372,42 @@ describe("card operations", () => {
           },
           authorization.json.id,
         );
+      });
+
+      it("clears with bad card entry shapes", async () => {
+        const cardId = "bad-entry";
+        const entry: Record<string, unknown> = { threeDSecure: "yes", tokenizedSource: 1, iso8583: { de41: 4 } };
+        await database
+          .insert(cards)
+          .values([{ id: cardId, credentialId: "cred", tenant: "OP", lastFour: "4949", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            action: "created",
+            body: {
+              ...authorization.json.body,
+              id: cardId,
+              spend: {
+                ...authorization.json.body.spend,
+                ...entry,
+                cardId,
+                amount: 4949,
+              },
+            },
+          },
+        });
+
+        const transaction = await database.query.transactions.findFirst({ where: eq(transactions.id, cardId) });
+        const receipt = await publicClient.waitForTransactionReceipt({
+          hash: transaction?.hashes[0] as Hex,
+          confirmations: 0,
+        });
+
+        expect(response.status).toBe(200);
+        expect(usdcToCollector(receipt)).toBe(BigInt(4949 * 1e4));
+        expect(captureException).not.toHaveBeenCalled();
       });
 
       it("clears credit", async () => {

@@ -313,6 +313,38 @@ const FeedbackRequest = object({
 
 const FeedbackResponse = object({ status: string() });
 
+export const TerminalType = picklist([
+  "unspecified",
+  "electronic_commerce",
+  "moto", // cspell:ignore moto
+  "self_service",
+  "ecr",
+  "public_utility",
+  "home_terminal",
+  "administrative_terminal",
+  "authorization",
+]);
+export type TerminalType = InferOutput<typeof TerminalType>;
+export const TerminalOperator = picklist([
+  "unspecified",
+  "customer_operated",
+  "card_acceptor_operated",
+  "administrative",
+]);
+export type TerminalOperator = InferOutput<typeof TerminalOperator>;
+export const EntryPan = picklist(["unspecified", "token", "key_entered", "apple_pay", "google_pay", "samsung_pay"]);
+export type EntryPan = InferOutput<typeof EntryPan>;
+export const EntryCard = picklist(["unspecified", "card_not_present", "card_present", "pre_authorized_purchase"]);
+export type EntryCard = InferOutput<typeof EntryCard>;
+export const EntryCardHolder = picklist([
+  "unspecified",
+  "customer_present",
+  "customer_not_present",
+  "ecommerce",
+  "pre_authorized_purchase",
+]);
+export type EntryCardHolder = InferOutput<typeof EntryCardHolder>;
+
 const RiskRequest = object({
   sessionKey: pipe(string(), maxLength(100)),
   customerId: string(),
@@ -323,18 +355,25 @@ const RiskRequest = object({
     originalAmount: optional(number()),
     originalCurrencyCode: optional(pipe(string(), length(3), toUpperCase())),
     createdAtMillis: optional(number(), () => Date.now()),
-    address: object({ countryCode: pipe(string(), length(2)) }),
+    address: object({ city: optional(string()), countryCode: pipe(string(), length(2)) }),
     type: optional(picklist(["purchase", "cash", "return", "balance_inquiry"])),
-    merchant: object({ mcc: string(), id: optional(string()), name: optional(string()) }),
+    merchant: object({
+      mcc: string(),
+      mccDescription: optional(pipe(string(), maxLength(100))),
+      id: optional(string()),
+      name: optional(string()),
+    }),
     status: optional(picklist(["attempt", "pending", "challenge", "success", "failure"])),
-    terminal: optional(object({ type: literal("unspecified"), operator: literal("unspecified") }), {
+    terminal: optional(object({ id: optional(string()), type: TerminalType, operator: TerminalOperator }), {
       type: "unspecified",
       operator: "unspecified",
     }),
-    entryInfo: optional(
-      object({ pan: literal("unspecified"), card: literal("unspecified"), cardHolder: literal("unspecified") }),
-      { pan: "unspecified", card: "unspecified", cardHolder: "unspecified" },
-    ),
+    entryInfo: optional(object({ pan: EntryPan, card: EntryCard, cardHolder: EntryCardHolder }), {
+      pan: "unspecified",
+      card: "unspecified",
+      cardHolder: "unspecified",
+    }),
+    authentication: optional(object({ method: string() })),
   }),
   card: optional(
     object({
@@ -348,6 +387,7 @@ const RiskRequest = object({
   partnerName: optional(string(), "EXA"),
   workflowName: optional(string(), "issuing_risk"),
 });
+export type RiskTransaction = InferInput<typeof RiskRequest>["transaction"];
 
 const RiskResponse = object({
   sessionKey: string(),
