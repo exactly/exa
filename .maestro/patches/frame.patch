@@ -1,4 +1,4 @@
-From 68c8ad58fecd42bb38f21b1789d70e8f22227da2 Mon Sep 17 00:00:00 2001
+From 4f65500f26e63495ad453d669ef020bf5b5846e9 Mon Sep 17 00:00:00 2001
 From: guillermo dieguez <dev@guillermodieguez.com>
 Date: Fri, 20 Nov 2026 00:21:29 -0300
 Subject: [PATCH] fix: read the iOS device frame once per runner
@@ -11,7 +11,7 @@ the frame is the screen in portrait dimensions, as the orientation check below i
  1 file changed, 5 insertions(+), 1 deletion(-)
 
 diff --git a/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ViewHierarchyHandler.swift b/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ViewHierarchyHandler.swift
-index 7b16cca..4db6a78 100644
+index 7863b02..c400550 100644
 --- a/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ViewHierarchyHandler.swift
 +++ b/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ViewHierarchyHandler.swift
 @@ -8,6 +8,7 @@ struct ViewHierarchyHandler: HTTPHandler {
@@ -19,11 +19,11 @@ index 7b16cca..4db6a78 100644
      private let springboardApplication = XCUIApplication(bundleIdentifier: "com.apple.springboard")
      private let snapshotMaxDepth = 60
 +    private static var deviceFrame: CGRect?
+     private let piecesTimeBudget: TimeInterval = 20
+     private let pieceRetries = 2
  
-     private let logger = Logger(
-         subsystem: Bundle.main.bundleIdentifier!,
-@@ -65,7 +66,10 @@ struct ViewHierarchyHandler: HTTPHandler {
-             getSafariWebViewHierarchy()
+@@ -72,7 +73,10 @@ struct ViewHierarchyHandler: HTTPHandler {
+             getHostedExtensionHierarchies(appHierarchy: appHierarchy)
          }
  
 -        let deviceFrame = springboardApplication.frame
@@ -35,5 +35,5 @@ index 7b16cca..4db6a78 100644
              "X": Double(deviceFrame.minX),
              "Y": Double(deviceFrame.minY),
 -- 
-2.54.0 (Apple Git-157)
+2.43.0
 
