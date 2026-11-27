@@ -1,0 +1,117 @@
+From 790e283ce362d2135066864dcc1d5121254139b2 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Fri, 27 Nov 2026 21:11:07 +0000
+Subject: [PATCH] fix: compare iOS screens without encoding them as PNG
+
+Each screen static check hashes screenshots that XCTest encodes as PNG. A simulator captures the screen in about 9 ms, and the PNG encoding and transfer take about 60 ms more, so a check spends most of its time compressing, and flows check the screen before and after every tap.
+
+The runner now captures a lossless TIFF screenshot in process through the XCTest image encoding, which skips the compression, and hashes that, both in the screen static check and while typing waits for the first character to show. Cheap screenshots can land inside one short frame stall that two PNG screenshots were too far apart to fit in, so the screen counts as static only once its hash has held for 60 ms, the least time between the frames two PNG screenshots captured, measured from when the first screenshot returned to when the last one was requested. A check keeps taking screenshots until the hash changes or holds that long. Without that encoding, or once a TIFF capture fails, it hashes PNG screenshots with no hold, as before.
+---
+ .../Routes/Handlers/ScreenDiffHandler.swift   | 57 +++++++++++++++----
+ .../Routes/Helpers/TextInputHelper.swift      | 12 ++--
+ 2 files changed, 54 insertions(+), 15 deletions(-)
+
+diff --git a/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ScreenDiffHandler.swift b/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ScreenDiffHandler.swift
+index b6a16b1..944bb39 100644
+--- a/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ScreenDiffHandler.swift
++++ b/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ScreenDiffHandler.swift
+@@ -13,22 +13,29 @@ struct IsScreenStaticHandler: HTTPHandler {
+     
+     private static let maxReuseInterval: TimeInterval = 0.1
+     private static let maxUntouchedInterval: TimeInterval = 1
+-    private static var previous: (hash: SHA256.Digest, takenAt: Date)?
++    private static var still: (hash: SHA256.Digest, since: Date, takenAt: Date)?
+ 
+     func handleRequest(_ request: FlyingFox.HTTPRequest) async throws -> FlyingFox.HTTPResponse {
+         do {
+-            let hash1: SHA256.Digest
+             let maxInterval = request.query["untouched"] == "true" ? Self.maxUntouchedInterval : Self.maxReuseInterval
+-            if let previous = Self.previous, Date().timeIntervalSince(previous.takenAt) < maxInterval {
+-                hash1 = previous.hash
+-            } else {
+-                hash1 = SHA256.hash(data: XCUIScreen.main.screenshot().pngRepresentation)
+-            }
+-            let hash2 = SHA256.hash(data: XCUIScreen.main.screenshot().pngRepresentation)
+-            Self.previous = (hash2, Date())
++            var still = Self.still.flatMap { Date().timeIntervalSince($0.takenAt) < maxInterval ? $0 : nil }
++            var isScreenStatic = false
++            repeat {
++                let requestedAt = Date()
++                let (hash, hold) = ScreenHash.current()
++                let takenAt = Date()
++                if let previous = still, previous.hash == hash {
++                    still = (hash, previous.since, takenAt)
++                    isScreenStatic = requestedAt.timeIntervalSince(previous.since) >= hold
++                } else if still == nil {
++                    still = (hash, takenAt, takenAt)
++                } else {
++                    still = (hash, takenAt, takenAt)
++                    break
++                }
++            } while !isScreenStatic
++            Self.still = still
+ 
+-            let isScreenStatic = hash1 == hash2
+-            
+             let response = ["isScreenStatic" : isScreenStatic]
+             
+             let responseData = try JSONSerialization.data(
+@@ -41,3 +48,31 @@ struct IsScreenStaticHandler: HTTPHandler {
+         }
+     }
+ }
++
++@MainActor
++enum ScreenHash {
++    private static var encoding: AnyObject? = {
++        let selector = NSSelectorFromString("initWithUniformTypeIdentifier:compressionQuality:")
++        guard let encodingClass = NSClassFromString("XCTImageEncoding"), class_getInstanceMethod(encodingClass, selector) != nil else { return nil }
++        typealias Initializer = @convention(c) (AnyObject, Selector, NSString, Double) -> AnyObject?
++        let instance = class_createInstance(encodingClass, 0) as AnyObject
++        return unsafeBitCast(instance.method(for: selector), to: Initializer.self)(instance, selector, "public.tiff", 1)
++    }()
++
++    static func current() -> (hash: SHA256.Digest, hold: TimeInterval) {
++        let selector = NSSelectorFromString("screenshotWithEncoding:options:")
++        if let encoding, XCUIScreen.main.responds(to: selector) {
++            typealias Capture = @convention(c) (AnyObject, Selector, AnyObject, AnyObject?) -> AnyObject?
++            let screenshot = unsafeBitCast(XCUIScreen.main.method(for: selector), to: Capture.self)(XCUIScreen.main, selector, encoding, nil) as? NSObject
++            if screenshot?.responds(to: NSSelectorFromString("internalImage")) == true,
++               let image = screenshot?.value(forKey: "internalImage") as? NSObject,
++               image.responds(to: NSSelectorFromString("data")),
++               let data = image.value(forKey: "data") as? Data {
++                return (SHA256.hash(data: data), 0.06)
++            }
++            NSLog("Screen capture as tiff failed, comparing screens as png from now on")
++            Self.encoding = nil
++        }
++        return (SHA256.hash(data: XCUIScreen.main.screenshot().pngRepresentation), 0)
++    }
++}
+diff --git a/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Helpers/TextInputHelper.swift b/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Helpers/TextInputHelper.swift
+index 3db7595..5b79811 100644
+--- a/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Helpers/TextInputHelper.swift
++++ b/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Helpers/TextInputHelper.swift
+@@ -33,11 +33,15 @@ struct TextInputHelper {
+         while Date() < deadline, field.exists, (try? field.snapshot())?.value as? String ?? "" == before {
+             try? await Task.sleep(nanoseconds: 20_000_000)
+         }
+-        var previous = SHA256.hash(data: XCUIScreen.main.screenshot().pngRepresentation)
++        var still: (hash: SHA256.Digest, since: Date)?
+         while Date() < deadline {
+-            let current = SHA256.hash(data: XCUIScreen.main.screenshot().pngRepresentation)
+-            if current == previous { return }
+-            previous = current
++            let requestedAt = Date()
++            let (hash, hold) = ScreenHash.current()
++            if let previous = still, previous.hash == hash {
++                if requestedAt.timeIntervalSince(previous.since) >= hold { return }
++            } else {
++                still = (hash, Date())
++            }
+         }
+     }
+ 
+-- 
+2.43.0
+
