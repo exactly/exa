@@ -46,6 +46,7 @@ import { cardModeMutationOptions, isOffboarded } from "../../utils/server";
 import { check } from "../../utils/update";
 import useAccount from "../../utils/useAccount";
 import useBusiness from "../../utils/useBusiness";
+import useCardInstallments from "../../utils/useCardInstallments";
 import useCardLimit from "../../utils/useCardLimit";
 import useIsBusiness from "../../utils/useIsBusiness";
 import useKYC from "../../utils/useKYC";
@@ -154,7 +155,7 @@ export default function Home() {
     processing: cardLimitProcessing,
   } = useCardLimit(card?.limit.amount);
   const { data: spotlightShown } = useQuery<boolean>({ queryKey: ["settings", "installments-spotlight"] });
-  const { data: lastInstallments } = useQuery<number>({ queryKey: ["settings", "installments"] });
+  const { max: maxInstallments, last: lastInstallments } = useCardInstallments();
   const { data: promoSeen } = useQuery<boolean>({ queryKey: ["settings", "promo-seen", PROMO.id] });
   const { data: stocksIntroShown } = useQuery<boolean>({ queryKey: ["settings", "stocks-intro-shown"] });
   const { data: country } = useQuery<string>({ queryKey: ["user", "country"] });
@@ -175,7 +176,8 @@ export default function Home() {
     },
   });
 
-  function changeMode(mode: number) {
+  function changeMode(selected: number) {
+    const mode = Math.min(selected, maxInstallments);
     const pending = queryClient
       .getMutationCache()
       .findAll({ mutationKey: cardModeMutationOptions.mutationKey, status: "pending" });
@@ -198,10 +200,10 @@ export default function Home() {
     const inNowMode = card.mode === 0;
     if (inNowMode && !manualRepaymentAcknowledged) {
       pendingSheetOpenRef.current = true;
-      handleModeChange(lastInstallments ?? 1);
+      handleModeChange(lastInstallments);
       return;
     }
-    if (inNowMode) handleModeChange(lastInstallments ?? 1);
+    if (inNowMode) handleModeChange(lastInstallments);
     setInstallmentsSheetOpen(true);
   }
   function openStocks() {
@@ -456,7 +458,7 @@ export default function Home() {
             }}
             onActionPress={() => {
               queryClient.setQueryData(["manual-repayment-acknowledged"], true);
-              if (card?.mode !== pendingModeRef.current) changeMode(pendingModeRef.current);
+              if (card?.mode !== Math.min(pendingModeRef.current, maxInstallments)) changeMode(pendingModeRef.current);
               setManualRepaymentSheetOpen(false);
               if (pendingSheetOpenRef.current) {
                 pendingSheetOpenRef.current = false;
