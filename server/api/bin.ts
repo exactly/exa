@@ -2,12 +2,10 @@ import { SecretManagerServiceClient } from "@google-cloud/secret-manager";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Hono } from "hono";
 import { Redis } from "ioredis";
-import { env } from "node:process";
-import { array, optional, parse, picklist, pipe, string, transform } from "valibot";
 
 import api from ".";
 import * as schema from "../database/schema";
-import supervise, { own } from "../supervise";
+import supervise, { disabled, own } from "../supervise";
 import createIntercom from "../utils/intercom";
 import createPanda from "../utils/panda";
 import createPax from "../utils/pax";
@@ -34,16 +32,7 @@ supervise(
     Promise.all([secret("api-bridge-api-key", secrets), secret("bridge-api-url", secrets)]).then(([key, url]) =>
       createBridge(key, url),
     ),
-    Promise.resolve(
-      !parse(
-        pipe(
-          optional(string(), ""),
-          transform((value) => value.split(",").filter(Boolean)),
-          array(picklist(["business"], "unknown module")),
-        ),
-        env.DISABLED_MODULES,
-      ).includes("business"),
-    ),
+    Promise.resolve(!disabled().has("business")),
     secret("api-postgres-url", secrets).then((url) => drizzle(url, { schema })),
     secret("api-intercom-identity-key", secrets).then((key) => createIntercom(key)),
     Promise.all([secret("api-manteca-api-key", secrets), secret("manteca-api-url", secrets)]).then(([key, url]) =>
@@ -52,11 +41,13 @@ supervise(
     Promise.all([secret("api-panda-api-key", secrets), secret("panda-api-url", secrets)]).then(([key, url]) =>
       createPanda({ key, url }),
     ),
-    Promise.all([
-      secret("api-pax-associate-id-key", secrets),
-      secret("api-pax-api-key", secrets),
-      secret("pax-api-url", secrets),
-    ]).then(([associateKey, key, url]) => createPax({ associateKey, key, url })),
+    disabled().has("pax")
+      ? undefined
+      : Promise.all([
+          secret("api-pax-associate-id-key", secrets),
+          secret("api-pax-api-key", secrets),
+          secret("pax-api-url", secrets),
+        ]).then(([associateKey, key, url]) => createPax({ associateKey, key, url })),
     Promise.all([secret("api-persona-api-key", secrets), secret("persona-api-url", secrets)]).then(([key, url]) =>
       createPersona(key, url),
     ),

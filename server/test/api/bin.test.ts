@@ -146,6 +146,57 @@ describe("api bin", () => {
 
     expect(mocks.api).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ business: false }));
   });
+
+  it("skips pax when its module is disabled", async () => {
+    vi.stubEnv("DISABLED_MODULES", "pax");
+
+    await import("../../api/bin");
+    const handle = await mocks.supervise.mock.calls[0]?.[1];
+    if (!handle) throw new Error("missing api");
+
+    expect(mocks.secret.mock.calls.map(([secret]) => secret)).toStrictEqual([
+      "redis-url",
+      "api-auth-secret",
+      "api-bridge-api-key",
+      "bridge-api-url",
+      "api-postgres-url",
+      "api-intercom-identity-key",
+      "api-manteca-api-key",
+      "manteca-api-url",
+      "api-panda-api-key",
+      "panda-api-url",
+      "api-persona-api-key",
+      "persona-api-url",
+      "api-sardine-api-key",
+      "sardine-api-url",
+      "api-segment-write-key",
+      "api-wallet-extension-secret",
+    ]);
+    expect(mocks.pax).not.toHaveBeenCalled();
+    const queue = expect.objectContaining({
+      close: expect.any(Function) as unknown,
+      enqueue: expect.any(Function) as unknown,
+    }) as object;
+    expect(mocks.api).toHaveBeenCalledExactlyOnceWith({
+      authSecret: "api-auth-secret",
+      bridge,
+      business: true,
+      credit: queue,
+      database,
+      intercom,
+      manteca,
+      panda,
+      pax: undefined,
+      persona,
+      redis: expect.any(Redis) as Redis,
+      sardine,
+      segment,
+      subscribe: queue,
+      walletExtension,
+    });
+
+    await handle.close();
+  });
 });
 
 type Hook = {

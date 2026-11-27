@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Redis } from "ioredis";
 
 import * as schema from "../../database/schema";
-import supervise, { own } from "../../supervise";
+import supervise, { disabled, own } from "../../supervise";
 import createPanda from "../../utils/panda";
 import createPax from "../../utils/pax";
 import createPersona from "../../utils/persona";
@@ -21,11 +21,13 @@ supervise(
     Promise.all([secret("persona-panda-api-key", secrets), secret("panda-api-url", secrets)]).then(([key, url]) =>
       createPanda({ key, url }),
     ),
-    Promise.all([
-      secret("persona-pax-associate-id-key", secrets),
-      secret("persona-pax-api-key", secrets),
-      secret("pax-api-url", secrets),
-    ]).then(([associateKey, key, url]) => createPax({ associateKey, key, url })),
+    disabled().has("pax")
+      ? undefined
+      : Promise.all([
+          secret("persona-pax-associate-id-key", secrets),
+          secret("persona-pax-api-key", secrets),
+          secret("pax-api-url", secrets),
+        ]).then(([associateKey, key, url]) => createPax({ associateKey, key, url })),
     Promise.all([secret("persona-persona-api-key", secrets), secret("persona-api-url", secrets)]).then(([key, url]) =>
       createPersona(key, url),
     ),
