@@ -15,6 +15,8 @@ import useMarkets from "./useMarkets";
 import type { Hex, Address as ViemAddress } from "@exactly/common/validation";
 import type { TokenAmount } from "@lifi/sdk";
 
+export const minimumRate = WAD / 20_000n;
+
 export type ProtocolAsset = {
   asset: Hex;
   assetName: string;

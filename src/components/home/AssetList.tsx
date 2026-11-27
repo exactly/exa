@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import AssetSection from "./AssetSection";
 import MarketRow from "./MarketRow";
 import useMarkets from "../../utils/useMarkets";
+import { minimumRate } from "../../utils/usePortfolio";
 import Rate from "../shared/Rate";
 
 export default function AssetList({
@@ -44,7 +45,7 @@ export default function AssetList({
             symbol={market.symbol}
             value={market.usdValue}
           >
-            {market.rate === undefined ? null : <Rate compact rate={market.rate} />}
+            {market.rate !== undefined && market.rate >= minimumRate ? <Rate compact rate={market.rate} /> : null}
           </MarketRow>
         ))}
     </AssetSection>
