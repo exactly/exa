@@ -62,8 +62,10 @@ export default function networkOptions(account: Address | undefined, chainId: nu
             lifi: tokens !== undefined,
             timestamp: wallet.timestamp,
             balance: wallet.balance,
-            markets: protocol.markets,
-            rates: protocol.rates,
+            ...(contracts && {
+              markets: protocol.markets.map((row) => ({ ...withFlags(row.market, row), chainId })),
+              snapshot: protocol.rates.length > 0 ? protocol.rates : undefined,
+            }),
           };
         }
       : skipToken,
@@ -71,6 +73,18 @@ export default function networkOptions(account: Address | undefined, chainId: nu
     gcTime: Infinity,
     refetchInterval: ({ state }) => (state.status === "error" ? 60_000 : false),
   });
+}
+
+export function withFlags<T extends { isCollateral: boolean }>(
+  market: T,
+  flags: undefined | { isFrozen: boolean; nonCollateral: boolean },
+) {
+  return {
+    ...market,
+    isCollateral: market.isCollateral && !flags?.nonCollateral,
+    isFrozen: !!flags?.isFrozen,
+    nonCollateral: !!flags?.nonCollateral,
+  };
 }
 
 const appPreviewerAddress = getContractAddress({

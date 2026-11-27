@@ -15,7 +15,7 @@ import { ratePreviewerAbi } from "@exactly/common/generated/hooks";
 import MIN_BORROW_INTERVAL from "@exactly/common/MIN_BORROW_INTERVAL";
 import { MATURITY_INTERVAL } from "@exactly/lib";
 
-import networkOptions from "./networkOptions";
+import networkOptions, { withFlags } from "./networkOptions";
 import useAccount from "./useAccount";
 
 export default function useMarkets(query?: { enabled?: boolean; gcTime?: number; refetchInterval?: number }) {
@@ -45,22 +45,19 @@ export default function useMarkets(query?: { enabled?: boolean; gcTime?: number;
     ...networkOptions(account, chain.id),
     enabled: query?.enabled ?? true,
     ...(query?.refetchInterval !== undefined && { refetchInterval: query.refetchInterval }),
-    select: ({ markets: rows }) => rows,
+    select: ({ markets: rows = [] }) => rows,
   });
   const accountMarkets = result.data?.[0];
   const markets = useMemo(
     () =>
       accountMarkets &&
       previews.data &&
-      accountMarkets.map((market) => {
-        const flags = previews.data.find((row) => row.market.market === market.market);
-        return {
-          ...market,
-          isCollateral: market.isCollateral && !flags?.nonCollateral,
-          isFrozen: !!flags?.isFrozen,
-          nonCollateral: !!flags?.nonCollateral,
-        };
-      }),
+      accountMarkets.map((market) =>
+        withFlags(
+          market,
+          previews.data.find(({ market: address }) => address === market.market),
+        ),
+      ),
     [accountMarkets, previews.data],
   );
   const supportedAssets = useMemo(() => {
