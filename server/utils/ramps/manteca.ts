@@ -89,7 +89,7 @@ export default function manteca(key: string, url: string) {
       SyntheticResponse,
       "/crypto/v2/synthetics/qr-payment",
       {},
-      { qrCode, externalId, skipDeposit: true },
+      { qrCode, externalId, disallowBalance: true, skipDeposit: true },
       "POST",
       10_000,
     ).catch(async (error: unknown) => {
