@@ -22,6 +22,7 @@ import { Clock } from "../../generated/icons/Clock";
 import { CreditCard } from "../../generated/icons/CreditCard";
 import { Landmark } from "../../generated/icons/Landmark";
 import { X } from "../../generated/icons/X";
+import errorToast from "../../utils/errorToast";
 import { present } from "../../utils/intercom";
 import openBrowser from "../../utils/openBrowser";
 import { startBusinessKYC } from "../../utils/persona";
@@ -92,7 +93,7 @@ export default function Setup() {
           return;
       }
     }
-    toast.error(t("An error occurred. Please try again later."), { duration: 1000 });
+    errorToast(error, t("An error occurred. Please try again later."), { duration: 1000 });
     reportError(error);
   }
   const application = useMutation({

@@ -4,6 +4,8 @@ import { Platform } from "react-native";
 import { Toast } from "@tamagui/toast";
 import { getTokens, XStack } from "tamagui";
 
+import { useQuery } from "@tanstack/react-query";
+
 import Text from "./Text";
 import View from "./View";
 import { Info as InfoIcon } from "../../generated/icons/Info";
@@ -11,9 +13,10 @@ import useInsets from "../../utils/useInsets";
 
 export default function NotificationToast() {
   const { left, top, right } = useInsets();
+  const { data: banner = 0 } = useQuery<number>({ queryKey: ["banner"] });
   return (
-    <Toast native={Platform.OS !== "web"} position="top-center">
-      <Toast.Viewport offset={{ top: top || getTokens().space.s4.val, left, right }}>
+    <Toast native={Platform.OS !== "web"} position="top-center" burntOptions={{ from: banner ? "bottom" : "top" }}>
+      <Toast.Viewport offset={{ top: (top || getTokens().space.s4.val) + banner, left, right }}>
         <Toast.List
           renderItem={({ toast, index }) => {
             const type = toast.type === "error" || toast.type === "success" ? toast.type : "info";

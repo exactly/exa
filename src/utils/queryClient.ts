@@ -1,14 +1,25 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+import type { toast } from "@tamagui/toast";
+
 import { sdk } from "@farcaster/miniapp-sdk";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { persistQueryClientRestore, persistQueryClientSubscribe } from "@tanstack/query-persist-client-core";
-import { dehydrate, QueryCache, QueryClient, skipToken, type Query } from "@tanstack/react-query";
+import {
+  dehydrate,
+  MutationCache,
+  onlineManager,
+  QueryCache,
+  QueryClient,
+  skipToken,
+  type Query,
+} from "@tanstack/react-query";
 import { deserialize, serialize } from "wagmi";
 import { hashFn, structuralSharing } from "wagmi/query";
 
 import chain from "@exactly/common/generated/chain";
 
+import errorToast from "./errorToast";
 import reportError from "./reportError";
 import { isAvailable as isOwnerAvailable } from "./wagmi/owner";
 import release from "../generated/release";
@@ -50,7 +61,10 @@ export const persister = createAsyncStoragePersister({
   storage: AsyncStorage,
   throttleTime: 0,
 });
-const queryClient = new QueryClient({
+const queryClient = new (class extends QueryClient {
+  override fetchQuery: QueryClient["fetchQuery"] = (options) =>
+    super.fetchQuery({ retry: this.getQueryDefaults(options.queryKey).retry ?? false, ...options });
+})({
   queryCache: new QueryCache({
     onError: (error, query) => {
       if (query.meta?.dropError?.(error)) return;
@@ -66,7 +80,22 @@ const queryClient = new QueryClient({
       reportError(error);
     },
   }),
-  defaultOptions: { queries: { queryKeyHashFn: hashFn, structuralSharing } },
+  mutationCache: new MutationCache({
+    onError: (error, _variables, _context, mutation) => {
+      const notice = mutation.meta?.toast?.(error);
+      if (notice) errorToast(error, ...notice);
+    },
+  }),
+  defaultOptions: {
+    mutations: { networkMode: "always" },
+    queries: {
+      networkMode: "always",
+      refetchOnReconnect: true,
+      retry: (failureCount) => failureCount < 3 && onlineManager.isOnline(),
+      queryKeyHashFn: hashFn,
+      structuralSharing,
+    },
+  },
 });
 
 export const hydrated =
@@ -82,7 +111,7 @@ export const hydrated =
 const dehydrateOptions = {
   shouldDehydrateQuery: ({ queryKey, state }: Query) =>
     state.status === "success" &&
-    !["activity", "externalAssets", "capabilities", "deeplink", "ens", "prices", "send", "zxing"].includes(
+    !["activity", "banner", "externalAssets", "capabilities", "deeplink", "ens", "prices", "send", "zxing"].includes(
       queryKey[0] as string,
     ) &&
     !(queryKey[0] === "card" && queryKey[1] !== "details") &&
@@ -109,6 +138,7 @@ export function persist() {
   );
 }
 
+queryClient.setQueryDefaults(["banner"], { gcTime: Infinity, queryFn: skipToken });
 queryClient.setQueryDefaults(["credential"], {
   retry: false,
   staleTime: Infinity,
@@ -296,7 +326,7 @@ queryClient.setQueryDefaults(["settings", "swap-needed-shown"], {
   queryFn: () => queryClient.getQueryData(["settings", "swap-needed-shown"]),
 });
 queryClient.setQueryDefaults(["ramp", "quote"], {
-  retry: (count, error) => !(error instanceof APIError && error.code === 400) && count < 3,
+  retry: (count, error) => !(error instanceof APIError && error.code === 400) && count < 3 && onlineManager.isOnline(),
 });
 queryClient.setQueryDefaults(["manual-repayment-acknowledged"], {
   initialData: false,
@@ -382,6 +412,9 @@ export class NetworkError extends Error {
 declare module "@tanstack/react-query" {
   // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- module augmentation requires interface merging
   interface Register {
+    mutationMeta: {
+      toast?: (error: Error) => [title: string, options?: Parameters<typeof toast.error>[1]] | undefined;
+    };
     queryMeta: {
       dropError?: (error: unknown) => boolean | undefined;
       persist?: (data: never) => unknown;
