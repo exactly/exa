@@ -1139,12 +1139,9 @@ describe("business representative", () => {
       { email: "authorized@example.com", firstName: "authorized", lastName: "user" },
       "evt_representative_123",
     );
-    expect(panda.createCard).toHaveBeenCalledExactlyOnceWith(
-      "authorized-user",
-      CLASSIC_PRODUCT_ID,
-      200_000,
-      "evt_representative_123",
-    );
+    expect(vi.mocked(panda.createCard).mock.calls).toStrictEqual([
+      ["authorized-user", CLASSIC_PRODUCT_ID, 200_000, "evt_representative_123", undefined, undefined],
+    ]);
     expect(allow.enqueue).toHaveBeenCalledExactlyOnceWith({
       account,
       chainId: chain.id,
@@ -1182,12 +1179,75 @@ describe("business representative", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-    expect(panda.createCard).toHaveBeenCalledExactlyOnceWith(
-      "authorized-user",
-      CLASSIC_PRODUCT_ID,
-      undefined,
-      "evt_representative_123",
-    );
+    expect(vi.mocked(panda.createCard).mock.calls).toStrictEqual([
+      ["authorized-user", CLASSIC_PRODUCT_ID, undefined, "evt_representative_123", undefined, undefined],
+    ]);
+    expect(captureException).not.toHaveBeenCalled();
+    await expect(
+      database.query.cards.findMany({ columns: { id: true }, where: eq(cards.credentialId, referenceId) }),
+    ).resolves.toStrictEqual([{ id: "business-card" }]);
+  });
+
+  it("transliterates the card name with the company user country", async () => {
+    await database.update(credentials).set({ pandaId: "business-user" }).where(eq(credentials.id, referenceId));
+    vi.mocked(panda.getCompanyApplication).mockResolvedValueOnce({ id: "company-id", applicationStatus: "approved" });
+    vi.mocked(panda.getCompanyUsers).mockResolvedValueOnce([
+      { id: "authorized-user", email: "authorized@example.com", address: { countryCode: "EG" } },
+    ]);
+    vi.mocked(panda.createCard).mockResolvedValueOnce(card);
+
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: representativePayload({ referenceId, status: "approved", name: "محمد", lastName: "المصري" }), // cspell:ignore محمد المصري
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(panda.createCompanyUser).not.toHaveBeenCalled();
+    expect(vi.mocked(panda.createCard).mock.calls).toStrictEqual([
+      [
+        "authorized-user",
+        CLASSIC_PRODUCT_ID,
+        undefined,
+        "evt_representative_123",
+        undefined,
+        "Mohamed El-Masry", // cspell:ignore Masry
+      ],
+    ]);
+    expect(captureException).not.toHaveBeenCalled();
+    await expect(
+      database.query.cards.findMany({ columns: { id: true }, where: eq(cards.credentialId, referenceId) }),
+    ).resolves.toStrictEqual([{ id: "business-card" }]);
+  });
+
+  it("transliterates the card name with the company country for a new user", async () => {
+    await database.update(credentials).set({ pandaId: "business-user" }).where(eq(credentials.id, referenceId));
+    vi.mocked(panda.getCompanyApplication).mockResolvedValueOnce({
+      id: "company-id",
+      applicationStatus: "approved",
+      address: { countryCode: "EG" },
+    });
+    vi.mocked(panda.getCompanyUsers).mockResolvedValueOnce([]);
+    vi.mocked(panda.createCompanyUser).mockResolvedValueOnce(user);
+    vi.mocked(panda.createCard).mockResolvedValueOnce(card);
+
+    const response = await appClient.index.$post({
+      header: { "persona-signature": "t=1,v1=sha256" },
+      json: representativePayload({ referenceId, status: "approved", name: "محمد", lastName: "المصري" }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+    expect(vi.mocked(panda.createCompanyUser).mock.calls).toStrictEqual([
+      [
+        "company-id",
+        { email: "authorized@example.com", firstName: "محمد", lastName: "المصري" },
+        "evt_representative_123",
+      ],
+    ]);
+    expect(vi.mocked(panda.createCard).mock.calls).toStrictEqual([
+      ["authorized-user", CLASSIC_PRODUCT_ID, undefined, "evt_representative_123", undefined, "Mohamed El-Masry"],
+    ]);
     expect(captureException).not.toHaveBeenCalled();
     await expect(
       database.query.cards.findMany({ columns: { id: true }, where: eq(cards.credentialId, referenceId) }),
@@ -1208,12 +1268,9 @@ describe("business representative", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
-    expect(panda.createCard).toHaveBeenCalledExactlyOnceWith(
-      "authorized-user",
-      CLASSIC_PRODUCT_ID,
-      115,
-      "evt_representative_123",
-    );
+    expect(vi.mocked(panda.createCard).mock.calls).toStrictEqual([
+      ["authorized-user", CLASSIC_PRODUCT_ID, 115, "evt_representative_123", undefined, undefined],
+    ]);
   });
 
   it("rejects a non-positive weekly card limit", async () => {
@@ -1425,12 +1482,9 @@ describe("business representative", () => {
       { email: "authorized@example.com", firstName: "authorized", lastName: "user" },
       "evt_representative_123",
     );
-    expect(panda.createCard).toHaveBeenCalledExactlyOnceWith(
-      "authorized-user",
-      CLASSIC_PRODUCT_ID,
-      undefined,
-      "evt_representative_123",
-    );
+    expect(vi.mocked(panda.createCard).mock.calls).toStrictEqual([
+      ["authorized-user", CLASSIC_PRODUCT_ID, undefined, "evt_representative_123", undefined, undefined],
+    ]);
     expect(allow.enqueue).toHaveBeenCalledOnce();
     expect(captureException).not.toHaveBeenCalled();
     await expect(
@@ -1464,7 +1518,9 @@ describe("business representative", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "card limit reached" });
-    expect(panda.createCard).toHaveBeenCalledOnce();
+    expect(vi.mocked(panda.createCard).mock.calls).toStrictEqual([
+      ["authorized-user", CLASSIC_PRODUCT_ID, undefined, "evt_representative_123", undefined, undefined],
+    ]);
     expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(ServiceError) as ServiceError, {
       level: "warning",
       fingerprint: ["card-limit-reached"],
@@ -1491,8 +1547,10 @@ describe("business representative", () => {
     });
 
     expect(response.status).toBe(500);
+    expect(vi.mocked(panda.createCard).mock.calls).toStrictEqual([
+      ["authorized-user", CLASSIC_PRODUCT_ID, undefined, "evt_representative_123", undefined, undefined],
+    ]);
     expect(errorConsole).toHaveBeenCalledWith(expect.any(ServiceError));
-    expect(panda.createCard).toHaveBeenCalledOnce();
     expect(captureException).not.toHaveBeenCalled();
     await expect(database.query.cards.findMany({ where: eq(cards.credentialId, referenceId) })).resolves.toStrictEqual(
       [],
@@ -1596,12 +1654,9 @@ describe("business representative", () => {
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
     expect(panda.getCompanyUsers).toHaveBeenCalledExactlyOnceWith("company-id", { email: "authorized@example.com" });
     expect(panda.createCompanyUser).not.toHaveBeenCalled();
-    expect(panda.createCard).toHaveBeenCalledExactlyOnceWith(
-      "business-user",
-      CLASSIC_PRODUCT_ID,
-      200_000,
-      "evt_representative_123",
-    );
+    expect(vi.mocked(panda.createCard).mock.calls).toStrictEqual([
+      ["business-user", CLASSIC_PRODUCT_ID, 200_000, "evt_representative_123", undefined, undefined],
+    ]);
     expect(allow.enqueue).toHaveBeenCalledOnce();
     expect(captureException).not.toHaveBeenCalled();
     await expect(
@@ -1630,12 +1685,9 @@ describe("business representative", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
     expect(allow.enqueue).not.toHaveBeenCalled();
-    expect(panda.createCard).toHaveBeenCalledExactlyOnceWith(
-      "authorized-user",
-      CLASSIC_PRODUCT_ID,
-      undefined,
-      "evt_representative_123",
-    );
+    expect(vi.mocked(panda.createCard).mock.calls).toStrictEqual([
+      ["authorized-user", CLASSIC_PRODUCT_ID, undefined, "evt_representative_123", undefined, undefined],
+    ]);
     await expect(
       database.query.cards.findMany({ columns: { id: true }, where: eq(cards.credentialId, referenceId) }),
     ).resolves.toStrictEqual([{ id: "business-card" }]);

@@ -175,6 +175,14 @@ describe("panda request", () => {
     );
   });
 
+  it("drops a company user address without a country code", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json([{ id: "user-id", address: { city: "Lisbon", countryCode: null } }]),
+    );
+
+    await expect(panda.getCompanyUsers("company-id")).resolves.toStrictEqual([{ id: "user-id", address: undefined }]);
+  });
+
   it("filters company users by email", async () => {
     const users = [{ id: "user-id", email: "user+card@example.com" }];
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(users));
@@ -424,6 +432,18 @@ describe("business application", () => {
     await expect(panda.getCompanyApplication("0xbeef")).resolves.toMatchObject({ id: "company-1" });
   });
 
+  it("drops a company application address without a country code", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({ id: "company-1", applicationStatus: "approved", address: { city: "Lisbon" } }),
+    );
+
+    await expect(panda.getCompanyApplication("0xbeef")).resolves.toStrictEqual({
+      id: "company-1",
+      applicationStatus: "approved",
+      address: undefined,
+    });
+  });
+
   it("accepts a not started company application", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       Response.json({ id: "company-1", applicationStatus: "notStarted" }),
@@ -639,6 +659,35 @@ describe("create card", () => {
           status: "active",
           limit: { amount: 200_000, frequency: "per7DayPeriod" },
           configuration: { productId: SIGNATURE_PRODUCT_ID, virtualCardArt: "398c4919514b4ec4927e6a9114a4c816" },
+        }),
+      }),
+    );
+  });
+
+  it("sends the display name", async () => {
+    // cspell:ignore Zhang
+    chainMock.id = optimism.id;
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      arrayBuffer: () => Promise.resolve(new TextEncoder().encode(JSON.stringify(card)).buffer),
+    } as Response);
+
+    await expect(
+      panda.createCard("user-id", SIGNATURE_PRODUCT_ID, 1_000_000, undefined, null, "John Zhang"),
+    ).resolves.toStrictEqual(card);
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      expect.stringContaining("/issuing/users/user-id/cards"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          type: "virtual",
+          status: "active",
+          limit: { amount: 1_000_000, frequency: "per7DayPeriod" },
+          configuration: {
+            displayName: "John Zhang",
+            productId: SIGNATURE_PRODUCT_ID,
+            virtualCardArt: "398c4919514b4ec4927e6a9114a4c816",
+          },
         }),
       }),
     );

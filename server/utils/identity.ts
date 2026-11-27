@@ -50,3 +50,22 @@ export function normalizePostalCode(code: string) {
     .trim();
   return /^[\d\s]+$/.test(ascii) ? ascii.replaceAll(/\s/g, "") : ascii;
 }
+
+export function cardName(...parameters: Parameters<typeof latinName>) {
+  const name = latinName(...parameters);
+  if (!name) return;
+  const full = `${name.first} ${name.last}`;
+  if (full.length <= 30) return full;
+  const initial = `${name.first.charAt(0)}. ${name.last}`;
+  if (initial.length <= 30) return initial;
+  for (const separator of [/(?<=\s)/u, /(?<=[\s-])/u]) {
+    let out = "";
+    for (const part of initial.split(separator)) {
+      if (`${out}${part}`.trimEnd().replace(/-$/u, "").length > 30) break;
+      out += part;
+    }
+    out = out.trimEnd().replace(/-$/u, "");
+    if (out.includes(" ")) return out;
+  }
+  return initial.slice(0, 30);
+}
