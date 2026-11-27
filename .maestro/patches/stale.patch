@@ -1,0 +1,95 @@
+From 472eed117167eb383630c45e360a966cd7479bd6 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Fri, 27 Nov 2026 19:18:43 +0000
+Subject: [PATCH] fix: snapshot the app in front when the iOS app leaves
+ mid-snapshot
+
+a snapshot that fails with kAXErrorInvalidUIElement now continues in pieces, which first looks up the app's pid among the active apps. when the app left the foreground between the read starting and that lookup, as springboard does right after the passkey sheet hands back to the app, the lookup finds nothing and the handler returns an internal error. the host fails the command on it, where 2.12.1 recovered.
+
+the pieces path now reports that the app left, and the handler snapshots the app now in the foreground in the same request, up to two switches. when no app is in the foreground yet, it returns springboard's hierarchy, as it does when the read starts with none. it fails as before when the same app is still in front.
+---
+ .../Handlers/ViewHierarchyHandler.swift       | 45 +++++++++++++++----
+ 1 file changed, 36 insertions(+), 9 deletions(-)
+
+diff --git a/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ViewHierarchyHandler.swift b/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ViewHierarchyHandler.swift
+index c400550..6b0a14d 100644
+--- a/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ViewHierarchyHandler.swift
++++ b/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ViewHierarchyHandler.swift
+@@ -3,6 +3,10 @@ import XCTest
+ import os
+ import MaestroDriverLib
+ 
++private struct AppLeftForeground: Error {
++    let bundleID: String
++}
++
+ @MainActor
+ struct ViewHierarchyHandler: HTTPHandler {
+ 
+@@ -23,16 +27,31 @@ struct ViewHierarchyHandler: HTTPHandler {
+         }
+ 
+         do {
+-            let foregroundApp = RunningApp.getForegroundApp()
+-            guard let foregroundApp = foregroundApp else {
+-                NSLog("No foreground app found returning springboard app hierarchy")
+-                let springboardHierarchy = try elementHierarchy(xcuiElement: springboardApplication)
+-                let springBoardViewHierarchy = ViewHierarchy.init(axElement: springboardHierarchy, depth: springboardHierarchy.depth())
+-                let body = try JSONEncoder().encode(springBoardViewHierarchy)
+-                return HTTPResponse(statusCode: .ok, body: body)
++            guard var foregroundApp = RunningApp.getForegroundApp() else {
++                return try springboardResponse()
+             }
+             NSLog("[Start] View hierarchy snapshot for \(foregroundApp)")
+-            let appViewHierarchy = try await getAppViewHierarchy(foregroundApp: foregroundApp, excludeKeyboardElements: requestBody.excludeKeyboardElements)
++            var appViewHierarchy: AXElement
++            var appSwitches = 0
++            while true {
++                do {
++                    appViewHierarchy = try await getAppViewHierarchy(foregroundApp: foregroundApp, excludeKeyboardElements: requestBody.excludeKeyboardElements)
++                    break
++                } catch let error as AppLeftForeground {
++                    guard let nextApp = RunningApp.getForegroundApp() else {
++                        return try springboardResponse()
++                    }
++                    guard appSwitches < 2 else {
++                        throw AppError(message: "No accessibility element to snapshot")
++                    }
++                    guard nextApp.bundleID != error.bundleID else {
++                        throw AppError(message: "No accessibility element to snapshot")
++                    }
++                    NSLog("\(error.bundleID) left the foreground mid-snapshot, snapshotting \(nextApp)")
++                    foregroundApp = nextApp
++                    appSwitches += 1
++                }
++            }
+             let viewHierarchy = ViewHierarchy.init(axElement: appViewHierarchy, depth: appViewHierarchy.depth())
+             
+             NSLog("[Done] View hierarchy snapshot for \(foregroundApp) ")
+@@ -47,6 +66,14 @@ struct ViewHierarchyHandler: HTTPHandler {
+         }
+     }
+ 
++    private func springboardResponse() throws -> HTTPResponse {
++        NSLog("No foreground app found returning springboard app hierarchy")
++        let springboardHierarchy = try elementHierarchy(xcuiElement: springboardApplication)
++        let springBoardViewHierarchy = ViewHierarchy.init(axElement: springboardHierarchy, depth: springboardHierarchy.depth())
++        let body = try JSONEncoder().encode(springBoardViewHierarchy)
++        return HTTPResponse(statusCode: .ok, body: body)
++    }
++
+     func getAppViewHierarchy(foregroundApp: XCUIApplication, excludeKeyboardElements: Bool) async throws -> AXElement {
+         // On iOS 26 iPad, com.apple.DocumentManager.DockFolderViewService is reported as the
+         // foreground process on the home screen, but its AX hierarchy is empty. The actual
+@@ -167,7 +194,7 @@ struct ViewHierarchyHandler: HTTPHandler {
+     /// returns errors. XCTest queries fail on trees this deep and end the server's test.
+     private func hierarchyInPieces(_ app: XCUIApplication) throws -> AXElement {
+         guard let axElement = accessibilityElement(of: app) else {
+-            throw AppError(message: "No accessibility element to snapshot")
++            throw AppLeftForeground(bundleID: app.bundleID)
+         }
+         do {
+             let snapshot = try AXClientProxy.sharedClient().snapshot(of: axElement, maxDepth: snapshotMaxDepth)
+-- 
+2.43.0
+

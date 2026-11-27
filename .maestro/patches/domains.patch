@@ -1,0 +1,60 @@
+From 1c855eddec0a17f926cf4c719a587828bb83f255 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Fri, 27 Nov 2026 19:17:55 +0000
+Subject: [PATCH] feat: skip the iOS associated domains refresh on request
+
+on iOS 27 and later, clearState opens every webcredentials domain in Safari and waits a fixed 5 s whenever the app or a framework it embeds can start an authentication session with an HTTPS callback, even when no flow ever starts one. an app that only links such a framework pays those 5 s on every clearState for nothing.
+
+setting MAESTRO_DISABLE_ASSOCIATED_DOMAINS_REFRESH to true skips the refresh, as MAESTRO_DISABLE_UPDATE_CHECK skips the update check.
+---
+ .../kotlin/util/AssociatedDomainsRefresher.kt     |  3 ++-
+ .../kotlin/util/AssociatedDomainsRefresherTest.kt | 15 +++++++++++++++
+ 2 files changed, 17 insertions(+), 1 deletion(-)
+
+diff --git a/maestro-ios-driver/src/main/kotlin/util/AssociatedDomainsRefresher.kt b/maestro-ios-driver/src/main/kotlin/util/AssociatedDomainsRefresher.kt
+index 443c699..6805bf3 100644
+--- a/maestro-ios-driver/src/main/kotlin/util/AssociatedDomainsRefresher.kt
++++ b/maestro-ios-driver/src/main/kotlin/util/AssociatedDomainsRefresher.kt
+@@ -21,11 +21,12 @@ internal class AssociatedDomainsRefresher(
+     private val openUrl: (deviceId: String, url: String) -> Unit,
+     private val terminate: (deviceId: String, bundleId: String) -> Unit,
+     private val wait: () -> Unit = { Thread.sleep(5_000) },
++    private val disabled: Boolean = System.getenv("MAESTRO_DISABLE_ASSOCIATED_DOMAINS_REFRESH")?.toBoolean() == true,
+ ) {
+     private val runtimeMajors = ConcurrentHashMap<String, Int>()
+ 
+     fun refresh(deviceId: String, bundleId: String, appBundle: Path) {
+-        if (runtimeMajor(deviceId) < 27) return
++        if (disabled || runtimeMajor(deviceId) < 27) return
+         val domains = webCredentialsDomains(appBundle)
+         if (domains.isEmpty() || !usesHttpsCallbacks(appBundle)) return
+ 
+diff --git a/maestro-ios-driver/src/test/kotlin/util/AssociatedDomainsRefresherTest.kt b/maestro-ios-driver/src/test/kotlin/util/AssociatedDomainsRefresherTest.kt
+index 95817e0..347deef 100644
+--- a/maestro-ios-driver/src/test/kotlin/util/AssociatedDomainsRefresherTest.kt
++++ b/maestro-ios-driver/src/test/kotlin/util/AssociatedDomainsRefresherTest.kt
+@@ -119,6 +119,21 @@ class AssociatedDomainsRefresherTest {
+         assertThat(calls).containsExactly("runtime", "runtime", "runtime", "runtime")
+     }
+ 
++    @Test
++    fun `does nothing when disabled`() {
++        val refresher = AssociatedDomainsRefresher(
++            runtimeVersion = { calls += "runtime"; runtime },
++            openUrl = { _, url -> calls += "open $url" },
++            terminate = { _, bundleId -> calls += "terminate $bundleId" },
++            wait = { calls += "wait" },
++            disabled = true,
++        )
++
++        refresher.refresh("UDID-27", "com.example", fakeApp("webcredentials:example.com"))
++
++        assertThat(calls).isEmpty()
++    }
++
+     // A minimal .app whose executable is a Mach-O file containing an entitlements plist, the way
+     // simulator builds embed it, next to a non-Mach-O file that must be ignored. The HTTPS-callback
+     // selector goes in the Mach-O file at [httpsCallbackIn], or nowhere when it's null.
+-- 
+2.43.0
+
