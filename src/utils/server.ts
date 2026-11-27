@@ -437,9 +437,11 @@ export async function createCredential(hints?: string[]) {
     sessionId ? { headers: { "x-session-id": sessionId } } : undefined,
   );
   if (!post.ok) {
-    throw Object.assign(new APIError("POST", post, stringOrLegacy(await post.json())), {
+    const body = await post.json();
+    throw Object.assign(new APIError("POST", post, stringOrLegacy(body)), {
       attestation: json.id,
       attachment: "authenticatorAttachment" in json ? json.authenticatorAttachment : undefined,
+      aaguid: typeof body === "object" && "aaguid" in body ? body.aaguid : undefined,
     });
   }
   const { auth: expires, intercomToken, ...credential } = await post.json();

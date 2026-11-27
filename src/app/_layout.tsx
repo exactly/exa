@@ -183,7 +183,7 @@ init({
     }
     return event;
   },
-  spotlight: e2e || (__DEV__ && !!process.env.EXPO_PUBLIC_SENTRY_DSN),
+  spotlight: e2e ? !process.env.EXPO_PUBLIC_SENTRY_DSN : __DEV__ && !!process.env.EXPO_PUBLIC_SENTRY_DSN,
 });
 const useServerFonts = isServer ? useFonts : () => undefined; // eslint-disable-line @eslint-react/no-unnecessary-use-prefix -- ssr conditional
 const useServerAssets = isServer ? useAssets : () => undefined; // eslint-disable-line @eslint-react/no-unnecessary-use-prefix -- ssr conditional
@@ -223,7 +223,8 @@ export default wrap(function RootLayout() {
     const subscription = AppState.addEventListener("change", (state) => {
       if (state === "active") {
         if (shouldReload) {
-          reloadAsync().catch(reportError);
+          if (!queryClient.getQueryData<boolean>(["provider-choice"]) && !queryClient.isMutating())
+            reloadAsync().catch(reportError);
           return;
         }
         checkForUpdateAsync()

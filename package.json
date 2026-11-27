@@ -223,6 +223,9 @@
           "env": "EXPO_PUBLIC_INTERCOM_APP_ID"
         },
         {
+          "env": "GITHUB_ACTIONS"
+        },
+        {
           "env": "NODE_ENV"
         }
       ]

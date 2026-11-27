@@ -1483,7 +1483,9 @@ describe("registration", () => {
       "webauthn.device_type": "singleDevice",
     });
     expect(firstResponse.status).toBe(400);
-    expect(await firstResponse.json()).toEqual(expect.objectContaining({ code: "backup eligibility required" }));
+    expect(await firstResponse.json()).toEqual(
+      expect.objectContaining({ code: "backup eligibility required", aaguid: "08987058-cadc-4b81-b6e1-30de50dcbe96" }),
+    );
     expect(secondResponse.status).toBe(400);
     expect(await secondResponse.json()).toEqual(expect.objectContaining({ code: "no registration" }));
     expect(captureException).not.toHaveBeenCalled();

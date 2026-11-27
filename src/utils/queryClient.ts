@@ -80,9 +80,17 @@ export const hydrated =
 const dehydrateOptions = {
   shouldDehydrateQuery: ({ queryKey, state }: Query) =>
     state.status === "success" &&
-    !["activity", "externalAssets", "capabilities", "deeplink", "ens", "prices", "send", "zxing"].includes(
-      queryKey[0] as string,
-    ) &&
+    ![
+      "activity",
+      "externalAssets",
+      "capabilities",
+      "deeplink",
+      "ens",
+      "prices",
+      "provider-choice",
+      "send",
+      "zxing",
+    ].includes(queryKey[0] as string) &&
     !(queryKey[0] === "card" && queryKey[1] !== "details") &&
     !(queryKey[0] === "kyc" && queryKey[1] !== "status") &&
     !(queryKey[0] === "lifi" && queryKey[1] !== "balances") &&
@@ -116,6 +124,7 @@ queryClient.setQueryDefaults(["credential"], {
 queryClient.setQueryDefaults(["deeplink"], { staleTime: Infinity, gcTime: isServer ? Infinity : 30 * 60_000 });
 queryClient.setQueryDefaults(["getBytecode"], { staleTime: (query) => (query.state.data ? Infinity : 0) });
 queryClient.setQueryDefaults(["intercom"], { gcTime: Infinity, queryFn: skipToken });
+queryClient.setQueryDefaults(["provider-choice"], { gcTime: Infinity, queryFn: skipToken });
 queryClient.setQueryDefaults(["readContract"], {
   queryFn: () => {
     throw new Error("don't refetch");
