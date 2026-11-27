@@ -1,4 +1,4 @@
-From 7fe1a2e99e579530d1bd306e74bd7f3c428a49f2 Mon Sep 17 00:00:00 2001
+From 4fb1192436110e2afbcbf8aad93a4404d05a477c Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Thu, 19 Nov 2026 19:18:51 +0000
 Subject: [PATCH] fix: aim web taps again when they land on another element
@@ -34,10 +34,10 @@ index 12e82ba..efe3386 100644
  
      open class AssertionFailure(
 diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-index a5337bf..a8a11b3 100644
+index 90e3f61..f347590 100644
 --- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
 +++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-@@ -108,6 +108,7 @@ class CdpWebDriver(
+@@ -109,6 +109,7 @@ class CdpWebDriver(
  
      private var webScreenRecorder: WebScreenRecorder? = null
      private var authenticatorId: String? = null
@@ -45,7 +45,7 @@ index a5337bf..a8a11b3 100644
  
      init {
          Maestro::class.java.getResourceAsStream("/maestro-web.js")?.let {
-@@ -285,10 +286,6 @@ class CdpWebDriver(
+@@ -290,10 +291,6 @@ class CdpWebDriver(
  
      private fun scrollToPoint(point: Point): Long {
          ensureOpen()
@@ -56,7 +56,7 @@ index a5337bf..a8a11b3 100644
          val scrolledPixels =
              executeJS("(() => {const delta = ${point.y} - Math.floor(window.innerHeight / 2); window.scrollBy({ top: delta, left: 0, behavior: 'smooth' }); return delta})()") as Int
          sleep(3000L)
-@@ -552,20 +549,34 @@ class CdpWebDriver(
+@@ -581,20 +578,34 @@ class CdpWebDriver(
              return
          }
  
@@ -104,7 +104,7 @@ index a5337bf..a8a11b3 100644
      }
  
      private fun dispatchInputEvents(method: String, events: List<Map<String, Any>>) {
-@@ -851,6 +862,7 @@ class CdpWebDriver(
+@@ -880,6 +891,7 @@ class CdpWebDriver(
      }
  
      override fun waitForAppToSettle(initialHierarchy: ViewHierarchy?, appId: String?, timeoutMs: Int?): ViewHierarchy? {
@@ -113,12 +113,12 @@ index a5337bf..a8a11b3 100644
          while (true) {
              detectWindowChange()
 diff --git a/maestro-client/src/main/resources/maestro-web.js b/maestro-client/src/main/resources/maestro-web.js
-index 81ba56d..8c53726 100644
+index 3d52afc..c5a210c 100644
 --- a/maestro-client/src/main/resources/maestro-web.js
 +++ b/maestro-client/src/main/resources/maestro-web.js
-@@ -288,6 +288,32 @@
-         setTimeout(check, quietMs)
-     })
+@@ -300,6 +300,32 @@
+         return Promise.race([scrolled, hidden]).finally(() => stop.abort())
+     }
  
 +    maestro.guard = (x, y, checkMoved) => {
 +        maestro.unguard?.()
@@ -150,7 +150,7 @@ index 81ba56d..8c53726 100644
      // carry back-references (node -> ... -> node), so stringify throws "Converting circular structure to
      // JSON" and the whole capture fails. Drop DOM nodes and break cycles so serialization always completes.
 diff --git a/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt b/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
-index 5aa06b4..b620c6d 100644
+index 4ed6c00..4778069 100644
 --- a/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
 +++ b/maestro-orchestra/src/main/java/maestro/orchestra/Orchestra.kt
 @@ -435,7 +435,7 @@ class Orchestra(
@@ -173,7 +173,7 @@ index 5aa06b4..b620c6d 100644
              is BackPressCommand -> backPressCommand()
              is HideKeyboardCommand -> hideKeyboardCommand()
              is ScrollCommand -> scrollVerticalCommand()
-@@ -1442,6 +1442,21 @@ class Orchestra(
+@@ -1433,6 +1433,21 @@ class Orchestra(
          return true
      }
  

@@ -1,13 +1,13 @@
-From 4bced5b8c8e4ed5d7f1c89c5c48d5b3046a7ed16 Mon Sep 17 00:00:00 2001
+From 43f929832bc1629b9c0fd7f3a169bca5f5b58d71 Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Wed, 21 Oct 2026 18:53:52 +0000
 Subject: [PATCH] fix: evaluate web scripts in an isolated world
 
-Pages that lock down their globals, such as extension pages under LavaMoat, reject Maestro's script ("property \"maestro\" of globalThis is inaccessible under scuttling mode"), so no element on them can be read. Evaluate in an isolated world instead: it shares the page's DOM but not its globals, and the same world name returns the same context for each document. Properties that page scripts define on custom elements don't exist in that world, so a resource id is read from the attribute whenever its property is missing. A navigation can commit between creating the world and evaluating in it. A numeric execution context id is only unique within a renderer, so after a cross-site commit the old id can name a context of another frame in the new renderer, and the evaluation would answer from there. Evaluate by the world's unique context id instead, read once per document from Runtime.executionContextCreated and kept for the frame until it stops resolving; a replaced document then fails the evaluation before the script has run, with "uniqueContextId not found" once its renderer drops it or "Cannot find context with specified id" while the back/forward cache keeps it, so wait for the execution context of the document that replaced it, then create the world there and evaluate in it. Every wait after the first replaced document shares one response timeout, so a page that keeps replacing its document fails the evaluation once it passes, like a target that never answers. A session that fails while Runtime may still be enabled on it is dropped, so its events never reach a later command.
+Pages that lock down their globals, such as extension pages under LavaMoat, reject Maestro's script ("property \"maestro\" of globalThis is inaccessible under scuttling mode"), so no element on them can be read. Evaluate in an isolated world instead: it shares the page's DOM but not its globals, and the same world name returns the same context for each document. Properties that page scripts define on custom elements don't exist in that world, so a resource id is read from the attribute whenever its property is missing. A navigation can commit between creating the world and evaluating in it. A numeric execution context id is only unique within a renderer, so after a cross-site commit the old id can name a context of another frame in the new renderer, and the evaluation would answer from there. Evaluate by the world's unique context id instead, kept for the frame until it stops resolving, so reading a known document takes one round trip. A replaced document then fails the evaluation with "uniqueContextId not found" or "Cannot find context with specified id" before the script has run, depending on whether the old context still resolves, and the script runs in the next document. A document that goes away during the evaluation, as on a page that reloads while it parses, answers "Inspected target navigated or closed" or "Execution context was destroyed." instead, and the script may already have run, so it runs in the next document once more at most, then fails as a navigation, which the driver retries. When the frame has no unique id yet or it stopped resolving, enable Runtime before creating the world, so the world's own Runtime.executionContextCreated carries its unique id in the same round trip and the evaluation runs right after, before a page that keeps replacing its document drops it again. If that document was replaced too, wait for the execution context of the one that replaced it, then create the world there and evaluate in it. When the target id stops naming a frame, look up the main frame in the frame tree and keep it for the target, since a prerendered page keeps its target when it activates but brings a main frame of its own. All of it, the read by a known unique id included, shares one response timeout, so a page that keeps replacing its document faster than one evaluation fails once it passes, like a target that never answers, and the error says how many documents were replaced on the way. A session that fails while Runtime may still be enabled on it is dropped, so its events never reach a later command.
 ---
  .../src/main/resources/maestro-web.js         |  9 +-
- .../main/kotlin/maestro/web/cdp/CdpClient.kt  | 98 ++++++++++++++++---
- 2 files changed, 91 insertions(+), 16 deletions(-)
+ .../main/kotlin/maestro/web/cdp/CdpClient.kt  | 97 ++++++++++++++++---
+ 2 files changed, 88 insertions(+), 18 deletions(-)
 
 diff --git a/maestro-client/src/main/resources/maestro-web.js b/maestro-client/src/main/resources/maestro-web.js
 index 4c7c578..774cd9c 100644
@@ -30,7 +30,7 @@ index 4c7c578..774cd9c 100644
        if (node.tagName.toLowerCase() === 'body') {
          attributes['is-loading'] = isDocumentLoading()
 diff --git a/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt b/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt
-index e8ff77d..283c426 100644
+index e8ff77d..a99ddca 100644
 --- a/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt
 +++ b/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt
 @@ -6,6 +6,7 @@ import io.ktor.client.request.*
@@ -41,23 +41,25 @@ index e8ff77d..283c426 100644
  import kotlinx.coroutines.isActive
  import kotlinx.coroutines.sync.Mutex
  import kotlinx.coroutines.sync.withLock
-@@ -36,6 +37,7 @@ data class CdpTarget(
+@@ -36,6 +37,8 @@ data class CdpTarget(
  // A live page replies in milliseconds, but some targets never reply at all: Page.captureScreenshot
  // against a non-visible target simply goes quiet. Without a bound that stalls the whole run.
  private const val CDP_RESPONSE_TIMEOUT_MS = 30_000L
-+private val CONTEXT_REPLACED = setOf("uniqueContextId not found", "Cannot find context with specified id")
++private val CONTEXT_MISSING = setOf("uniqueContextId not found", "Cannot find context with specified id")
++private val CONTEXT_LOST = setOf("Inspected target navigated or closed", "Execution context was destroyed.")
  
  /**
   * A simple client for Chrome DevTools Protocol (CDP).
-@@ -56,6 +58,7 @@ class CdpClient(
+@@ -56,6 +59,8 @@ class CdpClient(
      private val json = Json { ignoreUnknownKeys = true }
      private val idCounter = AtomicInteger(1)
      private val evalMutex = Mutex()
-+    private val worlds = mutableMapOf<String, Pair<String, String>>()
++    private val worlds = mutableMapOf<String, String>()
++    private val frames = mutableMapOf<String, String>()
      private val sessionMutex = Mutex()
      private val sessions = mutableMapOf<String, DefaultClientWebSocketSession>()
  
-@@ -90,20 +93,20 @@ class CdpClient(
+@@ -90,20 +95,19 @@ class CdpClient(
          """.trimIndent()
  
          val exprJson = Json.encodeToString(JsonPrimitive(wrapped))
@@ -75,100 +77,97 @@ index e8ff77d..283c426 100644
 -                session.send(Frame.Text(payload))
 -
 -                val text = session.waitForMessage(messageId)
-+                val text = session.evaluateInWorld(target.id, exprJson) ?: withTimeoutOrNull(CDP_RESPONSE_TIMEOUT_MS) {
-+                    var reply: String? = null
-+                    while (reply == null) {
-+                        session.waitForDocument(target.id)
-+                        reply = session.evaluateInWorld(target.id, exprJson)
++                val deadline = System.currentTimeMillis() + CDP_RESPONSE_TIMEOUT_MS
++                var reruns = 1
++                val isReplaced = { text: String ->
++                    when (json.parseToJsonElement(text).jsonObject["error"]?.jsonObject?.get("message")?.jsonPrimitive?.content) {
++                        in CONTEXT_MISSING -> true
++                        in CONTEXT_LOST -> reruns-- > 0 || error("Page navigated or closed while running the script")
++                        else -> false
 +                    }
-+                    reply
-+                } ?: run {
-+                    session.cancel()
-+                    error("The document on ${target.id} kept being replaced for ${CDP_RESPONSE_TIMEOUT_MS}ms")
 +                }
++                val text = session.evaluateInWorld(target.id, exprJson, deadline, isReplaced) ?: session.evaluateInNewWorld(target.id, exprJson, deadline, isReplaced)
  
                  // Parse JSON
                  val root = json.parseToJsonElement(text).jsonObject
-@@ -204,6 +207,79 @@ class CdpClient(
+@@ -204,8 +208,75 @@ class CdpClient(
          }
      }
  
-+    private suspend fun DefaultClientWebSocketSession.evaluateInWorld(frameId: String, exprJson: String): String? {
-+        val worldId = idCounter.getAndIncrement()
-+        send(Frame.Text("""{"id":$worldId,"method":"Page.createIsolatedWorld","params":{"frameId":"$frameId","worldName":"maestro"}}"""))
-+        val contextId = json.parseToJsonElement(waitForMessage(worldId)).jsonObject["result"]
-+            ?.jsonObject?.get("executionContextId")?.jsonPrimitive?.content
-+            ?: error("Could not create an isolated world on $frameId")
-+        val uniqueId = worlds[frameId]?.takeIf { it.first == contextId }?.second
-+            ?: findWorld(frameId, contextId)?.also { worlds[frameId] = contextId to it }
-+            ?: return null
+-    private suspend fun DefaultClientWebSocketSession.waitForMessage(messageId: Int): String {
+-        val text = withTimeoutOrNull(CDP_RESPONSE_TIMEOUT_MS) {
++    private suspend fun DefaultClientWebSocketSession.evaluateInWorld(targetId: String, exprJson: String, deadline: Long, isReplaced: (String) -> Boolean): String? {
++        val uniqueId = worlds.remove(targetId) ?: return null
 +        val messageId = idCounter.getAndIncrement()
-+        val payload = """
-+            {
-+                "id":$messageId,
-+                "method":"Runtime.evaluate",
-+                "params":{"expression":$exprJson,"awaitPromise":true,"uniqueContextId":${Json.encodeToString(JsonPrimitive(uniqueId))}}
-+            }
-+        """.trimIndent()
-+        send(Frame.Text(payload))
-+        val text = waitForMessage(messageId)
-+        if (json.parseToJsonElement(text).jsonObject["error"]?.jsonObject?.get("message")?.jsonPrimitive?.content !in CONTEXT_REPLACED) return text
-+        worlds.remove(frameId)
-+        return null
++        send(Frame.Text("""{"id":$messageId,${evaluateParams(exprJson, uniqueId)}}"""))
++        val text = waitForMessage(messageId, deadline - System.currentTimeMillis())
++        if (isReplaced(text)) return null
++        worlds[targetId] = uniqueId
++        return text
 +    }
 +
-+    private suspend fun DefaultClientWebSocketSession.findWorld(frameId: String, contextId: String): String? {
-+        var uniqueId: String? = null
++    private suspend fun DefaultClientWebSocketSession.evaluateInNewWorld(targetId: String, exprJson: String, deadline: Long, isReplaced: (String) -> Boolean): String {
++        val contexts = mutableMapOf<String, String>()
++        var documents = 0
++        var replaced = 0
++        suspend fun next(): JsonObject {
++            val frame = incoming.receive() as? Frame.Text ?: return JsonObject(emptyMap())
++            val message = json.parseToJsonElement(frame.readText()).jsonObject
++            if (message["method"]?.jsonPrimitive?.content != "Runtime.executionContextCreated") return message
++            val context = message["params"]?.jsonObject?.get("context")?.jsonObject ?: return message
++            if (context["auxData"]?.jsonObject?.get("isDefault")?.jsonPrimitive?.content == "true") documents++
++            if (context["name"]?.jsonPrimitive?.content == "maestro") {
++                contexts[context.getValue("id").jsonPrimitive.content] = context.getValue("uniqueId").jsonPrimitive.content
++            }
++            return message
++        }
++        suspend fun call(payload: String): JsonObject {
++            val messageId = idCounter.getAndIncrement()
++            send(Frame.Text("""{"id":$messageId,$payload}"""))
++            while (true) next().takeIf { it["id"]?.jsonPrimitive?.content == "$messageId" }?.let { return it }
++        }
++        suspend fun createWorld(frameId: String) = call(""""method":"Page.createIsolatedWorld","params":{"frameId":"$frameId","worldName":"maestro"}""")
++            .get("result")?.jsonObject?.get("executionContextId")?.jsonPrimitive?.content
 +        try {
-+            val enableId = idCounter.getAndIncrement()
-+            send(Frame.Text("""{"id":$enableId,"method":"Runtime.enable"}"""))
-+            withTimeoutOrNull(CDP_RESPONSE_TIMEOUT_MS) {
-+                for (frame in incoming) {
-+                    if (frame !is Frame.Text) continue
-+                    val message = json.parseToJsonElement(frame.readText()).jsonObject
-+                    if (message["id"]?.jsonPrimitive?.content == "$enableId") return@withTimeoutOrNull true
-+                    if (message["method"]?.jsonPrimitive?.content != "Runtime.executionContextCreated") continue
-+                    val context = message["params"]?.jsonObject?.get("context")?.jsonObject ?: continue
-+                    if (context["id"]?.jsonPrimitive?.content == contextId &&
-+                        context["name"]?.jsonPrimitive?.content == "maestro" &&
-+                        context["auxData"]?.jsonObject?.get("frameId")?.jsonPrimitive?.content == frameId
-+                    ) uniqueId = context["uniqueId"]?.jsonPrimitive?.content
++            return withTimeoutOrNull(deadline - System.currentTimeMillis()) {
++                call(""""method":"Runtime.enable"""")
++                var reply: String? = null
++                while (reply == null) {
++                    val seen = documents
++                    val contextId = createWorld(frames[targetId] ?: targetId) ?: run {
++                        val frameTree = call(""""method":"Page.getFrameTree"""")["result"]?.jsonObject?.get("frameTree")?.jsonObject
++                        val frameId = frameTree?.get("frame")?.jsonObject?.get("id")?.jsonPrimitive?.content ?: error("Could not find the main frame of $targetId")
++                        frames[targetId] = frameId
++                        createWorld(frameId) ?: error("Could not create an isolated world on $frameId")
++                    }
++                    val uniqueId = contexts[contextId]
++                    val text = uniqueId?.let { call(evaluateParams(exprJson, it)).toString() }
++                    if (uniqueId != null && text != null && !isReplaced(text)) {
++                        worlds[targetId] = uniqueId
++                        reply = text
++                    }
++                    if (reply == null) {
++                        replaced++
++                        while (documents == seen) next()
++                    }
 +                }
-+                null
-+            } ?: error("No message with id $enableId received within ${CDP_RESPONSE_TIMEOUT_MS}ms")
-+            val disableId = idCounter.getAndIncrement()
-+            send(Frame.Text("""{"id":$disableId,"method":"Runtime.disable"}"""))
-+            waitForMessage(disableId)
++                call(""""method":"Runtime.disable"""")
++                reply
++            } ?: error("No reply from $targetId within ${CDP_RESPONSE_TIMEOUT_MS}ms" + if (replaced > 0) " after $replaced replaced documents" else "")
 +        } catch (e: Exception) {
 +            cancel()
 +            throw e
 +        }
-+        return uniqueId
 +    }
 +
-+    private suspend fun DefaultClientWebSocketSession.waitForDocument(frameId: String) {
-+        val enableId = idCounter.getAndIncrement()
-+        send(Frame.Text("""{"id":$enableId,"method":"Runtime.enable"}"""))
-+        var replaced = false
-+        for (frame in incoming) {
-+            if (frame !is Frame.Text) continue
-+            val message = json.parseToJsonElement(frame.readText()).jsonObject
-+            if (message["method"]?.jsonPrimitive?.content != "Runtime.executionContextCreated") continue
-+            val auxData = message["params"]?.jsonObject?.get("context")?.jsonObject?.get("auxData")?.jsonObject ?: continue
-+            if (auxData["frameId"]?.jsonPrimitive?.content == frameId && auxData["isDefault"]?.jsonPrimitive?.content == "true") {
-+                replaced = true
-+                break
-+            }
-+        }
-+        check(replaced) { "The session on $frameId closed before a document replaced the one that navigated" }
-+        val disableId = idCounter.getAndIncrement()
-+        send(Frame.Text("""{"id":$disableId,"method":"Runtime.disable"}"""))
-+        waitForMessage(disableId)
-+    }
++    private fun evaluateParams(exprJson: String, uniqueId: String) =
++        """"method":"Runtime.evaluate","params":{"expression":$exprJson,"awaitPromise":true,"uniqueContextId":${Json.encodeToString(JsonPrimitive(uniqueId))}}"""
 +
-     private suspend fun DefaultClientWebSocketSession.waitForMessage(messageId: Int): String {
-         val text = withTimeoutOrNull(CDP_RESPONSE_TIMEOUT_MS) {
++    private suspend fun DefaultClientWebSocketSession.waitForMessage(messageId: Int, timeoutMs: Long = CDP_RESPONSE_TIMEOUT_MS): String {
++        val text = withTimeoutOrNull(timeoutMs) {
              for (frame in incoming) {
+                 if (frame is Frame.Text) {
+                     val text = frame.readText()
 -- 
 2.43.0
 

@@ -1,20 +1,79 @@
-From fa257f3930e29fff50b631a00b254674c7b3ba7e Mon Sep 17 00:00:00 2001
+From 6c666cb7a6c48d04f5d83c98f5c8ad9babd8966e Mon Sep 17 00:00:00 2001
 From: danilo neves cruz <cruzdanilo@gmail.com>
 Date: Thu, 19 Nov 2026 03:23:23 +0000
 Subject: [PATCH] fix: settle web pages once the dom goes quiet
 
-On web, waitForAppToSettle compared view hierarchies read back to back, ten times at most with 200 ms between reads. A read that is slow enough hides how weak that check is, but two fast reads can land inside the same animation, so a tap aims at a menu that is still moving. Wait in the page instead until it has gone 50 ms and two rendered frames without dom mutations, scrolling or running finite animations, counting from the moment each animation finishes, up to 2 s or the command's timeout, then read the hierarchy once. The page stays watched while it is read, and if anything changed by then, the positions just read may already be stale, so the wait starts over: a layout that only catches up after a quiet spell, like a sheet resizing to content measured on a timer, no longer gets tapped where it was. Counting frames keeps a busy renderer from passing as quiet before it has laid out the last change, so layout-driven moves like a sheet resizing to its content still settle. Cross-origin iframes that are rendered in the viewport get the same wait inside each frame, through the driver, and the page waits again if one of them moved or navigated. The frame id attribute chromedriver sets on a frame it switches into does not count as a change. Hidden and offscreen frames are left out: they render no frames, so their wait could only run out, and nothing in them can be tapped. When the wait runs out, return a fresh hierarchy, or null while the page is still scrolling so a tap right after a scroll re-aims at a stable position. Scripts may now return promises, which evaluate awaits.
+On web, waitForAppToSettle compared view hierarchies read back to back, ten times at most with 200 ms between reads. A read that is slow enough hides how weak that check is, but two fast reads can land inside the same animation, so a tap aims at a menu that is still moving. Wait in the page instead until it has gone 50 ms and two rendered frames without dom mutations, scrolling or running finite animations, counting from the moment each animation finishes, up to 2 s or the command's timeout, then read the hierarchy once. The page stays watched while it is read, and if anything changed by then, the positions just read may already be stale, so the wait starts over: a layout that only catches up after a quiet spell, like a sheet resizing to content measured on a timer, no longer gets tapped where it was. Counting frames keeps a busy renderer from passing as quiet before it has laid out the last change, so layout-driven moves like a sheet resizing to its content still settle. Cross-origin iframes that are rendered in the viewport get the same wait inside each frame, through the driver, and the page waits again if one of them moved or navigated. The frame id attribute chromedriver sets on a frame it switches into does not count as a change. Hidden and offscreen frames are left out: they render no frames, so their wait could only run out, and nothing in them can be tapped. When the wait runs out, return a fresh hierarchy, or null while the page is still scrolling so a tap right after a scroll re-aims at a stable position. Scripts may now return promises, awaited in the same evaluation, and a value that fails to serialize or a rejection comes back as a script error. A caller that waits on the page marks its script as awaited, so a document that goes away under it fails the evaluation as a navigation instead of running the script again in the next document: it already ran and may have changed the page. A settle also tells the driver not to retry it, so the wait gets nothing back and starts over with the time it has left, while a Flutter scroll keeps the driver retry after a navigation. A window that closes under an awaited script ends it there instead of running it again in the window that takes over. A smooth scroll waits for its promise while the page is visible, so the next command starts where the scroll ended, and stops waiting once the page is hidden, before or during the scroll, since that promise only settles once the page shows again. A document that is going away does not count as hidden, so a scroll lost to a navigation still fails as one.
 ---
- .../main/java/maestro/drivers/CdpWebDriver.kt | 54 +++++++++++-
- .../src/main/resources/maestro-web.js         | 83 +++++++++++++++++++
- .../main/kotlin/maestro/web/cdp/CdpClient.kt  |  8 +-
- 3 files changed, 139 insertions(+), 6 deletions(-)
+ .../main/java/maestro/drivers/CdpWebDriver.kt | 70 ++++++++++++--
+ .../src/main/resources/maestro-web.js         | 95 +++++++++++++++++++
+ .../main/kotlin/maestro/web/cdp/CdpClient.kt  | 19 ++--
+ 3 files changed, 170 insertions(+), 14 deletions(-)
 
 diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-index e3ea58e..a5337bf 100644
+index 170b2fb..90e3f61 100644
 --- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
 +++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
-@@ -850,8 +850,56 @@ class CdpWebDriver(
+@@ -233,7 +233,7 @@ class CdpWebDriver(
+         )
+     }
+ 
+-    private fun executeJS(js: String): Any? {
++    private fun executeJS(js: String, awaited: Boolean = false, retry: Boolean = true): Any? {
+         return runBlocking {
+             repeat(JS_EXECUTION_MAX_ATTEMPTS) { attempt ->
+                 var targetId: String? = null
+@@ -249,7 +249,7 @@ class CdpWebDriver(
+                         append(js)
+                         append(");\n})()")
+                     }
+-                    val resultStr = cdpClient.evaluate(expression, target)
++                    val resultStr = cdpClient.evaluate(expression, target, awaited)
+ 
+                     // CDP returns an empty value for expressions that evaluate to undefined (e.g.
+                     // window.scroll(...)). There is nothing to deserialize in that case.
+@@ -263,8 +263,12 @@ class CdpWebDriver(
+                     // briefly for it to settle and retry against a freshly listed target.
+                     val closed = targetId != null && runCatching { cdpClient.listTargets().none { it.id == targetId } }.getOrDefault(false)
+                     if (closed && attempt < JS_EXECUTION_MAX_ATTEMPTS - 1) {
+-                        LOGGER.info("Target $targetId closed while executing JS, retrying against the current window")
++                        LOGGER.info("Target $targetId closed while executing JS, " + if (retry && !awaited) "retrying against the current window" else "not running it again in another window")
+                         detectWindowChange()
++                        if (!retry || awaited) return@runBlocking null
++                    } else if (!retry && isRetryableJsError(e)) {
++                        LOGGER.info("Page navigated while executing JS, leaving the retry to the caller")
++                        return@runBlocking null
+                     } else if (isRetryableJsError(e) && attempt < JS_EXECUTION_MAX_ATTEMPTS - 1) {
+                         LOGGER.warn("Transient error executing JS, retrying (attempt ${attempt + 1})", e)
+                         Thread.sleep(JS_EXECUTION_RETRY_DELAY_MS)
+@@ -301,7 +305,7 @@ class CdpWebDriver(
+     }
+ 
+     private fun scroll(top: String, left: String) {
+-        executeJS("window.scroll({ top: $top, left: $left, behavior: 'smooth' })")
++        executeJS("window.maestro.smoothScroll($top, $left)", awaited = true)
+     }
+ 
+     private fun random(start: Int, end: Int): Int {
+@@ -673,7 +677,7 @@ class CdpWebDriver(
+         
+         if (isFlutter) {
+             // Use Flutter-specific smooth animated scrolling
+-            executeJS("window.maestro.smoothScrollFlutter('UP', 500)")
++            executeJS("window.maestro.smoothScrollFlutter('UP', 500)", awaited = true)
+         } else {
+             // Use standard scroll for regular web pages
+             scroll("window.scrollY + Math.round(window.innerHeight / 2)", "window.scrollX")
+@@ -742,7 +746,7 @@ class CdpWebDriver(
+         
+         if (isFlutter) {
+             // Flutter web: Use smooth animated scrolling with easing
+-            executeJS("window.maestro.smoothScrollFlutter('${swipeDirection.name}', $durationMs)")
++            executeJS("window.maestro.smoothScrollFlutter('${swipeDirection.name}', $durationMs)", awaited = true)
+         } else {
+             // HTML web: Use standard window scrolling
+             when (swipeDirection) {
+@@ -875,8 +879,56 @@ class CdpWebDriver(
          return true
      }
  
@@ -27,7 +86,7 @@ index e3ea58e..a5337bf 100644
 +            val window = currentWindow
 +            val remaining = deadline - System.currentTimeMillis()
 +            if (remaining <= 0) return ViewHierarchy.from(this, false)
-+            val state = executeJS("window.maestro.waitForQuiet($SETTLE_QUIET_MS, $remaining)") as? Map<*, *> ?: continue
++            val state = executeJS("window.maestro.waitForQuiet($SETTLE_QUIET_MS, $remaining)", awaited = true, retry = false) as? Map<*, *> ?: continue
 +            if (state["quiet"] != true) return if (state["scrolling"] == true) null else ViewHierarchy.from(this, false)
 +            val iframes = (state["iframes"] as? List<*>).orEmpty().filterIsInstance<Number>()
 +            val iframeStates = iframes.mapNotNull { waitForIframeQuiet(it.toInt(), deadline) }
@@ -73,7 +132,7 @@ index e3ea58e..a5337bf 100644
      }
  
      override fun waitUntilScreenIsStatic(timeoutMs: Long): Boolean {
-@@ -1069,6 +1117,8 @@ class CdpWebDriver(
+@@ -1120,6 +1172,8 @@ class CdpWebDriver(
          private const val RETRY_FETCHING_CONTENT_DESCRIPTION = 10
          private const val JS_EXECUTION_MAX_ATTEMPTS = 5
          private const val JS_EXECUTION_RETRY_DELAY_MS = 200L
@@ -83,10 +142,10 @@ index e3ea58e..a5337bf 100644
  
          private val LAUNCH_PAGE_LOAD_TIMEOUT: Duration = Duration.ofSeconds(30)
 diff --git a/maestro-client/src/main/resources/maestro-web.js b/maestro-client/src/main/resources/maestro-web.js
-index 774cd9c..81ba56d 100644
+index 774cd9c..3d52afc 100644
 --- a/maestro-client/src/main/resources/maestro-web.js
 +++ b/maestro-client/src/main/resources/maestro-web.js
-@@ -205,6 +205,89 @@
+@@ -205,6 +205,101 @@
          return traverse(document.body)
      }
  
@@ -173,14 +232,34 @@ index 774cd9c..81ba56d 100644
 +        setTimeout(check, quietMs)
 +    })
 +
++    maestro.smoothScroll = (top, left) => {
++        const scrolled = window.scroll({ top, left, behavior: 'smooth' })
++        if (document.visibilityState !== 'visible') return
++        const stop = new AbortController()
++        let leaving = false
++        window.addEventListener('pagehide', () => { leaving = true }, { signal: stop.signal })
++        const hidden = new Promise(resolve => document.addEventListener('visibilitychange', () => {
++            if (!leaving && document.visibilityState === 'hidden') resolve()
++        }, { signal: stop.signal }))
++        return Promise.race([scrolled, hidden]).finally(() => stop.abort())
++    }
++
      // Replacer for JSON.stringify of the snapshot. A live DOM node can leak in and, on some frameworks,
      // carry back-references (node -> ... -> node), so stringify throws "Converting circular structure to
      // JSON" and the whole capture fails. Drop DOM nodes and break cycles so serialization always completes.
 diff --git a/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt b/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt
-index ae67c15..042791b 100644
+index a99ddca..fae3566 100644
 --- a/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt
 +++ b/maestro-web/src/main/kotlin/maestro/web/cdp/CdpClient.kt
-@@ -83,10 +83,10 @@ class CdpClient(
+@@ -81,17 +81,21 @@ class CdpClient(
+      * @param target The CDP target descriptor.
+      * @return A JSON string of the evaluated result.
+      */
+-    suspend fun evaluate(expression: String, target: CdpTarget): String {
++    suspend fun evaluate(expression: String, target: CdpTarget, awaited: Boolean = false): String {
+         val wsUrl = target.webSocketDebuggerUrl ?: error("Target ${target.id} has no WebSocket debugger URL")
+ 
+         // The idea here is that we return JSON object as a String. That makes it much easier to handle
          // as passing objects between JS and outside world would require many round-trips to query the values
          // from the browser.
          val wrapped = """
@@ -188,13 +267,36 @@ index ae67c15..042791b 100644
 -                try { return $expression }
 -                catch(e) { return { __cdpError: e.toString() } }
 -            })())
-+            (async () => {
-+                try { return JSON.stringify(await ($expression)) }
-+                catch(e) { return JSON.stringify({ __cdpError: e.toString() }) }
++            (() => {
++                const fail = e => JSON.stringify({ __cdpError: String(e) })
++                try {
++                    const result = ($expression)
++                    return typeof result?.then === "function" ? Promise.resolve(result).then(value => JSON.stringify(value)).catch(fail) : JSON.stringify(result)
++                }
++                catch(e) { return fail(e) }
 +            })()
          """.trimIndent()
  
          val exprJson = Json.encodeToString(JsonPrimitive(wrapped))
+@@ -99,7 +103,7 @@ class CdpClient(
+         return evalMutex.withLock {
+             withSession(wsUrl) { session ->
+                 val deadline = System.currentTimeMillis() + CDP_RESPONSE_TIMEOUT_MS
+-                var reruns = 1
++                var reruns = if (awaited) 0 else 1
+                 val isReplaced = { text: String ->
+                     when (json.parseToJsonElement(text).jsonObject["error"]?.jsonObject?.get("message")?.jsonPrimitive?.content) {
+                         in CONTEXT_MISSING -> true
+@@ -111,6 +115,9 @@ class CdpClient(
+ 
+                 // Parse JSON
+                 val root = json.parseToJsonElement(text).jsonObject
++                root["result"]?.jsonObject?.get("exceptionDetails")?.jsonObject?.let {
++                    error("JS error: ${it["exception"]?.jsonObject?.get("description")?.jsonPrimitive?.content ?: it["text"]?.jsonPrimitive?.content}")
++                }
+                 val resultObj = root["result"]?.jsonObject
+                     ?.get("result")?.jsonObject
+                     ?: error("Invalid CDP response: $text")
 -- 
 2.43.0
 
