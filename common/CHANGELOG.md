@@ -1,5 +1,13 @@
 # @exactly/common
 
+## 0.0.30
+
+### Patch Changes
+
+- [#2134](https://github.com/exactly/exa/pull/2134) [`ca5348f`](https://github.com/exactly/exa/commit/ca5348fa6f4419b22258e24a5d105b5d212f1735) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🔧 update alchemy networks
+
+- [#2130](https://github.com/exactly/exa/pull/2130) [`211bcff`](https://github.com/exactly/exa/commit/211bcffe0c6c4c82269e4187d57896d311135889) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 decode cross repay proposals with market out
+
 ## 0.0.29
 
 ### Patch Changes

@@ -1,5 +1,21 @@
 # @exactly/mobile
 
+## 1.2.66
+
+### Patch Changes
+
+- [#2130](https://github.com/exactly/exa/pull/2130) [`211bcff`](https://github.com/exactly/exa/commit/211bcffe0c6c4c82269e4187d57896d311135889) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 decode cross repay proposals with market out
+
+- [#1940](https://github.com/exactly/exa/pull/1940) [`ce4468f`](https://github.com/exactly/exa/commit/ce4468f13fe3949e418ea65d3f2afbd743959df2) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 reload updates at safe moments
+
+- [#1906](https://github.com/exactly/exa/pull/1906) [`628b379`](https://github.com/exactly/exa/commit/628b37933d25160fe1891fa06e008e9cdba2b148) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🚸 route card limit to support
+
+- [#2125](https://github.com/exactly/exa/pull/2125) [`e7c672f`](https://github.com/exactly/exa/commit/e7c672f39da0baa372b76d433fe3884ea2bc625d) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 💬 reword unavailable card sheet
+
+- Updated dependencies [[`ca5348f`](https://github.com/exactly/exa/commit/ca5348fa6f4419b22258e24a5d105b5d212f1735), [`211bcff`](https://github.com/exactly/exa/commit/211bcffe0c6c4c82269e4187d57896d311135889), [`a5de772`](https://github.com/exactly/exa/commit/a5de772f89e5bcd7bcf7ac6c5ea32a2711e2d993), [`ec0b88f`](https://github.com/exactly/exa/commit/ec0b88f6fe0b535727b673a3a9218089576719b9), [`303dae9`](https://github.com/exactly/exa/commit/303dae90b0c56c7189dfbbf18b8df91f1085cae2), [`cf0f3e6`](https://github.com/exactly/exa/commit/cf0f3e63fcc8df84ea0b7474d7d67d82268e674b), [`18dc8f0`](https://github.com/exactly/exa/commit/18dc8f0b26bcc976a0157cb78b1129808f7cea05)]:
+  - @exactly/common@0.0.30
+  - @exactly/server@0.7.3
+
 ## 1.2.65
 
 ### Patch Changes

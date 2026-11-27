@@ -1,5 +1,19 @@
 # @exactly/server
 
+## 0.7.3
+
+### Patch Changes
+
+- [#2150](https://github.com/exactly/exa/pull/2150) [`a5de772`](https://github.com/exactly/exa/commit/a5de772f89e5bcd7bcf7ac6c5ea32a2711e2d993) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 📈 send terminal, entry and merchant info on risk assessment
+
+- [#2143](https://github.com/exactly/exa/pull/2143) [`ec0b88f`](https://github.com/exactly/exa/commit/ec0b88f6fe0b535727b673a3a9218089576719b9) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - ⚰️ remove legacy session cutoff
+
+- [#2125](https://github.com/exactly/exa/pull/2125) [`303dae9`](https://github.com/exactly/exa/commit/303dae90b0c56c7189dfbbf18b8df91f1085cae2) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 delete canceled cards before secrets
+
+- [#2145](https://github.com/exactly/exa/pull/2145) [`cf0f3e6`](https://github.com/exactly/exa/commit/cf0f3e63fcc8df84ea0b7474d7d67d82268e674b) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 🐛 fix refund currency on activity
+
+- [#2146](https://github.com/exactly/exa/pull/2146) [`18dc8f0`](https://github.com/exactly/exa/commit/18dc8f0b26bcc976a0157cb78b1129808f7cea05) Thanks [@cruzdanilo](https://github.com/cruzdanilo)! - 📈 send usd and local amounts on risk assessment
+
 ## 0.7.2
 
 ### Patch Changes
