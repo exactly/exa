@@ -51,7 +51,7 @@ import decodePublicKey from "../../utils/decodePublicKey";
 import publicClient from "../../utils/publicClient";
 import { IpAddress } from "../../utils/sardine";
 import validatorHook from "../../utils/validatorHook";
-import validFactories from "../../utils/validFactories";
+import validFactories, { legacyFactories } from "../../utils/validFactories";
 
 import type * as schema from "../../database/schema";
 import type createCredentialFactory from "../../utils/createCredential";
@@ -388,7 +388,7 @@ Submit the signed SIWE message to prove ownership of an Ethereum address. The se
                   eq(credentials.id, assertion.id),
                   inArray(
                     credentials.account,
-                    [...validFactories].map((f) => deriveAddress(f, { ...owner, salt })),
+                    [...validFactories, ...legacyFactories].map((f) => deriveAddress(f, { ...owner, salt })),
                   ),
                 ),
               )
