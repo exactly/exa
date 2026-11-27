@@ -1,0 +1,94 @@
+From 4bf69c84a4bf73bf96a542ea2550d5144f3b17ce Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Fri, 27 Nov 2026 20:59:48 +0000
+Subject: [PATCH] fix: snapshot the iOS app without resolving its query first
+
+Every view hierarchy read snapshots the foreground app through its XCUIApplication query, and XCTest resolves that query inside the app before it asks for the snapshot. On a simulator the resolution takes about 19 ms of every read, more as the app runs longer, and flows read the hierarchy thousands of times.
+
+The handler now asks the accessibility client for a snapshot of the app's accessibility element directly, with the attributes XCTest requests for an element snapshot and the client's default parameters, which carry the max depth the fallback sets. When that request fails, as it does right after launch before the app's accessibility server is up, the read falls back to the query, which waits for the app. It falls back the same way when an XCTest runtime lacks those private APIs or they raise. Every other element still snapshots through its query.
+---
+ .../Handlers/ViewHierarchyHandler.swift       |  2 +-
+ .../Utilities/AXClientProxy.h                 |  2 ++
+ .../Utilities/AXClientProxy.m                 | 36 +++++++++++++++++++
+ 3 files changed, 39 insertions(+), 1 deletion(-)
+
+diff --git a/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ViewHierarchyHandler.swift b/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ViewHierarchyHandler.swift
+index 7b16cca..6ac4576 100644
+--- a/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ViewHierarchyHandler.swift
++++ b/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ViewHierarchyHandler.swift
+@@ -304,7 +304,7 @@ struct ViewHierarchyHandler: HTTPHandler {
+     }
+ 
+     private func elementHierarchy(xcuiElement: XCUIElement) throws -> AXElement {
+-        let snapshot = try xcuiElement.snapshot()
++        let snapshot = try (xcuiElement as? XCUIApplication).flatMap { try? AXClientProxy.sharedClient().snapshot(application: $0) as? XCUIElementSnapshot } ?? xcuiElement.snapshot()
+         return elementHierarchy(snapshot: snapshot, inheritedOffset: .zero, parentWindowContextID: nil)
+     }
+ 
+diff --git a/maestro-ios-xctest-runner/maestro-driver-iosUITests/Utilities/AXClientProxy.h b/maestro-ios-xctest-runner/maestro-driver-iosUITests/Utilities/AXClientProxy.h
+index a3948de..5c78238 100644
+--- a/maestro-ios-xctest-runner/maestro-driver-iosUITests/Utilities/AXClientProxy.h
++++ b/maestro-ios-xctest-runner/maestro-driver-iosUITests/Utilities/AXClientProxy.h
+@@ -9,4 +9,6 @@
+ 
+ - (NSDictionary *)defaultParameters;
+ 
++- (id)snapshotForApplication:(XCUIApplication *)application error:(NSError **)error NS_SWIFT_NAME(snapshot(application:));
++
+ @end
+diff --git a/maestro-ios-xctest-runner/maestro-driver-iosUITests/Utilities/AXClientProxy.m b/maestro-ios-xctest-runner/maestro-driver-iosUITests/Utilities/AXClientProxy.m
+index 13df36d..b1c2f1a 100644
+--- a/maestro-ios-xctest-runner/maestro-driver-iosUITests/Utilities/AXClientProxy.m
++++ b/maestro-ios-xctest-runner/maestro-driver-iosUITests/Utilities/AXClientProxy.m
+@@ -1,7 +1,15 @@
+ #import "AXClientProxy.h"
+ #import "XCAccessibilityElement.h"
++#import "XCAXClient_iOS.h"
++#import "XCUIApplication.h"
+ #import "XCUIDevice.h"
+ 
++@interface NSObject (XCElementSnapshot)
++
+++ (NSArray<NSString *> *)sanitizedElementSnapshotHierarchyAttributesForAttributes:(NSArray<NSString *> *)attributes isMacOS:(BOOL)isMacOS;
++
++@end
++
+ static id AXClient = nil;
+ 
+ @implementation AXClientProxy
+@@ -26,4 +34,32 @@ static id AXClient = nil;
+     return [AXClient defaultParameters];
+ }
+ 
++- (id)snapshotForApplication:(XCUIApplication *)application error:(NSError **)error
++{
++    static NSArray<NSString *> *attributes;
++    static dispatch_once_t onceToken;
++    dispatch_once(&onceToken, ^{
++        Class snapshotClass = NSClassFromString(@"XCElementSnapshot");
++        @try {
++            if ([snapshotClass respondsToSelector:@selector(sanitizedElementSnapshotHierarchyAttributesForAttributes:isMacOS:)]) {
++                attributes = [snapshotClass sanitizedElementSnapshotHierarchyAttributesForAttributes:nil isMacOS:NO];
++            }
++        } @catch (NSException *exception) {
++            attributes = nil;
++        }
++    });
++    if (!attributes || ![AXClient respondsToSelector:@selector(requestSnapshotForElement:attributes:parameters:error:)]) {
++        return nil;
++    }
++    @try {
++        id result = [AXClient requestSnapshotForElement:application.accessibilityElement
++                                             attributes:attributes
++                                             parameters:[AXClient defaultParameters]
++                                                  error:error];
++        return [result isKindOfClass:NSClassFromString(@"XCElementSnapshot")] ? result : [result valueForKey:@"_rootElementSnapshot"];
++    } @catch (NSException *exception) {
++        return nil;
++    }
++}
++
+ @end
+-- 
+2.43.0
+
