@@ -417,9 +417,11 @@ export default function route({ auth, database }: { auth: Auth; database: NodePg
                   usdAmount,
                 });
               }
-              if (operations.length === 0) return;
+              const [first] = operations;
+              if (!first) return;
               return {
                 ...panda.output,
+                currency: first.currency,
                 amount: operations.reduce((sum, { amount }) => sum + amount, 0),
                 cardId,
                 lastFour,
@@ -700,7 +702,6 @@ export const PandaActivity = pipe(
 
     const {
       id,
-      currency,
       timestamp,
       merchant: { city, country, name, state },
     } = details;
@@ -712,12 +713,11 @@ export const PandaActivity = pipe(
             entries.findIndex((other) => attempt(bodies[other.index]) === attempt(bodies[index])) === n),
       )
       .reduce((sum, { operation }) => sum + operation.usdAmount, 0);
-    const exchangeRate = flow.completed?.exchangeRate ?? [flow.created, ...flow.updates].at(-1)?.exchangeRate;
-    if (exchangeRate === undefined) throw new Error("no exchange rate");
+    const latest = flow.completed ?? flow.updates.at(-1) ?? details;
     return {
       id,
-      currency,
-      amount: usdAmount * exchangeRate,
+      currency: latest.currency,
+      amount: usdAmount * latest.exchangeRate,
       merchant: {
         name: name.trim(),
         city: city?.trim(),
@@ -822,7 +822,10 @@ function transformCard(activity: InferOutput<typeof CardActivity>) {
       id: activity.body.id,
       transactionHash: activity.hash,
       timestamp: activity.createdAt,
-      currency: activity.body.spend.localCurrency.toUpperCase(),
+      currency:
+        activity.body.spend.amount < 0 && activity.body.spend.localAmount === activity.body.spend.amount
+          ? "USD"
+          : activity.body.spend.localCurrency.toUpperCase(),
       exchangeRate,
       amount: usdAmount * exchangeRate,
       usdAmount,

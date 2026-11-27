@@ -679,6 +679,203 @@ describe.concurrent("authenticated", () => {
       expect(panda.output.status).toBe("pending");
     });
 
+    it("returns refunds settled in usd with usd currency", () => {
+      const panda = safeParse(PandaActivity, {
+        type: "panda",
+        hashes: [zeroHash],
+        borrows: [null],
+        bodies: [
+          {
+            action: "completed",
+            resource: "transaction",
+            createdAt: new Date(0).toISOString(),
+            body: {
+              id: "refund",
+              type: "spend",
+              spend: {
+                ...spendTemplate,
+                amount: -1053,
+                authorizedAmount: -1053,
+                localAmount: -1053,
+                status: "completed",
+              },
+            },
+          },
+        ],
+      });
+
+      expect(panda.success).toBe(true);
+      if (!panda.success) return;
+      expect(panda.output).toStrictEqual({
+        id: "refund",
+        currency: "USD",
+        amount: -10.53,
+        merchant: {
+          name: "once",
+          city: "Buenos Aires",
+          country: "ARG",
+          state: "",
+          icon: "https://storage.googleapis.com/icon/icon.png",
+        },
+        operations: [],
+        timestamp: new Date(0).toISOString(),
+        type: "panda",
+        usdAmount: -10.53,
+        status: "settled",
+      });
+    });
+
+    it("returns refunds settled in local currency with local currency", () => {
+      const panda = safeParse(PandaActivity, {
+        type: "panda",
+        hashes: [zeroHash],
+        borrows: [null],
+        bodies: [
+          {
+            action: "completed",
+            resource: "transaction",
+            createdAt: new Date(0).toISOString(),
+            body: {
+              id: "refund",
+              type: "spend",
+              spend: {
+                ...spendTemplate,
+                amount: -1053,
+                authorizedAmount: -1053,
+                localAmount: -1_500_000,
+                status: "completed",
+              },
+            },
+          },
+        ],
+      });
+
+      expect(panda.success).toBe(true);
+      if (!panda.success) return;
+      expect(panda.output).toStrictEqual({
+        id: "refund",
+        currency: "ARS",
+        amount: expect.closeTo(-15_000), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+        merchant: {
+          name: "once",
+          city: "Buenos Aires",
+          country: "ARG",
+          state: "",
+          icon: "https://storage.googleapis.com/icon/icon.png",
+        },
+        operations: [],
+        timestamp: new Date(0).toISOString(),
+        type: "panda",
+        usdAmount: -10.53,
+        status: "settled",
+      });
+    });
+
+    it("returns refunds on a purchase row with the refund currency", () => {
+      const purchase = { ...spendTemplate, amount: 1053, localAmount: 1_500_000 };
+      const panda = safeParse(PandaActivity, {
+        type: "panda",
+        hashes: [zeroHash, zeroHash, zeroHash],
+        borrows: [null, null, null],
+        bodies: [
+          {
+            action: "created",
+            resource: "transaction",
+            createdAt: new Date(0).toISOString(),
+            body: { id: "refund", type: "spend", spend: { ...purchase, status: "pending" } },
+          },
+          {
+            action: "completed",
+            resource: "transaction",
+            createdAt: new Date(1).toISOString(),
+            body: { id: "refund", type: "spend", spend: { ...purchase, authorizedAmount: 1053, status: "completed" } },
+          },
+          {
+            action: "completed",
+            resource: "transaction",
+            createdAt: new Date(2).toISOString(),
+            body: {
+              id: "refund",
+              type: "spend",
+              spend: { ...spendTemplate, amount: -500, authorizedAmount: null, localAmount: -500, status: "completed" },
+            },
+          },
+        ],
+      });
+
+      expect(panda.success).toBe(true);
+      if (!panda.success) return;
+      expect(panda.output).toStrictEqual({
+        id: "refund",
+        currency: "USD",
+        amount: expect.closeTo(5.53), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+        merchant: {
+          name: "once",
+          city: "Buenos Aires",
+          country: "ARG",
+          state: "",
+          icon: "https://storage.googleapis.com/icon/icon.png",
+        },
+        operations: [],
+        timestamp: new Date(0).toISOString(),
+        type: "panda",
+        usdAmount: expect.closeTo(5.53), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
+        status: "settled",
+      });
+    });
+
+    it("returns pending purchases with the currency of the last update", () => {
+      const panda = safeParse(PandaActivity, {
+        type: "panda",
+        hashes: [zeroHash, zeroHash],
+        borrows: [null, null],
+        bodies: [
+          {
+            action: "created",
+            resource: "transaction",
+            createdAt: new Date(0).toISOString(),
+            body: { id: "update", type: "spend", spend: { ...spendTemplate, amount: 1000, localAmount: 1_200_000 } },
+          },
+          {
+            action: "updated",
+            resource: "transaction",
+            createdAt: new Date(1).toISOString(),
+            body: {
+              id: "update",
+              type: "spend",
+              spend: {
+                ...spendTemplate,
+                amount: 1500,
+                authorizationUpdateAmount: 500,
+                localAmount: 7500,
+                localCurrency: "BRL",
+              },
+            },
+          },
+        ],
+      });
+
+      expect(panda.success).toBe(true);
+      if (!panda.success) return;
+      expect(panda.output).toStrictEqual({
+        id: "update",
+        currency: "BRL",
+        amount: 75,
+        merchant: {
+          name: "once",
+          city: "Buenos Aires",
+          country: "ARG",
+          state: "",
+          icon: "https://storage.googleapis.com/icon/icon.png",
+        },
+        operations: [],
+        timestamp: new Date(0).toISOString(),
+        type: "panda",
+        usdAmount: 15,
+        status: "pending",
+      });
+    });
+
     describe("retried collects", () => {
       const hashes = [padHex("0x1", { size: 32 }), padHex("0x2", { size: 32 }), padHex("0x3", { size: 32 })];
       const borrow = { timestamp: 1n, events: [{ maturity: 2_419_200n, assets: 232_530_000n, fee: 1_160_000n }] };
@@ -1082,6 +1279,78 @@ describe.concurrent("authenticated", () => {
         await database.delete(transactions).where(eq(transactions.id, leak.transactionId));
         await database.delete(cards).where(eq(cards.id, leak.cardId));
         await database.delete(credentials).where(eq(credentials.id, leak.credentialId));
+      }
+    });
+
+    it("keeps refunded purchase rows unchanged when filtering by maturity", async () => {
+      const borrows = await anvilClient.getContractEvents({
+        abi: marketAbi,
+        eventName: "BorrowAtMaturity",
+        address: marketUSDCAddress,
+        args: { borrower: account },
+        toBlock: "latest",
+        fromBlock: 0n,
+        strict: true,
+      });
+      const borrowHashes = new Set(
+        borrows
+          .filter(({ args: { maturity: eventMaturity } }) => eventMaturity === BigInt(maturity))
+          .map(({ transactionHash }) => transactionHash),
+      );
+      const source = await database.query.transactions
+        .findMany({ columns: { hashes: true, payload: true } })
+        .then((rows) =>
+          rows.find(
+            ({ hashes, payload }) =>
+              hashes.some((hash) => borrowHashes.has(hash as Hash)) &&
+              (payload as { bodies?: unknown[] }).bodies?.length === 2,
+          ),
+        );
+      assert.ok(source, "expected source transaction");
+      const id = `refund-transaction-${Date.now()}`;
+      const payload = source.payload as { bodies: { body: { id: string; spend: object } }[] };
+      try {
+        await database.insert(transactions).values([
+          {
+            id,
+            cardId: "second-activity-card",
+            hashes: [...source.hashes, zeroHash],
+            payload: {
+              ...payload,
+              bodies: [
+                ...payload.bodies.map((body) => ({ ...body, body: { ...body.body, id } })),
+                {
+                  action: "completed",
+                  resource: "transaction",
+                  createdAt: new Date().toISOString(),
+                  body: {
+                    id,
+                    type: "spend",
+                    spend: { ...spendTemplate, amount: -500, authorizedAmount: null, localAmount: -500 },
+                  },
+                },
+              ],
+            },
+          },
+        ]);
+        const response = await appClient.index.$get(
+          { query: { include: "card", maturity } },
+          { headers: { "test-credential-id": "bob" } },
+        );
+        const json = (await response.json()) as { currency: string; id: string; operations: { id: string }[] }[];
+        const purchase = json.find((row) => row.id === payload.bodies[0]?.body.id);
+        assert.ok(purchase, "expected purchase row");
+
+        expect(response.status).toBe(200);
+        expect(captureException).not.toHaveBeenCalled();
+        expect(purchase.currency).toBe("ARS");
+        expect(json.find((row) => row.id === id)).toStrictEqual({
+          ...purchase,
+          id,
+          operations: purchase.operations.map((operation) => ({ ...operation, id })),
+        });
+      } finally {
+        await database.delete(transactions).where(eq(transactions.id, id));
       }
     });
 
