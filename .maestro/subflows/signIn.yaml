@@ -31,8 +31,7 @@ appId: ${APP_ID ?? "app.exactly"}
           commands:
             - scrollUntilVisible: { element: ".*(${passkey}).*" }
             - tapOn: .*(${passkey}).*
-            - runFlow: { when: { visible: Use Selected Passkey }, commands: [{ tapOn: Use Selected Passkey }] }
-            - runFlow: { when: { visible: Continue }, commands: [{ tapOn: Continue }] }
+            - runFlow: { when: { platform: ios }, commands: [{ tapOn: Use Selected Passkey }] }
             - matchBiometrics
 - runFlow:
     when: { true: "${method === 'metamask'}" }
