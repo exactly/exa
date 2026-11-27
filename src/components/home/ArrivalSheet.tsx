@@ -23,6 +23,7 @@ import {
   swappable,
   tokenCorrelation,
 } from "../../utils/lifi";
+import networkOptions from "../../utils/networkOptions";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
@@ -59,6 +60,7 @@ export default function ArrivalSheet({ focused }: { focused: boolean }) {
     (id) => allowlists[String(id)] && alchemyChains.get(id)?.smartAccount,
   );
   const factories = useQueries({ queries: networks.map((id) => deployedOptions(credential?.factory, id)) });
+  const previews = useQueries({ queries: networks.map((id) => networkOptions(address, id)) });
   const ready =
     !!dismissed &&
     kyc &&
@@ -69,11 +71,15 @@ export default function ArrivalSheet({ focused }: { focused: boolean }) {
     factories.every(({ isLoading }) => !isLoading);
   const allowed = swappable(allowlists[chain.id], markets);
   const collateral = (symbol: string) => supportedAssets.includes(correlate(symbol));
-  const deposited = new Set(
-    markets
-      ?.filter(({ isFrozen, nonCollateral }) => !isFrozen && !nonCollateral)
-      .flatMap(({ asset, symbol }) => [asset.toLowerCase(), ...(symbol === "exaWETH" ? [zeroAddress] : [])]),
-  );
+  const deposited = new Set([
+    ...(markets ?? [])
+      .filter(({ isFrozen, nonCollateral }) => !isFrozen && !nonCollateral)
+      .flatMap(({ asset, symbol }) => [
+        `${chain.id}:${asset.toLowerCase()}`,
+        ...(symbol === "exaWETH" ? [`${chain.id}:${zeroAddress}`] : []),
+      ]),
+    ...networks.flatMap((id, index) => (previews[index]?.data?.collateral ?? []).map((asset) => `${id}:${asset}`)),
+  ]);
   const [arrival, setArrival] = useState<ExternalAsset>();
   const pending = [...externalAssets, ...crossChainAssets]
     .filter(
@@ -83,11 +89,22 @@ export default function ArrivalSheet({ focused }: { focused: boolean }) {
         (asset.chainId === chain.id
           ? allowed.has(asset.address.toLowerCase())
           : factories[networks.indexOf(asset.chainId)]?.data === true &&
+            previews[networks.indexOf(asset.chainId)]?.isSuccess === true &&
             isSendable(allowlists[asset.chainId], asset.address)) &&
-        !(asset.chainId === chain.id && (portfolio.collateralUSD > 0n || deposited.has(asset.address.toLowerCase()))) &&
+        !(asset.chainId === chain.id && portfolio.collateralUSD > 0n) &&
+        !deposited.has(`${asset.chainId}:${asset.address.toLowerCase()}`) &&
         !dismissed?.includes(`${asset.chainId}:${asset.address.toLowerCase()}`),
     )
     .sort((a, b) => b.usdValue - a.usdValue);
+  if (
+    arrival &&
+    !pending.some(
+      ({ chainId, address: asset }) =>
+        chainId === arrival.chainId && asset.toLowerCase() === arrival.address.toLowerCase(),
+    )
+  ) {
+    setArrival(undefined);
+  }
   if (ready && fetchStatus === "idle" && focused && pending[0] && !arrival) setArrival(pending[0]);
   const { data: chains } = useQuery({ ...lifiChainsOptions, enabled: !!arrival && arrival.chainId !== chain.id });
   if (!ready || !arrival || !focused) return null;
