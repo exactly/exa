@@ -11,7 +11,7 @@ import { exaAccountFactoryAddress } from "@exactly/common/generated/chain";
 import { Address } from "@exactly/common/validation";
 
 import decodePublicKey from "./decodePublicKey";
-import validFactories from "./validFactories";
+import validFactories, { legacyFactories } from "./validFactories";
 import { credentials } from "../database/schema";
 
 import type { IpAddress } from "./sardine";
@@ -55,7 +55,7 @@ export default function createCredential({
             eq(credentials.id, credentialId),
             inArray(
               credentials.account,
-              [...validFactories].map((f) => deriveAddress(f, { x, y, salt })),
+              [...validFactories, ...legacyFactories].map((f) => deriveAddress(f, { x, y, salt })),
             ),
           ),
         })

@@ -40,6 +40,7 @@ import createSegment from "../../utils/segment";
 import validFactories from "../../utils/validFactories";
 import createWalletExtension from "../../utils/walletExtension";
 
+import type * as ValidFactories from "../../utils/validFactories";
 import type createSubscribe from "../../workers/subscribe/queue";
 import type { Span } from "@sentry/node";
 import type * as SimpleWebAuthn from "@simplewebauthn/server";
@@ -49,6 +50,12 @@ import type * as ViemSiwe from "viem/siwe";
 const WALLET_EXTENSION_EXPIRY = 60 * 24 * 60 * 60_000;
 
 vi.mock("@sentry/node", { spy: true });
+vi.mock("../../utils/validFactories", async (importOriginal) => ({
+  ...(await importOriginal<typeof ValidFactories>()),
+  legacyFactories: new Set([legacyFactory]),
+}));
+
+const legacyFactory = vi.hoisted(() => "0x0000000000000000000000000000000000012345" as const);
 
 const walletExtension = createWalletExtension(parse(pipe(string(), nonEmpty()), env.WALLET_EXTENSION_SECRET));
 const tenant = parse(Address, "0xB527Bc180aC0c64602a79e62D0403660225b8198");
@@ -1097,6 +1104,70 @@ describe("authentication", () => {
     await expect(redis.exists("session:test-session")).resolves.toBe(0);
   });
 
+  it("signs in to a legacy factory account using siwe", async () => {
+    vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
+    const id = own(parse(Address, slice(keccak256(toBytes("auth:siwe-legacy-factory")), 12)));
+    const publicKey = new Uint8Array(hexToBytes(id));
+    const owner = decodePublicKey(publicKey);
+    const account = own(deriveAddress(legacyFactory, { ...owner, salt: tenant }));
+    await database
+      .insert(credentials)
+      .values([{ id: account, publicKey, factory: legacyFactory, salt: tenant, account }]);
+
+    const response = await appClient.index.$post(
+      { json: { method: "siwe", id, signature: "0xdeadbeef" } },
+      { headers: { cookie: "session_id=test-session", origin: business } },
+    );
+
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toStrictEqual({
+      credentialId: id,
+      factory: legacyFactory,
+      ...owner,
+      salt: tenant,
+      auth: expect.any(Number) as number,
+      expires: expect.any(Number) as number,
+      intercomToken: expect.any(String) as string,
+    });
+    const { credential_id: signed } = await parseSigned(
+      response.headers.getSetCookie().find((cookie) => cookie.startsWith("credential_id=")) ?? "",
+      authSecret,
+      "credential_id",
+    );
+    expect(String(signed).split(".")).toStrictEqual([account, String("expires" in body && body.expires)]);
+    await expect(
+      database.query.credentials.findMany({
+        where: eq(credentials.publicKey, publicKey),
+        columns: { id: true, account: true, factory: true, salt: true },
+      }),
+    ).resolves.toStrictEqual([{ id: account, account, factory: legacyFactory, salt: tenant }]);
+    expect(sardineCustomer).not.toHaveBeenCalled();
+    expect(identify).not.toHaveBeenCalled();
+    expect(subscribe.enqueue).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("rejects new accounts on a legacy factory using siwe", async () => {
+    vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
+    const id = parse(Address, slice(keccak256(toBytes("auth:siwe-legacy-new")), 12));
+    const response = await appClient.index.$post(
+      { json: { method: "siwe", id, signature: "0xdeadbeef" }, query: { factory: legacyFactory } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual(expect.objectContaining({ code: "bad factory" }));
+    await expect(
+      database.query.credentials.findMany({ where: eq(credentials.publicKey, new Uint8Array(hexToBytes(id))) }),
+    ).resolves.toStrictEqual([]);
+    expect(sardineCustomer).not.toHaveBeenCalled();
+    expect(identify).not.toHaveBeenCalled();
+    expect(subscribe.enqueue).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
   it("signs in when another backend creates the siwe credential first", async () => {
     const factory = [...validFactories].find((f) => f !== exaAccountFactoryAddress);
     assert.ok(factory);
@@ -1346,6 +1417,26 @@ describe("registration", () => {
     expect(await response.json()).toMatchObject({
       authenticatorSelection: { residentKey: "required", userVerification: "required" },
     });
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("rejects registration on a legacy factory using siwe", async () => {
+    vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
+    const id = parse(Address, slice(keccak256(toBytes("auth:siwe-legacy-registration")), 12));
+    const response = await registrationAppClient.index.$post(
+      { json: { method: "siwe", id, signature: "0xdeadbeef" }, query: { factory: legacyFactory } },
+      { headers: { cookie: "session_id=test-session", origin: consumer } },
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toStrictEqual({ code: "bad factory" });
+    await expect(redis.get("session:test-session")).resolves.toBe("test-challenge");
+    await expect(
+      database.query.credentials.findMany({ where: eq(credentials.publicKey, new Uint8Array(hexToBytes(id))) }),
+    ).resolves.toStrictEqual([]);
+    expect(sardineCustomer).not.toHaveBeenCalled();
+    expect(identify).not.toHaveBeenCalled();
+    expect(subscribe.enqueue).not.toHaveBeenCalled();
     expect(captureException).not.toHaveBeenCalled();
   });
 
@@ -1616,6 +1707,42 @@ describe("registration", () => {
     ).resolves.toStrictEqual([
       { id, factory, salt: zeroAddress },
       { id: account, factory, salt: tenant },
+    ]);
+  });
+
+  it("rejects siwe registration of a second account in a tenant with a legacy factory account", async () => {
+    vi.spyOn(publicClient.default, "verifySiweMessage").mockResolvedValue(true);
+    const factory = parse(Address, exaAccountFactoryAddress);
+    const id = own(parse(Address, slice(keccak256(toBytes("auth:siwe-legacy-tenant")), 12)));
+    const publicKey = new Uint8Array(hexToBytes(id));
+    const owner = decodePublicKey(publicKey);
+    const account = own(deriveAddress(legacyFactory, { ...owner, salt: tenant }));
+    await database.insert(credentials).values([
+      { id, publicKey, factory, salt: zeroAddress, account: deriveAddress(factory, { ...owner, salt: zeroAddress }) },
+      { id: account, publicKey, factory: legacyFactory, salt: tenant, account },
+    ]);
+
+    const response = await registrationAppClient.index.$post(
+      { json: { method: "siwe", id, signature: "0xdeadbeef" } },
+      { headers: { cookie: "session_id=test-session", origin: business } },
+    );
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toStrictEqual({ code: "already registered" });
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(sardineCustomer).not.toHaveBeenCalled();
+    expect(subscribe.enqueue).not.toHaveBeenCalled();
+    expect(identify).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+    await expect(
+      database.query.credentials.findMany({
+        where: eq(credentials.publicKey, publicKey),
+        columns: { id: true, factory: true, salt: true },
+        orderBy: credentials.salt,
+      }),
+    ).resolves.toStrictEqual([
+      { id, factory, salt: zeroAddress },
+      { id: account, factory: legacyFactory, salt: tenant },
     ]);
   });
 
