@@ -1,0 +1,66 @@
+From 8867be57dbd4131d8a6f9dbbacc6563e7d5febea Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Fri, 27 Nov 2026 20:50:53 +0000
+Subject: [PATCH] fix: reuse the iOS status bar snapshot for up to a second
+
+Every view hierarchy read snapshots SpringBoard's status bar, which takes about 15 ms on a simulator even once the existence check is skipped, and flows read the hierarchy several times a second while they wait for an element. The status bar shows the clock, the connection and the battery, and rarely changes while one app stays in front.
+
+The handler now keeps the status bar it snapshotted over an app and returns it again for reads in the next second while the same app is in front with the same frame. Another app, a new app frame such as after a rotation, SpringBoard in front or an older snapshot takes a new one.
+---
+ .../Routes/Handlers/ViewHierarchyHandler.swift    | 15 +++++++++++++--
+ 1 file changed, 13 insertions(+), 2 deletions(-)
+
+diff --git a/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ViewHierarchyHandler.swift b/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ViewHierarchyHandler.swift
+index 5364431..af57b20 100644
+--- a/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ViewHierarchyHandler.swift
++++ b/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Handlers/ViewHierarchyHandler.swift
+@@ -10,6 +10,8 @@ struct ViewHierarchyHandler: HTTPHandler {
+     private let snapshotMaxDepth = 60
+     private static var deviceFrame: CGRect?
+     private static var statusBarShown = false
++    private static let maxStatusBarAge: TimeInterval = 1
++    private static var statusBar: (hierarchy: AXElement, bundleID: String, appFrame: AXFrame, takenAt: Date)?
+ 
+     private let logger = Logger(
+         subsystem: Bundle.main.bundleIdentifier!,
+@@ -62,7 +64,7 @@ struct ViewHierarchyHandler: HTTPHandler {
+             Self.statusBarShown = false
+         }
+         let statusBars = logger.measure(message: "Fetch status bar hierarchy") {
+-            fullStatusBars(springboardApplication)
++            fullStatusBars(springboardApplication, for: foregroundApp.bundleID, appFrame: appHierarchy.frame)
+         } ?? []
+         
+         // Fetch Safari WebView hierarchy for iOS 26+ (runs in separate SafariViewService process)
+@@ -253,18 +255,27 @@ struct ViewHierarchyHandler: HTTPHandler {
+         return try? elementHierarchy(xcuiElement: alert)
+     }
+     
+-    func fullStatusBars(_ element: XCUIApplication) -> [AXElement]? {
++    func fullStatusBars(_ element: XCUIApplication, for bundleID: String, appFrame: AXFrame) -> [AXElement]? {
++        if let cached = Self.statusBar, cached.bundleID == bundleID, cached.appFrame == appFrame, Date().timeIntervalSince(cached.takenAt) < Self.maxStatusBarAge {
++            return [cached.hierarchy]
++        }
++        Self.statusBar = nil
++
+         let statusBar = element.statusBars.firstMatch
+         guard Self.statusBarShown || statusBar.exists else {
+             return nil
+         }
+         
++        let takenAt = Date()
+         guard let hierarchy = try? elementHierarchy(xcuiElement: statusBar) else {
+             Self.statusBarShown = false
+             return nil
+         }
+ 
+         Self.statusBarShown = true
++        if bundleID != RunningApp.springboardBundleId {
++            Self.statusBar = (hierarchy, bundleID, appFrame, takenAt)
++        }
+         return [hierarchy]
+     }
+     
+-- 
+2.43.0
+
