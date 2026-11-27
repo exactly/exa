@@ -23,6 +23,7 @@ import { PublicKey } from "webauthn-owner-plugin/IWebauthnOwnerPlugin.sol";
 
 import { EXA } from "@exactly/protocol/periphery/EXA.sol";
 
+import { JSON } from "../script/JSON.sol";
 import { AdminIsDeployer, NotPrepared, Redeployer, TargetNonceTooLow } from "../script/Redeployer.s.sol";
 import { ExaAccountFactory } from "../src/ExaAccountFactory.sol";
 import { ExaPlugin } from "../src/ExaPlugin.sol";
@@ -237,7 +238,24 @@ contract RedeployerTest is ForkTest {
 
     assertTrue(factoryOP.code.length > 0, "factory not deployed at same address");
 
-    redeployer.deployExaFactory(factoryOP);
+    redeployer.deployExaFactories();
+    string memory deploy = vm.readFile("deploy.json");
+    address[] memory proxies = JSON.readChainAddressArray(deploy, ".factory.legacy");
+    for (uint256 i = 0; i < proxies.length; ++i) {
+      assertEq(
+        address(uint160(uint256(vm.load(proxies[i], ERC1967Utils.IMPLEMENTATION_SLOT)))),
+        address(redeployer.factory()),
+        "proxy not upgraded"
+      );
+    }
+    string[] memory versions = vm.parseJsonStringArray(deploy, ".factory.versions");
+    for (uint256 i = 0; i < versions.length; ++i) {
+      assertGt(
+        CREATE3_FACTORY.getDeployed(acct("admin"), keccak256(abi.encode("Exa Plugin", versions[i]))).code.length,
+        0,
+        "factory not deployed"
+      );
+    }
     ProposalManager p = ProposalManager(
       address(ExaPlugin(payable(address(ExaAccountFactory(payable(factoryOP)).EXA_PLUGIN()))).proposalManager())
     );

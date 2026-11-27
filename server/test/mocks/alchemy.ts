@@ -1,8 +1,13 @@
+import { arbitrum, bsc, mainnet, optimism } from "@account-kit/infra";
+import { zora } from "viem/chains"; // cspell:ignore zora
 import { vi } from "vitest";
 
-import type alchemy from "../../utils/alchemy";
+import chain from "@exactly/common/generated/chain";
+
+import type * as alchemy from "../../utils/alchemy";
 
 const {
+  activityChain,
   addWebhookAddresses,
   createAlchemy,
   createWebhook,
@@ -12,17 +17,18 @@ const {
   headerValidator,
   setWebhookActive,
 } = vi.hoisted(() => ({
-  addWebhookAddresses: vi.fn<ReturnType<typeof alchemy>["addWebhookAddresses"]>().mockResolvedValue(),
+  activityChain: vi.fn<typeof alchemy.activityChain>(),
+  addWebhookAddresses: vi.fn<ReturnType<typeof alchemy.default>["addWebhookAddresses"]>().mockResolvedValue(),
   createAlchemy: vi.fn<(key: string) => void>(),
-  findWebhook: vi.fn<ReturnType<typeof alchemy>["findWebhook"]>().mockResolvedValue(undefined), // eslint-disable-line unicorn/no-useless-undefined -- no hooks
-  createWebhook: vi.fn<ReturnType<typeof alchemy>["createWebhook"]>(),
-  getWebhookAddresses: vi.fn<ReturnType<typeof alchemy>["getWebhookAddresses"]>().mockResolvedValue({
+  findWebhook: vi.fn<ReturnType<typeof alchemy.default>["findWebhook"]>().mockResolvedValue(undefined), // eslint-disable-line unicorn/no-useless-undefined -- no hooks
+  createWebhook: vi.fn<ReturnType<typeof alchemy.default>["createWebhook"]>(),
+  getWebhookAddresses: vi.fn<ReturnType<typeof alchemy.default>["getWebhookAddresses"]>().mockResolvedValue({
     data: [],
     pagination: { cursors: {}, total_count: 0 },
   }),
-  getWebhooks: vi.fn<ReturnType<typeof alchemy>["getWebhooks"]>().mockResolvedValue([]),
+  getWebhooks: vi.fn<ReturnType<typeof alchemy.default>["getWebhooks"]>().mockResolvedValue([]),
   headerValidator: vi.fn<(signingKeys: Set<string>) => void>(),
-  setWebhookActive: vi.fn<ReturnType<typeof alchemy>["setWebhookActive"]>().mockResolvedValue(),
+  setWebhookActive: vi.fn<ReturnType<typeof alchemy.default>["setWebhookActive"]>().mockResolvedValue(),
 }));
 
 vi.mock(import("../../utils/alchemy"), async (importOriginal) => {
@@ -41,15 +47,28 @@ vi.mock(import("../../utils/alchemy"), async (importOriginal) => {
     Promise.resolve({
       id: "mock-webhook-id",
       is_active: true,
-      network: network ?? original.network(),
+      network: network ?? chain.alchemyNetwork,
       signing_key: "mock-signing-key",
       webhook_type,
       webhook_url,
     }),
   );
+  const extra = new Map(
+    Object.entries({
+      ARB_MAINNET: arbitrum,
+      BNB_MAINNET: bsc,
+      ETH_MAINNET: mainnet,
+      OPT_MAINNET: optimism,
+      ZORA_MAINNET: zora,
+    }).map(([name, current]) => [
+      name,
+      { ...current, alchemyNetwork: name } as ReturnType<typeof original.activityChain>,
+    ]),
+  );
+  activityChain.mockImplementation((network) => extra.get(network) ?? original.activityChain(network));
   return {
     ...original,
-    activityNetworks: () => original.NETWORKS,
+    activityChain,
     default: (key: string) => {
       createAlchemy(key);
       return {
@@ -72,6 +91,7 @@ vi.mock(import("../../utils/alchemy"), async (importOriginal) => {
 });
 
 export {
+  activityChain,
   addWebhookAddresses,
   createAlchemy,
   createWebhook,
