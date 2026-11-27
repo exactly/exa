@@ -227,8 +227,13 @@ export default function hook({
                 customerId: card.credential.id,
                 transaction: {
                   id: payload.body.id ?? payload.id,
-                  currencyCode: payload.body.spend.localCurrency,
-                  amount: Math.abs(payload.body.spend.localAmount) / 100,
+                  currencyCode: "USD",
+                  amount: Math.abs(payload.body.spend.amount) / 100,
+                  originalCurrencyCode:
+                    payload.body.spend.amount < 0 && payload.body.spend.localAmount === payload.body.spend.amount
+                      ? "USD"
+                      : payload.body.spend.localCurrency.toUpperCase(),
+                  originalAmount: Math.abs(payload.body.spend.localAmount) / 100,
                   type: payload.body.spend.amount < 0 ? "return" : "purchase",
                   merchant: {
                     mcc: payload.body.spend.merchantCategoryCode,

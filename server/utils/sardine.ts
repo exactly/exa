@@ -320,6 +320,8 @@ const RiskRequest = object({
     id: string(),
     amount: number(),
     currencyCode: pipe(string(), length(3), toUpperCase()),
+    originalAmount: optional(number()),
+    originalCurrencyCode: optional(pipe(string(), length(3), toUpperCase())),
     createdAtMillis: optional(number(), () => Date.now()),
     address: object({ countryCode: pipe(string(), length(2)) }),
     type: optional(picklist(["purchase", "cash", "return", "balance_inquiry"])),

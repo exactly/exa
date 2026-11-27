@@ -754,6 +754,180 @@ describe("card operations", () => {
         expect(response.status).toBe(200);
       });
 
+      it("scores purchases in usd with local amount as original", async () => {
+        const span = spyRiskSpan();
+        await database
+          .insert(cards)
+          .values([{ id: "local-purchase", credentialId: "cred", tenant: "OP", lastFour: "5678", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: {
+              ...authorization.json.body,
+              spend: {
+                ...authorization.json.body.spend,
+                cardId: "local-purchase",
+                amount: 1053,
+                authorizedAmount: 1053,
+                localAmount: 1_500_000,
+                localCurrency: "ars",
+              },
+            },
+          },
+        });
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+        await expect(span).resolves.toStrictEqual([
+          "tx.risk.authorization",
+          { "exa.level": "low", "exa.score": undefined, "exa.status": "Success", "exa.aml": "low" },
+        ]);
+        expect(sardine.risk.mock.calls.filter(([{ card }]) => card?.id === "local-purchase")).toStrictEqual([
+          [
+            {
+              sessionKey: authorization.json.body.id,
+              customerId: "cred",
+              transaction: {
+                id: authorization.json.body.id,
+                currencyCode: "USD",
+                amount: 10.53,
+                originalCurrencyCode: "ARS",
+                originalAmount: 15_000,
+                type: "purchase",
+                merchant: {
+                  mcc: authorization.json.body.spend.merchantCategoryCode,
+                  name: authorization.json.body.spend.merchantName,
+                  id: authorization.json.body.spend.merchantId,
+                },
+                address: { countryCode: authorization.json.body.spend.merchantCountry },
+                status: "pending",
+              },
+              card: { id: "local-purchase" },
+            },
+          ],
+        ]);
+        expect(captureException).not.toHaveBeenCalled();
+        expect(sendPushNotificationMock).not.toHaveBeenCalled();
+      });
+
+      it("scores refunds settled in usd with usd as original", async () => {
+        const span = spyRiskSpan();
+        await database
+          .insert(cards)
+          .values([{ id: "usd-refund", credentialId: "cred", tenant: "OP", lastFour: "5678", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: {
+              ...authorization.json.body,
+              spend: {
+                ...authorization.json.body.spend,
+                cardId: "usd-refund",
+                amount: -1053,
+                authorizedAmount: -1053,
+                localAmount: -1053,
+                localCurrency: "ars",
+              },
+            },
+          },
+        });
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+        await expect(span).resolves.toStrictEqual([
+          "tx.risk.refund",
+          { "exa.level": "low", "exa.score": undefined, "exa.status": "Success", "exa.aml": "low" },
+        ]);
+        expect(sardine.risk.mock.calls.filter(([{ card }]) => card?.id === "usd-refund")).toStrictEqual([
+          [
+            {
+              sessionKey: authorization.json.body.id,
+              customerId: "cred",
+              transaction: {
+                id: authorization.json.body.id,
+                currencyCode: "USD",
+                amount: 10.53,
+                originalCurrencyCode: "USD",
+                originalAmount: 10.53,
+                type: "return",
+                merchant: {
+                  mcc: authorization.json.body.spend.merchantCategoryCode,
+                  name: authorization.json.body.spend.merchantName,
+                  id: authorization.json.body.spend.merchantId,
+                },
+                address: { countryCode: authorization.json.body.spend.merchantCountry },
+                status: "pending",
+              },
+              card: { id: "usd-refund" },
+            },
+          ],
+        ]);
+        expect(captureException).not.toHaveBeenCalled();
+        expect(sendPushNotificationMock).not.toHaveBeenCalled();
+      });
+
+      it("scores refunds settled in local currency with local amount as original", async () => {
+        const span = spyRiskSpan();
+        await database
+          .insert(cards)
+          .values([{ id: "local-refund", credentialId: "cred", tenant: "OP", lastFour: "5678", mode: 0 }]);
+
+        const response = await appClient.index.$post({
+          ...authorization,
+          json: {
+            ...authorization.json,
+            body: {
+              ...authorization.json.body,
+              spend: {
+                ...authorization.json.body.spend,
+                cardId: "local-refund",
+                amount: -1053,
+                authorizedAmount: -1053,
+                localAmount: -1_500_000,
+                localCurrency: "ars",
+              },
+            },
+          },
+        });
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toStrictEqual({ code: "ok" });
+        await expect(span).resolves.toStrictEqual([
+          "tx.risk.refund",
+          { "exa.level": "low", "exa.score": undefined, "exa.status": "Success", "exa.aml": "low" },
+        ]);
+        expect(sardine.risk.mock.calls.filter(([{ card }]) => card?.id === "local-refund")).toStrictEqual([
+          [
+            {
+              sessionKey: authorization.json.body.id,
+              customerId: "cred",
+              transaction: {
+                id: authorization.json.body.id,
+                currencyCode: "USD",
+                amount: 10.53,
+                originalCurrencyCode: "ARS",
+                originalAmount: 15_000,
+                type: "return",
+                merchant: {
+                  mcc: authorization.json.body.spend.merchantCategoryCode,
+                  name: authorization.json.body.spend.merchantName,
+                  id: authorization.json.body.spend.merchantId,
+                },
+                address: { countryCode: authorization.json.body.spend.merchantCountry },
+                status: "pending",
+              },
+              card: { id: "local-refund" },
+            },
+          ],
+        ]);
+        expect(captureException).not.toHaveBeenCalled();
+        expect(sendPushNotificationMock).not.toHaveBeenCalled();
+      });
+
       describe("with drain proposal", () => {
         beforeAll(async () => {
           await execute(

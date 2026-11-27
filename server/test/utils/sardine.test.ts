@@ -83,6 +83,8 @@ describe("sardine", () => {
           id: "tx",
           amount: 100,
           currencyCode: "usd",
+          originalAmount: 150_000,
+          originalCurrencyCode: "ars",
           createdAtMillis: 1, //cspell:ignore createdAtMillis
           address: { countryCode: "AR" },
           merchant: { mcc: "5411" },
@@ -105,6 +107,8 @@ describe("sardine", () => {
           id: "tx",
           amount: 100,
           currencyCode: "USD",
+          originalAmount: 150_000,
+          originalCurrencyCode: "ARS",
           createdAtMillis: 1,
           address: { countryCode: "AR" },
           merchant: { mcc: "5411" },
