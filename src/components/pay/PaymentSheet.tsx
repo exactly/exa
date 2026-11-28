@@ -10,9 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { formatDistanceStrict, isAfter } from "date-fns";
 import { digits, pipe, safeParse, string } from "valibot";
 
-import accountInit from "@exactly/common/accountInit";
-import chain, { exaPluginAddress, marketUSDCAddress } from "@exactly/common/generated/chain";
-import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
+import { marketUSDCAddress } from "@exactly/common/generated/chain";
 import { WAD } from "@exactly/lib";
 
 import Breakdown from "./Breakdown";
@@ -24,8 +22,8 @@ import { RefreshCw } from "../../generated/icons/RefreshCw";
 import { date } from "../../i18n";
 import { presentArticle } from "../../utils/intercom";
 import reportError from "../../utils/reportError";
-import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
+import useProposalManager from "../../utils/useProposalManager";
 import Amount from "../shared/Amount";
 import IconButton from "../shared/IconButton";
 import InfoSheet from "../shared/InfoSheet";
@@ -33,22 +31,11 @@ import ModalSheet from "../shared/ModalSheet";
 import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 
-import type { Credential } from "@exactly/common/validation";
-
 export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (maturity: string) => void }) {
   const parameters = useLocalSearchParams();
   const router = useRouter();
   const maturity = Array.isArray(parameters.maturity) ? parameters.maturity[0] : parameters.maturity;
-  const { address } = useAccount();
-  const { data: credential } = useQuery<Credential>({ queryKey: ["credential"] });
-  const { data: installedPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
-    address,
-    chainId: chain.id,
-    factory: credential?.factory,
-    factoryData: credential && accountInit(credential),
-    query: { refetchOnMount: true, enabled: !!address && !!credential },
-  });
-  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
+  const proposalManager = useProposalManager();
   const { market: USDCMarket, timestamp } = useAsset(marketUSDCAddress);
   const [infoOpen, setInfoOpen] = useState(false);
   const [open, setOpen] = useState(() => !!maturity);
@@ -118,13 +105,13 @@ export default function PaymentSheet({ onRolloverIntro }: { onRolloverIntro?: (m
       onRolloverIntro(displayMaturity);
       return;
     }
-    if (!isLatestPlugin) {
+    if (!proposalManager) {
       toast.error(t("Upgrade account to rollover"), { duration: 1000 });
       return;
     }
     close();
     router.navigate({ pathname: "/roll-debt", params: { maturity: displayMaturity } });
-  }, [rolloverIntroShown, onRolloverIntro, displayMaturity, close, router, isLatestPlugin, t]);
+  }, [rolloverIntroShown, onRolloverIntro, displayMaturity, close, router, proposalManager, t]);
 
   const renderContent = () => {
     if (!displayMaturity || !USDCMarket || !borrow) return <NotAvailableView onClose={close} />;
