@@ -39,10 +39,11 @@ env:
 - tapOn: { text: USDC, index: 0 }
 - tapOn: { text: "0", index: 0 }
 - inputText: "4"
+- runScript: { file: ../dist/block.js, env: { network: Anvil2 } }
 - tapOn: { text: Swap USDC.e for USDC, enabled: true }
 - runScript:
     file: ../dist/bridge.js
-    env: { network: Anvil2, to: "${output.account}", amount: "4" }
+    env: { network: Anvil2, after: "${output.block}", to: "${output.account}", amount: "4" }
 - assertVisible: completed
 - runFlow: { file: ../subflows/tapAria.yaml, env: { aria: Close } }
 - tapOn: Activity

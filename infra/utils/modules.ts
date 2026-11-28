@@ -74,6 +74,7 @@ export default define({
       ],
       shared: ["manteca-api-url"],
     },
+    mockfi: { secrets: ["postgres-url"] },
     panda: {
       secrets: [
         "onesignal-api-key",
@@ -110,6 +111,7 @@ export default define({
     },
     credit: { secrets: ["onesignal-api-key", "onesignal-api-keys", "postgres-url"], shared: ["redis-url"] },
     hook: { secrets: ["panda-api-key", "postgres-url"], shared: ["panda-api-url", "redis-url"] },
+    mockfi: { secrets: ["postgres-url"], shared: ["redis-url"], signers: ["bridger"] },
     poke: {
       secrets: ["onesignal-api-key", "onesignal-api-keys", "segment-write-key"],
       shared: ["redis-url"],

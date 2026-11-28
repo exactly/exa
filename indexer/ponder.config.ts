@@ -13,6 +13,7 @@ import chain, {
   factoryChains,
   marketAbi,
   mockSwapperAbi,
+  peers,
   proposalManagerAbi,
   upgradeableModularAccountAbi,
   webauthnOwnerPluginAbi,
@@ -42,6 +43,14 @@ const bridgeSources = [
   ...[...factoryChains]
     .filter(([id]) => !chains.has(id))
     .map(([id, { startBlock, swapper }]) => ({ ...source(id), startBlock, swapper })),
+  ...[...alchemyChains.values()].flatMap(({ id, mockfi, swapper }) =>
+    mockfi && swapper && !factoryChains.has(id) ? [{ ...source(id), startBlock: mockfi.startBlock, swapper }] : [],
+  ),
+  ...[...(env.MOCKFI_PRIVATE_KEY ? peers : [])].map(([id, { swapper }]) => ({
+    ...source(id),
+    swapper,
+    startBlock: "latest" as const,
+  })),
 ];
 
 export default createConfig({
