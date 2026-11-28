@@ -61,6 +61,8 @@ import { MATURITY_INTERVAL, splitInstallments } from "@exactly/lib";
 
 import { cards, credentials, transactions } from "../database/schema";
 import t, { f } from "../i18n";
+import { emit } from "../utils/events";
+import indexed from "../utils/indexed";
 import remember, { key, limit, refresh } from "../utils/liquidity";
 import {
   acquireMutex,
@@ -107,6 +109,7 @@ import type createRefund from "../workers/refund/queue";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { UnofficialStatusCode } from "hono/utils/http-status";
 import type { Redis } from "ioredis";
+import type { Pool } from "pg";
 
 const debug = createDebug("exa:panda");
 Object.assign(debug, { inspectOpts: { depth: undefined } });
@@ -138,6 +141,7 @@ export default function hook({
 }) {
   const keys = v.parse(v.array(v.pipe(v.string(), v.trim(), v.nonEmpty("panda webhooks"))), webhookKey.split(","));
   const wallet = createWallet(settler);
+  const indexer = indexed(database.$client);
   const networks = Promise.all(
     [...chains].map(async ([id, { exaPreviewer }]): Promise<Network> => {
       const clients =
@@ -229,12 +233,16 @@ export default function hook({
               ? payload.body.userId
               : payload.body.card.userId
             : payload.body.id;
+        let account: Address | undefined;
         if (pandaId) {
           const user = await database.query.credentials.findFirst({
             columns: { account: true, pandaId: true },
             where: or(eq(credentials.pandaId, pandaId), eq(credentials.otherPandaId, pandaId)),
           });
-          if (user) setUser({ id: user.account });
+          if (user) {
+            account = v.parse(Address, user.account);
+            setUser({ id: account });
+          }
           if (payload.resource !== "card" || payload.action !== "notification") {
             if (!user) return c.json({ code: "user not found" }, 404);
             try {
@@ -279,6 +287,7 @@ export default function hook({
             }
           }
         }
+        if (account) emit(account, payload.resource === "user" ? "kyc" : "card");
         return c.json({ code: "ok" });
       }
 
@@ -721,6 +730,7 @@ export default function hook({
                 569 as UnofficialStatusCode,
               );
             }
+            emit(account, "card");
             return c.json({ code: "ok" });
           }
         // falls through
@@ -804,6 +814,7 @@ export default function hook({
                 569 as UnofficialStatusCode,
               );
             }
+            emit(account, "card");
             return c.json({ code: "ok" });
           }
           if (payload.body.spend.amount < 0) {
@@ -829,6 +840,7 @@ export default function hook({
                 569 as UnofficialStatusCode,
               );
             }
+            emit(account, "card");
             return c.json({ code: "ok" });
           }
           if (payload.body.spend.status !== "pending" && payload.action !== "completed") return c.json({ code: "ok" });
@@ -986,6 +998,9 @@ export default function hook({
                     onReceipt(receipt) {
                       if (receipt.status === "reverted") return;
                       refresh(database, redis, account, network.id, payload.body.spend.userId);
+                      indexer.after(`${network.id}:${account}`, network.id, receipt.blockNumber, () =>
+                        emit(account, "card"),
+                      );
                       if (!partial) return deliver(receipt, network.id);
                     },
                   },
@@ -1372,6 +1387,7 @@ export default function hook({
           } finally {
             claim?.settle(finished, repeated);
             setContext("mutex", { locked: mutex?.isLocked() });
+            emit(account, "card");
           }
         }
         default:
@@ -1426,7 +1442,11 @@ export default function hook({
         captureException(error, { level: "error" });
       });
   }
-  return { app, ready: networks.then(() => undefined) };
+  return {
+    app,
+    ready: Promise.all([networks, indexer.ready]).then(() => undefined),
+    close: () => indexer.close(),
+  };
 }
 
 function trackAuthorized(
@@ -1779,7 +1799,7 @@ type Collection = Awaited<ReturnType<NonNullable<Awaited<ReturnType<typeof prepa
 
 type Inspection = Part & { call: Collection; trace: CallFrame };
 
-type Database = NodePgDatabase<typeof schema>;
+type Database = NodePgDatabase<typeof schema> & { $client: Pool };
 
 type Part = { amount: bigint; network: Network; timestamp?: number };
 

@@ -1,6 +1,13 @@
 appId: ${APP_ID ?? "app.exactly"}
 ---
-- runFlow:
-    file: copyAria.yaml
-    env: { aria: "^(US)?\\$[\\s\\d,.\\xa0]+$" }
-- evalScript: ${output.portfolio = Number(maestro.copiedText.replace(/\D/g, "")) / 100}
+- evalScript: ${output.portfolio = undefined; output.portfolioDeadline = Date.now() + 60000}
+- repeat:
+    while:
+      true: "${output.portfolio === undefined || (!!below && !(output.portfolio > Number(above) && output.portfolio < Number(below)) && Date.now() < output.portfolioDeadline)}"
+    commands:
+      - runFlow:
+          file: copyAria.yaml
+          env:
+            aria: '${"^" + (except ? "(?!(US)?[\x24][\\s\\xa0]*" + String(Math.round(Number(except) * 100)).padStart(3, "0").split("").join("[\\s,.\\xa0]*") + "\x24)" : "") + "(US)?[\x24][\\s\\xa0]*" + (total ? String(Math.round(Number(total) * 100)).padStart(3, "0").split("").join("[\\s,.\\xa0]*") : below ? "(" + Array(Math.floor(Number(below)) - Math.floor(Number(above)) + 1).fill(0).map((_, index) => String(Math.floor(Number(above)) + index).split("").join("[\\s,.\\xa0]*")).join("|") + ")[\\s,.\\xa0]*\\d[\\s\\xa0]*\\d" : "[\\s\\d,.\\xa0]+") + "\x24"}'
+      - evalScript: ${output.portfolio = Number(maestro.copiedText.replace(/\D/g, "")) / 100}
+- assertTrue: ${!below || (output.portfolio > Number(above) && output.portfolio < Number(below))}

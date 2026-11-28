@@ -4,6 +4,7 @@ import { Redis } from "ioredis";
 
 import * as schema from "../../database/schema";
 import supervise, { own } from "../../supervise";
+import { publisher } from "../../utils/events";
 import createPanda from "../../utils/panda";
 import createPax from "../../utils/pax";
 import createPersona from "../../utils/persona";
@@ -17,7 +18,7 @@ const secrets = new SecretManagerServiceClient();
 supervise(
   "persona",
   Promise.all([
-    secret("persona-postgres-url", secrets).then((url) => drizzle(url, { schema })),
+    secret("persona-postgres-url", secrets).then((url) => publisher(drizzle(url, { schema }))),
     Promise.all([secret("persona-panda-api-key", secrets), secret("panda-api-url", secrets)]).then(([key, url]) =>
       createPanda({ key, url }),
     ),
