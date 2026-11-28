@@ -140,16 +140,31 @@ export default function hook({
       );
       const accounts = await database.query.credentials
         .findMany({
-          columns: { account: true, publicKey: true, factory: true, pandaId: true, salt: true, source: true },
+          columns: {
+            account: true,
+            publicKey: true,
+            factory: true,
+            otherPandaId: true,
+            pandaId: true,
+            salt: true,
+            source: true,
+          },
           where: inArray(credentials.account, [...new Set(transfers.map(({ toAddress }) => toAddress))]),
         })
         .then((result) =>
           Object.fromEntries(
             result.map(
-              ({ account, publicKey, factory, pandaId, salt, source }) =>
+              ({ account, publicKey, factory, otherPandaId, pandaId, salt, source }) =>
                 [
                   v.parse(Address, account),
-                  { publicKey, factory: v.parse(Address, factory), pandaId, salt: v.parse(Address, salt), source },
+                  {
+                    publicKey,
+                    factory: v.parse(Address, factory),
+                    otherPandaId,
+                    pandaId,
+                    salt: v.parse(Address, salt),
+                    source,
+                  },
                 ] as const,
             ),
           ),
@@ -170,6 +185,7 @@ export default function hook({
         {
           assets: Set<Address>;
           factory: Address;
+          otherPandaId: null | string;
           pandaId: null | string;
           publicKey: Uint8Array<ArrayBuffer>;
           salt: Address;
@@ -224,18 +240,19 @@ export default function hook({
         if (pokes.has(account)) {
           pokes.get(account)?.assets.add(asset);
         } else {
-          const { publicKey, factory, pandaId, salt, source } = accounts[account];
-          pokes.set(account, { publicKey, factory, pandaId, salt, source, assets: new Set([asset]) });
+          const { publicKey, factory, otherPandaId, pandaId, salt, source } = accounts[account];
+          pokes.set(account, { publicKey, factory, otherPandaId, pandaId, salt, source, assets: new Set([asset]) });
         }
       }
       await Promise.all(
-        [...pokes].map(([account, { assets, factory, pandaId, publicKey, salt, source }]) =>
+        [...pokes].map(([account, { assets, factory, otherPandaId, pandaId, publicKey, salt, source }]) =>
           poke.enqueue({
             account,
             assets: [...assets],
             chainId: chain.id,
             factory,
             origin: "activity",
+            ...(otherPandaId && { otherPandaId }),
             ...(pandaId && { pandaId }),
             publicKey: bytesToHex(publicKey),
             salt,

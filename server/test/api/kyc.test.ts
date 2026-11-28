@@ -12,6 +12,7 @@ import { env } from "node:process";
 import { nonEmpty, parse, pipe, string } from "valibot";
 import { getAddress, padHex, sha256 } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
+import { mainnet, moonbeamDev } from "viem/chains";
 import { createSiweMessage, generateSiweNonce } from "viem/siwe";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -2276,6 +2277,10 @@ describe("authenticated", () => {
       ]);
     });
 
+    beforeEach(() => {
+      vi.spyOn(panda, "program").mockReturnValue(panda);
+    });
+
     afterEach(async () => {
       await database
         .update(credentials)
@@ -2315,11 +2320,13 @@ describe("authenticated", () => {
 
     describe("getting kyc", () => {
       it("returns not started when the company application is missing", async () => {
+        const program = vi.spyOn(panda, "program").mockReturnValue(panda);
         const getCompanyApplication = vi.spyOn(panda, "getCompanyApplication").mockResolvedValue(undefined); // eslint-disable-line unicorn/no-useless-undefined
 
         const response = await getStatus("panda-business");
 
         expect(response.status).toBe(400);
+        expect(program).toHaveBeenCalledExactlyOnceWith("BASE");
         expect(getCompanyApplication).toHaveBeenCalledWith(businessId);
         await expect(response.json()).resolves.toStrictEqual({ code: "not started" });
       });
@@ -3662,6 +3669,105 @@ describe("authenticated", () => {
           expect(response.status).toBe(200);
           expect(JSON.parse(body as string)).toStrictEqual(payload);
           await expect(response.json()).resolves.toStrictEqual({ status: "approved" });
+        });
+
+        it.each([
+          { name: "another served network", chainId: moonbeamDev.id, status: 200, body: { status: "approved" } },
+          {
+            name: "an unserved chain",
+            chainId: mainnet.id,
+            status: 400,
+            body: { code: "bad chain", message: `expected ${chain.id} but got ${mainnet.id}` },
+          },
+        ])("answers $status to signatures for $name", async ({ chainId, status, body }) => {
+          const credential = await database.query.credentials.findFirst({ where: eq(credentials.id, account) });
+          const statement = `I apply for KYC approval on behalf of address ${getAddress(credential?.account ?? "")} with payload hash ${sha256(Buffer.from(canonicalize(applicationPayload) ?? "", "utf8"))}`;
+          const message = createSiweMessage({
+            statement,
+            resources: ["https://exactly.github.io/exa"],
+            nonce: generateSiweNonce(),
+            uri: `https://${domain}`,
+            address: owner.address,
+            chainId,
+            scheme: "https",
+            version: "1",
+            domain,
+          });
+          const verify = {
+            message,
+            signature: await owner.signMessage({ message }),
+            walletAddress: owner.address,
+            chainId,
+          };
+          const submitApplication = vi
+            .spyOn(panda, "submitApplication")
+            .mockResolvedValueOnce({ id: "pandaId", applicationStatus: "approved" });
+
+          const response = await appClient.application.$post(
+            { json: { ...applicationPayload, verify } },
+            { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+          );
+
+          expect(response.status).toBe(status);
+          await expect(response.json()).resolves.toStrictEqual(body);
+          expect(submitApplication).toHaveBeenCalledTimes(status === 200 ? 1 : 0);
+        });
+
+        it("submits partner applications to the base program", async () => {
+          const { default: createPrograms } = await vi.importActual<typeof Panda>("../../utils/panda");
+          const programs = createPrograms(
+            { key: "panda", url: "https://panda.test" },
+            { key: "base", url: "https://base.panda.test" },
+          );
+          const baseProgram = programs.program("BASE");
+          const issuing = vi.spyOn(programs, "issuing").mockReturnValue("BASE");
+          const submitApplication = vi
+            .spyOn(baseProgram, "submitApplication")
+            .mockResolvedValueOnce({ id: "basePandaId", applicationStatus: "approved" });
+          const homeSubmit = vi.spyOn(programs, "submitApplication");
+          await database
+            .update(credentials)
+            .set({ pandaId: null, otherPandaId: null })
+            .where(eq(credentials.id, account));
+          const credential = await database.query.credentials.findFirst({ where: eq(credentials.id, account) });
+          const statement = `I apply for KYC approval on behalf of address ${getAddress(credential?.account ?? "")} with payload hash ${sha256(Buffer.from(canonicalize(applicationPayload) ?? "", "utf8"))}`;
+          const message = createSiweMessage({
+            statement,
+            resources: ["https://exactly.github.io/exa"],
+            nonce: generateSiweNonce(),
+            uri: `https://${domain}`,
+            address: owner.address,
+            chainId: chain.id,
+            scheme: "https",
+            version: "1",
+            domain,
+          });
+          const verify = {
+            message,
+            signature: await owner.signMessage({ message }),
+            walletAddress: owner.address,
+            chainId: chain.id,
+          };
+
+          const response = await testClient(
+            route({ auth: authenticate(""), business: true, database, panda: programs, persona, redis }),
+          ).application.$post(
+            { json: { ...applicationPayload, verify } },
+            { headers: { "test-credential-id": account, SessionID: "fakeSession" } },
+          );
+
+          expect(response.status).toBe(200);
+          await expect(response.json()).resolves.toStrictEqual({ status: "approved" });
+          expect(issuing.mock.calls).toStrictEqual([[organizationId], [organizationId]]);
+          expect(submitApplication).toHaveBeenCalledExactlyOnceWith(applicationPayload);
+          expect(homeSubmit).not.toHaveBeenCalled();
+          await expect(
+            database.query.credentials.findFirst({
+              columns: { pandaId: true, otherPandaId: true, source: true },
+              where: eq(credentials.id, account),
+            }),
+          ).resolves.toStrictEqual({ pandaId: null, otherPandaId: "basePandaId", source: organizationId });
+          await database.update(credentials).set({ otherPandaId: null }).where(eq(credentials.id, account));
         });
 
         it("returns 409 when kyc is already started", async () => {
