@@ -11,9 +11,7 @@ import { ScrollView, Separator, Spinner, Square, XStack, YStack } from "tamagui"
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useBytecode } from "wagmi";
 
-import accountInit from "@exactly/common/accountInit";
 import chain, { marketUSDCAddress } from "@exactly/common/generated/chain";
-import { useReadUpgradeableModularAccountGetInstalledPlugins } from "@exactly/common/generated/hooks";
 
 import CardDetails from "./CardDetails";
 import CardDisclaimer from "./CardDisclaimer";
@@ -52,6 +50,7 @@ import useAsset from "../../utils/useAsset";
 import useBeginKYC from "../../utils/useBeginKYC";
 import useBusiness from "../../utils/useBusiness";
 import useCardLimit from "../../utils/useCardLimit";
+import useExaPlugin from "../../utils/useExaPlugin";
 import useIsBusiness from "../../utils/useIsBusiness";
 import useKYC from "../../utils/useKYC";
 import useTabPress from "../../utils/useTabPress";
@@ -118,13 +117,7 @@ export default function Card() {
     query: { enabled: !!address },
   });
   const { approved: isKYCApproved, review: isKYCInReview, isFetched: isKYCFetched } = useKYC();
-  const { refetch: refetchInstalledPlugins } = useReadUpgradeableModularAccountGetInstalledPlugins({
-    address,
-    chainId: chain.id,
-    factory: credential?.factory,
-    factoryData: credential && accountInit(credential),
-    query: { enabled: !!address && !!credential },
-  });
+  const { refetch: refetchPlugin } = useExaPlugin(chain.id);
 
   const { card: step, approved: companyApproved, locked, profile, requirement } = useBusiness();
   const application = locked ? profile : step;
@@ -138,7 +131,7 @@ export default function Card() {
       queryClient.invalidateQueries({ queryKey: ["kyc", "status"], exact: true }),
       business ? queryClient.invalidateQueries({ queryKey: ["kyc", "panda-business"], exact: true }) : undefined,
       address ? refetchBytecode() : undefined,
-      address && credential ? refetchInstalledPlugins() : undefined,
+      address && credential ? refetchPlugin() : undefined,
       queryClient.refetchQueries({ queryKey }),
     ]);
   useTabPress("card", () => {

@@ -9,7 +9,9 @@ import {
   pad,
   slice,
   toBytes,
+  toFunctionSelector,
   toHex,
+  zeroAddress,
 } from "viem";
 import { getAbiItem, isAddress, isHex, toEventSelector } from "viem/utils";
 
@@ -40,15 +42,16 @@ if (count !== undefined && !(Number.isSafeInteger(Number(count)) && Number(count
 if (receiver !== undefined && !isAddress(receiver)) throw new Error("bad receiver");
 if ((receiver ?? beneficiary) !== undefined && !amount && !max) throw new Error("bad amount");
 
-const [plugin] = readContract(
+const { plugin } = readContract(
   {
     address: account,
-    functionName: "getInstalledPlugins",
+    functionName: "getExecutionFunctionConfig",
+    args: [toFunctionSelector(getAbiItem({ abi: exaPluginAbi, name: "collectDebit" }))],
     abi: upgradeableModularAccountAbi,
   },
   network,
 );
-if (!plugin) throw new Error("no plugin");
+if (plugin === zeroAddress) throw new Error("no plugin");
 const proposalManager = readContract({ address: plugin, functionName: "proposalManager", abi: exaPluginAbi }, network);
 const proposalDelay = readContract(
   { address: proposalManager, functionName: "delay", abi: proposalManagerAbi },

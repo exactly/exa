@@ -145,6 +145,9 @@ queryClient.setQueryDefaults(["readContract"], {
   },
 });
 queryClient.setQueryDefaults(["readContract", { functionName: "getInstalledPlugins" }], { meta: { reportOnce: true } });
+queryClient.setQueryDefaults(["readContract", { functionName: "getExecutionFunctionConfig" }], {
+  meta: { reportOnce: true },
+});
 queryClient.setQueryDefaults(["plugin", "proposalManager"], { meta: { reportOnce: true } });
 queryClient.setQueryDefaults(["settings", "sensitive"], {
   initialData: false,

@@ -5,6 +5,7 @@ appId: ${APP_ID ?? "app.exactly"}
     env: { asset: USDC, to: "${output.account}", amount: "420" }
 - runScript: { file: ../dist/awaitDeployment.js, env: { account: "${output.account}" } }
 - runScript: { file: ../dist/downgradePlugin.js, env: { account: "${output.account}" } }
+- runScript: { file: ../dist/installPlugin.js, env: { account: "${output.account}" } }
 - tapOn: Card
 - assertVisible: Upgrade account now
 - tapOn: Home
