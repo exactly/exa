@@ -1,0 +1,40 @@
+From aa8dd54ed6a664270f7664177a150d32e5ed0fb2 Mon Sep 17 00:00:00 2001
+From: danilo neves cruz <cruzdanilo@gmail.com>
+Date: Fri, 27 Nov 2026 17:02:50 +0000
+Subject: [PATCH] fix: erase text in the focused element on web
+
+eraseText resolves the focused element through ChromeDriver and sends every Backspace to it. It finds that element again by an XPath built from the class names of the element and each of its ancestors, so the lookup fails with "no such element" when any of those classes changed after the XPath was built, such as an input that sizes itself to the typed text and swaps its width class on the last keystroke. It also fails with a stale element when the page replaces the input while erasing. Press Backspace through CDP instead, as inputText and pressKey already do: the key events reach the element focused at that moment, with no lookup. Orchestra already waits for the page to settle right after the command, and the renderer handles key events in order, so the sleeps after each key and after the last one go too.
+---
+ .../src/main/java/maestro/drivers/CdpWebDriver.kt        | 9 +--------
+ 1 file changed, 1 insertion(+), 8 deletions(-)
+
+diff --git a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+index ff3bae7..c4fece9 100644
+--- a/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
++++ b/maestro-client/src/main/java/maestro/drivers/CdpWebDriver.kt
+@@ -28,7 +28,6 @@ import okio.buffer
+ import org.openqa.selenium.By
+ import org.openqa.selenium.InvalidArgumentException
+ import org.openqa.selenium.JavascriptExecutor
+-import org.openqa.selenium.Keys
+ import org.openqa.selenium.StaleElementReferenceException
+ import org.openqa.selenium.TimeoutException
+ import org.openqa.selenium.WebDriver
+@@ -731,13 +730,7 @@ class CdpWebDriver(
+     }
+ 
+     override fun eraseText(charactersToErase: Int) {
+-        withActiveElement { element ->
+-            for (i in 0 until charactersToErase) {
+-                element.sendKeys(Keys.BACK_SPACE)
+-                sleep(random(20, 50).toLong())
+-            }
+-        }
+-        sleep(1000)
++        repeat(charactersToErase) { pressKey(KeyCode.BACKSPACE) }
+     }
+ 
+     override fun setProxy(host: String, port: Int) {
+-- 
+2.43.0
+
