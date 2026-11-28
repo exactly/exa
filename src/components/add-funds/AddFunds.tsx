@@ -208,9 +208,7 @@ export default function AddFunds() {
           </View>
           <XStack flex={1}>
             <Text emphasized caption2 color="uiNeutralPlaceholder">
-              {t("Only collateral assets on {{chain}} earn yield and increase your credit limit.", {
-                chain: chain.name,
-              })}
+              {t("Only collateral assets earn yield and increase your credit limit.")}
               <Text
                 cursor="pointer"
                 emphasized

@@ -45,7 +45,9 @@ export default function worker({
       const data = v.safeParse(
         v.object({
           delivered: v.optional(v.array(v.string())),
-          receipt: v.optional(v.object({ blockNumber: v.number(), transactionHash: v.string() })),
+          receipt: v.optional(
+            v.object({ blockNumber: v.number(), chainId: v.optional(v.number()), transactionHash: v.string() }),
+          ),
         }),
         job.data,
       );
@@ -250,7 +252,7 @@ const BaseWebhook = v.object({
   }),
 });
 
-const Receipt = v.object({ blockNumber: v.number(), transactionHash: v.string() });
+const Receipt = v.object({ blockNumber: v.number(), chainId: v.optional(v.number()), transactionHash: v.string() });
 
 const Webhook = v.variant("resource", [
   v.variant("action", [

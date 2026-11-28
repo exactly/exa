@@ -20,17 +20,25 @@ vi.mock("../../utils/traceClient", async (importOriginal) => {
   };
 });
 
-// eslint-disable-next-line import/prefer-default-export -- mirrors mocked module
+export const failedTraces: traceClient.CallFrame[] = [];
+
 export function enableTracing() {
   tracing = true;
 }
 
 afterEach(() => {
   tracing = false;
+  failedTraces.length = 0;
 });
 
 function suppress(traceTransaction: (hash: Hash) => Promise<traceClient.CallFrame>) {
-  return (hash: Hash) => (tracing ? traceTransaction(hash) : Promise.resolve(emptyTrace));
+  return (hash: Hash) =>
+    tracing
+      ? traceTransaction(hash).then((frame) => {
+          if (frame.error) failedTraces.push(frame);
+          return frame;
+        })
+      : Promise.resolve(emptyTrace);
 }
 
 const emptyTrace = {

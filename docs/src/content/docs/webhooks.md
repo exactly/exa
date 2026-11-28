@@ -139,6 +139,7 @@ Transaction authorized and created with timestamp, for $100.00 amount.
   "action": "created",
   "receipt": {
     "blockNumber": 97,
+    "chainId": 10,
     "transactionHash": "0xb0af3b716fc47e18519a74858690a8b428d9a5ac9c5537d08314443a5b1501db",
   },
   "body": {
@@ -175,6 +176,7 @@ Note that this is a reversal, 1 of the 3 types of refunds.
   "action": "updated",
   "receipt": {
     "blockNumber": 98,
+    "chainId": 10,
     "transactionHash": "0x8c6ef90db7901c43018b3b079ac5ccf84e9c1eb2aaf0fd5f1f8b3e2b97d25fa3",
   },
   "body": {
@@ -250,6 +252,7 @@ Transaction authorized and created with timestamp for $100.00 amount.
   "action": "created",
   "receipt": {
     "blockNumber": 108,
+    "chainId": 10,
     "transactionHash": "0x59be2972d1094e6abc14f595b71ed4e9e6ec4e2cd8d61e292f6debcba37e19b4",
   },
   "body": {
@@ -285,6 +288,7 @@ Final settlement at $90.00 with status "completed" and timestamp. The final amou
   "action": "completed",
   "receipt": {
     "blockNumber": 109,
+    "chainId": 10,
     "transactionHash": "0xd3b27341a97f4621865d896713a82be4099c5e0ad18782fb134fa33a77bba937",
   },
   "body": {
@@ -327,6 +331,7 @@ Transaction authorized and created with timestamp for $100.00 amount.
   "action": "created",
   "receipt": {
     "blockNumber": 300,
+    "chainId": 10,
     "transactionHash": "0x7faf9d14fde333a946c27f9e173c2d640ef3b4fbafc7e75d2a8a4b8743efb001",
   },
   "body": {
@@ -362,6 +367,7 @@ Final settlement at $110.00 with status "completed" and timestamp. Note that the
   "action": "completed",
   "receipt": {
     "blockNumber": 499,
+    "chainId": 10,
     "transactionHash": "0x2d3a8b61a94f5f36b0d64f3e6a7c5e1bb7eeba6004cd3f1dc7c02b265aec7b02",
   },
   "body": {
@@ -401,6 +407,7 @@ A force capture occurs when a merchant settles a transaction without prior autho
   "action": "completed",
   "receipt": {
     "blockNumber": 97,
+    "chainId": 10,
     "transactionHash": "0xb0af3b716fc47e18519a74858690a8b428d9a5ac9c5537d08314443a5b1501db",
   },
   "body": {
@@ -474,6 +481,7 @@ Final settlement of -$100.00 with status "completed" and timestamp. Refund $100 
   "action": "completed",
   "receipt": {
     "blockNumber": 97,
+    "chainId": 10,
     "transactionHash": "0xb0af3b716fc47e18519a74858690a8b428d9a5ac9c5537d08314443a5b1501db",
   },
   "body": {
@@ -536,6 +544,7 @@ The onchain receipt will be present only if a onchain transaction is necessary.
 | resource | "transaction" | | transaction |
 | action | "created" | | created |
 | receipt?.blockNumber | number | onchain transaction block number | 97 |
+| receipt?.chainId | number | chain id of the network that holds the transaction | 10 |
 | receipt?.transactionHash | string | Transaction hash | 0xb0af3b716fc47e18519a74858690a8b428d9a5ac9c5537d08314443a5b1501db |
 | body.id | string | Transaction id. Is the same for many events in the life cycle of the purchase | f1083e93-afd5-4271-85c6-dd47099e9746 |
 | body.type | "spend" | | spend |
@@ -569,6 +578,7 @@ The `receipt` exist only if an onchain transaction is necessary.
 | resource | "transaction" | | transaction |
 | action | "updated" | | updated |
 | receipt?.blockNumber | number | onchain transaction block number | 97 |
+| receipt?.chainId | number | chain id of the network that holds the transaction | 10 |
 | receipt?.transactionHash | string | Transaction hash | 0xb0af3b716fc47e18519a74858690a8b428d9a5ac9c5537d08314443a5b1501db |
 | body.id | string | transaction id. the same in the life cycle of the purchase | 96fbeb61-b4b0-59ab-93e0-2f2afce7637c |
 | body.type | "spend" | | spend |
@@ -603,6 +613,7 @@ if an onchain transaction is necessary.
 | resource | "transaction" | | transaction |
 | action | "completed" | | completed |
 | receipt?.blockNumber | number | onchain transaction block number. | 97 |
+| receipt?.chainId | number | chain id of the network that holds the transaction | 10 |
 | receipt?.transactionHash | string | Transaction hash | 0xb0af3b716fc47e18519a74858690a8b428d9a5ac9c5537d08314443a5b1501db |
 | body.id | string | Is the Transaction id and is the same in the life cycle of the purchase. With refunds could be different from the original purchase. | 96fbeb61-b4b0-59ab-93e0-2f2afce7637c |
 | body.type | "spend" | | spend |
