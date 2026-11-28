@@ -60,9 +60,17 @@ export const persister = createAsyncStoragePersister({
   storage: AsyncStorage,
   throttleTime: 0,
 });
+const failing = new WeakSet<Query<unknown, unknown>>();
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
+    onSuccess: (_, query) => {
+      failing.delete(query);
+    },
     onError: (error, query) => {
+      if (query.meta?.reportOnce) {
+        if (failing.has(query)) return;
+        failing.add(query);
+      }
       if (query.meta?.dropError?.(error)) return;
       if (query.meta?.warnError?.(error)) return reportError(error, { level: "warning" });
       if (query.queryKey[0] !== "auth" && queryClient.getQueryState(["auth"])?.error === error) return;
@@ -135,6 +143,8 @@ queryClient.setQueryDefaults(["readContract"], {
     throw new Error("don't refetch");
   },
 });
+queryClient.setQueryDefaults(["readContract", { functionName: "getInstalledPlugins" }], { meta: { reportOnce: true } });
+queryClient.setQueryDefaults(["plugin", "proposalManager"], { meta: { reportOnce: true } });
 queryClient.setQueryDefaults(["settings", "sensitive"], {
   initialData: false,
   retry: false,
@@ -395,6 +405,7 @@ declare module "@tanstack/react-query" {
     queryMeta: {
       dropError?: (error: unknown) => boolean | undefined;
       persist?: (data: never) => unknown;
+      reportOnce?: boolean;
       warnError?: (error: unknown) => boolean | undefined;
     };
   }

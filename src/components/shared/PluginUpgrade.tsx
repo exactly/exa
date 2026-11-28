@@ -8,11 +8,11 @@ import { readContract } from "@wagmi/core/actions";
 import {
   decodeErrorResult,
   encodeAbiParameters,
-  encodeDeployData,
   encodeErrorResult,
   encodeFunctionData,
   getAbiItem,
   keccak256,
+  zeroAddress,
   type Address,
   type Hex,
 } from "viem";
@@ -20,15 +20,9 @@ import { simulateBlocks } from "viem/actions";
 import { useBytecode, useSendCalls } from "wagmi";
 
 import accountInit from "@exactly/common/accountInit";
-import chain, {
-  auditorAddress,
-  exaPluginAddress,
-  exaPreviewerCode,
-  marketUSDCAddress,
-} from "@exactly/common/generated/chain";
+import chain, { appPreviewerAbi, appPreviewerCode, exaPluginAddress } from "@exactly/common/generated/chain";
 import {
   exaPluginAbi,
-  exaPreviewerAbi,
   upgradeableModularAccountAbi,
   useReadExaPluginPluginManifest,
   useReadUpgradeableModularAccountGetInstalledPlugins,
@@ -119,23 +113,13 @@ export default function PluginUpgrade() {
       let calls = upgrade;
       const simulation = await simulate(address, [batch]);
       if (simulation && pending(simulation.calls[0])) {
-        const proposals = await readContract(exa, {
-          abi: exaPreviewerAbi,
-          code: encodeDeployData({
-            abi: exaPreviewerAbi,
-            bytecode: exaPreviewerCode,
-            args: [
-              auditorAddress,
-              marketUSDCAddress,
-              await readContract(exa, {
-                address: installedPlugins[0],
-                abi: exaPluginAbi,
-                functionName: "proposalManager",
-              }),
-            ],
-          }),
-          functionName: "pendingProposals",
-          args: [address],
+        const {
+          wallet: { proposals },
+        } = await readContract(exa, {
+          abi: appPreviewerAbi,
+          code: appPreviewerCode,
+          functionName: "preview",
+          args: [address, [], { auditor: zeroAddress, previewer: zeroAddress, ratePreviewer: zeroAddress }],
         });
         const last = proposals.at(-1);
         if (last === undefined || last.unlock + 3600n > simulation.timestamp) return "pending";

@@ -66,23 +66,28 @@ export function writeContract<
 >(
   parameters: Pick<WriteContractParameters<abi, functionName, args>, "address" | "args" | "functionName"> & {
     abi: abi;
+    from?: Address;
   },
   network?: string,
 ): WriteContractReturnType {
-  const { address, functionName, abi, args } = parameters as Pick<
+  const { address, functionName, abi, args, from } = parameters as Pick<
     WriteContractParameters,
     "abi" | "address" | "args" | "functionName"
-  >;
-  const from = sliceHex(keccak256(toHex(String(Math.random()))), 12);
-  anvil("anvil_impersonateAccount", [from], network);
-  anvil("anvil_setBalance", [from, String(10n ** 18n)], network);
-  const { status, transactionHash } = anvil(
-    "eth_sendTransactionSync",
-    [{ from, to: address, data: encodeFunctionData({ functionName, abi, args }) }],
-    network,
-  );
-  if (status !== "0x1") throw new Error(`${functionName} reverted`);
-  return transactionHash;
+  > & { from?: Address };
+  const sender = from ?? sliceHex(keccak256(toHex(String(Math.random()))), 12);
+  anvil("anvil_impersonateAccount", [sender], network);
+  try {
+    if (!from) anvil("anvil_setBalance", [sender, String(10n ** 18n)], network);
+    const { status, transactionHash } = anvil(
+      "eth_sendTransactionSync",
+      [{ from: sender, to: address, data: encodeFunctionData({ functionName, abi, args }) }],
+      network,
+    );
+    if (status !== "0x1") throw new Error(`${functionName} reverted`);
+    return transactionHash;
+  } finally {
+    anvil("anvil_stopImpersonatingAccount", [sender], network);
+  }
 }
 
 declare const output: { id?: number };
@@ -130,7 +135,7 @@ export default function anvil(
   network?: string,
 ): void;
 export default function anvil(
-  method: "anvil_impersonateAccount",
+  method: "anvil_impersonateAccount" | "anvil_stopImpersonatingAccount",
   params: readonly [account: Address],
   network?: string,
 ): void;

@@ -620,10 +620,14 @@ export default function Confirm() {
   const proposal = useMemo(() => {
     if (!receipt) return;
     const [topic] = encodeEventTopics({ abi: proposalManagerAbi, eventName: "Proposed" });
-    const nonce = receipt.logs.find(({ topics }) => topics[0] === topic)?.topics[2];
-    return nonce ? { nonce: BigInt(nonce), since: receipt.blockNumber } : undefined;
+    const log = receipt.logs.find(({ topics }) => topics[0] === topic);
+    return log?.topics[2]
+      ? { proposalManager: log.address, nonce: BigInt(log.topics[2]), since: receipt.blockNumber }
+      : undefined;
   }, [receipt]);
-  const { data: execution } = useQuery(executionOptions(address, proposal?.nonce, proposal?.since));
+  const { data: execution } = useQuery(
+    executionOptions(address, proposal?.proposalManager, proposal?.nonce, proposal?.since),
+  );
   const executionHash = execution?.executed ? execution.hash : undefined;
   const { data: withdrawn } = useQuery({
     queryKey: ["proposal", "withdrawn", executionHash, address, market?.market],
@@ -651,7 +655,7 @@ export default function Confirm() {
         abi: proposalManagerAbi,
         eventName: "Proposed",
         args: { account: address },
-        logs: emitted(logs, proposalManagerAddress),
+        logs: emitted(logs, proposal?.proposalManager ?? proposalManagerAddress),
       });
       if (!log) return;
       const { proposalType, amount: proposed } = log.args;
@@ -670,7 +674,18 @@ export default function Confirm() {
       logs: emitted(logs, externalAddress),
     });
     return log?.args.value;
-  }, [receipt, address, routed, market, withdrawn, isNativeTransfer, wrap?.token, externalAddress, receiverHex]);
+  }, [
+    receipt,
+    address,
+    routed,
+    market,
+    withdrawn,
+    proposal?.proposalManager,
+    isNativeTransfer,
+    wrap?.token,
+    externalAddress,
+    receiverHex,
+  ]);
   const { data: routeStatus } = useQuery(
     statusOptions(
       routed ? (proposal ? executionHash : hash) : undefined,

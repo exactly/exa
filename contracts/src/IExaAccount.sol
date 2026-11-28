@@ -133,6 +133,12 @@ struct Proposal {
   bytes data;
 }
 
+struct PendingProposal {
+  uint256 nonce;
+  uint256 unlock;
+  Proposal proposal;
+}
+
 struct SwapData {
   IERC20 assetOut;
   uint256 minAmountOut;

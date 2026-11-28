@@ -1,5 +1,4 @@
 import {
-  encodeDeployData,
   encodeEventTopics,
   erc20Abi,
   erc4626Abi,
@@ -8,17 +7,18 @@ import {
   pad,
   slice,
   toBytes,
+  zeroAddress,
   type Address,
 } from "viem";
 import { getAbiItem, isAddress, isHex, toEventSelector } from "viem/utils";
 
 import {
-  auditorAddress,
-  exaPreviewerAbi,
-  exaPreviewerCode,
+  appPreviewerAbi,
+  appPreviewerCode,
+  exaPluginAbi,
   marketUSDCAddress,
   proposalManagerAbi,
-  proposalManagerAddress,
+  upgradeableModularAccountAbi,
   usdcAddress,
 } from "@exactly/common/generated/chain";
 
@@ -39,7 +39,14 @@ if (count !== undefined && !(Number.isSafeInteger(Number(count)) && Number(count
 if (receiver !== undefined && !isAddress(receiver)) throw new Error("bad receiver");
 if ((receiver ?? beneficiary) !== undefined && !amount && !max) throw new Error("bad amount");
 
-const proposalDelay = readContract({ address: proposalManagerAddress, functionName: "delay", abi: proposalManagerAbi });
+const [plugin] = readContract({
+  address: account,
+  functionName: "getInstalledPlugins",
+  abi: upgradeableModularAccountAbi,
+});
+if (!plugin) throw new Error("no plugin");
+const proposalManager = readContract({ address: plugin, functionName: "proposalManager", abi: exaPluginAbi });
+const proposalDelay = readContract({ address: proposalManager, functionName: "delay", abi: proposalManagerAbi });
 let proposals = pending(account);
 for (const deadline = Date.now() + 30_000; proposals.length < Number(count ?? "1"); proposals = pending(account)) {
   if (Date.now() >= deadline) throw new Error("timeout waiting for queued proposals");
@@ -63,7 +70,7 @@ const deposit = max
 const accrual = max ? 86_400 : 0;
 anvil("anvil_mine", [1, Number(proposalDelay) + accrual]);
 const fromBlock = anvil("eth_blockNumber", []);
-block(account, proposals);
+block(account, proposals, proposalManager);
 
 const nonceSet = encodeEventTopics({
   abi: proposalManagerAbi,
@@ -73,7 +80,7 @@ const nonceSet = encodeEventTopics({
 let toBlock = anvil("eth_blockNumber", []);
 for (
   const deadline = Date.now() + 30_000;
-  anvil("eth_getLogs", [{ address: proposalManagerAddress, fromBlock, toBlock, topics: nonceSet }]).length === 0;
+  anvil("eth_getLogs", [{ address: proposalManager, fromBlock, toBlock, topics: nonceSet }]).length === 0;
   toBlock = anvil("eth_blockNumber", [])
 ) {
   if (Date.now() >= deadline) throw new Error("timeout waiting for proposals");
@@ -105,13 +112,9 @@ if (to) {
 
 function pending(address: Address) {
   return readContract({
-    code: encodeDeployData({
-      abi: exaPreviewerAbi,
-      bytecode: exaPreviewerCode,
-      args: [auditorAddress, marketUSDCAddress, proposalManagerAddress],
-    }),
-    functionName: "pendingProposals",
-    args: [address],
-    abi: exaPreviewerAbi,
-  }).map(({ nonce, proposal }) => ({ ...proposal, nonce, unlock: 0n }));
+    code: appPreviewerCode,
+    functionName: "preview",
+    args: [address, [], { auditor: zeroAddress, previewer: zeroAddress, ratePreviewer: zeroAddress }],
+    abi: appPreviewerAbi,
+  }).wallet.proposals.map(({ nonce, proposal }) => ({ ...proposal, nonce, unlock: 0n }));
 }
