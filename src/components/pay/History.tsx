@@ -8,8 +8,8 @@ import { ScrollView, XStack, YStack } from "tamagui";
 import HistorySheet from "./HistorySheet";
 import PaymentList from "./PaymentList";
 import { ArrowLeft } from "../../generated/icons/ArrowLeft";
+import { refreshNetworks } from "../../utils/networkOptions";
 import queryClient from "../../utils/queryClient";
-import useMarkets from "../../utils/useMarkets";
 import useStatements from "../../utils/useStatements";
 import IconButton from "../shared/IconButton";
 import RefreshControl from "../shared/RefreshControl";
@@ -20,15 +20,8 @@ import View from "../shared/View";
 export default function History() {
   const { t } = useTranslation();
   const router = useRouter();
-  const { refetch } = useMarkets();
   const past = useStatements();
   const [selected, setSelected] = useState<number>();
-  const refresh = () =>
-    Promise.all([
-      refetch(),
-      queryClient.invalidateQueries({ queryKey: ["activity", "card"], exact: true }),
-      queryClient.invalidateQueries({ queryKey: ["activity", "statement"] }),
-    ]);
 
   return (
     <SafeView fullScreen backgroundColor="backgroundSoft">
@@ -78,4 +71,12 @@ export default function History() {
       <HistorySheet maturity={selected} onClose={() => setSelected(undefined)} />
     </SafeView>
   );
+}
+
+function refresh() {
+  return Promise.all([
+    refreshNetworks(),
+    queryClient.invalidateQueries({ queryKey: ["activity", "card"], exact: true }),
+    queryClient.invalidateQueries({ queryKey: ["activity", "statement"] }),
+  ]);
 }

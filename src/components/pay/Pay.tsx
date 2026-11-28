@@ -30,6 +30,7 @@ import { Info } from "../../generated/icons/Info";
 import { RefreshCw } from "../../generated/icons/RefreshCw";
 import { date } from "../../i18n";
 import { presentArticle } from "../../utils/intercom";
+import { refreshNetworks } from "../../utils/networkOptions";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
 import useDebts from "../../utils/useDebts";
@@ -462,7 +463,7 @@ function FirstMaturityCard({
 
 function refresh() {
   return Promise.all([
-    queryClient.refetchQueries({ queryKey: ["network"], type: "active" }),
+    refreshNetworks(),
     queryClient.invalidateQueries({ queryKey: ["activity", "card"], exact: true }),
     queryClient.invalidateQueries({ queryKey: ["activity", "statement"] }),
   ]);

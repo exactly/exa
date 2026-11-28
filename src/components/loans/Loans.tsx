@@ -5,16 +5,13 @@ import { useRouter } from "expo-router";
 
 import { ScrollView, XStack, YStack } from "tamagui";
 
-import { marketUSDCAddress } from "@exactly/common/generated/chain";
-
 import CreditLine from "./CreditLine";
 import { ArrowLeft } from "../../generated/icons/ArrowLeft";
 import { CircleHelp } from "../../generated/icons/CircleHelp";
 import { presentArticle } from "../../utils/intercom";
+import { refreshNetworks } from "../../utils/networkOptions";
 import reportError from "../../utils/reportError";
 import { refreshActivity } from "../../utils/server";
-import useAsset from "../../utils/useAsset";
-import useMarkets from "../../utils/useMarkets";
 import PaymentSheet from "../pay/PaymentSheet";
 import RolloverIntroSheet from "../pay/RolloverIntroSheet";
 import UpcomingPayments from "../pay/UpcomingPayments";
@@ -26,10 +23,8 @@ import View from "../shared/View";
 
 export default function Loans() {
   const { t } = useTranslation();
-  const { account } = useAsset(marketUSDCAddress);
   const router = useRouter();
   const [rolloverIntro, setRolloverIntro] = useState<{ chainId: number; maturity: string }>();
-  const { refetch } = useMarkets();
   return (
     <SafeView fullScreen tab backgroundColor="backgroundSoft">
       <View fullScreen backgroundColor="backgroundMild">
@@ -40,9 +35,7 @@ export default function Loans() {
           contentContainerStyle={{ flexGrow: 1, backgroundColor: "backgroundMild" }}
           showsVerticalScrollIndicator={false}
           flex={1}
-          refreshControl={
-            <RefreshControl onRefresh={() => Promise.all([account ? refetch() : undefined, refreshActivity()])} />
-          }
+          refreshControl={<RefreshControl onRefresh={() => Promise.all([refreshNetworks(), refreshActivity()])} />}
         >
           <>
             <View backgroundColor="backgroundSoft" padded>

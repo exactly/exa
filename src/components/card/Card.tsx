@@ -11,7 +11,7 @@ import { ScrollView, Separator, Spinner, Square, XStack, YStack } from "tamagui"
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useBytecode } from "wagmi";
 
-import chain, { marketUSDCAddress } from "@exactly/common/generated/chain";
+import chain from "@exactly/common/generated/chain";
 
 import CardDetails from "./CardDetails";
 import CardDisclaimer from "./CardDisclaimer";
@@ -32,6 +32,7 @@ import { EyeOff } from "../../generated/icons/EyeOff";
 import { Hash } from "../../generated/icons/Hash";
 import { Snowflake } from "../../generated/icons/Snowflake";
 import { presentArticle } from "../../utils/intercom";
+import { refreshNetworks } from "../../utils/networkOptions";
 import openBrowser from "../../utils/openBrowser";
 import queryClient from "../../utils/queryClient";
 import reportError from "../../utils/reportError";
@@ -46,7 +47,6 @@ import {
   type KYCStatus,
 } from "../../utils/server";
 import useAccount from "../../utils/useAccount";
-import useAsset from "../../utils/useAsset";
 import useBeginKYC from "../../utils/useBeginKYC";
 import useBusiness from "../../utils/useBusiness";
 import useCardLimit from "../../utils/useCardLimit";
@@ -105,7 +105,6 @@ export default function Card() {
 
   const { increase, limit, spent, pending, processing } = useCardLimit(cardDetails?.limit.amount, !!cardDetails);
 
-  const { queryKey } = useAsset(marketUSDCAddress);
   const { address } = useAccount();
   const {
     data: bytecode,
@@ -132,7 +131,7 @@ export default function Card() {
       business ? queryClient.invalidateQueries({ queryKey: ["kyc", "panda-business"], exact: true }) : undefined,
       address ? refetchBytecode() : undefined,
       address && credential ? refetchPlugin() : undefined,
-      queryClient.refetchQueries({ queryKey }),
+      refreshNetworks(),
     ]);
   useTabPress("card", () => {
     scrollRef.current?.scrollTo({ y: 0, animated: true });

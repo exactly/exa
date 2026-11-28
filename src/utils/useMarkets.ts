@@ -37,7 +37,6 @@ export default function useMarkets(
     timestamp,
     firstMaturity: nextMaturity + MATURITY_INTERVAL * Number(nextMaturity - now < MIN_BORROW_INTERVAL),
     queryKey: options.queryKey,
-    refetch: result.refetch,
     get isFetching() {
       return result.isFetching;
     },
