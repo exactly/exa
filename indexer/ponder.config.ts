@@ -12,6 +12,7 @@ import chain, {
   exaPluginAbi,
   factoryChains,
   marketAbi,
+  mockSwapperAbi,
   proposalManagerAbi,
   upgradeableModularAccountAbi,
   webauthnOwnerPluginAbi,
@@ -22,30 +23,31 @@ const ownerUpdated = getAbiItem({
   name: "OwnerUpdated",
   args: [zeroAddress, [{ x: 0n, y: 0n }], []],
 });
-const sources = [...chains].map(([id, { auditor, factories, webauthnOwnerPlugin }]) => {
-  const network = id === chain.id ? chain : alchemyChains.get(id);
-  const rpc = network?.rpcUrls.alchemy.http[0];
-  if (!network || !rpc) throw new Error(`missing network ${id}`);
-  return {
-    auditor,
-    factories: [...factories.versions, ...factories.legacy],
-    network,
-    webauthnOwnerPlugin,
-    rpc: `${rpc}/${alchemyAPIKey}`,
-    auditorBlock: {
-      [optimism.id]: 78_310_663,
-      [base.id]: 38_135_747,
-      [optimismSepolia.id]: 7_418_809,
-      [baseSepolia.id]: 29_953_857,
-    }[id],
-    startBlock: factoryChains.get(id)?.startBlock,
-  };
-});
+const sources = [...chains].map(([id, { auditor, factories, swapper, webauthnOwnerPlugin }]) => ({
+  ...source(id),
+  auditor,
+  factories: [...factories.versions, ...factories.legacy],
+  swapper,
+  webauthnOwnerPlugin,
+  auditorBlock: {
+    [optimism.id]: 78_310_663,
+    [base.id]: 38_135_747,
+    [optimismSepolia.id]: 7_418_809,
+    [baseSepolia.id]: 29_953_857,
+  }[id],
+  startBlock: factoryChains.get(id)?.startBlock,
+}));
+const bridgeSources = [
+  ...sources,
+  ...[...factoryChains]
+    .filter(([id]) => !chains.has(id))
+    .map(([id, { startBlock, swapper }]) => ({ ...source(id), startBlock, swapper })),
+];
 
 export default createConfig({
   database: { kind: "postgres", connectionString: env.POSTGRES_URL, poolConfig: { max: 8 } },
   chains: Object.fromEntries(
-    sources.map(({ network, rpc }) => [
+    bridgeSources.map(({ network, rpc }) => [
       network.name,
       {
         id: network.id,
@@ -77,6 +79,15 @@ export default createConfig({
         sources.map(({ factories, network, startBlock }) => [network.name, { address: factories, startBlock }]),
       ),
     },
+    Auditor: {
+      abi: auditorAbi,
+      chain: Object.fromEntries(
+        sources.map(({ auditor, auditorBlock, network }) => [
+          network.name,
+          { address: auditor, startBlock: auditorBlock },
+        ]),
+      ),
+    },
     ExaPlugin: {
       abi: exaPluginAbi,
       chain: Object.fromEntries(sources.map(({ network, startBlock }) => [network.name, { startBlock }])),
@@ -98,6 +109,12 @@ export default createConfig({
         ]),
       ),
     },
+    Swapper: {
+      abi: mockSwapperAbi,
+      chain: Object.fromEntries(
+        bridgeSources.map(({ network, startBlock, swapper }) => [network.name, { address: swapper, startBlock }]),
+      ),
+    },
     WebauthnOwnerPlugin: {
       abi: webauthnOwnerPluginAbi,
       chain: Object.fromEntries(
@@ -113,3 +130,10 @@ export default createConfig({
     },
   },
 });
+
+function source(id: number) {
+  const network = id === chain.id ? chain : alchemyChains.get(id);
+  const rpc = network?.rpcUrls.alchemy.http[0];
+  if (!network || !rpc) throw new Error(`missing network ${id}`);
+  return { network, rpc: `${rpc}/${alchemyAPIKey}` };
+}

@@ -22,6 +22,7 @@ import {
   type ReadContractReturnType,
   type RpcLog,
   type RpcTransactionReceipt,
+  type RpcTransactionRequest,
   type TransactionRequest,
   type WriteContractParameters,
   type WriteContractReturnType,
@@ -77,10 +78,12 @@ export function writeContract<
   const sender = from ?? sliceHex(keccak256(toHex(String(Math.random()))), 12);
   anvil("anvil_impersonateAccount", [sender], network);
   try {
-    if (!from) anvil("anvil_setBalance", [sender, String(10n ** 18n)], network);
+    if (!from || BigInt(anvil("eth_getBalance", [sender, "latest"], network)) === 0n) {
+      anvil("anvil_setBalance", [sender, String(10n ** 18n)], network);
+    }
     const { status, transactionHash } = anvil(
       "eth_sendTransactionSync",
-      [{ from: sender, to: address, data: encodeFunctionData({ functionName, abi, args }) }],
+      [{ from: sender, to: address, data: encodeFunctionData({ functionName, abi, args }), gas: toHex(10_000_000) }],
       network,
     );
     if (status !== "0x1") throw new Error(`${functionName} reverted`);
@@ -126,7 +129,7 @@ export default function anvil(
 ): ExactPartial<RpcTransactionReceipt> | null;
 export default function anvil(
   method: "eth_sendTransactionSync",
-  params: readonly [transaction: TransactionRequest],
+  params: readonly [transaction: RpcTransactionRequest],
   network?: string,
 ): RpcTransactionReceipt;
 export default function anvil(
