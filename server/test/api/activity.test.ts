@@ -4,8 +4,8 @@ import "../mocks/auth";
 import "../mocks/sentry";
 import { walletClient } from "../mocks/wallet";
 
-import { captureException } from "@sentry/node";
-import { eq } from "drizzle-orm";
+import { captureException, setUser } from "@sentry/node";
+import { and, desc, eq } from "drizzle-orm";
 import { testClient } from "hono/testing";
 import assert from "node:assert";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -18,8 +18,10 @@ import {
   encodeAbiParameters,
   encodeFunctionData,
   erc20Abi,
+  getAbiItem,
   hexToBigInt,
   http,
+  keccak256,
   padHex,
   parseAbi,
   parseEther,
@@ -30,6 +32,7 @@ import {
   zeroHash,
   type Chain,
   type Hash,
+  type Hex,
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount, privateKeyToAddress } from "viem/accounts";
 import { anvil, moonbeamDev } from "viem/chains";
@@ -44,6 +47,8 @@ import chain, {
   exaAccountFactoryAddress,
   exaPluginAbi,
   exaPluginAddress,
+  exaPreviewerAddress,
+  factories,
   marketAbi,
   marketUSDCAddress,
   marketWETHAddress,
@@ -57,10 +62,11 @@ import chain, {
 } from "@exactly/common/generated/chain";
 import ProposalType from "@exactly/common/ProposalType";
 import { Address } from "@exactly/common/validation";
-import deploy from "@exactly/plugin/deploy.json";
+import { proposalManager } from "@exactly/plugin/deploy.json";
 
 import route, { CreditActivity, DebitActivity, InstallmentsActivity, PandaActivity } from "../../api/activity";
 import database, { cards, credentials, transactions } from "../../database";
+import * as indexer from "../../database/indexer";
 import authenticate from "../../middleware/auth";
 import { signIssuerOp } from "../../utils/panda";
 import publicClient from "../../utils/publicClient";
@@ -346,22 +352,24 @@ describe.concurrent("authenticated", () => {
     });
 
     it("keeps the landed retry of a debit", async () => {
-      const [landed] = await anvilClient.getContractEvents({
-        abi: marketAbi,
-        eventName: "Withdraw",
-        address: marketUSDCAddress,
-        args: { caller: account, owner: account },
-        toBlock: "latest",
-        fromBlock: 0n,
-        strict: true,
-      });
+      const [landed] = await database
+        .select({ hash: indexer.withdraws.hash })
+        .from(indexer.withdraws)
+        .where(
+          and(
+            eq(indexer.withdraws.chainId, chain.id),
+            eq(indexer.withdraws.account, account.toLowerCase() as Hex),
+            eq(indexer.withdraws.market, marketUSDCAddress.toLowerCase() as Hex),
+          ),
+        )
+        .limit(1);
       assert.ok(landed, "expected a usdc withdraw");
       const bodies = [retried(0), retried(1)];
       await database.insert(transactions).values([
         {
           id: "retried",
           cardId: "first-activity-card",
-          hashes: [padHex("0x1", { size: 32 }), landed.transactionHash],
+          hashes: [padHex("0x1", { size: 32 }), landed.hash],
           payload: { type: "panda", bodies },
         },
       ]);
@@ -375,12 +383,7 @@ describe.concurrent("authenticated", () => {
         const json = (await response.json()) as { id: string }[];
         expect(json.find(({ id }) => id === "retried")).toStrictEqual(
           httpSerialize({
-            ...parse(PandaActivity, {
-              type: "panda",
-              hashes: [landed.transactionHash],
-              borrows: [null],
-              bodies: [bodies[1]],
-            }),
+            ...parse(PandaActivity, { type: "panda", hashes: [landed.hash], borrows: [null], bodies: [bodies[1]] }),
             cardId: "first-activity-card",
             lastFour: "1234",
           }),
@@ -1606,7 +1609,11 @@ describe.concurrent("authenticated", () => {
         }),
       });
       const fees = await anvilClient.estimateFeesPerGas();
-      const { logs, status } = await anvilClient.waitForTransactionReceipt({
+      const {
+        blockNumber: block,
+        logs,
+        status: outcome,
+      } = await anvilClient.waitForTransactionReceipt({
         hash: await owner.writeContract({
           address: depositor,
           abi: upgradeableModularAccountAbi,
@@ -1657,8 +1664,19 @@ describe.concurrent("authenticated", () => {
       });
       const deposits = parseEventLogs({ abi: marketAbi, eventName: "Deposit", logs });
 
-      expect(status).toBe("success");
+      expect(outcome).toBe("success");
       expect(new Set(deposits.map(({ logIndex }) => String(logIndex).length))).toStrictEqual(new Set([1, 2]));
+
+      await vi.waitFor(
+        async () => {
+          const status = (await fetch("http://localhost:42069/status").then((response) => response.json())) as Record<
+            string,
+            { block: { number: number } }
+          >;
+          expect(status[chain.name]?.block.number).toBeGreaterThanOrEqual(Number(block));
+        },
+        { timeout: 30_000 },
+      );
 
       const response = await appClient.index.$get(
         { query: { include: "received" } },
@@ -1875,7 +1893,7 @@ describe.concurrent("authenticated", () => {
         }),
       });
       expect(proposal.status).toBe("success");
-      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
+      await anvilClient.mine({ blocks: 1, interval: proposalManager.delay[anvil.id] });
       const receipt = await keeper.exaSend(
         { name: "execute proposal", op: "exa.execute" },
         { address: redeemer, abi: exaPluginAbi, functionName: "executeProposal", args: [0n] },
@@ -1886,6 +1904,16 @@ describe.concurrent("authenticated", () => {
 
       expect(withdraw.args.shares).toBe(shares);
       expect(withdraw.args.assets).toBeGreaterThan(shares);
+      await vi.waitFor(
+        async () => {
+          const status = (await fetch("http://localhost:42069/status").then((response) => response.json())) as Record<
+            string,
+            { block: { number: number } }
+          >;
+          expect(status[chain.name]?.block.number).toBeGreaterThanOrEqual(Number(withdraw.blockNumber));
+        },
+        { timeout: 30_000 },
+      );
 
       const response = await appClient.index.$get(
         { query: { include: "sent" } },
@@ -2048,7 +2076,7 @@ describe.concurrent("authenticated", () => {
           ],
         }),
       });
-      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
+      await anvilClient.mine({ blocks: 1, interval: proposalManager.delay[anvil.id] });
       const receipt = await anvilClient.waitForTransactionReceipt({
         hash: await owner.writeContract({
           address: withdrawer,
@@ -2066,6 +2094,7 @@ describe.concurrent("authenticated", () => {
       });
       const withdraws = parseEventLogs({ abi: marketAbi, eventName: "Withdraw", logs: receipt.logs });
       const { timestamp } = await anvilClient.getBlock({ blockNumber: receipt.blockNumber });
+      await indexed(receipt.blockNumber);
 
       const response = await appClient.index.$get(
         { query: { include: "sent" } },
@@ -2168,7 +2197,7 @@ describe.concurrent("authenticated", () => {
           ],
         }),
       });
-      await anvilClient.mine({ blocks: 1, interval: deploy.proposalManager.delay[anvil.id] });
+      await anvilClient.mine({ blocks: 1, interval: proposalManager.delay[anvil.id] });
       const receipt = await anvilClient.waitForTransactionReceipt({
         hash: await walletClient.sendTransaction({
           to: withdrawer,
@@ -2189,6 +2218,8 @@ describe.concurrent("authenticated", () => {
           args: [withdrawer],
         }),
       ]);
+
+      await indexed(receipt.blockNumber);
 
       const response = await appClient.index.$get(
         { query: { include: "sent" } },
@@ -2307,6 +2338,8 @@ describe.concurrent("authenticated", () => {
       });
       const withdraws = parseEventLogs({ abi: marketAbi, eventName: "Withdraw", logs: receipt.logs });
       const { timestamp } = await anvilClient.getBlock({ blockNumber: receipt.blockNumber });
+
+      await indexed(receipt.blockNumber);
 
       const response = await appClient.index.$get(
         { query: { include: "sent" } },
@@ -2427,6 +2460,8 @@ describe.concurrent("authenticated", () => {
           ],
         },
       );
+      assert.ok(receipt);
+      await indexed(receipt.blockNumber);
 
       const response = await appClient.index.$get(
         { query: { include: "sent" } },
@@ -2434,7 +2469,7 @@ describe.concurrent("authenticated", () => {
       );
 
       expect(
-        parseEventLogs({ abi: marketAbi, eventName: "Withdraw", logs: receipt?.logs ?? [] }).map(({ args }) => args),
+        parseEventLogs({ abi: marketAbi, eventName: "Withdraw", logs: receipt.logs }).map(({ args }) => args),
       ).toStrictEqual([
         {
           caller: collected,
@@ -2445,7 +2480,7 @@ describe.concurrent("authenticated", () => {
         },
       ]);
       expect(
-        parseEventLogs({ abi: proposalManagerAbi, eventName: "ProposalNonceSet", logs: receipt?.logs ?? [] }),
+        parseEventLogs({ abi: proposalManagerAbi, eventName: "ProposalNonceSet", logs: receipt.logs }),
       ).toStrictEqual([]);
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toStrictEqual([]);
@@ -2755,6 +2790,255 @@ describe.concurrent("authenticated", () => {
   });
 });
 
+describe("plugin 1.0.0", () => {
+  const owner = createWalletClient({ chain, transport: http(), account: privateKeyToAccount(generatePrivateKey()) });
+  const factory = parse(
+    Address,
+    factories.versions.find((address) => address !== exaAccountFactoryAddress),
+  );
+  const account100 = deriveAddress(factory, { x: padHex(owner.account.address), y: zeroHash });
+  let release: Address;
+
+  beforeAll(async () => {
+    const keeper = wallet(privateKeyToAccount(padHex("0x69")));
+    const withdraw = async (amount: bigint, receiver: Hex, type = ProposalType.Withdraw, nonce = 0n) => {
+      await anvilClient.waitForTransactionReceipt({
+        hash: await owner.writeContract({
+          address: account100,
+          abi: upgradeableModularAccountAbi,
+          functionName: "executeBatch",
+          args: [
+            [
+              {
+                target: account100,
+                value: 0n,
+                data: encodeFunctionData({
+                  abi: exaPluginAbi,
+                  functionName: "propose",
+                  args: [marketWETHAddress, amount, type, encodeAbiParameters([{ type: "address" }], [receiver])],
+                }),
+              },
+            ],
+          ],
+        }),
+      });
+      await anvilClient.mine({ blocks: 1, interval: proposalManager.delay[anvil.id] });
+      await keeper.exaSend(
+        { name: "execute proposal", op: "exa.execute" },
+        { address: account100, abi: exaPluginAbi, functionName: "executeProposal", args: [nonce] },
+      );
+    };
+    await Promise.all([
+      database
+        .insert(credentials)
+        .values([{ id: account100, publicKey: new Uint8Array(), account: account100, factory }]),
+      keeper.exaSend(
+        { name: "create account", op: "exa.account" },
+        {
+          address: factory,
+          abi: exaAccountFactoryAbi,
+          functionName: "createAccount",
+          args: [0n, [{ x: hexToBigInt(owner.account.address), y: 0n }]],
+        },
+      ),
+      anvilClient.setBalance({ address: owner.account.address, value: 10n ** 24n }),
+      anvilClient.setBalance({ address: account100, value: 10n ** 18n }),
+    ]);
+    await keeper.exaSend(
+      { name: "poke", op: "exa.poke" },
+      { address: account100, abi: exaPluginAbi, functionName: "pokeETH" },
+    );
+    release = await publicClient
+      .readContract({ address: account100, abi: upgradeableModularAccountAbi, functionName: "getInstalledPlugins" })
+      .then(([plugin]) => parse(Address, plugin));
+    await withdraw(10n ** 16n, padHex("0x69", { size: 20 }));
+    await keeper.exaSend(
+      { name: "skip nonce", op: "exa.nonce" },
+      { address: account100, abi: exaPluginAbi, functionName: "setProposalNonce", args: [1n] },
+    );
+    const currentProposalManager = await publicClient.readContract({
+      address: exaPluginAddress,
+      abi: exaPluginAbi,
+      functionName: "proposalManager",
+    });
+    await anvilClient.waitForTransactionReceipt({
+      hash: await anvilClient.writeContract({
+        address: currentProposalManager,
+        abi: proposalManagerAbi,
+        functionName: "grantRole",
+        args: [keccak256(toHex("PROPOSER_ROLE")), release],
+        account: null,
+      }),
+    });
+    await anvilClient.waitForTransactionReceipt({
+      hash: await anvilClient.writeContract({
+        address: release,
+        abi: exaPluginAbi,
+        functionName: "setProposalManager",
+        args: [currentProposalManager],
+        account: null,
+      }),
+    });
+    await anvilClient.waitForTransactionReceipt({
+      hash: await owner.writeContract({
+        address: account100,
+        abi: upgradeableModularAccountAbi,
+        functionName: "executeBatch",
+        args: [
+          [
+            {
+              target: account100,
+              value: 0n,
+              data: encodeFunctionData({
+                abi: upgradeableModularAccountAbi,
+                functionName: "uninstallPlugin",
+                args: [
+                  release,
+                  encodeAbiParameters(
+                    [
+                      {
+                        type: "tuple",
+                        components: [
+                          { name: "serializedManifest", type: "bytes" },
+                          { name: "forceUninstall", type: "bool" },
+                          { name: "callbackGasLimit", type: "uint256" },
+                        ],
+                      },
+                    ],
+                    [{ serializedManifest: "0x", forceUninstall: false, callbackGasLimit: 0n }],
+                  ),
+                  "0x",
+                ],
+              }),
+            },
+            {
+              target: account100,
+              value: 0n,
+              data: encodeFunctionData({
+                abi: upgradeableModularAccountAbi,
+                functionName: "installPlugin",
+                args: [
+                  exaPluginAddress,
+                  keccak256(
+                    encodeAbiParameters(getAbiItem({ abi: exaPluginAbi, name: "pluginManifest" }).outputs, [
+                      await publicClient.readContract({
+                        address: exaPluginAddress,
+                        abi: exaPluginAbi,
+                        functionName: "pluginManifest",
+                      }),
+                    ]),
+                  ),
+                  "0x",
+                  [],
+                ],
+              }),
+            },
+          ],
+        ],
+      }),
+    });
+    await withdraw(2n * 10n ** 16n, padHex("0x420", { size: 20 }));
+    await withdraw(3n * 10n ** 16n, padHex("0x4200", { size: 20 }), ProposalType.Redeem, 1n);
+    const head = Number(await anvilClient.getBlockNumber({ cacheTime: 0 }));
+    await vi.waitFor(
+      async () => {
+        const status = (await fetch("http://localhost:42069/status").then((response) => response.json())) as Record<
+          string,
+          { block: { number: number } }
+        >;
+        assert.ok((status[chain.name]?.block.number ?? -1) >= head, "indexer behind");
+      },
+      { timeout: 30_000 },
+    );
+  });
+
+  it("returns withdraws proposed on the proposal manager each plugin had when executing", async () => {
+    const readContract = vi.spyOn(publicClient, "readContract");
+
+    const response = await appClient.index.$get(
+      { query: { include: "sent" } },
+      { headers: { "test-credential-id": account100 } },
+    );
+
+    expect(response.status).toBe(200);
+    const withdraws = await anvilClient
+      .getContractEvents({
+        abi: marketAbi,
+        eventName: "Withdraw",
+        address: marketWETHAddress,
+        args: { owner: account100 },
+        toBlock: "latest",
+        fromBlock: 0n,
+        strict: true,
+      })
+      .then((logs) => logs.toReversed());
+    const [redeem] = withdraws;
+    assert.ok(redeem, "expected a redeem withdraw event");
+    expect(redeem.args.shares).toBe(3n * 10n ** 16n);
+    await expect(response.json()).resolves.toStrictEqual(
+      await Promise.all(
+        [
+          {
+            amount: Number(redeem.args.assets) / 1e18,
+            usdAmount: Number(redeem.args.assets * 2500n) / 1e18,
+            receiver: padHex("0x4200", { size: 20 }),
+          },
+          { amount: 0.02, usdAmount: 50, receiver: padHex("0x420", { size: 20 }) },
+          { amount: 0.01, usdAmount: 25, receiver: padHex("0x69", { size: 20 }) },
+        ].map(async (sent, index) => {
+          const log = withdraws[index];
+          assert.ok(log, "expected a withdraw event");
+          return {
+            id: `${chain.id}:${log.blockNumber}:${log.transactionIndex}:${log.logIndex}`,
+            type: "sent",
+            currency: "WETH",
+            ...sent,
+            transactionHash: log.transactionHash,
+            timestamp: await anvilClient
+              .getBlock({ blockNumber: log.blockNumber })
+              .then(({ timestamp }) => new Date(Number(timestamp) * 1000).toISOString()),
+          };
+        }),
+      ),
+    );
+    expect(readContract.mock.calls.map(([{ address, functionName }]) => [address, functionName])).toStrictEqual([
+      [exaPreviewerAddress, "markets"],
+    ]);
+    expect(setUser).toHaveBeenCalledExactlyOnceWith({ id: account100 });
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it("keeps both plugins as exa plugins after the upgrade", async () => {
+    const [uninstalled] = await anvilClient.getContractEvents({
+      address: account100,
+      abi: upgradeableModularAccountAbi,
+      eventName: "PluginUninstalled",
+      args: { plugin: release },
+      fromBlock: 0n,
+      strict: true,
+    });
+    assert.ok(uninstalled, "expected a PluginUninstalled event");
+
+    await expect(
+      database
+        .select({ address: indexer.plugins.address, uninstalled: indexer.plugins.uninstalled })
+        .from(indexer.plugins)
+        .innerJoin(
+          indexer.exaPlugins,
+          and(
+            eq(indexer.exaPlugins.chainId, indexer.plugins.chainId),
+            eq(indexer.exaPlugins.address, indexer.plugins.address),
+          ),
+        )
+        .where(and(eq(indexer.plugins.chainId, chain.id), eq(indexer.plugins.account, account100.toLowerCase() as Hex)))
+        .orderBy(desc(indexer.plugins.block), desc(indexer.plugins.logIndex)),
+    ).resolves.toStrictEqual([
+      { address: exaPluginAddress.toLowerCase(), uninstalled: null },
+      { address: release.toLowerCase(), uninstalled: uninstalled.blockNumber },
+    ]);
+  });
+});
+
 const mocks = vi.hoisted(() => ({ isBase: vi.fn<(base: boolean) => boolean>((base) => base) }));
 
 vi.mock("@sentry/node", { spy: true });
@@ -2808,4 +3092,17 @@ function retried(createdAt: number) {
       spend: { ...spendTemplate, amount: 23_253, localAmount: 23_253, localCurrency: "usd" },
     },
   };
+}
+
+async function indexed(block: bigint) {
+  await vi.waitFor(
+    async () => {
+      const status = (await fetch("http://localhost:42069/status").then((response) => response.json())) as Record<
+        string,
+        { block: { number: number } }
+      >;
+      expect(status[chain.name]?.block.number).toBeGreaterThanOrEqual(Number(block));
+    },
+    { timeout: 30_000 },
+  );
 }

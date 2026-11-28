@@ -91,6 +91,7 @@ export default defineConfig([
           "ProposalManager.sol/ProposalManager.json",
           "Refunder.sol/Refunder.json",
           "UpgradeableModularAccount.sol/UpgradeableModularAccount.json",
+          "WebauthnOwnerPlugin.sol/WebauthnOwnerPlugin.json",
         ],
       }),
       {
@@ -117,13 +118,21 @@ export default defineConfig([
           const chainContracts = (chain ? sameSide.map(([{ id }]) => id) : [anvil.id, moonbeamDev.id]).map((id) => {
             const exaPreviewer = loadBroadcast("ExaPreviewer", id).transactions[0]?.contractAddress;
             if (!exaPreviewer) throw new Error(`missing exaPreviewer on ${id}`);
+            const webauthnOwnerPlugin = (
+              id === anvil.id || id === moonbeamDev.id
+                ? loadBroadcast("Account", id)
+                : loadBroadcast("Plugin", id, "@exactly/plugin/node_modules/webauthn-owner-plugin")
+            ).transactions[0]?.contractAddress;
+            if (!webauthnOwnerPlugin) throw new Error(`missing webauthnOwnerPlugin on ${id}`);
             return [
               id,
               {
                 auditor: getAddress(loadDeployment("Auditor", true, id).address),
                 exaPreviewer: getAddress(exaPreviewer),
+                factories: exaFactories(id).factories,
                 previewer: getAddress(loadDeployment("Previewer", true, id).address),
                 ratePreviewer: getAddress(loadDeployment("RatePreviewer", true, id).address),
+                webauthnOwnerPlugin: getAddress(webauthnOwnerPlugin),
               },
             ] as const;
           });
@@ -134,49 +143,69 @@ export default defineConfig([
           const slugs = Object.fromEntries(
             Object.entries(networkConfig).flatMap(([id, config]) => (config ? [[id, config.slug]] : [])),
           ) as Record<number, string | undefined>;
-          const admin = getAddress(perChain(deploy.accounts.admin));
-          const create3Factory = getAddress(perChain(deploy.factory.create3));
           const version = perChain(factoryVersion);
           if (!deploy.factory.versions.includes(version)) throw new Error(`unlisted factory version ${version}`);
-          const createx = getAddress(perChain(deploy.factory.createx));
-          function factory(v: string, from = testnet ? createx : create3Factory) {
-            const salt = keccak256(encodeAbiParameters([{ type: "string" }, { type: "string" }], ["Exa Plugin", v]));
-            return getContractAddress({
-              from: getContractAddress({
-                opcode: "CREATE2",
-                from,
-                salt:
-                  from === createx
-                    ? keccak256(
-                        encodeAbiParameters(
-                          [{ type: "address" }, { type: "bytes32" }],
-                          [admin, encodePacked(["address", "bytes1", "bytes11"], [admin, "0x00", slice(salt, 0, 11)])],
-                        ),
-                      )
-                    : keccak256(encodePacked(["address", "bytes32"], [admin, salt])),
-                bytecodeHash: "0x21c35dbe1b344a2488cf3321d6ce542f8e9f305544ff09e4993a62319a497c1f",
-              }),
-              nonce: 1n,
-            });
+          function exaFactories(id: number) {
+            const at = id === moonbeamDev.id ? anvil.id : id;
+            const admin = getAddress(perChain(deploy.accounts.admin, at));
+            const create3Factory = getAddress(perChain(deploy.factory.create3, at));
+            const createx = getAddress(perChain(deploy.factory.createx, at));
+            function factory(v: string, from = testnet ? createx : create3Factory) {
+              const salt = keccak256(encodeAbiParameters([{ type: "string" }, { type: "string" }], ["Exa Plugin", v]));
+              return getContractAddress({
+                from: getContractAddress({
+                  opcode: "CREATE2",
+                  from,
+                  salt:
+                    from === createx
+                      ? keccak256(
+                          encodeAbiParameters(
+                            [{ type: "address" }, { type: "bytes32" }],
+                            [
+                              admin,
+                              encodePacked(["address", "bytes1", "bytes11"], [admin, "0x00", slice(salt, 0, 11)]),
+                            ],
+                          ),
+                        )
+                      : keccak256(encodePacked(["address", "bytes32"], [admin, salt])),
+                  bytecodeHash: "0x21c35dbe1b344a2488cf3321d6ce542f8e9f305544ff09e4993a62319a497c1f",
+                }),
+                nonce: 1n,
+              });
+            }
+            const create3 = testnet
+              ? (
+                  {
+                    [optimismSepolia.id]: { versions: [], legacy: ["1.0.0"] },
+                    [baseSepolia.id]: { versions: ["1.1.0"], legacy: ["1.0.0"] },
+                  } as Partial<Record<number, Record<"legacy" | "versions", string[]>>>
+                )[at]
+              : undefined;
+            return {
+              factory,
+              factories: {
+                versions: [
+                  ...deploy.factory.versions.map((v) => factory(v)),
+                  ...(create3?.versions ?? []).map((v) => factory(v, create3Factory)),
+                ],
+                legacy:
+                  at === anvil.id
+                    ? [
+                        factory("legacy"),
+                        ...(["factory", "v0Factory"] as const).map((name) => {
+                          const address = loadBroadcast("Legacy", at).returns?.[name]?.value;
+                          if (!address) throw new Error(`missing legacy ${name}`);
+                          return getAddress(address);
+                        }),
+                      ]
+                    : [
+                        ...perChain(deploy.factory.legacy, at).map((address) => getAddress(address)),
+                        ...(create3?.legacy ?? []).map((v) => factory(v, create3Factory)),
+                      ],
+              },
+            };
           }
-          const create3 = testnet
-            ? (
-                {
-                  [optimismSepolia.id]: { versions: [], legacy: ["1.0.0"] },
-                  [baseSepolia.id]: { versions: ["1.1.0"], legacy: ["1.0.0"] },
-                } as Partial<Record<number, Record<"legacy" | "versions", string[]>>>
-              )[chainId]
-            : undefined;
-          const factories = {
-            versions: [
-              ...deploy.factory.versions.map((v) => factory(v)),
-              ...(create3?.versions ?? []).map((v) => factory(v, create3Factory)),
-            ],
-            legacy: [
-              ...perChain(deploy.factory.legacy).map((address) => getAddress(address)),
-              ...(create3?.legacy ?? []).map((v) => factory(v, create3Factory)),
-            ],
-          };
+          const { factory, factories } = exaFactories(chainId);
           function chainFields(id: number | string) {
             return {
               ...(networkConfig[id]?.testnet && { testnet: true }),
@@ -346,7 +375,7 @@ export default defineConfig([
               `export const alchemyChains: ReadonlyMap<number, AlchemyChain> = new Map<number, AlchemyChain>([${alchemyChains
                 .map(({ id, source: s }) => `[${id}, ${id === chainId ? "chain" : s}]`)
                 .join(", ")}])`,
-              `export const chains: ReadonlyMap<number, AlchemyChain & Readonly<Record<"auditor" | "exaPreviewer" | "previewer" | "ratePreviewer" | "swapper", \`0x\${string}\`>>> = ${chainMap(chainContracts)}`,
+              `export const chains: ReadonlyMap<number, AlchemyChain & Readonly<Record<"auditor" | "exaPreviewer" | "previewer" | "ratePreviewer" | "swapper" | "webauthnOwnerPlugin", \`0x\${string}\`>> & Readonly<{ factories: Readonly<Record<"legacy" | "versions", readonly \`0x\${string}\`[]>> }>> = ${chainMap(chainContracts)}`,
               `export const factoryChains: ReadonlyMap<number, AlchemyChain & Readonly<{ startBlock: number; swapper: \`0x\${string}\` }>> = ${chainMap(factoryChains.map(({ id, startBlock }) => [id, { startBlock }] as const))}`,
               `export const isBase: boolean = ${chainId === base.id || chainId === baseSepolia.id}`,
               `export const lifiURL: string | undefined = ${JSON.stringify({ [anvil.id]: "http://localhost:3000/e2e/lifi/v1", [base.id]: "https://li.quest/v1", [optimism.id]: "https://li.quest/v1" }[chainId])}`,
@@ -394,13 +423,13 @@ function loadDeployment<R extends boolean = true>(
   }
 }
 
-function loadBroadcast(script: string, id = chainId) {
+function loadBroadcast(script: string, id = chainId, root = "@exactly/plugin") {
   return JSON.parse(
     readFileSync(
-      `node_modules/@exactly/plugin/broadcast/${script}.s.sol/${id === moonbeamDev.id ? anvil.id : id}/run-latest.json`,
+      `node_modules/${root}/broadcast/${script}.s.sol/${id === moonbeamDev.id ? anvil.id : id}/run-latest.json`,
       "utf8",
     ),
-  ) as { transactions: { contractAddress: string }[] };
+  ) as { returns?: Partial<Record<string, { value: string }>>; transactions: { contractAddress: string }[] };
 }
 
 function perChain<T>(values: Record<string, T> & { default: T }, id = chainId) {
