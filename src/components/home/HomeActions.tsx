@@ -1,15 +1,16 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useRouter } from "expo-router";
 
+import { toast } from "@tamagui/toast";
 import { XStack } from "tamagui";
 
 import { useQuery } from "@tanstack/react-query";
 import { useBytecode, useReadContract } from "wagmi";
 
 import accountInit from "@exactly/common/accountInit";
-import chain, { exaPluginAddress } from "@exactly/common/generated/chain";
+import chain from "@exactly/common/generated/chain";
 import {
   upgradeableModularAccountAbi,
   useReadUpgradeableModularAccountGetInstalledPlugins,
@@ -21,6 +22,7 @@ import { HandCoins } from "../../generated/icons/HandCoins";
 import { Repeat } from "../../generated/icons/Repeat";
 import reportError from "../../utils/reportError";
 import useAccount from "../../utils/useAccount";
+import { useProposalManagerQuery } from "../../utils/useProposalManager";
 import Button from "../shared/StyledButton";
 
 import type { Credential } from "@exactly/common/validation";
@@ -56,7 +58,9 @@ export default function HomeActions() {
     factoryData: credential && accountInit(credential),
     query: { enabled: !!account && !!credential },
   });
-  const isLatestPlugin = installedPlugins?.[0] === exaPluginAddress;
+  const { proposalManager, failed: managerFailed, refetch: refetchManager } = useProposalManagerQuery();
+  const retryingRef = useRef(false);
+  const [retrying, setRetrying] = useState(false);
   const { refetch: fetchProposals, isPending } = useReadContract({
     chainId: chain.id,
     functionName: "proposals",
@@ -77,14 +81,28 @@ export default function HomeActions() {
     ],
     address: installedPlugins?.[0],
     args: account ? [account] : undefined,
-    query: { enabled: !!account && !!installedPlugins?.[0] && !isLatestPlugin },
+    query: { enabled: !!account && !!installedPlugins?.[0] && proposalManager === null },
   });
 
   const handleSend = async () => {
-    if (isLatestPlugin) {
+    let manager = proposalManager;
+    if (manager === undefined) {
+      if (!managerFailed || retryingRef.current) return;
+      retryingRef.current = true;
+      setRetrying(true);
+      manager = await refetchManager().finally(() => {
+        retryingRef.current = false;
+        setRetrying(false);
+      });
+      if (manager === undefined) {
+        toast.error(t("An error occurred. Please try again later."), { duration: 1000 });
+        return;
+      }
+    }
+    if (manager) {
       router.push("/send-funds");
     } else {
-      if (isPending) return;
+      if (proposalManager === null && isPending) return;
       const { data: proposals } = await fetchProposals();
       if (proposals && proposals[0] > 0n) {
         router.push("/pending-proposals");
@@ -139,7 +157,11 @@ export default function HomeActions() {
             primary={key === "deposit"}
             secondary={key !== "deposit"}
             disabled={disabled}
-            loading={key === "send" && !isLatestPlugin && isPending && !!bytecode}
+            loading={
+              key === "send" &&
+              !!bytecode &&
+              (proposalManager === undefined ? !managerFailed || retrying : proposalManager === null && isPending)
+            }
             flex={1}
             flexBasis={0}
             aria-label={title}

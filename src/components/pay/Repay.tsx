@@ -39,6 +39,7 @@ import useAccount from "../../utils/useAccount";
 import useAsset from "../../utils/useAsset";
 import useInsets from "../../utils/useInsets";
 import usePortfolio from "../../utils/usePortfolio";
+import { useProposalManagerQuery } from "../../utils/useProposalManager";
 import useSimulateProposal from "../../utils/useSimulateProposal";
 import useSingleMutation from "../../utils/useSingleMutation";
 import exa from "../../utils/wagmi/exa";
@@ -122,8 +123,9 @@ export default function Repay() {
     query: { enabled: !!account && !!bytecode && !!maturity },
   });
 
+  const { proposalManager, isLoading: isProposalManagerLoading } = useProposalManagerQuery();
   const { data: proposalDelay, isLoading: isProposalDelayLoading } = useReadProposalManagerDelay({
-    address: proposalManagerAddress,
+    address: proposalManager === null ? proposalManagerAddress : proposalManager,
     chainId: chain.id,
   });
   const simulationTimestamp = proposalDelay === undefined ? undefined : Number(timestamp) + Number(proposalDelay);
@@ -546,7 +548,7 @@ export default function Repay() {
                   </Text>
                 </XStack>
 
-                {isProposalDelayLoading ? (
+                {isProposalManagerLoading || isProposalDelayLoading ? (
                   <Skeleton height={180} width="100%" />
                 ) : (
                   <RepayAmountSelector
@@ -803,6 +805,7 @@ export default function Repay() {
   if (isSuccess && displayValues.repayAssets)
     return (
       <Success
+        queued={mode !== "external" && !!proposalManager}
         maturity={maturity}
         timestamp={timestamp}
         amount={displayValues.amount}
