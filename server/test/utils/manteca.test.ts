@@ -2,15 +2,15 @@ import "../mocks/sentry";
 
 import { captureException } from "@sentry/core";
 import { parse } from "valibot";
-import { padHex } from "viem";
-import { optimism, optimismSepolia } from "viem/chains";
+import { hexToBigInt, padHex } from "viem";
+import { base, baseSepolia, optimism, optimismSepolia } from "viem/chains";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Address } from "@exactly/common/validation";
 
 import createPersona from "../../utils/persona";
 import createManteca, * as Manteca from "../../utils/ramps/manteca";
-import { ErrorCodes } from "../../utils/ramps/manteca";
+import { decodeNonceKey, encodeNonceKey, ErrorCodes } from "../../utils/ramps/manteca";
 import ServiceError from "../../utils/ServiceError";
 
 import type * as viem from "viem";
@@ -33,6 +33,8 @@ vi.mock("@sentry/core", { spy: true });
 vi.mock("@exactly/common/generated/chain", () => ({
   default: chainMock,
 }));
+
+vi.mock("../../utils/publicClient", () => ({ default: {} }));
 
 const persona = createPersona("persona", "https://persona.test");
 const ramp = createManteca("manteca", "https://manteca.test");
@@ -309,6 +311,22 @@ describe("manteca utils", () => {
         destination: { address, network: "OPTIMISM" },
       });
     });
+
+    it.each([base.id, baseSepolia.id])("withdraws with BASE network on chain %i", async (id) => {
+      chainMock.id = id;
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(mockFetchResponse({ ...mockBalanceBase, balance: { USDC: "100.00" } }))
+        .mockResolvedValueOnce(mockFetchResponse(mockWithdrawResponse));
+
+      await expect(manteca.withdrawBalance("456", "USDC", address)).resolves.toBeUndefined();
+      expect(JSON.parse(fetchSpy.mock.calls[1]?.[1]?.body as string)).toStrictEqual({
+        userAnyId: "456",
+        asset: "USDC",
+        amount: "100.00",
+        destination: { address, network: "BASE" },
+      });
+    });
   });
 
   describe("getProvider", () => {
@@ -504,6 +522,21 @@ describe("manteca utils", () => {
       expect(result.status).toBe("NOT_STARTED");
       expect(result.onramp.currencies).toEqual(["ARS", "USD"]);
     });
+
+    it.each([base.id, baseSepolia.id])("keeps the onramp off on chain %i", async (id) => {
+      chainMock.id = id;
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+      await expect(manteca.getProvider(account, "BR")).resolves.toStrictEqual({
+        onramp: { currencies: [] },
+        status: "NOT_AVAILABLE",
+      });
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("manteca not supported chain id"), {
+        level: "error",
+        contexts: { chain: { id } },
+      });
+    });
   });
 
   describe("mantecaOnboarding", () => {
@@ -579,10 +612,12 @@ describe("manteca utils", () => {
       },
     };
 
-    it("throws for unsupported chain id", async () => {
-      chainMock.id = 1;
+    it.each([1, base.id, baseSepolia.id])("throws for chain %i", async (id) => {
+      chainMock.id = id;
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
 
       await expect(manteca.onboarding(account, credentialId)).rejects.toThrow(ErrorCodes.NOT_SUPPORTED_CHAIN_ID);
+      expect(fetchSpy).not.toHaveBeenCalled();
     });
 
     it("returns early when user is already active", async () => {
@@ -729,7 +764,7 @@ describe("manteca utils", () => {
     });
   });
 
-  describe("lockQrPayment", () => {
+  describe("lockQRPayment", () => {
     it("locks with the real payer as sender", async () => {
       const lock = {
         code: "fa44218d-7b3c-4a1e-bc9f-2d5e8f01c3a7",
@@ -752,7 +787,7 @@ describe("manteca utils", () => {
       const sender = { legalIdNationality: "ARGENTINA", legalId: "12345678", name: "JANE", surname: "DOE" };
 
       await expect(
-        manteca.lockQrPayment({ paymentDestination: "qr3", against: "USDC", sender }),
+        manteca.lockQRPayment({ paymentDestination: "qr3", against: "USDC", sender }),
       ).resolves.toStrictEqual({ ...lock, sender: { legalId: "12345678" } });
 
       expect(fetchSpy).toHaveBeenCalledOnce();
@@ -783,7 +818,7 @@ describe("manteca utils", () => {
       vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchError(400, JSON.stringify(body)));
 
       await expect(
-        manteca.lockQrPayment({
+        manteca.lockQRPayment({
           paymentDestination: "qr3",
           amount: "0",
           against: "USDC",
@@ -800,7 +835,7 @@ describe("manteca utils", () => {
       vi.spyOn(globalThis, "fetch").mockImplementationOnce(response);
 
       await expect(
-        manteca.lockQrPayment({
+        manteca.lockQRPayment({
           paymentDestination: "qr3",
           against: "USDC",
           sender: { legalIdNationality: "AR", legalId: "12345678", name: "JANE", surname: "DOE" },
@@ -813,7 +848,7 @@ describe("manteca utils", () => {
       const fetchSpy = vi.spyOn(globalThis, "fetch");
 
       await expect(
-        manteca.lockQrPayment({
+        manteca.lockQRPayment({
           paymentDestination: "qr3",
           against: "USDC",
           sender: { legalIdNationality: "AR", legalId: "12345678", name: "JANE", surname: "DOE" },
@@ -848,7 +883,7 @@ describe("manteca utils", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchResponse(lock));
 
     await expect(
-      manteca.lockQrPayment({
+      manteca.lockQRPayment({
         paymentDestination: "qr3manualamount", // cspell:ignore manualamount
         against: "USDC",
         sender: { legalIdNationality: "AR", legalId: "30123456", name: "Juan", surname: "Perez" },
@@ -870,7 +905,7 @@ describe("manteca utils", () => {
     });
   });
 
-  describe("executeQrPayment", () => {
+  describe("executeQRPayment", () => {
     const synthetic = {
       id: "6af20ec32e3420b0fdc3e1d0",
       numberId: "70009",
@@ -896,7 +931,7 @@ describe("manteca utils", () => {
     it("executes the lock with the external id", async () => {
       const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchResponse(body));
 
-      await expect(manteca.executeQrPayment("lock-code", "0xabc")).resolves.toStrictEqual(synthetic);
+      await expect(manteca.executeQRPayment("lock-code", "0xabc")).resolves.toStrictEqual(synthetic);
 
       expect(fetchSpy.mock.calls[0]?.[0]).toBe("https://manteca.test/crypto/v2/synthetics/qr-payment");
       expect(fetchSpy.mock.calls[0]?.[1]?.method).toBe("POST");
@@ -916,7 +951,7 @@ describe("manteca utils", () => {
         .mockResolvedValueOnce(mockFetchError(status, JSON.stringify(error)))
         .mockResolvedValueOnce(mockFetchResponse({ ...body, status: "COMPLETED" }));
 
-      await expect(manteca.executeQrPayment("lock-code", "0xabc")).resolves.toStrictEqual({
+      await expect(manteca.executeQRPayment("lock-code", "0xabc")).resolves.toStrictEqual({
         ...synthetic,
         status: "COMPLETED",
       });
@@ -938,7 +973,7 @@ describe("manteca utils", () => {
           mockFetchError(404, JSON.stringify({ internalStatus: "SYNTHETIC_NF", message: "Synthetic not found" })),
         );
 
-      await expect(manteca.executeQrPayment("lock-code", "0xabc")).rejects.toThrow(ServiceError);
+      await expect(manteca.executeQRPayment("lock-code", "0xabc")).rejects.toThrow(ServiceError);
       expect(fetchSpy).toHaveBeenCalledTimes(2);
     });
 
@@ -949,7 +984,7 @@ describe("manteca utils", () => {
           mockFetchError(409, JSON.stringify({ internalStatus: "OPERATION_BLOCKED", message: "blocked" })),
         );
 
-      await expect(manteca.executeQrPayment("lock-code", "0xabc")).rejects.toThrow(ServiceError);
+      await expect(manteca.executeQRPayment("lock-code", "0xabc")).rejects.toThrow(ServiceError);
       expect(fetchSpy).toHaveBeenCalledOnce();
     });
   });
@@ -1053,11 +1088,350 @@ describe("manteca utils", () => {
     });
   });
 
+  describe("getMinimum", () => {
+    it("returns the minimum order in usd", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(mockFetchResponse({ order: { min: "0.1", currency: "USD" } }));
+
+      await expect(manteca.getMinimum()).resolves.toBe("0.1");
+      expect(fetchSpy.mock.calls[0]?.[0]).toBe("https://manteca.test/crypto/v2/info/operation-limits");
+      expect(fetchSpy.mock.calls[0]?.[1]?.method).toBe("GET");
+      expect(captureException).not.toHaveBeenCalled();
+    });
+
+    it("warns about a minimum in another currency", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        mockFetchResponse({ order: { min: "100", max: "5000000", currency: "ARS" } }),
+      );
+
+      await expect(manteca.getMinimum()).resolves.toBeUndefined();
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("unsupported qr minimum currency"), {
+        level: "warning",
+        contexts: { order: { currency: "ARS", min: "100" } },
+      });
+    });
+
+    it("warns on errors", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchError(500, "internal"));
+
+      await expect(manteca.getMinimum()).resolves.toBeUndefined();
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(ServiceError), { level: "warning" });
+    });
+  });
+
+  describe("refundQRPayment", () => {
+    const userOpHash = padHex("0x4337", { size: 32 });
+    const address = parse(Address, padHex("0xa11ce", { size: 20 }));
+
+    const lock = { OPTIMISM: { code: "360a2f93-988a-42c6-ba07-6b6ef05c1745", cost: "0.130829" } };
+
+    it("withdraws the paid amount plus the locked gas from the principal account to the account", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(mockFetchResponse(lock))
+        .mockResolvedValueOnce(mockFetchResponse(refund))
+        .mockResolvedValueOnce(mockFetchResponse(principal("1000")));
+
+      await expect(manteca.refundQRPayment(userOpHash, address, 2_449_218n, "exa")).resolves.toStrictEqual({
+        id: refund.id,
+        numberId: refund.numberId,
+        userExternalId: "Exactly-argentina",
+        status: "PENDING",
+      });
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+      expect(fetchSpy.mock.calls[0]?.[0]).toBe("https://manteca.test/crypto/v2/withdraw-locks");
+      expect(JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string)).toStrictEqual({
+        userAnyId: "Exactly-argentina",
+        asset: "USDC",
+        destination: { address, network: "OPTIMISM" },
+      });
+      expect(fetchSpy.mock.calls[1]?.[0]).toBe("https://manteca.test/crypto/v2/withdraws");
+      expect(fetchSpy.mock.calls[1]?.[1]?.method).toBe("POST");
+      expect(JSON.parse(fetchSpy.mock.calls[1]?.[1]?.body as string)).toStrictEqual({
+        externalId: `refund-${userOpHash}`,
+        userAnyId: "Exactly-argentina",
+        legalEntity: "WALLET_ARG",
+        asset: "USDC",
+        amount: "2.580047",
+        withdrawLockCode: lock.OPTIMISM.code,
+        destination: { address, network: "OPTIMISM" },
+      });
+      expect(fetchSpy.mock.calls[2]?.[0]).toBe("https://manteca.test/crypto/v2/user-balances/Exactly-argentina");
+      expect(fetchSpy.mock.calls[2]?.[1]?.method).toBe("GET");
+      expect(captureException).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["below the minimum", principal("999.999999"), "999.999999"],
+      ["without usdc", principal(), "0"],
+      ["without the entity", { ...mockBalanceBase, balance: { USDC: "5000" }, balances: { CRYPTO_ARG: {} } }, "0"],
+      ["without entities", { ...mockBalanceBase, balance: { USDC: "5000" } }, "0"],
+    ])("warns when the principal usdc is %s after the refund", async (_, balances, balance) => {
+      vi.spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(mockFetchResponse(lock))
+        .mockResolvedValueOnce(mockFetchResponse(refund))
+        .mockResolvedValueOnce(mockFetchResponse(balances));
+
+      await expect(manteca.refundQRPayment(userOpHash, address, 2_449_218n, "exa")).resolves.toStrictEqual({
+        id: refund.id,
+        numberId: refund.numberId,
+        userExternalId: "Exactly-argentina",
+        status: "PENDING",
+      });
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("qr refund balance low"), {
+        level: "warning",
+        contexts: { refund: { balance, userOpHash, withdraw: refund.id } },
+      });
+    });
+
+    it.each([base.id, baseSepolia.id])("refunds on the BASE network on chain %i", async (id) => {
+      chainMock.id = id;
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(mockFetchResponse({ BASE: lock.OPTIMISM }))
+        .mockResolvedValueOnce(mockFetchResponse(refund))
+        .mockResolvedValueOnce(mockFetchResponse(principal("1000")));
+
+      await expect(manteca.refundQRPayment(userOpHash, address, 2_449_218n, "exa")).resolves.toStrictEqual({
+        id: refund.id,
+        numberId: refund.numberId,
+        userExternalId: "Exactly-argentina",
+        status: "PENDING",
+      });
+      expect(JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string)).toStrictEqual({
+        userAnyId: "Exactly-argentina",
+        asset: "USDC",
+        destination: { address, network: "BASE" },
+      });
+      expect(JSON.parse(fetchSpy.mock.calls[1]?.[1]?.body as string)).toStrictEqual({
+        externalId: `refund-${userOpHash}`,
+        userAnyId: "Exactly-argentina",
+        legalEntity: "WALLET_ARG",
+        asset: "USDC",
+        amount: "2.580047",
+        withdrawLockCode: lock.OPTIMISM.code,
+        destination: { address, network: "BASE" },
+      });
+      expect(captureException).not.toHaveBeenCalled();
+    });
+
+    it("throws when manteca locks gas only on another network", async () => {
+      chainMock.id = base.id;
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchResponse(lock));
+
+      await expect(manteca.refundQRPayment(userOpHash, address, 2_449_218n, "exa")).rejects.toThrow(
+        "missing withdraw lock",
+      );
+      expect(fetchSpy).toHaveBeenCalledOnce();
+    });
+
+    it("refunds when the principal balance fails to load", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(mockFetchResponse(lock))
+        .mockResolvedValueOnce(mockFetchResponse(refund))
+        .mockResolvedValueOnce(mockFetchError(500, "internal"));
+
+      await expect(manteca.refundQRPayment(userOpHash, address, 2_449_218n, "exa")).resolves.toStrictEqual({
+        id: refund.id,
+        numberId: refund.numberId,
+        userExternalId: "Exactly-argentina",
+        status: "PENDING",
+      });
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(ServiceError), {
+        level: "error",
+        contexts: { refund: { userOpHash, withdraw: refund.id } },
+      });
+    });
+
+    it("withdraws the paid amount when the user pays the gas", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(mockFetchResponse(lock))
+        .mockResolvedValueOnce(mockFetchResponse(refund))
+        .mockResolvedValueOnce(mockFetchResponse(principal("1000")));
+
+      await expect(manteca.refundQRPayment(userOpHash, address, 2_449_218n, "user")).resolves.toStrictEqual({
+        id: refund.id,
+        numberId: refund.numberId,
+        userExternalId: "Exactly-argentina",
+        status: "PENDING",
+      });
+      expect(JSON.parse(fetchSpy.mock.calls[1]?.[1]?.body as string)).toStrictEqual({
+        externalId: `refund-${userOpHash}`,
+        userAnyId: "Exactly-argentina",
+        legalEntity: "WALLET_ARG",
+        asset: "USDC",
+        amount: "2.449218",
+        withdrawLockCode: lock.OPTIMISM.code,
+        destination: { address, network: "OPTIMISM" },
+      });
+      expect(captureException).not.toHaveBeenCalled();
+    });
+
+    it("refunds an amount below the withdraw cost when exa pays the gas", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(mockFetchResponse(lock))
+        .mockResolvedValueOnce(mockFetchResponse(refund))
+        .mockResolvedValueOnce(mockFetchResponse(principal("1000")));
+
+      await expect(manteca.refundQRPayment(userOpHash, address, 100_000n, "exa")).resolves.toStrictEqual({
+        id: refund.id,
+        numberId: refund.numberId,
+        userExternalId: "Exactly-argentina",
+        status: "PENDING",
+      });
+      expect(JSON.parse(fetchSpy.mock.calls[1]?.[1]?.body as string)).toMatchObject({ amount: "0.230829" });
+      expect(captureException).not.toHaveBeenCalled();
+    });
+
+    it("skips the refund when the paid amount does not cover the withdraw cost the user pays", async () => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchResponse(lock));
+
+      await expect(manteca.refundQRPayment(userOpHash, address, 130_829n, "user")).resolves.toBeNull();
+      expect(fetchSpy).toHaveBeenCalledOnce();
+      expect(captureException).toHaveBeenCalledExactlyOnceWith(new Error("qr refund below withdraw cost"), {
+        level: "warning",
+        contexts: { refund: { userOpHash, address, amount: "130829", cost: "130829" } },
+      });
+    });
+
+    it("throws when manteca locks no gas for the network", async () => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchResponse({}));
+
+      await expect(manteca.refundQRPayment(userOpHash, address, 2_449_218n, "exa")).rejects.toThrow(
+        "missing withdraw lock",
+      );
+      expect(fetchSpy).toHaveBeenCalledOnce();
+    });
+
+    it("returns the existing refund", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(mockFetchResponse(lock))
+        .mockResolvedValueOnce(
+          mockFetchError(
+            409,
+            JSON.stringify({ internalStatus: "WITHDRAW_EXISTS", message: "Withdraw already exists." }),
+          ),
+        )
+        .mockResolvedValueOnce(mockFetchResponse({ ...refund, status: "EXECUTED" }))
+        .mockResolvedValueOnce(mockFetchResponse(principal("1000")));
+
+      await expect(manteca.refundQRPayment(userOpHash, address, 2_449_218n, "exa")).resolves.toStrictEqual({
+        id: refund.id,
+        numberId: refund.numberId,
+        userExternalId: "Exactly-argentina",
+        status: "EXECUTED",
+      });
+      expect(fetchSpy).toHaveBeenCalledTimes(4);
+      expect(fetchSpy.mock.calls[2]?.[0]).toBe(`https://manteca.test/crypto/v2/withdraws/refund-${userOpHash}`);
+      expect(captureException).not.toHaveBeenCalled();
+    });
+
+    it("throws when the existing refund is not found", async () => {
+      vi.spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(mockFetchResponse(lock))
+        .mockResolvedValueOnce(
+          mockFetchError(
+            409,
+            JSON.stringify({ internalStatus: "WITHDRAW_EXISTS", message: "Withdraw already exists." }),
+          ),
+        )
+        .mockResolvedValueOnce(mockFetchError(404, JSON.stringify({ internalStatus: "WITHDRAW_NF" })));
+
+      await expect(manteca.refundQRPayment(userOpHash, address, 2_449_218n, "exa")).rejects.toThrow(ServiceError);
+      expect(globalThis.fetch).toHaveBeenCalledTimes(3);
+    });
+
+    it("throws no funds when the principal account can't cover the refund", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(mockFetchResponse(lock))
+        .mockResolvedValueOnce(
+          mockFetchError(400, JSON.stringify({ internalStatus: "NO_FUNDS", message: "Insufficient funds." })),
+        );
+
+      await expect(manteca.refundQRPayment(userOpHash, address, 2_449_218n, "exa")).rejects.toMatchObject({
+        message: ErrorCodes.NO_FUNDS,
+        cause: { name: "MantecaNoFunds", message: "Insufficient funds.", status: 400 },
+      });
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      expect(captureException).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      [409, JSON.stringify({ internalStatus: "OPERATION_BLOCKED", message: "Operation blocked." })],
+      [500, "internal"],
+    ])("throws on %i %s", async (status, error) => {
+      vi.spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(mockFetchResponse(lock))
+        .mockResolvedValueOnce(mockFetchError(status, error));
+
+      await expect(manteca.refundQRPayment(userOpHash, address, 2_449_218n, "exa")).rejects.toThrow(ServiceError);
+      expect(captureException).not.toHaveBeenCalled();
+    });
+
+    it("throws when the withdraw request fails", async () => {
+      const failure = new TypeError("fetch failed");
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchResponse(lock)).mockRejectedValueOnce(failure);
+
+      await expect(manteca.refundQRPayment(userOpHash, address, 2_449_218n, "exa")).rejects.toBe(failure);
+      expect(captureException).not.toHaveBeenCalled();
+    });
+
+    it("throws for unsupported chain id", async () => {
+      chainMock.id = 1;
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+      await expect(manteca.refundQRPayment(userOpHash, address, 2_449_218n, "exa")).rejects.toThrow(
+        ErrorCodes.NOT_SUPPORTED_CHAIN_ID,
+      );
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("getQRRefund", () => {
+    const userOpHash = padHex("0x4337", { size: 32 });
+
+    it("returns the refund of the user operation", async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(mockFetchResponse({ ...refund, status: "EXECUTED" }));
+
+      await expect(manteca.getQRRefund(userOpHash)).resolves.toStrictEqual({
+        id: refund.id,
+        numberId: refund.numberId,
+        userExternalId: "Exactly-argentina",
+        status: "EXECUTED",
+      });
+      expect(fetchSpy.mock.calls[0]?.[0]).toBe(`https://manteca.test/crypto/v2/withdraws/refund-${userOpHash}`);
+      expect(fetchSpy.mock.calls[0]?.[1]?.method).toBe("GET");
+    });
+
+    it("returns null when there is no refund", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        mockFetchError(404, JSON.stringify({ internalStatus: "WITHDRAW_NF", message: "Withdraw not found." })),
+      );
+
+      await expect(manteca.getQRRefund(userOpHash)).resolves.toBeNull();
+    });
+
+    it("throws on other errors", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(mockFetchError(500, "internal"));
+
+      await expect(manteca.getQRRefund(userOpHash)).rejects.toThrow(ServiceError);
+    });
+  });
+
   describe("getSettlement", () => {
-    it("returns the evm settlement address of the entity and memoizes the company", async () => {
+    it("returns the evm settlement address of the entity", async () => {
       const evm = ["ETHEREUM", "OPTIMISM", "BASE"];
       const settlements = createManteca("manteca", "https://manteca.test");
-      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
         mockFetchResponse({
           id: "68a6270d62a6d9f582f40c00",
           banking: {
@@ -1098,16 +1472,17 @@ describe("manteca utils", () => {
       await expect(settlements.getSettlement("ARS")).resolves.toBe(parse(Address, padHex("0xa5", { size: 20 })));
       await expect(settlements.getSettlement("BRL")).resolves.toBe(parse(Address, padHex("0xb1", { size: 20 })));
       await expect(settlements.getSettlement("USD")).rejects.toThrow(ErrorCodes.NOT_SUPPORTED_CURRENCY);
-      expect(fetchSpy).toHaveBeenCalledOnce();
-      expect(fetchSpy.mock.calls[0]?.[0]).toBe("https://manteca.test/crypto/v2/company");
+      expect(fetchSpy.mock.calls.map(([url]) => url)).toStrictEqual(
+        Array.from({ length: 4 }, () => "https://manteca.test/crypto/v2/company"),
+      );
     });
 
-    it("skips an entity without evm settlement and retries the company after a failure", async () => {
+    it("throws on a company failure and skips an entity without evm settlement", async () => {
       const settlements = createManteca("manteca", "https://manteca.test");
       const fetchSpy = vi
         .spyOn(globalThis, "fetch")
         .mockResolvedValueOnce(mockFetchError(500, "internal"))
-        .mockResolvedValueOnce(
+        .mockResolvedValue(
           mockFetchResponse({
             banking: {
               addresses: [
@@ -1127,7 +1502,8 @@ describe("manteca utils", () => {
         BRL: parse(Address, padHex("0xb1", { size: 20 })),
       });
       await expect(settlements.getSettlement("ARS")).rejects.toThrow(ErrorCodes.NOT_SUPPORTED_CURRENCY);
-      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+      expect(captureException).not.toHaveBeenCalled();
     });
 
     it("skips settlements that do not list the network of the chain", async () => {
@@ -1165,6 +1541,42 @@ describe("manteca utils", () => {
       });
     });
 
+    it.each([base.id, baseSepolia.id])("picks the settlements that list BASE on chain %i", async (id) => {
+      chainMock.id = id;
+      const settlements = createManteca("manteca", "https://manteca.test");
+      vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        mockFetchResponse({
+          banking: {
+            addresses: [
+              {
+                acceptedNetworks: ["OPTIMISM"],
+                legalEntity: "WALLET_ARG",
+                address: padHex("0xa5", { size: 20 }),
+                type: "SETTLEMENT",
+              },
+              {
+                acceptedNetworks: ["ETHEREUM", "BASE"],
+                legalEntity: "WALLET_ARG",
+                address: padHex("0xa4", { size: 20 }),
+                type: "SETTLEMENT",
+              },
+              {
+                acceptedNetworks: ["BASE"],
+                legalEntity: "CRYPTO_GLOBAL",
+                address: padHex("0xb1", { size: 20 }),
+                type: "SETTLEMENT",
+              },
+            ],
+          },
+        }),
+      );
+
+      await expect(settlements.getSettlements()).resolves.toStrictEqual({
+        ARS: parse(Address, padHex("0xa4", { size: 20 })),
+        BRL: parse(Address, padHex("0xb1", { size: 20 })),
+      });
+    });
+
     it("returns no settlements on an unsupported chain", async () => {
       chainMock.id = 1;
       const settlements = createManteca("manteca", "https://manteca.test");
@@ -1172,58 +1584,34 @@ describe("manteca utils", () => {
 
       await expect(settlements.getSettlements()).resolves.toStrictEqual({});
     });
+  });
 
-    it("fetches the company again after ten minutes", async () => {
-      vi.useFakeTimers({ toFake: ["Date"] });
-      vi.setSystemTime(0);
-      const settlements = createManteca("manteca", "https://manteca.test");
-      const fetchSpy = vi
-        .spyOn(globalThis, "fetch")
-        .mockResolvedValueOnce(company(padHex("0xa5", { size: 20 })))
-        .mockResolvedValueOnce(company(padHex("0xa6", { size: 20 })));
-
-      await expect(settlements.getSettlements()).resolves.toStrictEqual({
-        ARS: parse(Address, padHex("0xa5", { size: 20 })),
-      });
-      vi.setSystemTime(10 * 60_000 - 1);
-      await expect(settlements.getSettlements()).resolves.toStrictEqual({
-        ARS: parse(Address, padHex("0xa5", { size: 20 })),
-      });
-      expect(fetchSpy).toHaveBeenCalledOnce();
-      vi.setSystemTime(10 * 60_000);
-      await expect(settlements.getSettlements()).resolves.toStrictEqual({
-        ARS: parse(Address, padHex("0xa6", { size: 20 })),
-      });
-      expect(fetchSpy).toHaveBeenCalledTimes(2);
-      expect(fetchSpy.mock.calls.map(([url]) => url)).toStrictEqual([
-        "https://manteca.test/crypto/v2/company",
-        "https://manteca.test/crypto/v2/company",
-      ]);
-      expect(captureException).not.toHaveBeenCalled();
-      vi.useRealTimers();
+  describe("nonce key", () => {
+    it("decodes the lock code of an onchain nonce", () => {
+      expect(decodeNonceKey(hexToBigInt("0x6578612d71720001dd1f1124a4c64601a509849e3ab0b8e50000000000000000"))).toBe(
+        "dd1f1124-a4c6-4601-a509-849e3ab0b8e5",
+      );
     });
 
-    it("keeps the previous company when the refresh fails", async () => {
-      vi.useFakeTimers({ toFake: ["Date"] });
-      vi.setSystemTime(0);
-      const settlements = createManteca("manteca", "https://manteca.test");
-      const fetchSpy = vi
-        .spyOn(globalThis, "fetch")
-        .mockResolvedValueOnce(company(padHex("0xa5", { size: 20 })))
-        .mockResolvedValueOnce(mockFetchError(500, "internal"));
+    it("encodes the lock code after the tag and version", () => {
+      expect(encodeNonceKey("dd1f1124-a4c6-4601-a509-849e3ab0b8e5")).toBe(
+        "0x6578612d71720001dd1f1124a4c64601a509849e3ab0b8e5",
+      );
+      expect(decodeNonceKey((hexToBigInt(encodeNonceKey("8d0f05d6-fb17-4adc-8003-de9a0ec9c77a")) << 64n) | 7n)).toBe(
+        "8d0f05d6-fb17-4adc-8003-de9a0ec9c77a",
+      );
+    });
 
-      await settlements.getSettlements();
-      vi.setSystemTime(10 * 60_000);
-      await expect(settlements.getSettlements()).resolves.toStrictEqual({
-        ARS: parse(Address, padHex("0xa5", { size: 20 })),
-      });
-      vi.setSystemTime(20 * 60_000 - 1);
-      await expect(settlements.getSettlements()).resolves.toStrictEqual({
-        ARS: parse(Address, padHex("0xa5", { size: 20 })),
-      });
-      expect(fetchSpy).toHaveBeenCalledTimes(2);
-      expect(captureException).toHaveBeenCalledExactlyOnceWith(expect.any(ServiceError), { level: "warning" });
-      vi.useRealTimers();
+    it("rejects a code that is not an uuid", () => {
+      expect(() => encodeNonceKey("qr3")).toThrow();
+    });
+
+    it.each([
+      ["the default key", 5n],
+      ["another version", hexToBigInt("0x6578612d71720002dd1f1124a4c64601a509849e3ab0b8e50000000000000000")],
+      ["another tag", hexToBigInt("0x6578612d71730001dd1f1124a4c64601a509849e3ab0b8e50000000000000000")],
+    ])("ignores %s", (_, nonce) => {
+      expect(decodeNonceKey(nonce)).toBeUndefined();
     });
   });
 
@@ -1383,8 +1771,36 @@ const mockBalanceBase = {
   updatedAt: "2024-01-01T00:00:00Z",
 };
 
+function principal(usdc?: string) {
+  return {
+    ...mockBalanceBase,
+    balance: { USDC: "5000" },
+    balances: { CRYPTO_ARG: { USDC: "5000" }, WALLET_ARG: { USDC: usdc } },
+  };
+}
+
 const mockOrderResponse = { id: "order-123", numberId: "789", status: "PENDING" as const };
 const mockWithdrawResponse = { id: "withdraw-123", numberId: "789", status: "PENDING" as const };
+
+const refund = {
+  id: "6af4aa45204ef0670ed07817",
+  numberId: "100069658",
+  network: "OPTIMISM",
+  networkId: "100028332",
+  userId: "6adff39f0ee31861fc20cdaf",
+  userNumberId: "100114168",
+  userExternalId: "Exactly-argentina",
+  userLegalId: "30717771806",
+  legalEntity: "WALLET_ARG",
+  status: "PENDING",
+  asset: "USDC",
+  amount: "2.449218",
+  filledAmount: "2.449218",
+  destination: "0x00000000000000000000000000000000000A11cE",
+  externalId: `refund-${padHex("0x4337", { size: 32 })}`,
+  creationTime: "2026-11-11T14:47:49.984-03:00",
+  updatedAt: "2026-11-11T14:47:49.984-03:00",
+};
 
 const mockLimitsResponse = [
   {
