@@ -3598,19 +3598,9 @@ describe("authenticated", () => {
           };
 
           await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, account));
-          const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-            ok: true,
-            status: 200,
-            arrayBuffer: () =>
-              Promise.resolve(
-                new TextEncoder().encode(
-                  JSON.stringify({
-                    id: "pandaId",
-                    applicationStatus: "approved",
-                  }),
-                ).buffer,
-              ),
-          } as Response);
+          const mockFetch = vi
+            .spyOn(globalThis, "fetch")
+            .mockResolvedValueOnce(Response.json({ id: "pandaId", applicationStatus: "approved" }));
 
           const response = await appClient.application.$post(
             { json: { ...applicationPayload, verify } },
@@ -3659,14 +3649,9 @@ describe("authenticated", () => {
           const verify = { message, signature, walletAddress: owner.address, chainId: chain.id };
 
           await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, account));
-          const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-            ok: true,
-            status: 200,
-            arrayBuffer: () =>
-              Promise.resolve(
-                new TextEncoder().encode(JSON.stringify({ id: "pandaId", applicationStatus: "approved" })).buffer,
-              ),
-          } as Response);
+          const mockFetch = vi
+            .spyOn(globalThis, "fetch")
+            .mockResolvedValueOnce(Response.json({ id: "pandaId", applicationStatus: "approved" }));
 
           const response = await appClient.application.$post(
             { json: { ...payload, verify } },
@@ -3885,19 +3870,9 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
             };
 
             await database.update(credentials).set({ pandaId: null }).where(eq(credentials.id, account));
-            const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-              ok: true,
-              status: 200,
-              arrayBuffer: () =>
-                Promise.resolve(
-                  new TextEncoder().encode(
-                    JSON.stringify({
-                      id: "pandaId",
-                      applicationStatus: "approved",
-                    }),
-                  ).buffer,
-                ),
-            } as Response);
+            const mockFetch = vi
+              .spyOn(globalThis, "fetch")
+              .mockResolvedValueOnce(Response.json({ id: "pandaId", applicationStatus: "approved" }));
 
             const response = await appClient.application.$post(
               {
@@ -3922,11 +3897,9 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
             expect(updatedCredential?.pandaId).toBe("pandaId");
             expect(mockFetch).toHaveBeenCalledWith(
               expect.stringContaining("/issuing/applications/user"),
-              expect.objectContaining({
-                method: "POST",
-                headers: expect.objectContaining({ encrypted: "true" }), // eslint-disable-line @typescript-eslint/no-unsafe-assignment
-              }),
+              expect.objectContaining({ method: "POST" }),
             );
+            expect(new Headers(calls[0]?.[1]?.headers).get("encrypted")).toBe("true");
             expect(JSON.parse(body as string)).toStrictEqual({
               key: encryptedPayload.key.toString("base64"),
               iv: encryptedPayload.iv.toString("base64"),
@@ -4157,11 +4130,7 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
       describe("update", () => {
         it("returns ok when kyc is started", async () => {
           await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, account));
-          const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-            ok: true,
-            status: 200,
-            arrayBuffer: () => Promise.resolve(new TextEncoder().encode("{}").buffer),
-          } as Response);
+          const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json({}));
 
           const response = await appClient.application.$patch(
             { json: { firstName: "john-updated" } },
@@ -4184,11 +4153,7 @@ S2kN/NOykbyVL4lgtUzf0IfkwpCHWOrrpQA4yKk3kQRAenP7rOZThdiNNzz4U2BE
 
         it("accepts postal code updates with hyphens and spaces", async () => {
           await database.update(credentials).set({ pandaId: "pandaId" }).where(eq(credentials.id, account));
-          const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
-            ok: true,
-            status: 200,
-            arrayBuffer: () => Promise.resolve(new TextEncoder().encode("{}").buffer),
-          } as Response);
+          const mockFetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json({}));
 
           const json = {
             address: {
