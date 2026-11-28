@@ -504,7 +504,7 @@ export default function hook({
                           failures.push(error);
                           captureException(error, {
                             level: "error",
-                            contexts: { payment: { account: sender, userOpHash: args.userOpHash } },
+                            contexts: { payment: { account: sender, userOpHash: args.userOpHash, code } },
                           });
                           return false;
                         },
@@ -521,7 +521,7 @@ export default function hook({
                     failures.push(error);
                     captureException(error, {
                       level: "error",
-                      contexts: { payment: { account: args.sender, userOpHash: args.userOpHash } },
+                      contexts: { payment: { account: args.sender, userOpHash: args.userOpHash, code } },
                     });
                   });
                 }

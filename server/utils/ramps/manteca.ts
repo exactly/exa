@@ -1040,6 +1040,7 @@ export async function pay(
         contexts: {
           payment: {
             ...contexts.payment,
+            code,
             cause: lock === null ? "expired" : "lock",
             ...(refund && { refund: "automatic" }),
           },
@@ -1059,6 +1060,7 @@ export async function pay(
         contexts: {
           payment: {
             ...contexts.payment,
+            code,
             cause: "payer",
             persona: personaAccount?.id,
             ...(refund && { refund: "automatic" }),
@@ -1080,6 +1082,7 @@ export async function pay(
         contexts: {
           payment: {
             ...contexts.payment,
+            code,
             cause: "amount",
             assets: String(assets),
             lock: lock.paymentAgainstAmount,
