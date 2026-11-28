@@ -54,7 +54,6 @@ import chain, {
   marketWETHAddress,
   mockSwapperAbi,
   proposalManagerAbi,
-  proposalManagerAddress,
   swapperAddress,
   upgradeableModularAccountAbi,
   usdcAddress,
@@ -2211,12 +2210,11 @@ describe.concurrent("authenticated", () => {
       const withdraws = parseEventLogs({ abi: marketAbi, eventName: "Withdraw", logs: receipt.logs });
       const [{ timestamp }, nonce] = await Promise.all([
         anvilClient.getBlock({ blockNumber: receipt.blockNumber }),
-        publicClient.readContract({
-          address: proposalManagerAddress,
-          abi: proposalManagerAbi,
-          functionName: "nonces",
-          args: [withdrawer],
-        }),
+        publicClient
+          .readContract({ address: plugin, abi: exaPluginAbi, functionName: "proposalManager" })
+          .then((address) =>
+            publicClient.readContract({ address, abi: proposalManagerAbi, functionName: "nonces", args: [withdrawer] }),
+          ),
       ]);
 
       await indexed(receipt.blockNumber);
