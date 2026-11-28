@@ -15,7 +15,7 @@ import Button from "../shared/StyledButton";
 import Text from "../shared/Text";
 import View from "../shared/View";
 
-import type { CardWithPIN } from "../../utils/server";
+import type { CardDetails, CardWithPIN } from "../../utils/server";
 
 export default function CardPIN({
   open,
@@ -27,7 +27,15 @@ export default function CardPIN({
   open: boolean;
 }) {
   const { t } = useTranslation();
-  const { data: card, isPending, error, refetch } = useQuery<CardWithPIN>({ queryKey: ["card", "pin"], enabled: open });
+  const {
+    data: card,
+    isPending,
+    error,
+    refetch,
+  } = useQuery<CardWithPIN>({
+    queryKey: ["card", "pin", useQuery<CardDetails>({ queryKey: ["card", "details"] }).data?.lastFour],
+    enabled: open,
+  });
   const offboarded = open && isOffboarded(error);
   useEffect(() => {
     if (offboarded) onOffboarded();
