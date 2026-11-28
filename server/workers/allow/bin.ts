@@ -6,6 +6,7 @@ import { name } from "./job";
 import worker from "./worker";
 import * as schema from "../../database/schema";
 import supervise, { own } from "../../supervise";
+import postgres from "../../utils/postgres";
 import secret from "../../utils/secret";
 import { signer } from "../../utils/wallet";
 import { connect } from "../worker";
@@ -17,7 +18,7 @@ supervise(
   name,
   Promise.all([
     secret("redis-url", secrets).then((url) => connect(url)),
-    secret("allow-postgres-url", secrets).then((url) => drizzle(url, { schema })),
+    postgres("allow", secrets).then((client) => drizzle({ client, schema })),
     signer("allower", kms),
   ]).then(([bullmq, database, allower]) =>
     own(

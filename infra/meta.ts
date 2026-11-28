@@ -1,4 +1,17 @@
-import { iam, kms, orgpolicy, projects, Provider, secretmanager, serviceaccount, storage } from "@pulumi/gcp";
+// cspell:ignore autoresize cloudsql cloudsqlsuperuser servicenetworking sqladmin
+import {
+  compute,
+  iam,
+  kms,
+  orgpolicy,
+  projects,
+  Provider,
+  secretmanager,
+  serviceaccount,
+  servicenetworking,
+  sql,
+  storage,
+} from "@pulumi/gcp";
 import { automation, interpolate, runtime } from "@pulumi/pulumi";
 import { readdir } from "node:fs/promises";
 import process, { argv, stdout } from "node:process";
@@ -43,6 +56,10 @@ const stacks = await Promise.all(
       if (typeof location !== "string" || location.length === 0) throw new Error(`invalid exa:location in ${name}`);
       if (typeof project !== "string" || project.length === 0) throw new Error(`missing gcp:project in ${name}`);
       return {
+        databases: parse(
+          optional(object({ database: string(), indexer: string() })),
+          settings.config?.["exa:databases"],
+        ),
         location,
         name,
         project,
@@ -337,7 +354,23 @@ const selected = await automation.LocalWorkspace.selectStack(
             { member, role: "roles/iam.serviceAccountUser", serviceAccountId: indexer.name },
             { provider },
           );
-          for (const name of Object.keys(stack.services)) {
+          const users: { account: serviceaccount.Account; database?: string[]; id: string; indexer?: string[] }[] = [
+            { account: indexer, id: `${stack.name}-indexer`, indexer: ["cloudsqlsuperuser"] },
+          ];
+          if (stack.databases) {
+            const push = new serviceaccount.Account(
+              `${stack.name}-db-push`,
+              { accountId: `${stack.name}-db-push` },
+              { dependsOn: service, provider },
+            );
+            new serviceaccount.IAMMember(
+              `${stack.name}-db-push`,
+              { member, role: "roles/iam.serviceAccountUser", serviceAccountId: push.name },
+              { provider },
+            );
+            users.push({ account: push, database: ["cloudsqlsuperuser"], id: `${stack.name}-db-push` });
+          }
+          for (const [name, spec] of Object.entries(stack.services)) {
             const identity = `${stack.name}-${name === "api" ? name : `${name}-hook`}`;
             const account = new serviceaccount.Account(
               identity,
@@ -349,8 +382,9 @@ const selected = await automation.LocalWorkspace.selectStack(
               { member, role: "roles/iam.serviceAccountUser", serviceAccountId: account.name },
               { protect: false, provider },
             );
+            users.push({ account, id: identity, ...access(spec) });
           }
-          for (const name of Object.keys(stack.workers)) {
+          for (const [name, spec] of Object.entries(stack.workers)) {
             const identity = `${stack.name}-${name}-worker`;
             const account = new serviceaccount.Account(
               identity,
@@ -366,6 +400,101 @@ const selected = await automation.LocalWorkspace.selectStack(
                 { member: principal, role: "roles/iam.serviceAccountUser", serviceAccountId: account.name },
                 { protect: false, provider },
               );
+            }
+            users.push({ account, id: identity, ...access(spec) });
+          }
+          if (stack.databases) {
+            const databaseServices = ["servicenetworking", "sqladmin"].map(
+              (api) =>
+                new projects.Service(
+                  `${stack.name}-${api}`,
+                  { disableOnDestroy: false, service: `${api}.googleapis.com` },
+                  { provider },
+                ),
+            );
+            const network = `projects/${project}/global/networks/${stack.name}-network`;
+            const range = new compute.GlobalAddress(
+              `${stack.name}-database`,
+              {
+                addressType: "INTERNAL",
+                name: `${stack.name}-database`,
+                network,
+                prefixLength: 24,
+                purpose: "VPC_PEERING",
+              },
+              { provider },
+            );
+            const peering = new servicenetworking.Connection(
+              `${stack.name}-database`,
+              { network, reservedPeeringRanges: [range.name], service: "servicenetworking.googleapis.com" },
+              { dependsOn: databaseServices, provider },
+            );
+            for (const [kind, database] of [
+              ["database", "exa"],
+              ["indexer", "indexer"],
+            ] as const) {
+              const instance = new sql.DatabaseInstance(
+                `${stack.name}-${kind}`,
+                {
+                  databaseVersion: "POSTGRES_18",
+                  deletionProtection: true,
+                  name: `${stack.name}-${kind}`,
+                  region: stack.location,
+                  settings: {
+                    availabilityType: "ZONAL",
+                    backupConfiguration:
+                      kind === "database" ? { enabled: true, pointInTimeRecoveryEnabled: true } : { enabled: false },
+                    databaseFlags: [{ name: "cloudsql.iam_authentication", value: "on" }],
+                    deletionProtectionEnabled: true,
+                    diskAutoresize: true,
+                    diskType: "PD_SSD",
+                    edition: "ENTERPRISE",
+                    ipConfiguration: {
+                      ipv4Enabled: false,
+                      privateNetwork: network,
+                      sslMode: "TRUSTED_CLIENT_CERTIFICATE_REQUIRED",
+                    },
+                    tier: stack.databases[kind],
+                  },
+                },
+                { dependsOn: [...databaseServices, peering], provider },
+              );
+              new sql.Database(
+                `${stack.name}-${kind}-${database}`,
+                { instance: instance.name, name: database },
+                { provider },
+              );
+              for (const { id, [kind]: roles } of users) {
+                if (!roles) continue;
+                new sql.User(
+                  `${id}-${kind}`,
+                  {
+                    databaseRoles: roles,
+                    deletionPolicy: "ABANDON",
+                    instance: instance.name,
+                    name: `${id}@${project}.iam`,
+                    type: "CLOUD_IAM_SERVICE_ACCOUNT",
+                  },
+                  { provider },
+                );
+              }
+            }
+            for (const role of ["roles/cloudsql.client", "roles/cloudsql.instanceUser"]) {
+              for (const { account, id } of users) {
+                new projects.IAMMember(
+                  `${id}-${role.slice(role.indexOf(".") + 1)}`,
+                  {
+                    condition: {
+                      expression: `resource.name.startsWith("projects/${project}/instances/${stack.name}-")`,
+                      title: `${stack.name} databases`,
+                    },
+                    member: interpolate`serviceAccount:${account.email}`,
+                    project,
+                    role,
+                  },
+                  { provider },
+                );
+              }
             }
           }
           for (const [name, role] of [
@@ -506,3 +635,10 @@ await selected[argv[2]]({
     ? { onEvent: (event: automation.EngineEvent) => stdout.write(`${JSON.stringify(event)}\n`) }
     : { onOutput: (output: string) => stdout.write(output) }),
 });
+
+function access({ indexer, postgres }: { indexer?: "only" | "views"; postgres: boolean }) {
+  return {
+    ...(postgres && indexer !== "only" && { database: ["pg_read_all_data", "pg_write_all_data"] }),
+    ...(indexer && { indexer: ["pg_read_all_data"] }),
+  };
+}

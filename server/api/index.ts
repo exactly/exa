@@ -51,6 +51,7 @@ export default function api({
   sardine,
   segment,
   subscribe,
+  views,
   walletExtension,
 }: {
   authSecret: string;
@@ -68,6 +69,7 @@ export default function api({
   sardine: ReturnType<typeof createSardine>;
   segment: ReturnType<typeof createSegment>;
   subscribe: ReturnType<typeof createSubscribe>;
+  views: NodePgDatabase<typeof schema>;
   walletExtension: ReturnType<typeof createWalletExtension>;
 }) {
   const betterAuth = createBetterAuth(database, authSecret);
@@ -103,7 +105,7 @@ export default function api({
         walletExtension,
       }),
     )
-    .route("/activity", activity({ auth, database }))
+    .route("/activity", activity({ auth, database, views }))
     .route("/card", card({ auth, credit, database, panda, pax, persona, sardine, segment, walletExtension }))
     .route("/cards", cards({ auth, database, panda, segment }))
     .route("/events", events({ auth, database }))

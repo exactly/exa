@@ -1,13 +1,12 @@
 import { KeyManagementServiceClient } from "@google-cloud/kms";
 import { SecretManagerServiceClient } from "@google-cloud/secret-manager";
-import { drizzle } from "drizzle-orm/node-postgres";
 import { Redis } from "ioredis";
 
-import * as schema from "../../database/schema";
 import supervise, { own } from "../../supervise";
 import { publisher } from "../../utils/events";
 import createOnesignal from "../../utils/onesignal";
 import createPanda from "../../utils/panda";
+import { databases, end } from "../../utils/postgres";
 import createSardine from "../../utils/sardine";
 import secret from "../../utils/secret";
 import createSegment from "../../utils/segment";
@@ -22,7 +21,7 @@ const secrets = new SecretManagerServiceClient();
 supervise(
   "panda",
   Promise.all([
-    secret("panda-postgres-url", secrets).then((url) => publisher(drizzle(url, { schema }))),
+    databases("panda", secrets),
     signer("issuer", kms),
     secret("panda-onesignal-api-keys", secrets).then((key) => createOnesignal(key)),
     Promise.all([secret("panda-panda-api-key", secrets), secret("panda-api-url", secrets)]).then(([key, url]) =>
@@ -37,26 +36,38 @@ supervise(
     ),
     secret("panda-segment-write-key", secrets).then((key) => createSegment(key)),
     signer("settler", kms),
-  ]).then(([database, issuer, onesignal, provider, webhookKey, [redis, refund, webhook], sardine, segment, settler]) =>
-    own(
-      panda({
-        database,
-        issuer,
-        onesignal,
-        panda: provider,
-        redis,
-        refund,
-        sardine,
-        segment,
-        settler,
-        webhook,
-        webhookKey,
-      }),
-      () => database.$client.end(),
-      () => kms.close(),
-      () => secrets.close(),
-      () => segment.close(),
-      () => Promise.all([refund.close(), webhook.close()]).finally(() => redis.quit()),
-    ),
+  ]).then(
+    ([
+      { database, views },
+      issuer,
+      onesignal,
+      provider,
+      webhookKey,
+      [redis, refund, webhook],
+      sardine,
+      segment,
+      settler,
+    ]) =>
+      own(
+        panda({
+          database: publisher(database),
+          issuer,
+          onesignal,
+          panda: provider,
+          redis,
+          refund,
+          sardine,
+          segment,
+          settler,
+          views,
+          webhook,
+          webhookKey,
+        }),
+        () => end(database, views),
+        () => kms.close(),
+        () => secrets.close(),
+        () => segment.close(),
+        () => Promise.all([refund.close(), webhook.close()]).finally(() => redis.quit()),
+      ),
   ),
 );

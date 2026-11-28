@@ -46,14 +46,16 @@ export default function hook({
   onesignal,
   poke,
   redis,
+  views,
 }: {
   alchemy: ReturnType<typeof createAlchemy>;
   database: NodePgDatabase<typeof schema> & { $client: Pool };
   onesignal: ReturnType<typeof createOnesignal>;
   poke: ReturnType<typeof createPoke>;
   redis: Redis;
+  views: NodePgDatabase<typeof schema> & { $client: Pool };
 }) {
-  const indexer = indexed(database.$client);
+  const indexer = indexed(views.$client);
   let entries = new Map<string, { network: string; signingKey: string }>();
   let refreshed = 0;
   let refreshing: Promise<void> | undefined;

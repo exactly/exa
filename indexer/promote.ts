@@ -3,13 +3,15 @@ import { argv, env } from "node:process";
 import { setTimeout } from "node:timers/promises";
 import pg from "pg";
 
+import postgres, { close } from "./postgres";
+
 const dropped = new Set<string>(["markets.usd_price"]);
 
 const [schema] = argv.slice(2);
 if (!schema) throw new Error("usage: node promote.ts <schema>");
 const views = "indexer";
 
-const client = new pg.Client({ connectionString: env.POSTGRES_URL });
+const client = new pg.Client({ connectionString: env.POSTGRES_URL, ...(await postgres()) });
 const meta = `${client.escapeIdentifier(schema)}._ponder_meta`;
 await client.connect();
 try {
@@ -52,6 +54,7 @@ try {
   }
 } finally {
   await client.end();
+  close();
 }
 
 async function ready() {

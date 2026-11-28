@@ -27,6 +27,7 @@
       "types": "./api/*.ts"
     },
     "./api/bin": "./dist/api/bin.cjs",
+    "./database/push": "./dist/database/push.cjs",
     "./instrument": "./dist/instrument.cjs",
     "./hooks/*/bin": "./dist/hooks/bin/*.cjs",
     "./workers/*/bin": "./dist/workers/*/bin.cjs"
@@ -41,6 +42,7 @@
   },
   "dependencies": {
     "@exactly/lib": "^0.1.0",
+    "@google-cloud/cloud-sql-connector": "^1.13.1",
     "@google-cloud/kms": "^6.0.0",
     "@google-cloud/secret-manager": "^7.0.0",
     "@hono/node-server": "catalog:",
@@ -64,6 +66,7 @@
     "bullmq": "^5.79.0",
     "canonicalize": "^3.0.0",
     "debug": "^4.4.3",
+    "drizzle-kit": "^0.31.10",
     "drizzle-orm": "^0.45.2",
     "hono": "catalog:",
     "hono-openapi": "^0.4.8",
@@ -98,7 +101,6 @@
     "@vitest/coverage-v8": "^5.0.5",
     "@vitest/ui": "^5.0.5",
     "@wagmi/core": "catalog:",
-    "drizzle-kit": "^0.31.10",
     "embedded-postgres": "^18.3.0-beta.16",
     "eslint": "catalog:",
     "eslint-config-universe": "^15.0.3",

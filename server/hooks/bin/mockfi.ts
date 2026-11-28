@@ -3,15 +3,15 @@ import { drizzle } from "drizzle-orm/node-postgres";
 
 import * as schema from "../../database/schema";
 import supervise, { own } from "../../supervise";
-import secret from "../../utils/secret";
+import { indexer } from "../../utils/postgres";
 import createMockfiHook from "../mockfi";
 
 const secrets = new SecretManagerServiceClient();
 
 supervise(
   "mockfi",
-  secret("mockfi-postgres-url", secrets)
-    .then((url) => drizzle(url, { schema }))
+  indexer("mockfi", secrets)
+    .then((client) => drizzle({ client, schema }))
     .then((database) =>
       own(
         createMockfiHook({ database }),
