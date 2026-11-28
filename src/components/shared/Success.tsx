@@ -4,7 +4,7 @@ import { Pressable } from "react-native";
 
 import { Square, XStack, YStack } from "tamagui";
 
-import { marketUSDCAddress } from "@exactly/common/generated/chain";
+import chain, { marketUSDCAddress } from "@exactly/common/generated/chain";
 
 import GradientScrollView from "./GradientScrollView";
 import IconButton from "./IconButton";
@@ -19,6 +19,7 @@ import type { Hex } from "@exactly/common/validation";
 
 export default function Success({
   amount,
+  chainId = chain.id,
   repayAssets,
   currency,
   maturity,
@@ -28,6 +29,7 @@ export default function Success({
   queued,
 }: {
   amount: number;
+  chainId?: number;
   currency?: string;
   maturity: bigint;
   onClose: () => void;
@@ -106,7 +108,7 @@ export default function Success({
                 )}
               </YStack>
             </YStack>
-            <TransactionDetails />
+            <TransactionDetails chainId={chainId} />
           </YStack>
         </YStack>
         <View flex={2} justifyContent="flex-end">

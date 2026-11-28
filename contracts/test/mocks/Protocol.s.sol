@@ -197,6 +197,7 @@ contract DeployProtocol is BaseScript {
     frozen.setFrozen(true);
     ProposalManager(broadcast("ProposalManager")).allowTarget(address(asset), true);
     firewall.allow(broadcast("Depositor"), true);
+    firewall.allow(broadcast("ExaPlugin"), true);
 
     asset.mint(acct("swapper"), 1_000_000e6);
 
