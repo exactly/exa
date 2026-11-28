@@ -13,4 +13,5 @@ appId: ${APP_ID ?? "app.exactly"}
 - runFlow: hideDevtools.yaml
 - runFlow: signIn.yaml
 - runFlow: dismissNotifications.yaml
-- runFlow: getAccount.yaml
+- assertVisible: ${landing ?? "Good (morning|afternoon|evening)!"}
+- runFlow: { when: { true: "${!landing}" }, file: getAccount.yaml }
